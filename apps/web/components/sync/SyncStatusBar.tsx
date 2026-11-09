@@ -17,22 +17,29 @@ import { SyncCenterSheet } from './SyncCenterSheet';
 type PillState = 'offline' | 'syncing' | 'attention' | 'failed' | 'queued' | 'held' | 'synced';
 
 const PILL = {
-  offline: { icon: WifiOff, className: 'text-destructive' },
-  syncing: { icon: RefreshCw, className: 'animate-spin text-primary' },
-  attention: { icon: AlertTriangle, className: 'text-warning' },
-  failed: { icon: CloudOff, className: 'text-destructive' },
-  queued: { icon: RefreshCw, className: 'text-muted-foreground' },
-  held: { icon: AlertTriangle, className: 'text-warning-ink' },
-  synced: { icon: CheckCircle2, className: 'text-success' },
+  offline: { icon: WifiOff, className: 'bg-warning-surface text-warning-ink', short: 'Offline' },
+  syncing: { icon: RefreshCw, className: 'bg-selected text-primary', short: 'Syncing…' },
+  attention: {
+    icon: AlertTriangle,
+    className: 'bg-warning-surface text-warning-ink',
+    short: 'Attention',
+  },
+  failed: {
+    icon: CloudOff,
+    className: 'bg-destructive-surface text-destructive-ink',
+    short: 'Failed',
+  },
+  queued: { icon: RefreshCw, className: 'bg-surface-2 text-muted-foreground', short: 'Queued' },
+  held: { icon: AlertTriangle, className: 'bg-warning-surface text-warning-ink', short: 'Review' },
+  synced: { icon: CheckCircle2, className: 'bg-success-surface text-success-ink', short: 'Synced' },
 } as const;
 
 /**
  * The header's sync pill and the sync center it opens.
  *
- * The pill was `hidden md:flex`, so on a phone there was no way to see whether anything was
- * queued, let alone why something had failed. It now shows at every width: one compact control
- * with a count on a phone, where Sync now lives inside the sheet, and the full label plus a Sync
- * button from `sm` up. The whole pill opens the sync center.
+ * A fixed footprint keeps clinic/account controls still as state and counts change. Phone labels
+ * are short; the accessible name always carries the full status. Sync now stays in the sheet on
+ * phones and is also available beside the pill from the workspace's 600px breakpoint.
  */
 export function SyncStatusBar({
   clinicId,
@@ -111,34 +118,58 @@ export function SyncStatusBar({
     synced: 'All synced',
   }[state];
   const count = state === 'attention' ? blocked : waiting + (state === 'offline' ? blocked : 0);
-  const { icon: Icon, className: iconClassName } = PILL[state];
+  const presentation = PILL[state];
 
   return (
     <>
-      <div
-        className={cn(
-          'flex items-center rounded-lg border bg-card text-sm transition-colors duration-fast ease-out-strong',
-          state === 'attention' ? 'border-warning/40' : 'border-border',
-        )}
-      >
+      <div className="flex shrink-0 items-center text-sm">
         <button
           type="button"
           onClick={() => setSyncCenterOpen(true)}
-          className="relative flex h-11 min-w-11 items-center gap-2 rounded-lg px-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:rounded-r-none"
+          className="relative flex min-h-11 w-[min(6.75rem,180px)] min-w-11 items-center rounded-md py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring compact:w-[192px]"
           aria-label={`Offline changes: ${label}.${
             otherClinicChanges > 0 ? ` ${otherClinicChanges} saved for other clinics.` : ''
           } Open sync center.`}
           data-testid="sync-status"
           data-state={state}
         >
-          <Icon aria-hidden="true" className={cn('h-4 w-4 shrink-0', iconClassName)} />
           <span
             className={cn(
-              'hidden whitespace-nowrap sm:inline',
-              state === 'attention' ? 'font-medium text-warning-ink' : 'text-muted-foreground',
+              'flex min-h-8 w-full items-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors duration-fast ease-out-strong hover:brightness-95 motion-reduce:transition-none compact:gap-2 compact:px-2.5 compact:text-sm',
+              presentation.className,
             )}
           >
-            {label}
+            <span aria-hidden="true" className="relative size-4 shrink-0">
+              {(Object.keys(PILL) as PillState[]).map((key) => {
+                const Icon = PILL[key].icon;
+                return (
+                  <span
+                    key={key}
+                    data-sync-icon={key}
+                    className={cn(
+                      'absolute inset-0 transition-[opacity,filter,transform] duration-fast ease-out-strong motion-reduce:transform-none motion-reduce:filter-none motion-reduce:transition-none',
+                      key === state ? 'scale-100 opacity-100 blur-0' : 'scale-75 opacity-0 blur-sm',
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        'size-4',
+                        key === 'syncing' &&
+                          state === 'syncing' &&
+                          'animate-spin motion-reduce:animate-none',
+                      )}
+                    />
+                  </span>
+                );
+              })}
+            </span>
+            <span className="truncate compact:hidden">{presentation.short}</span>
+            <span className="hidden truncate compact:inline">{label}</span>
+            {count > 0 ? (
+              <span aria-hidden="true" className="ml-auto tabular-nums compact:hidden">
+                {count > 99 ? '99+' : count}
+              </span>
+            ) : null}
           </span>
           {otherClinicChanges > 0 || hasHeldChanges ? (
             // A quiet marker, not a count: it says "look in the sync center" without inflating
@@ -149,31 +180,20 @@ export function SyncStatusBar({
               className="absolute left-1.5 top-1.5 h-2 w-2 rounded-full bg-primary"
             />
           ) : null}
-          {count > 0 ? (
-            <span
-              aria-hidden="true"
-              className={cn(
-                'absolute right-1 top-1 min-w-4 rounded-full px-1 text-center text-[10px] font-semibold leading-4 sm:hidden',
-                state === 'attention'
-                  ? 'bg-warning text-foreground'
-                  : 'bg-muted text-muted-foreground',
-              )}
-            >
-              {count}
-            </span>
-          ) : null}
         </button>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => void syncNow(clinicId)}
           disabled={!isOnline || syncStatus === 'syncing' || !canSync}
-          className="hidden rounded-l-none border-l border-border sm:inline-flex"
+          className="hidden compact:inline-flex"
           aria-label="Sync now"
         >
           <RefreshCw
             aria-hidden="true"
-            className={syncStatus === 'syncing' ? 'animate-spin' : undefined}
+            className={
+              syncStatus === 'syncing' ? 'animate-spin motion-reduce:animate-none' : undefined
+            }
           />
         </Button>
       </div>

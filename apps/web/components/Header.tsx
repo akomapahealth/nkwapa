@@ -16,6 +16,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -131,17 +132,19 @@ export function Header({
       .join('')
       .toUpperCase() ?? '?';
 
-  /*
-    One clinic switcher, in the header at every width: the clinic name with the active role beside
-    it as text (MASTER.md section 12). It used to be three things (an "Active clinic" label, a
-    separate picker from md, and role badges from lg) plus a second copy of the picker in the
-    navigation sheet, because the header had no room for a 220px select below 1024px. As a
-    borderless trigger sized to its text it fits a 390px header beside the menu, sync and account.
-  */
+  // Staff context follows the pilot: clinic above role, with both lines allowed to shrink.
+  // Keep the portal's existing presentation until R2.5.
   const switcherLabel = `Active clinic: ${clinicName}${roleText ? `, ${roleText}` : ''}`;
   const roleSuffix = roleText ? (
-    // Visible from `sm`; on a phone it stays in the accessible name and shows in the menu sheet.
-    <span className="sr-only shrink-0 font-normal text-muted-foreground sm:not-sr-only">
+    <span
+      className={cn(
+        'font-normal text-muted-foreground',
+        onToggleSidebar
+          ? 'block truncate text-xs leading-tight'
+          : 'sr-only shrink-0 sm:not-sr-only',
+      )}
+      title={roleText}
+    >
       {roleText}
     </span>
   ) : null;
@@ -150,24 +153,42 @@ export function Header({
       <Select value={clinicId ?? ''} onValueChange={(value) => void handleClinicChange(value)}>
         <SelectTrigger
           aria-label={`${switcherLabel}. Switch clinic`}
-          className="w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none"
+          className={cn(
+            'w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none',
+            onToggleSidebar && 'h-auto min-h-11 min-w-[44px] flex-1 py-1 text-left',
+          )}
         >
-          <span className="min-w-0 truncate font-semibold text-foreground">
-            <SelectValue placeholder="Select clinic" />
+          <span className="min-w-0 truncate text-left font-semibold text-foreground">
+            <span className="block truncate" title={clinicName}>
+              <SelectValue placeholder="Select clinic">{activeClinic?.clinicName}</SelectValue>
+            </span>
+            {onToggleSidebar ? roleSuffix : null}
           </span>
-          {roleSuffix}
+          {!onToggleSidebar ? roleSuffix : null}
         </SelectTrigger>
-        <SelectContent>
-          {switchableClinics.map((clinic) => (
-            <SelectItem key={clinic.clinicId} value={clinic.clinicId}>
-              {clinic.clinicName}
-            </SelectItem>
-          ))}
+        <SelectContent className="max-w-[calc(100vw-2rem)]">
+          <SelectGroup>
+            {switchableClinics.map((clinic) => (
+              <SelectItem key={clinic.clinicId} value={clinic.clinicId}>
+                <span className="break-words whitespace-normal [overflow-wrap:anywhere]">
+                  {clinic.clinicName}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
     ) : (
-      <p className="flex min-w-0 items-center gap-2 px-2.5 text-sm">
-        <span className="truncate font-semibold text-foreground">{clinicName}</span>
+      <p
+        className={cn(
+          'min-w-0 px-2.5 text-sm',
+          onToggleSidebar ? 'flex flex-col justify-center' : 'flex items-center gap-2',
+        )}
+        aria-label={switcherLabel}
+      >
+        <span className="truncate font-semibold text-foreground" title={clinicName}>
+          {clinicName}
+        </span>
         {roleSuffix}
       </p>
     );
@@ -179,7 +200,14 @@ export function Header({
         onToggleSidebar && 'compact:rounded-t-xl compact:bg-card/95',
       )}
     >
-      <div className="flex h-14 items-center gap-2 px-4 md:px-6">
+      <div
+        className={cn(
+          'flex min-h-14 items-center gap-2 px-4 md:px-6',
+          // Pixel gutters leave room for enlarged text and touch targets at the 320px boundary.
+          onToggleSidebar &&
+            'flex-wrap gap-[4px] px-[12px] py-1 compact:gap-2 compact:px-4 desktop:px-5',
+        )}
+      >
         {onToggleSidebar && (
           <Image
             src="/images/nkwapa-mark.png"
@@ -290,9 +318,17 @@ export function Header({
           </TooltipProvider>
         ) : null}
 
-        <div className="flex min-w-0 flex-1 items-center">{clinicSwitcher}</div>
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 items-center',
+            onToggleSidebar && 'min-w-[6rem] compact:min-w-0',
+          )}
+        >
+          {clinicSwitcher}
+        </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-[4px] compact:gap-2">
+          <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
           {/*
             Message delivery: an icon with its name in a tooltip, and no badge, because the ledger
             is outbound delivery with nothing to read (MASTER.md section 12). From `md`; on a phone
@@ -346,13 +382,11 @@ export function Header({
             })}
           </TooltipProvider>
 
-          <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full" aria-label="User menu">
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="bg-primary text-xs text-primary-foreground">
+                <Avatar className="size-9">
+                  <AvatarFallback className="bg-selected text-xs font-semibold text-primary">
                     {initials}
                   </AvatarFallback>
                 </Avatar>

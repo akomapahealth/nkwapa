@@ -332,6 +332,42 @@ Verify zoom, long content, virtual-keyboard behavior, and PWA installed display 
 
 **Next unit:** R2.3 compact Header and sync icon presentation. Self-contained continuation guidance is in `ui-refresh/HANDOFF-R2.3.md`, with links to the established isolated-audit recipes.
 
+## R2.3: compact Header and sync presentation (2026-11-08)
+
+**Unit ID:** R2.3
+
+**Phase:** R2 adaptive app shell
+
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+
+**Status:** Complete within the validation boundaries below.
+
+**Screen(s) or components:** Staff Header and shared sync pill; existing clinic picker, account utilities, Sync now and sync-center integration.
+
+**Design changes:** Staff clinic and role now form two independently truncated lines at every width, with full existing context in the accessible name. Explicit selected text keeps wrapping Select options from expanding the phone bar. Phone pixel gutters, a minimum context width and wrapping actions preserve visible clinic/role text with enlarged fonts. The sync pill precedes Message delivery and account actions, with quiet semantic status surfaces inside 44px minimum targets. Its phone width is 6.75rem (108px normally, capped at 180px when enlarged), reserving 192px from 600px. Short phone labels and capped visual counts retain complete accessible status. The existing seven-state priority, clinic/owner counts, recovery access and actions remain. Persistent decorative icons crossfade with 150ms shared ease-out; text updates immediately, transitions reverse from the current frame and reduced motion removes movement/spinner rotation under the shared clamp. No new libraries, routes, permission filters, backend, database, clinical or sync behavior.
+
+**Files changed:** `components/Header.tsx`, `components/sync/SyncStatusBar.tsx`; new `e2e/header-sync.spec.js`, `e2e/component-fixtures/{SyncPill,SyncPillState}.tsx`; MASTER, this tracker, `ui-refresh/R2.3-REVIEW.md` and `ui-refresh/HANDOFF-R2.4.md`.
+
+**Desktop/tablet tested:** Eleven widths through 1440px, long clinic/role context, existing 232/64px desktop and labelled 76px rail, truthful collapse state/preferences, Message delivery and Sync now from 600px, role inventories and mounted table state. Both station modes retain independent Jest nav expectations; no flag-off browser build is claimed.
+
+**Phone tested:** 320/390/599, transition at 600px, 44px targets, single-line clinic text, visible context and status at 200% root text, no clinic, clinic-switch success/refusal feedback, account keyboard actions, More/route/history lifecycle and sync handoff/close focus. Root-font tests are bounded automation, not physical-device or browser-zoom validation.
+
+**Dark mode and accessibility:** Both themes, all seven states at all eleven widths, exact accessible names, stable adjacent control positions, final icon visibility, interrupted transitions, reduced-motion styles/spinner, keyboard sheet access and refresh wiring. Fourteen state-scoped axe scans, two closed-Header full-page scans and the two existing open-More full-page scans are clean. No rule exclusions or modal semantics changed; prior open-Select/menu findings remain open.
+
+**Offline/sync regression:** Real conflict recovery, offline patient-edit replay, owner/other-clinic queues, retry/idempotency and responsive/offline routes were exercised. The isolated pill fixture uses valid synthetic rows/provider state and a stub pass-event subscription; production queue/state selection, markup and sheet remain in the bundle. It never writes a real outbox.
+
+**Tests executed and results:** Final audit-flag build, standalone TypeScript, changed-file ESLint/Prettier, whitespace and detector checks passed. ESLint retains the existing repository-root Pages-directory notice while exiting successfully. Jest with two workers: **93 suites / 1019 tests passed**. Final-source 70-case focused run: **68 passed / 2 failed**, including six auth setups; the two pill cases had an obsolete `0s` assertion against the existing `0.01ms` reduced-motion clamp. Corrected Header/sync recheck: **6/6 passed** without rerunning auth setup. Thus **64 distinct browser cases** have passing final-source evidence across these runs; this is not a single 70/70 run. Earlier runs: initial **28 passed / 3 failed / 175 not run** (42px enlarged-text clinic target in both themes and duplicate toast locator), broad candidate **204 passed / 1 failed / 1 not run** (fixture transport import reached `node:crypto`), intermediate focused **68 passed / 2 failed** (incomplete synthetic queue rows). Corrections and retained diagnostics are detailed in R2.3-REVIEW. No full e2e suite ran.
+
+**Route audit:** The six-role normal-route audit passed **12/12 tests** (six authentication setups and six role sweeps), producing **228 route/theme/width rows**, with **zero errors, zero axe violations including minor findings, and zero horizontal overflow**. Normal-route scans do not clear open-overlay findings.
+
+**Evidence:** **232 synthetic PNGs** in ignored `ui-refresh/evidence/r2-3/after/`: 114 normal-route light-theme images, 66 Header/sync images and 52 shell/consumer images. Header/sync and shell supplements include both themes. Sixteen Header/pill axe JSON files and two open-More JSON files are clean. `route-audit.json`, `validation-summary.json` and retained failure/correction logs are beside/under the evidence directory. R2.2 images are the before baseline. No real-patient or third-party reference folders were used, and evidence remains untracked.
+
+**Ranked review:** `ui-refresh/R2.3-REVIEW.md`. Impeccable adaptation/craft/detector, shadcn composition, animate, accessibility and current Web Interface Guidelines consulted; approved sentence case and tiny icon blur retained. No separate agent review ran.
+
+**Outstanding problems:** Prior P1 open-Select/menu background accessibility findings and short dropdown rows remain. Physical devices, installed PWA, non-Chromium, screen readers, virtual keyboard/safe-area behavior and subjective motion checks remain manual. Earlier R1.4/Vitals/Crisis/backend acknowledgement work, Sunday appointment lifecycle findings and prior scope exclusions remain separate.
+
+**Next unit:** R2.4 draggable Sheet, no tween while held and rubber band, using `ui-refresh/HANDOFF-R2.4.md`. R2.5 Portal shell and R3 content remain unbuilt.
+
 ## Required Entry for Every Completed Unit
 
 **Unit ID:**  

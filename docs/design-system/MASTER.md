@@ -712,8 +712,28 @@ The header retains the clinic picker, sync and account controls at every width.
 Message delivery becomes visible from 600px in the staff shell so hiding the phone
 trigger cannot conceal it at 600 to 767px. Clinic settings remains in the account
 menu. Portal header breakpoints remain unchanged. R2.2 replaces the staff hamburger
-with a small brand mark and a persistent bottom bar below 600px. R2.3 owns further
-compact-header work. No new navigation counts or routes.
+with a small brand mark and a persistent bottom bar below 600px. R2.3 stacks the
+staff clinic name above the active role at every width, with independent single-line
+truncation and the complete context in the switcher's accessible name. Explicit
+selected text prevents the option's wrapping styles from expanding the header.
+The row may grow with enlarged text; phone pixel gutters and a 6rem minimum
+context width retain room for touch targets and visible context at 320px. When
+space runs short, the action group wraps below the clinic instead of squeezing
+its text out. The existing clinic-switch success/failure feedback remains.
+No new navigation counts or routes.
+
+The sync control precedes Message delivery and the account menu. Its quiet inner
+status surface is at least 32px tall inside a target of at least 44px. It reserves
+6.75rem on phones (108px at default text, capped at 180px for enlarged text) and
+192px from 600px, so state changes do not shift adjacent
+controls. Phones show short state labels and the active-clinic count (visually
+capped at 99+); the accessible name retains the full status and other-clinic
+count. Full labels and the existing Sync now action appear from 600px. Offline,
+syncing, attention, failed, queued, held and synced retain their existing priority,
+ownership, recovery actions and sheet. Stable icon layers crossfade opacity,
+small scale and blur over the shared 150ms ease-out; CSS transitions reverse from
+their current value. Reduced motion switches icons immediately and stops the
+sync spinner. Text and accessible status update immediately in both modes.
 
 `getMobileNavigation` partitions existing authorized sidebar items using R0-AUDIT
 section 5's fixed priority: Dashboard, Stations, Today Board, My Assigned, Queues,
