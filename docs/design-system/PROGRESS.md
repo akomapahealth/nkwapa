@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1 through R1.6 built on `ui-refresh/r1-1-tokens` and in review. The open-overlay axe finding remains unresolved, including Rows per page in R1.6. R2.1 sidebar/rail is built and in review. Next: R2.2 BottomNav + More.
+**Status:** R0 completed 2026-11-07. R1.1 through R1.6 built on `ui-refresh/r1-1-tokens` and in review. The open-overlay axe finding remains unresolved, including Rows per page in R1.6. R2.1 sidebar/rail and R2.2 BottomNav + More are built and in review. Next: R2.3 compact Header/sync.
 
 ## Phase Status
 
@@ -301,6 +301,36 @@ Verify zoom, long content, virtual-keyboard behavior, and PWA installed display 
 **Outstanding problems:** P1 full-page open-overlay focus/background findings remain unresolved; modal/focus-trap semantics and axe exclusions were not changed. Existing short dropdown action rows, physical devices, Safari/Firefox, installed-PWA and manual screen-reader/motion checks remain open. The final-action sentinel proves only shell-end clearance; other interception paths and Sunday appointment lifecycle failures are not declared fixed. Earlier R1.4/Vitals/Crisis/backend acknowledgement and handoff exclusions remain.
 
 **Next unit:** R2.2 BottomNav + More, derived from existing accessible navigation helpers. R2.3 Header/sync, R2.4 draggable Sheet and R2.5 Portal shell remain unbuilt.
+
+## R2.2: phone BottomNav and More (2026-11-08)
+
+**Branch/commit/PR:** `ui-refresh/r1-1-tokens`; local unit commit, no push or PR.
+
+**Status:** In review, not an unconditional release/accessibility sign-off.
+
+**Owner direction:** “Ignore all learning guardrails.” Follow the live Claude artifact and references closely, and use skills to avoid generic generated UI. The linked artifact was inspected directly in its browser iframe, along with the checked-in pilot and proposed tablet concept. Live artifact collapse at 1440px measured labels at 1px/absolute; production checks confirm every collapsed desktop label is visually hidden. The visible 600–1199px tablet labels are intentional in both the pilot and production. No Sidebar source correction was necessary.
+
+**Design changes:** A persistent phone bar below 600px uses the pilot's 60px row floor, 11.5px labels, teal current state and one moving 2px top indicator. `getMobileNavigation` partitions existing authorized destinations by R0-AUDIT section 5 priority, taking up to four plus More. Existing labels, clinic-aware hrefs, role/feature gates, remaining groups and header/profile utilities are preserved. More reuses the shared Radix Sheet with a titled header and scrolling 85dvh body. It retains account/settings and existing sync access; route/history and crossing 600px close it, with focus returned to More or main as appropriate. A small brand mark replaces the staff hamburger. Chat clears the bar and its panel height accounts for the additional space. Main has 10rem plus safe-area phone clearance and 6rem otherwise. A stronger keyboard test found missing focus after sync closed; `SyncCenterSheet` now remembers the actual entry point and restores focus there, or main if it is gone/hidden. Queue behavior and modal focus-trap semantics remain unchanged. Portal shell, Header/sync redesign and draggable sheets remain R2.5/R2.3/R2.4.
+
+**Files changed:** `components/app-shell/BottomNav.tsx`, `lib/mobile-nav.ts` and its unit tests, `components/{AppLayout,Header}.tsx`, `components/chat/ChatWidget.tsx`, `components/sync/SyncCenterSheet.tsx`, new `e2e/bottom-navigation.spec.js`, adapted `e2e/{shell-navigation,shell-responsive,shell-consumers}.spec.js`, MASTER, this tracker, `ui-refresh/R2.2-REVIEW.md` and `ui-refresh/HANDOFF-R2.3.md`.
+
+**Desktop/tablet tested:** Retained fresh/stored preferences, 232/64px desktop, labelled 76px tablet, boundary widths, tooltip keyboard/scanning, no-clinic controls, short nav heights, current routes and width-driven table state. A dedicated regression checks collapsed label positioning/width and then visible tablet labels.
+
+**Phone tested:** 320/390/599 and transition at 600px; primary targets at least 44px wide and 60px high, no horizontal overflow, More scroll access to final actions, focus containment, Escape return, route/history closure, sync handoff and close-focus from both entry points, reduced motion and root text scaling. Chat launcher/panel bounds and an actual click on a synthetic shell-end final action are covered. Existing five-role inventory tests now compare the union of primary and remaining destinations, retaining independent expected sets for both flag modes.
+
+**Dark mode and accessibility:** Light/dark bar, More, boundaries and desktop states inspected. Two unfiltered full-page open-More axe scans report zero violations, with JSON retained. No axe rule was disabled or subtree excluded for these scans. This does not clear the prior Select/menu P1 findings. The existing accessibility suite retains its documented limitations.
+
+**Offline/sync regression:** Existing responsive/offline states and sync/table fixtures are retained. No provider, queue, retry, clinical save or permission behavior changed; the sync-sheet change is limited to open/close focus restoration.
+
+**Tests executed and results:** Production audit-flag builds passed, including the focus-correction source state. The initial sandboxed Turbopack attempt stalled and was interrupted; approved outside-sandbox builds passed. Standalone TypeScript passed after correcting missing required fields in the synthetic unit-test bootstrap. Changed-file ESLint, formatting, whitespace and the detector passed. Jest with `--maxWorkers=2`: **93 suites / 1019 tests passed**, including independent station flag-on/off nav partition checks. The initial 16-spec Playwright run stopped at three failures: **168 passed / 3 failed / 33 not run**, with one additional runner-level stop summary. All three were a test-order error querying the background Primary landmark after opening a modal, when it is correctly hidden from assistive technology. The assertion moved before opening More. The follow-up completed **47 passed / 1 failed**; its strengthened sync-close focus assertion caught a real missing return target, which was corrected. The final-source focused run passed **65/65 tests**, including six authentication setups and **59 browser checks**, covering accessibility, BottomNav, More/sync focus from both entry points, overlay motion, responsive components, authenticated table consumers, all five staff role inventories and shell boundaries. Six-role normal route audit: **12/12 tests passed**, including six authentication setups and six role sweeps; **228 route/theme/width rows**, with **zero errors, zero axe violations and zero horizontal overflow**. These normal-state results do not clear earlier open-Select/menu findings. No full e2e suite or flag-off browser build ran.
+
+**Evidence:** **166 synthetic PNGs** in ignored `ui-refresh/evidence/r2-2/after/`: 114 normal-route images and 52 shell/consumer boundary, focus and navigation images. Unfiltered More axe JSON is retained alongside them; reference captures and filtered logs are in `diagnostics/`, with `route-audit.json` and `validation-summary.json` beside `after/`. The R2.1 after directory is the before baseline. Live artifact, proposed tablet concept, phone light/dark, open/scrolled More and icons-only desktop screenshots were inspected. No real-patient or third-party reference directories were used or force-added.
+
+**Ranked review:** `ui-refresh/R2.2-REVIEW.md`. Impeccable adaptation/craft/detector and existing shadcn composition guidance; the reference-first discipline also preserves the incumbent visual world. No isolated-agent critique ran.
+
+**Outstanding problems:** Prior P1 open-Select/menu focus/background findings, short dropdown rows, physical-device/PWA/non-Chromium/screen-reader/manual-motion checks remain. Synthetic shell-end clearance is not evidence that every route action or Sunday appointment lifecycle issue is fixed. Earlier R1.4/Vitals/Crisis/backend acknowledgement and scope exclusions remain.
+
+**Next unit:** R2.3 compact Header and sync icon presentation. Self-contained continuation guidance is in `ui-refresh/HANDOFF-R2.3.md`, with links to the established isolated-audit recipes.
 
 ## Required Entry for Every Completed Unit
 

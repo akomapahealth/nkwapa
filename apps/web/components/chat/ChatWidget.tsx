@@ -127,7 +127,7 @@ function ChatPanel() {
       {isOpen && (
         <div
           data-testid="chat-panel"
-          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(620px,calc(100dvh-7.5rem))] max-h-[calc(100vh-7.5rem)] w-[min(420px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-lg sm:h-[min(660px,calc(100dvh-8rem))] sm:max-h-[calc(100vh-8rem)] sm:w-[min(460px,calc(100vw-2.5rem))]"
+          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(620px,calc(100dvh-7.5rem-var(--workspace-bottom-nav-height,0px)))] max-h-[calc(100vh-7.5rem-var(--workspace-bottom-nav-height,0px))] w-[min(420px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-lg sm:h-[min(660px,calc(100dvh-8rem))] sm:max-h-[calc(100vh-8rem)] sm:w-[min(460px,calc(100vw-2.5rem))]"
         >
           {/* Connection indicator */}
           {chat && !chat.isConnected && (
@@ -176,7 +176,7 @@ export function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(0.75rem+env(safe-area-inset-right))] z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:right-[calc(1.25rem+env(safe-area-inset-right))]">
+    <div className="fixed bottom-[calc(1rem+var(--workspace-bottom-nav-height,0px)+env(safe-area-inset-bottom))] right-[calc(0.75rem+env(safe-area-inset-right))] z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:right-[calc(1.25rem+env(safe-area-inset-right))]">
       <ChatProvider>
         <ChatPanel />
       </ChatProvider>

@@ -180,66 +180,77 @@ export function Header({
       )}
     >
       <div className="flex h-14 items-center gap-2 px-4 md:px-6">
-        <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={onToggleSidebar ? 'compact:hidden' : 'md:hidden'}
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open navigation</span>
-            </Button>
-          </SheetTrigger>
-          {/*
+        {onToggleSidebar && (
+          <Image
+            src="/images/nkwapa-mark.png"
+            alt="Nkwapa"
+            width={32}
+            height={32}
+            className="shrink-0 compact:hidden"
+          />
+        )}
+        {!onToggleSidebar && (
+          <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={onToggleSidebar ? 'compact:hidden' : 'md:hidden'}
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open navigation</span>
+              </Button>
+            </SheetTrigger>
+            {/*
             A flex column with a scrolling body. It was `h-full overflow-y-auto` inside a sheet
             that already had a header, so the body was a viewport tall *below* that header and the
             last nav items sat past the bottom of the screen with nothing to scroll them into view.
           */}
-          <SheetContent
-            side="left"
-            className="flex w-[88vw] max-w-[320px] flex-col border-border bg-background p-0"
-          >
-            <SheetHeader className="border-b border-border p-5 text-left">
-              <SheetTitle className="text-left">
-                <div className="space-y-3">
-                  <div className="relative h-11 w-40">
-                    <Image
-                      src="/images/nkwapa-logo.png"
-                      alt="Nkwapa EMR"
-                      fill
-                      sizes="160px"
-                      className="object-contain object-left"
-                    />
+            <SheetContent
+              side="left"
+              className="flex w-[88vw] max-w-[320px] flex-col border-border bg-background p-0"
+            >
+              <SheetHeader className="border-b border-border p-5 text-left">
+                <SheetTitle className="text-left">
+                  <div className="space-y-3">
+                    <div className="relative h-11 w-40">
+                      <Image
+                        src="/images/nkwapa-logo.png"
+                        alt="Nkwapa EMR"
+                        fill
+                        sizes="160px"
+                        className="object-contain object-left"
+                      />
+                    </div>
+                    <p className="text-xs font-medium text-muted-foreground">Workspace menu</p>
                   </div>
-                  <p className="text-xs font-medium text-muted-foreground">Workspace menu</p>
-                </div>
-              </SheetTitle>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-              {roleText ? (
-                <p className="px-3 text-sm text-muted-foreground">
-                  Signed in as <span className="font-medium text-foreground">{roleText}</span>
-                </p>
-              ) : null}
-              <AppNavList
-                bootstrap={bootstrap}
-                mobile
-                onNavigate={() => onMobileOpenChange(false)}
-              />
-              {/* The header icon and the account menu item, mirrored where a phone looks for them. */}
-              {sheetUtilities.length ? (
+                </SheetTitle>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+                {roleText ? (
+                  <p className="px-3 text-sm text-muted-foreground">
+                    Signed in as <span className="font-medium text-foreground">{roleText}</span>
+                  </p>
+                ) : null}
                 <AppNavList
                   bootstrap={bootstrap}
                   mobile
-                  label="Account"
-                  sections={[{ id: 'account', label: 'Account', items: sheetUtilities }]}
                   onNavigate={() => onMobileOpenChange(false)}
                 />
-              ) : null}
-            </div>
-          </SheetContent>
-        </Sheet>
+                {/* The header icon and the account menu item, mirrored where a phone looks for them. */}
+                {sheetUtilities.length ? (
+                  <AppNavList
+                    bootstrap={bootstrap}
+                    mobile
+                    label="Account"
+                    sections={[{ id: 'account', label: 'Account', items: sheetUtilities }]}
+                    onNavigate={() => onMobileOpenChange(false)}
+                  />
+                ) : null}
+              </div>
+            </SheetContent>
+          </Sheet>
+        )}
 
         {/*
           Only where there is a sidebar. PortalLayout renders this Header without one, so the

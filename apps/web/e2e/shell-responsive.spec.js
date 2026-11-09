@@ -45,7 +45,7 @@ for (const theme of ['light', 'dark']) {
       const phone = width < 600;
       if (phone) await expect(rail).toBeHidden();
       else await expect.poll(() => widthOf(rail)).toBe(width < 1200 ? 76 : 232);
-      await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible({
+      await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible({
         visible: phone,
       });
       await expect(page.getByRole('button', { name: 'Collapse navigation' })).toBeVisible({
@@ -255,7 +255,7 @@ test('phone sheet retains utilities and closes when the persistent rail becomes 
 }) => {
   await page.setViewportSize({ width: 599, height: 640 });
   await page.goto('/queues');
-  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
   const sheet = page.getByRole('dialog');
   await expect(sheet.getByRole('link', { name: 'New Patient', exact: true })).toBeVisible();
   await sheet.getByRole('link', { name: 'Clinic settings', exact: true }).focus();

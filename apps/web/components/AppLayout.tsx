@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
+import { BottomNav } from '@/components/app-shell/BottomNav';
 import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWidget } from '@/components/chat/ChatWidget';
@@ -32,7 +33,6 @@ function resolveInitialSidebarCollapsed(): boolean {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(resolveInitialSidebarCollapsed);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktop, setDesktop] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1200px)').matches,
   );
@@ -40,18 +40,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const desktopQuery = window.matchMedia('(min-width: 1200px)');
-    const compactQuery = window.matchMedia('(min-width: 600px)');
     const update = () => {
       setDesktop(desktopQuery.matches);
       setAnimateSidebar(false);
-      if (compactQuery.matches) setMobileNavOpen(false);
     };
     update();
     desktopQuery.addEventListener('change', update);
-    compactQuery.addEventListener('change', update);
     return () => {
       desktopQuery.removeEventListener('change', update);
-      compactQuery.removeEventListener('change', update);
     };
   }, []);
 
@@ -91,7 +87,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background px-safe">
+    <div className="min-h-screen bg-background px-safe [--workspace-bottom-nav-height:3.75rem] compact:[--workspace-bottom-nav-height:0px]">
       <NavigationProgress />
       {/*
         First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
@@ -118,13 +114,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               setAnimateSidebar(event.detail > 0);
               setSidebarCollapsed((current) => !current);
             }}
-            mobileOpen={mobileNavOpen}
-            onMobileOpenChange={setMobileNavOpen}
           />
           <main
             id="main-content"
             tabIndex={-1}
-            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8"
+            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(10rem+env(safe-area-inset-bottom))] compact:pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8"
           >
             <div className="mx-auto w-full max-w-[1440px] space-y-6">
               <PendingStaffInviteNotice />
@@ -133,6 +127,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      <BottomNav />
       <ChatWidget />
     </div>
   );

@@ -677,15 +677,17 @@ R2.1 uses the approved pilot's shipped geometry: 232px expanded and 64px
 icon-only from 1200px; a distinct 76px labelled rail from 600 to 1199px.
 The earlier R0 prose says 248/88px and elsewhere 76px desktop collapse. These
 conflict with the pilot and round-3 feedback; 232/76/64 is the implementation
-baseline, not a new owner approval. Under 600px the existing phone sheet remains
-until R2.2. New Patient and all permission-filtered destinations remain available.
+baseline, not a new owner approval. Under 600px R2.2 supplies the phone BottomNav
+and More sheet. New Patient and all permission-filtered destinations remain available.
 
 The rail sits on `--background`, beside one `--card` workspace sheet inset 8px
 from 600px, with a quiet border and 12px corners. Main keeps its existing overflow
 behavior and the document remains the vertical scroll owner. The aside stretches
 with the document; its contents stick at the top in a dynamic-viewport-height
-column with an independently scrolling navigation area. Main has 6rem plus safe-area
-bottom clearance so a final action can clear the fixed chat launcher.
+column with an independently scrolling navigation area. Main has 10rem plus safe-area
+bottom clearance on phones and 6rem from 600px, so a final action can clear the
+fixed chat launcher and phone navigation. Chat sits above the phone bar; its panel
+height accounts for that space without changing chat behavior.
 
 `AppNavList` keeps `app-nav.ts` as its sole permissions/flag/placement filter.
 Desktop groups retain their names; compact modes separate groups with quiet
@@ -709,9 +711,36 @@ first hover delay, instant keyboard access and the shared 300ms scanning window.
 The header retains the clinic picker, sync and account controls at every width.
 Message delivery becomes visible from 600px in the staff shell so hiding the phone
 trigger cannot conceal it at 600 to 767px. Clinic settings remains in the account
-menu. Portal header breakpoints remain unchanged. Resizing an open phone sheet into
-the persistent rail closes it using the existing Sheet lifecycle. R2.2 adds BottomNav
-and More; R2.3 owns further compact-header work. No new navigation counts or routes.
+menu. Portal header breakpoints remain unchanged. R2.2 replaces the staff hamburger
+with a small brand mark and a persistent bottom bar below 600px. R2.3 owns further
+compact-header work. No new navigation counts or routes.
+
+`getMobileNavigation` partitions existing authorized sidebar items using R0-AUDIT
+section 5's fixed priority: Dashboard, Stations, Today Board, My Assigned, Queues,
+Patients, Appointments. Up to four become primary links, followed by More; the
+remaining sidebar items retain their groups in More. Header/profile destinations,
+Manage profile, Your settings and Saved changes and sync remain available there.
+No second permissions filter, renamed labels or counts. The static pilot's four
+sample tabs are a visual reference; the production bar follows the documented
+role/flag-driven contract and may contain five controls.
+
+The bar uses the pilot's 60px minimum rows, 11.5px labels, semantic card background,
+muted ink, primary current state and a single moving 2px top indicator. Labels wrap
+and scale in rem. Safe-area padding covers the home indicator and horizontal
+cutouts; keyboard focus is inset. More is a real button with dialog expansion
+state, and marks the current section for overflow routes. Clinic-dependent links
+remain native disabled controls when no clinic is selected.
+
+More reuses the shared Radix Sheet, opening from the bottom with a 12px top radius,
+a titled header and a scrolling body within 85dvh. Escape/close returns focus to
+More. Resizing across 600px closes it and focuses main, avoiding a hidden trigger.
+Navigation/history closes it without remounting page content. Opening the existing
+sync center waits for More to release its focus trap. The provider-controlled
+sync sheet remembers its actual entry point and restores focus on close, falling
+back to main if that control is gone or hidden. Its focus trap and queue behavior
+are unchanged. R2.4 owns draggable Sheet
+behavior; no drag handle or new modal semantics were introduced. Portal BottomNav
+remains R2.5. The known open-overlay accessibility findings remain unresolved.
 
 ### Navigation utilities (#267)
 

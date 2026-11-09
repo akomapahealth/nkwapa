@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, CloudOff, RefreshCw, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -72,6 +72,7 @@ export function SyncCenterSheet({
     setSyncCenterOpen,
   } = useSync();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const returnFocusTo = useRef<HTMLElement | null>(null);
   const [discarding, setDiscarding] = useState<OutboxQueueItem | null>(null);
   const syncing = syncStatus === 'syncing';
   const bootstrapCtx = useBootstrap();
@@ -133,6 +134,21 @@ export function SyncCenterSheet({
         side="right"
         className="flex w-full min-w-0 flex-col gap-0 p-0 [overflow-wrap:anywhere] sm:max-w-lg"
         aria-describedby="sync-center-description"
+        onOpenAutoFocus={() => {
+          // This provider-controlled sheet has no Radix Trigger. Remember its actual entry point.
+          returnFocusTo.current = document.activeElement as HTMLElement | null;
+        }}
+        onCloseAutoFocus={(event) => {
+          const previous = returnFocusTo.current;
+          const target =
+            previous?.isConnected && previous !== document.body && previous.getClientRects().length
+              ? previous
+              : document.getElementById('main-content');
+          if (target) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
       >
         <SheetHeader className="space-y-1 border-b border-border p-5 pr-20 text-left">
           <SheetTitle>Offline changes</SheetTitle>

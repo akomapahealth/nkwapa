@@ -159,6 +159,24 @@ const FLAG_ON = {
 const EXPECTED =
   process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true' ? FLAG_ON : FLAG_OFF;
 
+// Independent seeded-role presentation contract, not production partition code.
+const PHONE_PRIMARY =
+  process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true'
+    ? {
+        staff: ['Dashboard', 'Stations', 'Today Board', 'Queues'],
+        doctor: ['Dashboard', 'Stations', 'Queues', 'Patients'],
+        volunteer: ['Dashboard', 'Stations', 'Queues', 'Patients'],
+        manager: ['Dashboard', 'Stations', 'Today Board', 'Queues'],
+        director: ['Dashboard', 'Today Board', 'Queues', 'Patients'],
+      }
+    : {
+        staff: ['Dashboard', 'Today Board', 'My Assigned', 'Queues'],
+        doctor: ['Dashboard', 'My Assigned', 'Queues', 'Patients'],
+        volunteer: ['Dashboard', 'My Assigned', 'Queues', 'Patients'],
+        manager: ['Dashboard', 'Today Board', 'Queues', 'Patients'],
+        director: ['Dashboard', 'Today Board', 'Queues', 'Patients'],
+      };
+
 const MESSAGE_DELIVERY = ['Message delivery', '/notifications'];
 const CLINIC_SETTINGS = ['Clinic settings', '/settings/clinic'];
 const UTILITIES = {
@@ -184,11 +202,11 @@ async function navItems(scope, label = 'Workspace') {
 }
 
 /** The rail fills in once whoami resolves; wait for the expected count, then compare. */
-async function expectNav(scope, role) {
+async function expectNav(scope, role, expected = EXPECTED[role]) {
   await expect
     .poll(async () => (await navItems(scope)).length, { timeout: 20_000 })
-    .toBe(EXPECTED[role].length);
-  expect(await navItems(scope)).toEqual(EXPECTED[role]);
+    .toBe(expected.length);
+  expect(await navItems(scope)).toEqual(expected);
 }
 
 for (const role of Object.keys(EXPECTED)) {
@@ -215,8 +233,17 @@ for (const role of Object.keys(EXPECTED)) {
         expect(await label.evaluate((el) => getComputedStyle(el).position)).not.toBe('absolute');
       }
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByRole('button', { name: 'Open navigation' }).click();
-      await expectNav(page.getByRole('dialog'), role);
+      const primaryLabels = PHONE_PRIMARY[role];
+      const primary = page.getByRole('navigation', { name: 'Primary', exact: true });
+      expect((await primary.locator('a').allTextContents()).map((text) => text.trim())).toEqual(
+        primaryLabels,
+      );
+      await page.getByRole('button', { name: 'More', exact: true }).click();
+      await expectNav(
+        page.getByRole('dialog'),
+        role,
+        EXPECTED[role].filter(([label]) => !primaryLabels.includes(label)),
+      );
     });
 
     test(`${role} finds message delivery in the header and clinic settings in the account menu`, async ({
@@ -264,7 +291,7 @@ for (const role of Object.keys(EXPECTED)) {
       // Phone: the header has no room for the icon, so both live at the end of the menu sheet.
       await page.setViewportSize({ width: 390, height: 844 });
       await expect(banner.getByRole('link', { name: 'Message delivery' })).toBeHidden();
-      await page.getByRole('button', { name: 'Open navigation' }).click();
+      await page.getByRole('button', { name: 'More', exact: true }).click();
       const sheet = page.getByRole('dialog');
       await expect
         .poll(async () => navItems(sheet, 'Account'), { timeout: 20_000 })
