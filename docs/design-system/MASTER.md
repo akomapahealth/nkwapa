@@ -817,30 +817,63 @@ On phones the header has no room for the icon, so both appear at the end of the
 menu sheet in an "Account" list (its own `nav` landmark), drawn by `AppNavList`.
 Without a clinic selected each shows disabled, as the rail does.
 
-### Volunteer and doctor dashboards (#268)
+### Volunteer and doctor dashboards (#268, R3.1)
 
-The dashboard leads with **Needs you now** (`components/dashboard/NeedsYouNow.tsx`)
-for anyone with a volunteer or doctor section, then "Today at a glance", then the
-role sections, then clinic-wide measurement coverage. Rows are `AppActionRow`s with
-one 44px action each, built only from `DashboardData` counts; no patient is named,
-because the contract carries none.
+A volunteer-only dashboard now opens with the approved mint welcome band,
+device-clock greeting/date, five contour swells and a two-layer wave edge.
+The greeting uses IBM Plex Sans through `font-body`; gold is the existing
+`--secondary` token. A long first-name token truncates visually while retaining
+its full accessible text. At very narrow available measures, including enlarged
+text, decorative artwork yields its column to the greeting. Controls and state
+remain mounted across width changes.
 
-- **Volunteer:** a sentence with their own counts today, a row to their worklist
-  (`getOpsDestination`: Stations in the station line, otherwise My Assigned), and
-  a draft-visits row when they have drafts. This is the first phone screen.
-- **Doctor:** rows for visits waiting for review, waiting for sign-off and HAP
-  notes to cosign, each opening its `/queues?tab=` tab. With nothing waiting, one
-  line says so.
+The band mounts `DashboardShiftControls` only with the station-workflow flag,
+an active clinic and `OPS.SHIFT.READ`. It reads `fetchActiveShifts`, independently
+of station-board permissions, through `useOpsView` and a separate
+`dashboard-shifts` device-cache key. This adds no IndexedDB schema version or
+backend endpoint. Queued changes use `usePendingOpsWrites`,
+`overlayPendingShifts` and the existing `useShiftControls` operation.
+`OPS.SHIFT.WRITE` gates actions; eligible roles retain the existing effective-role
+and membership union. One eligible role is stated inline; several use the existing
+Select. Start shift and End shift preserve the existing applied/queued/error copy.
+Missing or failed first reads are unknown, never Off Duty. Saved/offline data is
+labelled; refresh errors retain known data and offer retry. A submission lock lasts
+until the read/overlay reconciles, then releases for later server-side changes.
+The shared hook also guards concurrent calls before React disables the button.
 
-Counts that became rows left the role sections' figure groups, so nothing is
-counted twice there. The page header's clinic-name badge is gone; the title and
-the header switcher name the clinic.
+**Needs you now** remains before **Today at a glance**, role trends and
+clinic-wide measurements. Its existing worklist/draft rows get numbered markers
+only in the volunteer-only presentation. Worklist destinations remain derived by
+`getOpsDestination`; no station counts, completed steps or queue patients are
+invented. Personal intake counts live once in the existing sentence. HAP totals
+and draft/cosign breakdown remain in the volunteer section, alongside the existing
+HAP draft links, quick actions, two trend charts and three distribution charts.
+Clinic-wide summary totals remain separate in their existing divided metric group.
+Existing patient descriptions supplied by authorized work-item reads are preserved.
 
-Every dashboard chart (`TrendChart`, `DistributionChart`) now sits in
-`ChartFrame`: a 2px ruled top, a small heading, and a 44px "Show table" toggle
-(`aria-pressed`) that swaps the SVG for a two-column table of the same values.
-Lines are `type="linear"`. Manager, director and admin charts get the frame too;
-their order and content are #269.
+Mixed-role dashboards keep Needs you now, clinic summaries, station-flow access,
+permission-derived composition and persisted view tabs. The welcome/shift band
+appears inside their volunteer view; doctor, review, clinic and network sections
+retain their existing presentation. With the station flag off, the volunteer
+content and existing worklist remain available and no dashboard shift component
+mounts. The flag-off gate has component coverage; it is not a separate browser build.
+
+`DashboardIllustration` lazy-loads pinned local `lottie-web` 5.13.0 and same-origin
+JSON. Hello plays 0–60 once (2.5s); checklist plays 0–98 once (about 1.63s), only
+after a server-applied start. Queued starts say saved on this device and receive
+no server-confirmation illustration. Reduced motion loads no player/JSON; static
+SVG rest frames render immediately and survive load/player failure. Colours use
+theme tokens; fallback SVG IDs are isolated per instance. Source downloads were
+structurally matched to the supplied JSON, and both source pages specify the
+Lottie Simple License, permitting commercial use without in-app attribution.
+Sources, terms and SVG derivatives live in `public/lottie/`; regenerate the
+rest-frame files with `scripts/export-dashboard-illustrations.cjs`.
+
+Every dashboard chart (`TrendChart`, `DistributionChart`) retains `ChartFrame`:
+a ruled heading and a 44px Show table toggle (`aria-pressed`) swapping the SVG
+for a table of the same values. Line interpolation, chart data and clinical
+measurement coverage are unchanged. Detailed verification and limits:
+`ui-refresh/R3.1-REVIEW.md`.
 
 ### Manager, director and admin dashboards (#269)
 

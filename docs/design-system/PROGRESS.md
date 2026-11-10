@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1 through R1.6 and R2.1 through R2.5 are built on `ui-refresh/r1-1-tokens` and in review. The prior open-Select/menu accessibility finding remains unresolved. Next: R3.1 volunteer dashboard.
+**Status:** R0 completed 2026-11-07. R1.1 through R1.6, R2.1 through R2.5 and R3.1 are built on `ui-refresh/r1-1-tokens` and in review. The prior open-Select/menu accessibility finding remains unresolved. Next: R3.2 Stations.
 
 ## Phase Status
 
@@ -550,3 +550,102 @@ remain separate.
 
 **Next unit:** R3.1 volunteer dashboard; use `ui-refresh/HANDOFF-R3.1.md`.
 No R3 content was implemented here.
+
+## R3.1: volunteer dashboard (2026-11-10)
+
+**Unit ID:** R3.1
+
+**Phase:** R3 volunteer and clinical
+
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+
+**Status:** Complete within the validation boundaries below.
+
+**Screen(s) or components:** Volunteer-only dashboard and the volunteer view of
+mixed-role dashboards; new welcome, shift and illustration components, shared
+shift in-flight guard and additive operations-refresh error result.
+
+**Design changes:** Approved mint greeting band, device-clock greeting/date,
+IBM Plex Sans, contour reveal and gold/phase wave edge. Long names truncate
+independently; narrow available measures, including enlarged text, give the
+full line to the greeting and omit decorative art. Existing worklist/draft rows
+get numbered markers in the volunteer-only view. Personal intake counts remain
+once in Needs you now; HAP totals/breakdown, draft links, quick actions and five
+charts remain. Existing clinic totals, measurements, mixed-role composition and
+persisted tabs stay intact; other role content is not redesigned.
+
+**Shift integration:** Station flag, clinic and `OPS.SHIFT.READ` gate the roster
+read; `OPS.SHIFT.WRITE` gates actions. The dashboard uses `fetchActiveShifts`
+without fetching the station board, and `useOpsView` with a distinct
+`dashboard-shifts` cache kind, without an IndexedDB migration. Existing eligible
+roles, `useShiftControls`, operation submission and pending overlays remain the
+contract. Loading/refused first reads are unknown; stale reads retain known data
+with retry. A synchronous in-flight guard and reconciliation lock prevent double
+writes and release for later server-side changes. Offline start/end say saved on
+this device. No auth, permission, queue/sync operation, clinical validation or
+backend implementation changed.
+
+**Illustration:** Source downloads were structurally matched to Hello and
+checklist JSON. Both download pages specify the Lottie Simple License; URLs and
+full terms accompany files in `public/lottie/`. Pinned local lazy player 5.13.0,
+Hello 0–60 once and checklist 0–98 once. Checklist follows server-applied starts;
+queued starts get truthful device-saved feedback. Static theme-aware SVGs appear
+immediately and survive reduced motion, missing JSON or player failure.
+Fallback IDs are isolated; a checked-in exporter reproduces the files.
+
+**Files changed:** Dashboard page, VolunteerDashboard and NeedsYouNow; new
+VolunteerWelcome, DashboardShiftControls, DashboardIllustration, CSS modules,
+compiled/static rest frames and source/licence records; `use-shift-controls.ts`,
+`use-ops-view.ts`, frontend cache-kind type, web package/lock; two component test
+files, `volunteer-dashboard-refresh.spec.js`, rest-frame exporter and design docs.
+The pre-existing owner edit to HANDOFF-R3.1 is preserved outside this unit's commit.
+
+**Validation:** Final-source focused selection **47/47 passed**, including six
+fresh authentication setups and **41 distinct browser checks**. Fifteen new
+volunteer checks cover all 11 boundary widths in both themes, retained state,
+long names, enlarged text, keyboard, clock/theme/font, permission/no-clinic/no-role,
+unknown/read/write refusal and retry, duplicate calls, later external shift end,
+mixed-role persistence, rest frames and asset failure. Real online and offline
+start/end/replay pass, alongside existing dashboard/chart/table, workspace/chat,
+station workflow/closure/screener and offline replay regressions. A subsequent
+**4/4 spec-only recheck** strengthens 200% text through primary-action clearance
+and final quick-action navigation, and refreshes settled screenshots. It repeats
+four of the 41 browser cases; no product source changed or rebuild was needed.
+Historical `#197` station cases were excluded per the recipe, never counted as
+passes. No full e2e suite ran.
+
+Final audit-flag build, standalone TypeScript, changed-file ESLint/Prettier,
+whitespace and detector pass; detector findings are empty. The script/e2e ESLint
+selection retains its existing root Pages-directory notice. Jest with two workers:
+**95 suites / 1022 tests passed**. New component checks cover the flag-off mount
+gate, reduced motion without fetching/player, player failure and unique fallback
+IDs. No separate flag-off browser build is claimed. The exporter ran and its SVGs
+match the original transformed exports. Candidate history: **24/24** initial;
+**46/47** broader candidate exposed the wrong font utility. Screenshot review
+found serif/system fallback, an absent gold token and narrow enlarged-text
+measure; code review found the stale-feedback action lock. These were corrected
+before the final source run. Exact scope and operational limits are in
+`ui-refresh/R3.1-REVIEW.md`.
+
+**Route audit:** **12/12 passed**, six fresh authentication setups and six role
+sweeps; **228 route/theme/width rows**, **zero recorded errors, zero axe findings
+including minor findings, zero horizontal overflow**. Normal-state scans do not
+clear prior open-Select/menu findings.
+
+**Evidence:** **146 synthetic PNGs** under ignored `ui-refresh/evidence/r3-1/after/`:
+114 route images and 32 volunteer supplements. The R2.5 volunteer phone baseline,
+approved live pilot and final phone/wide/dark/long-name/enlarged-text/start states
+were inspected. Audit JSON, validation summary and diagnostics accompany them.
+No real-patient or third-party reference directories were inspected; evidence
+remains untracked. No separate agent review ran.
+
+**Outstanding problems:** Prior open-overlay accessibility findings and short
+dropdown rows remain separate. Physical devices, screen readers, Safari/Firefox,
+installed PWA, virtual keyboard, real safe areas and gesture feel remain manual.
+Root-text scaling is bounded browser evidence. Full dashboard metrics still do
+not support an offline cold load; continuation is tested after dashboard load.
+Earlier Vitals/Crisis/backend acknowledgement and Sunday appointment lifecycle
+work remains separate.
+
+**Next unit:** R3.2 Stations; use `ui-refresh/HANDOFF-R3.2.md`. No station content
+redesign was implemented in R3.1.

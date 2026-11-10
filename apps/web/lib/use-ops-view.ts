@@ -17,6 +17,8 @@ export interface OpsViewState<T> {
   isRefreshing: boolean;
   /** Set only when there is nothing at all to show for the day. */
   error: string | null;
+  /** A refresh can fail while the last known data remains on screen. */
+  refreshError: string | null;
   isOnline: boolean;
   refresh: () => void;
 }
@@ -109,6 +111,7 @@ export function useOpsView<T>({
     isInitialLoading: nothingYet && (loadPending || (Boolean(clinicId) && checkedKey !== cacheKey)),
     isRefreshing: live.status === 'loading' && !nothingYet,
     error: nothingYet ? live.error : null,
+    refreshError: nothingYet ? null : live.error,
     isOnline,
     refresh,
   };

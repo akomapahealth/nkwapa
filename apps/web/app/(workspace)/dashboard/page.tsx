@@ -14,6 +14,7 @@ import { DoctorDashboard } from '@/components/dashboard/DoctorDashboard';
 import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard';
 import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
+import { VolunteerWelcome } from '@/components/dashboard/VolunteerWelcome';
 import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
 import { StationFlowDashboard } from '@/components/dashboard/StationFlowDashboard';
 import { NeedsYouNow } from '@/components/dashboard/NeedsYouNow';
@@ -204,6 +205,26 @@ export default function DashboardPage() {
   }, [fetchDashboard]);
 
   const isInitialLoading = loading && !data;
+  const volunteerOnly = Boolean(
+    data?.volunteer && !data.doctor && !data.review && !data.director && !data.systemAdmin,
+  );
+  const refreshAction = clinicId ? (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => void fetchDashboard(true)}
+      disabled={loading}
+    >
+      <RefreshCw
+        aria-hidden="true"
+        className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
+      />
+      Refresh
+      <span aria-live="polite" className="sr-only">
+        {loading ? 'Refreshing the dashboard' : ''}
+      </span>
+    </Button>
+  ) : null;
 
   // Oversight first (director, then network), then a person's own queues (MASTER.md section 12).
   const roleSections = data
@@ -239,7 +260,12 @@ export default function DashboardPage() {
         data.volunteer && {
           id: 'volunteer',
           label: 'Your work today',
-          node: <VolunteerDashboard {...data.volunteer} clinicId={clinicId ?? undefined} />,
+          node: (
+            <div className="space-y-6">
+              {!volunteerOnly ? <VolunteerWelcome titleLevel={2} /> : null}
+              <VolunteerDashboard {...data.volunteer} clinicId={clinicId ?? undefined} />
+            </div>
+          ),
         },
       ].filter((section): section is { id: string; label: string; node: JSX.Element } =>
         Boolean(section),
@@ -249,44 +275,48 @@ export default function DashboardPage() {
   return (
     <RouteGuard requiredPermission="DASHBOARD.READ">
       <div className="space-y-6">
-        <AppPageHeader
-          eyebrow="Clinic snapshot"
-          title={activeClinic?.clinicName ?? 'Dashboard'}
-          description="Current clinic totals and next work."
-          // Was a persistent ProgressiveHelp card under the page title. It is generic orientation
-          // copy with no safety or consent significance, which is exactly what #63 says belongs in
-          // a bubble; the disclosure was costing a block of vertical space above the metrics on
-          // every visit, to every user, forever.
-          hint="The dashboard always reflects the clinic selected in the header. Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
-          // No clinic-name badge: the title and the header's switcher already say which clinic,
-          // and on a phone the chip pushed the volunteer's own work below the first screen.
-          actions={
-            clinicId ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="border-border"
-                onClick={() => void fetchDashboard(true)}
-                disabled={loading}
-              >
-                <RefreshCw
-                  aria-hidden="true"
-                  className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
-                />
-                {/*
+        {volunteerOnly && clinicId ? (
+          <VolunteerWelcome actions={refreshAction} />
+        ) : (
+          <AppPageHeader
+            eyebrow="Clinic snapshot"
+            title={activeClinic?.clinicName ?? 'Dashboard'}
+            description="Current clinic totals and next work."
+            // Was a persistent ProgressiveHelp card under the page title. It is generic orientation
+            // copy with no safety or consent significance, which is exactly what #63 says belongs in
+            // a bubble; the disclosure was costing a block of vertical space above the metrics on
+            // every visit, to every user, forever.
+            hint="The dashboard always reflects the clinic selected in the header. Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
+            // No clinic-name badge: the title and the header's switcher already say which clinic,
+            // and on a phone the chip pushed the volunteer's own work below the first screen.
+            actions={
+              clinicId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-border"
+                  onClick={() => void fetchDashboard(true)}
+                  disabled={loading}
+                >
+                  <RefreshCw
+                    aria-hidden="true"
+                    className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
+                  />
+                  {/*
                   The label stays put. Swapping it for "Refreshing" grew the button by 19px,
                   measured, which moved everything beside it in the header every time someone
                   refreshed. The spinner carries the state visually and the live region carries it
                   for assistive technology, so nothing is lost by keeping the word still.
                 */}
-                Refresh
-                <span aria-live="polite" className="sr-only">
-                  {loading ? 'Refreshing the dashboard' : ''}
-                </span>
-              </Button>
-            ) : null
-          }
-        />
+                  Refresh
+                  <span aria-live="polite" className="sr-only">
+                    {loading ? 'Refreshing the dashboard' : ''}
+                  </span>
+                </Button>
+              ) : null
+            }
+          />
+        )}
 
         {!clinicId ? (
           <EmptyStateCard
@@ -310,6 +340,7 @@ export default function DashboardPage() {
           <>
             {/* Work first (MASTER.md section 12), then today's counts, then trends. */}
             <NeedsYouNow
+              steps={volunteerOnly}
               volunteer={data.volunteer}
               doctor={data.doctor}
               review={data.review}

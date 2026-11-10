@@ -493,7 +493,12 @@ export interface SyncStateRecord {
  * other's copy, and the next screen to read it renders the wrong shape (#197). `station-board` is
  * the manager's bare board on /today; `station-workspace` is the board plus shifts on /stations.
  */
-export type OpsCacheKind = 'today-board' | 'my-assigned' | 'station-board' | 'station-workspace';
+export type OpsCacheKind =
+  | 'today-board'
+  | 'my-assigned'
+  | 'station-board'
+  | 'station-workspace'
+  | 'dashboard-shifts';
 
 /**
  * The last copy of a clinic-operations view this device loaded, so it still renders offline.

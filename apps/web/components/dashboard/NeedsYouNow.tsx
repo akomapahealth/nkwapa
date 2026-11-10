@@ -5,8 +5,10 @@ import { CheckCircle, ClipboardList, Eye, FileEdit, ListOrdered } from 'lucide-r
 import { AppActionRow, type AppActionRowProps } from '@/components/app-shell/AppActionRow';
 import { Button } from '@/components/ui/button';
 import { describeWorkItems, type DashboardWorkItem } from '@/lib/dashboard-work-items';
+import styles from './volunteer-welcome.module.css';
 
 interface NeedsYouNowProps {
+  steps?: boolean;
   volunteer?: {
     patientsRegisteredToday: number;
     encountersCreatedToday: number;
@@ -57,7 +59,14 @@ type Row = Omit<AppActionRowProps, 'action'> & { href?: string; label?: string }
  * own drafts and sign-offs name the oldest few patients and their station (#307), for someone
  * who can read patient records; clinic-wide rows stay counts.
  */
-export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }: NeedsYouNowProps) {
+export function NeedsYouNow({
+  volunteer,
+  doctor,
+  review,
+  clinic,
+  worklistHref,
+  steps = false,
+}: NeedsYouNowProps) {
   if (!volunteer && !doctor && !review && !clinic) return null;
 
   const rows: Row[] = [];
@@ -174,7 +183,7 @@ export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }:
         </p>
       ) : null}
       {rows.length ? (
-        <ul className="mt-1">
+        <ul className={steps ? styles.nextSteps : 'mt-1'}>
           {rows.map(({ href, label, ...row }) => (
             <AppActionRow
               key={row.title}

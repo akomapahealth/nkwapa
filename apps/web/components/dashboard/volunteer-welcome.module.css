@@ -1,0 +1,165 @@
+.band {
+  --sea-accent: hsl(var(--secondary));
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  overflow: hidden;
+  background: hsl(var(--mint));
+  padding: 1.25rem 1rem 3rem;
+}
+.band[data-phase='evening'] {
+  --sea-accent: hsl(var(--warning));
+}
+.band[data-phase='night'] {
+  --sea-accent: hsl(var(--brand));
+}
+.content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(20%, 5rem);
+  gap: 0.75rem;
+  min-width: 0;
+}
+.controls {
+  grid-column: 1 / -1;
+}
+.name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.heading {
+  font-size: clamp(1.5rem, calc(1rem + 8cqi), 2.75rem);
+  line-height: 1.1;
+}
+.contours {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  animation: welcome-reveal 1600ms var(--ease-out) backwards 120ms;
+}
+.contours path {
+  fill: none;
+  stroke: hsl(var(--mint-line));
+  stroke-width: 1.5;
+}
+.contours path:nth-child(3) {
+  stroke: var(--sea-accent);
+}
+.sky {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: 0.25em;
+  vertical-align: -0.1em;
+  color: hsl(var(--gold-ink));
+}
+.band[data-phase='evening'] .sky {
+  color: hsl(var(--warning-ink));
+}
+.wave {
+  position: absolute;
+  z-index: 2;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2.5rem;
+  pointer-events: none;
+}
+.back {
+  fill: color-mix(in srgb, hsl(var(--card)) 55%, hsl(var(--mint)));
+}
+.front {
+  fill: hsl(var(--card));
+}
+.edge {
+  fill: none;
+  stroke: var(--sea-accent);
+  stroke-width: 2;
+}
+.illustration {
+  align-self: end;
+  height: 9rem;
+}
+.nextSteps {
+  counter-reset: next-step;
+  margin-top: 0.25rem;
+}
+.nextSteps > li {
+  position: relative;
+  padding-left: 2.5rem;
+}
+.nextSteps > li::before {
+  counter-increment: next-step;
+  content: counter(next-step);
+  position: absolute;
+  left: 0;
+  top: 1rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid hsl(var(--mint-line));
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+  background: hsl(var(--mint));
+}
+@keyframes welcome-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@media (min-width: 600px) {
+  .band {
+    padding: 1.5rem 1.5rem 3rem;
+  }
+  .content {
+    grid-template-columns: minmax(0, 1fr) 8rem;
+  }
+  .illustration {
+    display: block;
+    align-self: end;
+    height: 14rem;
+  }
+  .controls {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .illustration {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+}
+@media (min-width: 1200px) {
+  .content {
+    grid-template-columns: minmax(0, 1fr) 12rem;
+  }
+  .illustration {
+    height: 16rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contours {
+    animation: none;
+  }
+}
+/* At narrow available measures, including enlarged text, give the greeting the full line.
+   Only decorative artwork is omitted; the controls and status keep the same mounted tree. */
+@container (max-width: 15rem) {
+  .content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .illustration {
+    display: none;
+  }
+}
