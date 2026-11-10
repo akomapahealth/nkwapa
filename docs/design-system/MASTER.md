@@ -997,6 +997,37 @@ its assignment table retains the full list and existing filters.
 
 Shipped in [PR #295](https://github.com/akomapahealth/nkwapa/pull/295); before and after screenshots and verification are in the pull request.
 
+### Patient registry workspace refresh (R3.3)
+
+Both registry routes retain the shared `PatientRegistryScreen`, existing clinic
+scope, debounced search, URL filters, server sort and pagination. The toolbar sits
+on the workspace sheet, with a visible search label and a Filter action. `/`
+focuses search unless typing or an overlay owns focus; Escape clears search.
+New Patient uses `PATIENT.CREATE`, and check-in uses `OPS.CHECKIN.CREATE`.
+
+Location and completed-screening controls live in one draggable Sheet: bottom
+below 600px, right-side from 600px. Filters update immediately; Show results only
+closes the Sheet. Selection, custom-range mode and open state survive resizing,
+and filter values survive dismissal. Every active filter has a wrapping removal
+button with a 44px floor. Removing a region also clears its district; removing
+screened dates clears their now-invalid sort. Clear all retains unrelated sorts.
+Invalid or refused dates remain reachable through Edit screened dates after
+closing the Sheet. No result count is fabricated for its final action.
+
+The shared DataTable still switches by its available 60rem container width;
+other table consumers retain their existing presentation. Registry cards use
+IBM Plex Sans for names, Plex Mono for patient codes and actual phone/ID data.
+They keep View record and permission-gated Check in. A touch swipe to the left
+uses the same check-in operation and synchronous submission guard as the button.
+Vertical movement, pointer cancellation, resizing and blur cancel a held swipe.
+The row remains after success, queued writes and refusal. No undo, queue state,
+last-visit field or optimistic row removal is inferred from pilot data.
+
+Existing resource states and offline check-in/replay semantics remain. The
+registry still requires a connection for a cold read and retains loaded results
+with the existing stale/offline notices. Validation scope and manual limits are
+recorded in `ui-refresh/R3.3-REVIEW.md`.
+
 ### Queues and encounters (#272)
 
 `/queues` shows each lane's count once, on its tab; the metric row and the

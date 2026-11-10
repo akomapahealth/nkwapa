@@ -151,8 +151,10 @@ test('filters the registry to patients screened today, then clears it', async ({
   await expect(page.getByRole('columnheader', { name: /Screened/ })).toHaveCount(0);
 
   await page.getByLabel('Name, patient code, phone or ID last 4').fill(patient.lastName);
+  await page.getByRole('button', { name: 'Filter patients', exact: true }).click();
   await page.getByLabel('Screened', { exact: true }).click();
   await page.getByRole('option', { name: 'Today' }).click();
+  await page.getByRole('button', { name: 'Show results', exact: true }).click();
 
   await expect(page).toHaveURL(/screenedFrom=\d{4}-\d{2}-\d{2}/);
   await expect(page).toHaveURL(new RegExp(`q=${patient.lastName}`));
@@ -177,6 +179,7 @@ test('filters the registry to patients screened today, then clears it', async ({
   );
 
   // Custom range open, light mode.
+  await page.getByRole('button', { name: 'Filter patients', exact: true }).click();
   await page.getByLabel('Screened', { exact: true }).click();
   await page.getByRole('option', { name: 'Custom range' }).click();
   await expect(page.getByLabel('From')).toBeVisible();
@@ -195,9 +198,12 @@ test('filters the registry to patients screened today, then clears it', async ({
   await page.getByLabel(/^To/).fill('');
 
   // Clear just the screened filter from its chip.
+  await page.getByRole('button', { name: 'Show results', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Screened filter' }).click();
   await expect(page).not.toHaveURL(/screenedFrom/);
+  await page.getByRole('button', { name: 'Filter patients', exact: true }).click();
   await expect(page.getByLabel('Screened', { exact: true })).toHaveText('Any time');
+  await page.getByRole('button', { name: 'Show results', exact: true }).click();
   await expect(page.getByRole('columnheader', { name: /Screened/ })).toHaveCount(0);
   await expect(
     page.getByRole('table').getByRole('row', { name: new RegExp(patient.lastName) }),
@@ -208,12 +214,13 @@ test('the registry with the screened filter open passes axe in dark mode', async
   await page.addInitScript((key) => window.localStorage.setItem(key, 'dark'), THEME_STORAGE_KEY);
   await page.goto('/patients?screenedFrom=2026-10-01&screenedTo=2026-10-15');
   await expect(page.locator('html')).toHaveClass(/dark/);
-  await expect(page.getByLabel('From')).toHaveValue('2026-10-01', { timeout: 30_000 });
   await expect(
     page
       .getByText(/patients? screened between/)
       .or(page.getByRole('heading', { name: 'No completed screenings' })),
   ).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Filter patients', exact: true }).click();
+  await expect(page.getByLabel('From')).toHaveValue('2026-10-01', { timeout: 30_000 });
   await axe(page);
 });
 
@@ -226,8 +233,10 @@ test('the filtered registry comes back after opening a chart and pressing Back',
 
   await page.goto('/patients');
   await page.getByLabel('Name, patient code, phone or ID last 4').fill(patient.lastName);
+  await page.getByRole('button', { name: 'Filter patients', exact: true }).click();
   await page.getByLabel('Screened', { exact: true }).click();
   await page.getByRole('option', { name: 'Today' }).click();
+  await page.getByRole('button', { name: 'Show results', exact: true }).click();
   await expect(page.getByText(/^1 patient screened/)).toBeVisible({ timeout: 20_000 });
   await expect(page).toHaveURL(/screenedFrom=/);
 
@@ -243,6 +252,8 @@ test('the filtered registry comes back after opening a chart and pressing Back',
   await expect(page.getByLabel('Name, patient code, phone or ID last 4')).toHaveValue(
     patient.lastName,
   );
+  await page.getByRole('button', { name: 'Filter patients', exact: true }).click();
   await expect(page.getByLabel('Screened', { exact: true })).toHaveText('Today');
+  await page.getByRole('button', { name: 'Show results', exact: true }).click();
   await expect(page.getByText(/^1 patient screened/)).toBeVisible({ timeout: 20_000 });
 });

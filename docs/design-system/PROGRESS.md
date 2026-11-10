@@ -714,3 +714,73 @@ No separate agent review ran.
 
 **Next unit:** R3.3 patient registry: toolbar, filter Sheet, cards on phone.
 Use `ui-refresh/HANDOFF-R3.3.md`.
+
+## R3.3: Patient registry (2026-11-10)
+
+**Unit/phase:** R3.3, role/workspace content.
+**Screen/components:** Both registry routes, toolbar, filter Sheet, patient cards,
+and the registry-only controlled custom-screening selection.
+**Branch/commit:** `ui-refresh/r1-1-tokens`, local commit for this unit; no push.
+The incoming owner edit to `ui-refresh/HANDOFF-R3.1.md` remains separate.
+**Status:** Complete within the recorded validation boundaries.
+
+**Design changes:** Search and active filters sit directly on the workspace sheet.
+Location/completed-screening controls move into the existing draggable Sheet,
+bottom below 600px and right-side from 600px. Same mounted open/selection state
+across resize; custom selection retained across dismissal; immediate filtering
+and Show results dismissal. Real 44px filter-removal buttons wrap long text.
+Existing region/district and screened-sort dependencies remain. Invalid/refused
+dates remain editable after dismissal. `/` focuses search outside typing/overlays;
+Escape clears it. New Patient follows the existing create permission.
+
+Registry cards retain actual identity/contact fields, View record and Check in.
+Workspace names explicitly use IBM Plex Sans and codes Plex Mono. Native touch
+swipes share the existing check-in operation and synchronous duplicate guard with
+buttons, cancel safely and retain the row on every outcome. Native child-to-row
+capture transfer is handled, and cancelled swipes preserve keyboard activation.
+No undo, row removal, queue status, last-visit data or new endpoints were invented.
+The shared DataTable, other consumers, API, auth, RBAC definitions, database,
+clinical validation and sync implementation remain unchanged.
+
+**Desktop/tablet/phone/dark:** All 11 boundary widths
+320/390/599/600/744/767/768/1024/1199/1200/1440 in both themes. Same Sheet state and
+selection across boundaries, 200% root text/long names at 390px, full final-button
+visibility, keyboard, Escape/focus return and both motion preferences. Native
+Chromium touch caught and verified the capture-transfer correction; screenshot
+review caught the enlarged-text footer shrink. Header/footer now keep their size
+while controls scroll. Physical touch/assistive-technology testing remains manual.
+
+**Validation:** 53 distinct focused browser checks have passing completions:
+30 registry/date/location/shell/offline cases after the capture/footer correction,
+plus 23 unchanged-path table, replay, identity, merge and registration/chart/consent
+regressions from the earlier candidate. The latter 23 were not repeated after the
+registry-only correction. Earlier focused runs completed 12 authentication setups;
+subsequent focused runs reused them. Exact failures/not-run counts and source-state
+boundaries are in `ui-refresh/R3.3-REVIEW.md`. No full e2e suite ran.
+
+Audit-flag build, standalone TypeScript, changed-file ESLint/Prettier, whitespace
+and detector pass; the detector has no findings. Jest with one worker passes
+7 suites / 88 tests. Sandboxed compilation/binding failures used escalation,
+with both database URLs separately guarded and API logs redirected.
+
+**Route audit/evidence:** 12/12 tests, six fresh authentication setups and six role
+sweeps. All 228 route/theme/width rows have zero errors, zero axe findings including
+minor and zero horizontal overflow. Normal-state scans do not clear prior open
+overlay findings. The audit preceded the final event-only keyboard-click
+hardening. Its **2/2 final-source native touch/keyboard rechecks** pass for Enter
+and Space after cancellation in both motion modes; these repeat two of the 53
+checks. The final keyboard source also passes build, standalone TypeScript,
+lint/formatting and detector. Ignored
+`ui-refresh/evidence/r3-3/after/` holds 164 implementation PNGs (114 normal routes,
+50 registry supplements), audit/validation JSON and diagnostics. No real-patient
+or third-party reference directories were inspected.
+
+**Outstanding:** Prior open Select/menu findings and short dropdown rows remain
+separate. Physical devices, screen readers, Safari/Firefox, installed PWA,
+virtual keyboard, real safe areas and gesture feel remain manual. Earlier
+Vitals/Crisis/backend acknowledgement and Sunday appointment lifecycle work
+remain separate. The registry still needs a connection for a cold read.
+Historical station `#197` cases and legacy flag-incompatible Today offline cases
+are not claimed as passes. No separate agent review ran; no evidence was force-added.
+
+**Next unit:** R3.4 Queues. Use `ui-refresh/HANDOFF-R3.4.md`.

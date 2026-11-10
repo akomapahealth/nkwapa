@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, UserPlus, Users, X } from 'lucide-react';
+import { Search, SlidersHorizontal, UserPlus, Users, X } from 'lucide-react';
 import { apiFetch, readApiError as readApiErrorDetail } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -22,9 +22,7 @@ import {
 import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/residential-location';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { OpsFeedbackNotice } from '@/components/ops/OpsShared';
@@ -33,7 +31,18 @@ import {
   ResidentialLocationFilters,
 } from '@/components/patients/ResidentialLocationFilters';
 import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
+import { PatientRegistryCard } from '@/components/patients/PatientRegistryCard';
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,6 +85,38 @@ const SEARCH_DEBOUNCE_MS = 300;
 export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canCreatePatient = hasPermission(perms, 'PATIENT.CREATE');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [wideSheet, setWideSheet] = useState(false);
+  const [customScreened, setCustomScreened] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 600px)');
+    const update = () => setWideSheet(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        event.key !== '/' ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.defaultPrevented ||
+        target?.closest(
+          'input, textarea, select, [contenteditable], [role=dialog], [role=combobox], [role=listbox]',
+        )
+      )
+        return;
+      if (document.querySelector('[role=dialog][data-state=open]')) return;
+      event.preventDefault();
+      document.getElementById('patient-search')?.focus();
+    };
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
 
   /*
@@ -129,8 +170,6 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   const clientScreenedError = screenedRangeError(screenedFrom, screenedTo);
   const [serverScreenedError, setServerScreenedError] = useState<ScreenedError | null>(null);
   const screenedError = clientScreenedError ?? serverScreenedError;
-  // Bumped when a chip or Clear all empties the filter, so the control drops back to Any time.
-  const [screenedResetKey, setScreenedResetKey] = useState(0);
 
   const committedView: RegistryView = {
     ...view,
@@ -191,6 +230,16 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     "Reload patients" retry, which is the wrong offer for the thing that actually failed.
   */
   const checkIn = usePatientCheckIn(clinicId);
+  const checkInFlight = useRef(false);
+  const submitCheckIn = async (patient: PatientSummary) => {
+    if (checkInFlight.current || !canCreateOpsCheckIn || !checkIn.canSubmit) return;
+    checkInFlight.current = true;
+    try {
+      await checkIn.checkIn(patient);
+    } finally {
+      checkInFlight.current = false;
+    }
+  };
 
   const patientHref = (patientId: string) => `/clinics/${clinicId}/patients/${patientId}`;
 
@@ -199,13 +248,15 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       id: 'patientCode',
       accessorKey: 'patientCode',
       header: 'Patient code',
-      meta: { className: 'whitespace-nowrap font-medium' },
+      meta: { className: 'whitespace-nowrap font-mono text-xs' },
     },
     {
       id: 'name',
       accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
       header: 'Name',
-      meta: { className: 'font-heading text-base' },
+      meta: {
+        className: 'whitespace-normal break-words font-body text-base font-semibold max-w-64',
+      },
     },
     ...(screenedActive
       ? [
@@ -266,7 +317,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               className="min-h-11 w-24"
               loading={checkIn.busyPatientId === row.original.id}
               disabled={checkIn.isBusy || !checkIn.canSubmit}
-              onClick={() => void checkIn.checkIn(row.original)}
+              onClick={() => void submitCheckIn(row.original)}
             >
               Check in
             </Button>
@@ -287,7 +338,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   };
   const clearScreened = () => {
     setScreened('', '');
-    setScreenedResetKey((key) => key + 1);
+    setCustomScreened(false);
   };
 
   const otherFiltersActive = Boolean(
@@ -323,134 +374,198 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     };
   })();
 
+  const clearFilters = () => {
+    setServerScreenedError(null);
+    setCustomScreened(false);
+    updateView({
+      q: '',
+      location: EMPTY_LOCATION_FILTER,
+      screenedFrom: '',
+      screenedTo: '',
+      sorting: sorting[0]?.id === 'screened' ? [] : sorting,
+    });
+  };
+  const activeFilters = [
+    { label: 'Search', value: q.trim() || null, onRemove: () => updateView({ q: '' }) },
+    {
+      label: 'Region',
+      value: region ? GHANA_REGION_LABELS[region] : null,
+      // A district only means something inside its region.
+      onRemove: () => updateView({ location: { ...locationFilter, region: '', district: '' } }),
+    },
+    {
+      label: 'District',
+      value: district || null,
+      onRemove: () => updateView({ location: { ...locationFilter, district: '' } }),
+    },
+    {
+      label: 'Community',
+      value: locationFilter.community.trim() || null,
+      onRemove: () => updateView({ location: { ...locationFilter, community: '' } }),
+    },
+    {
+      label: 'Location status',
+      value: status ? PATIENT_LOCATION_STATUS_LABELS[status] : null,
+      onRemove: () => updateView({ location: { ...locationFilter, status: '' } }),
+    },
+    {
+      label: 'Screened',
+      value:
+        screenedFrom && !screenedError
+          ? [screenedFrom, screenedTo]
+              .filter((date, index) => date && (index === 0 || date !== screenedFrom))
+              .map(formatScreenedDay)
+              .join(' – ')
+          : null,
+      onRemove: clearScreened,
+    },
+  ].filter((filter) => Boolean(filter.value));
+
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Patient registry"
+        className="[&_h1]:font-body"
         title="Patients"
         description="Search this clinic's records and move patients into care."
         helpTitle="How patient search works"
         helpText="Search by name, patient code, phone number, or the last four digits of the stored ID. Results update as you type and stay scoped to this clinic. Open the chart from any result, or check the patient into OPS when your role allows it."
         actions={
-          <Button asChild>
-            <Link href={`/clinics/${clinicId}/patients/new`}>
-              <UserPlus className="h-4 w-4" />
-              New Patient
-            </Link>
-          </Button>
+          canCreatePatient ? (
+            <Button asChild>
+              <Link href={`/clinics/${clinicId}/patients/new`}>
+                <UserPlus className="h-4 w-4" />
+                New Patient
+              </Link>
+            </Button>
+          ) : null
         }
       />
 
-      <FormSectionCard title="Search patients" className="border-t-2 border-rule-strong">
-        <div className="space-y-2 md:max-w-xl">
-          <Label htmlFor="patient-search">Name, patient code, phone or ID last 4</Label>
-          <div className="relative">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              id="patient-search"
-              type="search"
-              value={q}
-              onChange={(event) => updateView({ q: event.target.value })}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape' && q) updateView({ q: '' });
-              }}
-              placeholder="e.g. Ama Mensah or NKP-2026-000123"
-              autoComplete="off"
-              spellCheck={false}
-              aria-describedby="patient-search-help"
-              className="pl-9 pr-11 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {q ? (
-              <button
-                type="button"
-                onClick={() => {
-                  updateView({ q: '' });
-                  document.getElementById('patient-search')?.focus();
+      <section aria-label="Search patients" className="space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-0 flex-1 basis-72 space-y-2">
+            <Label htmlFor="patient-search">Name, patient code, phone or ID last 4</Label>
+            <div className="relative">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="patient-search"
+                type="search"
+                value={q}
+                onChange={(event) => updateView({ q: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape' && q) updateView({ q: '' });
                 }}
-                aria-label="Clear search"
-                className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : null}
+                placeholder="e.g. Ama Mensah or NKP-2026-000123"
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby="patient-search-help"
+                className="pl-9 pr-11 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {q ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateView({ q: '' });
+                    document.getElementById('patient-search')?.focus();
+                  }}
+                  aria-label="Clear search"
+                  className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            <p id="patient-search-help" className="text-xs text-muted-foreground">
+              Results update as you type. Press / to search, Escape to clear.
+            </p>
           </div>
-          <p id="patient-search-help" className="text-xs text-muted-foreground">
-            Results update as you type. Press Escape to clear.
+          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="mb-5" aria-label="Filter patients">
+                <SlidersHorizontal aria-hidden="true" /> Filter
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side={wideSheet ? 'right' : 'bottom'}
+              className={cn(
+                'flex flex-col bg-card p-0 pb-[env(safe-area-inset-bottom)]',
+                wideSheet ? 'w-full sm:max-w-lg' : 'max-h-[90dvh] rounded-t-xl',
+              )}
+            >
+              <SheetHeader className="shrink-0 px-5 pb-4 text-left">
+                <SheetTitle className="pr-12 font-body">Filter patients</SheetTitle>
+                <SheetDescription>
+                  Filters update results immediately within this clinic.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5 [&_.grid]:grid-cols-1 [&_.grid]:compact:grid-cols-2">
+                <fieldset className="space-y-3">
+                  <legend className="text-sm font-medium text-foreground">
+                    Residential location
+                  </legend>
+                  <ResidentialLocationFilters
+                    value={locationFilter}
+                    onChange={(next) => updateView({ location: next })}
+                  />
+                </fieldset>
+                <div className="border-t border-border/70 pt-4">
+                  <ScreenedDateFilter
+                    customChosen={customScreened}
+                    onCustomChosenChange={setCustomScreened}
+                    value={{ from: screenedFrom, to: screenedTo }}
+                    today={today}
+                    timeZone={timeZone}
+                    error={screenedError}
+                    onChange={(next) => setScreened(next.from, next.to)}
+                  />
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2 border-t border-border px-5 py-4">
+                <Button variant="outline" onClick={clearFilters}>
+                  Clear all filters
+                </Button>
+                <SheetClose asChild>
+                  <Button>Show results</Button>
+                </SheetClose>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+        {screenedError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {screenedError.message}{' '}
+            <Button variant="link" onClick={() => setFiltersOpen(true)}>
+              Edit screened dates
+            </Button>
           </p>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2" aria-label="Active patient filters">
+          {activeFilters.map((filter) => (
+            <Button
+              key={filter.label}
+              variant="outline"
+              className="h-auto min-h-11 max-w-full gap-2 whitespace-normal py-2 text-left"
+              aria-label={`Remove ${filter.label} filter`}
+              onClick={filter.onRemove}
+            >
+              <span className="min-w-0 break-words">
+                <span className="text-muted-foreground">{filter.label}:</span> {filter.value}
+              </span>
+              <X aria-hidden="true" className="shrink-0" />
+            </Button>
+          ))}
+          {activeFilters.length ? (
+            <Button variant="link" onClick={clearFilters}>
+              Clear all filters
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">Browsing the full clinic registry</p>
+          )}
         </div>
-        <div className="space-y-3 border-t border-border/70 pt-4">
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium text-foreground">Residential location</legend>
-            <ResidentialLocationFilters
-              value={locationFilter}
-              onChange={(next) => updateView({ location: next })}
-            />
-          </fieldset>
-          <div className="border-t border-border/70 pt-4">
-            <ScreenedDateFilter
-              key={screenedResetKey}
-              value={{ from: screenedFrom, to: screenedTo }}
-              today={today}
-              timeZone={timeZone}
-              error={screenedError}
-              onChange={(next) => setScreened(next.from, next.to)}
-            />
-          </div>
-          <ActiveFilterSummary
-            items={[
-              { label: 'Search', value: q.trim() || null, onRemove: () => updateView({ q: '' }) },
-              {
-                label: 'Region',
-                value: region ? GHANA_REGION_LABELS[region] : null,
-                // A district only means something inside its region.
-                onRemove: () =>
-                  updateView({ location: { ...locationFilter, region: '', district: '' } }),
-              },
-              {
-                label: 'District',
-                value: district || null,
-                onRemove: () => updateView({ location: { ...locationFilter, district: '' } }),
-              },
-              {
-                label: 'Community',
-                value: locationFilter.community.trim() || null,
-                onRemove: () => updateView({ location: { ...locationFilter, community: '' } }),
-              },
-              {
-                label: 'Location status',
-                value: status ? PATIENT_LOCATION_STATUS_LABELS[status] : null,
-                onRemove: () => updateView({ location: { ...locationFilter, status: '' } }),
-              },
-              {
-                label: 'Screened',
-                value:
-                  screenedFrom && !screenedError
-                    ? [screenedFrom, screenedTo]
-                        .filter((date, index) => date && (index === 0 || date !== screenedFrom))
-                        .map(formatScreenedDay)
-                        .join(' – ')
-                    : null,
-                onRemove: clearScreened,
-              },
-            ]}
-            emptyLabel="Browsing the full clinic registry"
-            onClearAll={() => {
-              setServerScreenedError(null);
-              setScreenedResetKey((key) => key + 1);
-              updateView({
-                q: '',
-                location: EMPTY_LOCATION_FILTER,
-                screenedFrom: '',
-                screenedTo: '',
-                sorting: sorting[0]?.id === 'screened' ? [] : sorting,
-              });
-            }}
-          />
-        </div>
-      </FormSectionCard>
+      </section>
 
       <OpsFeedbackNotice feedback={checkIn.feedback} />
 
@@ -458,7 +573,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         <header className="space-y-3 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1.5">
-              <h2 id="patient-results-title" className="type-section-title">
+              <h2 id="patient-results-title" className="type-section-title font-body">
                 Patient results
               </h2>
               <p className="text-sm text-muted-foreground">
@@ -506,47 +621,24 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                   }))
                 }
                 renderMobileRow={(row) => (
-                  <article className="border-b border-border py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="type-record-title text-foreground">
-                          {row.firstName} {row.lastName}
-                        </h3>
-                        <p className="mt-1 text-sm text-muted-foreground">{row.patientCode}</p>
-                      </div>
-                      {row.nationalIdLast4 ? (
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          …{row.nationalIdLast4}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-3 text-sm tabular-nums text-muted-foreground">
-                      {row.phoneE164 || 'No phone on file'}
-                    </p>
+                  <PatientRegistryCard
+                    patient={row}
+                    href={patientHref(row.id)}
+                    canCheckIn={canCreateOpsCheckIn}
+                    disabled={checkIn.isBusy || !checkIn.canSubmit}
+                    busy={checkIn.busyPatientId === row.id}
+                    onCheckIn={() => void submitCheckIn(row)}
+                  >
                     {screenedActive ? (
                       <div className="mt-3 text-sm">
-                        <p className="font-medium text-foreground">Screened</p>
+                        <p className="font-medium">Screened</p>
                         <ScreenedDates
                           screenings={row.matchingScreenings ?? []}
                           timeZone={timeZone}
                         />
                       </div>
                     ) : null}
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <Button asChild variant="outline">
-                        <Link href={patientHref(row.id)}>View record</Link>
-                      </Button>
-                      {canCreateOpsCheckIn ? (
-                        <Button
-                          loading={checkIn.busyPatientId === row.id}
-                          disabled={checkIn.isBusy || !checkIn.canSubmit}
-                          onClick={() => void checkIn.checkIn(row)}
-                        >
-                          Check in
-                        </Button>
-                      ) : null}
-                    </div>
-                  </article>
+                  </PatientRegistryCard>
                 )}
               />
             )}
