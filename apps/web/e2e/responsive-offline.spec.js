@@ -134,7 +134,7 @@ for (const template of workspaceRoutes()) {
 for (const [url, empty] of [
   ['/patients', 'No patients in this clinic yet'],
   ['/today', 'No patient check-ins yet'],
-  ['/queues', 'Nothing in this queue'],
+  ['/queues', 'All caught up'],
   ['/appointments', 'No appointments found'],
   ['/portal', 'No confirmed appointment yet'],
 ]) {
@@ -182,7 +182,7 @@ for (const [url, pattern, empty] of [
     stationWorkflow ? '**/stations/board*' : '**/clinics/*/checkins?*',
     'No patient check-ins yet',
   ],
-  ['/queues', '**/clinics/*/encounters?*', 'Nothing in this queue'],
+  ['/queues', '**/clinics/*/encounters?*', 'All caught up'],
   ['/appointments', '**/clinics/*/appointments?*', 'No appointments found'],
   ['/portal', '**/patient-portal/me', 'No confirmed appointment yet'],
   ['/portal/appointments', '**/patients/me/appointments**', 'No visit booked yet'],
@@ -211,7 +211,7 @@ for (const [url, pattern, empty] of [
           await expect(page.getByTestId('ops-offline-banner')).toBeVisible();
         } else if (url === '/queues') {
           await expect(
-            page.getByText(/You are offline. Reconnect to load the queues/),
+            page.getByRole('tabpanel').getByText(/You are offline. Reconnect to load the queues/),
           ).toBeVisible();
         } else {
           await expect(
@@ -237,7 +237,7 @@ test.describe('failed list reads', () => {
   for (const [url, api, empty] of [
     ['/audit', '**/clinics/*/audit?*', 'No audit events match the current filters'],
     ['/notifications', '**/clinics/*/reminders?*', 'No reminders match the current filters'],
-    ['/queues', '**/clinics/*/encounters?*', 'Nothing in this queue'],
+    ['/queues', '**/clinics/*/encounters?*', 'All caught up'],
     ['/admin/users', '**/clinics/*/users?*', 'No staff records match these filters'],
   ])
     test(`${url} reports failed loads without claiming zero records`, async ({ page }) => {
@@ -245,12 +245,8 @@ test.describe('failed list reads', () => {
         route.fulfill({ status: 503, json: { message: 'Synthetic unavailable network' } }),
       );
       await page.goto(url);
-      await expect(
-        page
-          .locator('#main-content')
-          .getByText(/Synthetic unavailable network/)
-          .first(),
-      ).toBeVisible();
+      const result = url === '/queues' ? page.getByRole('tabpanel') : page.locator('#main-content');
+      await expect(result.getByText(/Synthetic unavailable network/).first()).toBeVisible();
       await expect(page.getByRole('heading', { name: empty, exact: true })).toHaveCount(0);
       await expect(page.getByText('Nothing to show.', { exact: true })).toHaveCount(0);
       await expect(

@@ -1030,13 +1030,39 @@ recorded in `ui-refresh/R3.3-REVIEW.md`.
 
 ### Queues and encounters (#272)
 
-`/queues` shows each lane's count once, on its tab; the metric row and the
-"Active lane" box that repeated it are gone. Each lane opens with one sentence
-saying what it holds, then a ruled list: patient first, chart code, created
-time, BP classification in plain words and a "High glucose" label where the
-existing fasting 126 / random 200 mg/dL flag applies. Phones get ruled rows
-with the same "Open encounter" action. Fetching, permissions and lane choice
-are unchanged.
+`/queues` keeps one count on each permission-gated lane tab. R3.4 puts the
+tabs directly on the workspace sheet, with one sentence explaining the selected
+lane and an explicit Refresh queues action. Existing labels, doctor cosign /
+finalize / review / drafts default priority and clinic-role cosign gate remain.
+The URL owns lane selection, including Back/Forward; invalid or inaccessible
+lane parameters fall back to the role's default. Only allowed lanes render.
+
+Each lane uses one DataTable with its existing 60rem container switch to ruled
+cards. Sort, pagination and loaded rows survive shell resizing and lane switches.
+Cards include actual patient identity, chart code, created/submitted time, BP
+classification and the existing fasting 126 / random 200 mg/dL High glucose flag.
+Both layouts expose a keyboard-accessible Open encounter link. Cosign rows keep
+the note ID as their row key, show the actual author and submitted time, and link
+to the encounter ID, so two notes for one encounter stay distinct.
+
+An unavailable count is unknown until a successful read. If totals fail while
+rows load, tabs say "loaded" and a warning explains the limit. A full API page
+still offers Show more without a total. Server offsets advance by received rows,
+independent of deduplication; retained rows survive refused paging and retry.
+Requests use the existing resource lifecycle with abort/supersession protection;
+a clinic or permission change remounts the queue workspace. Failed refreshes and
+offline reads retain a visibly qualified snapshot. The all-lane read remains
+atomic: one refused lane prevents replacing the prior snapshot.
+
+Only a successfully read, online, current empty lane with no contradictory
+nonzero total may show the approved licensed checklist and dashboard action.
+Drafts say "No draft visits"; review/sign-off/cosign say "All caught up" for
+that lane only. No claim is made that other work is complete. The illustration
+starts when first viewed, rests at frame 98 and stays mounted through refresh
+and lane changes; reduced motion and player failure use the existing static SVG.
+A stale/offline empty snapshot says it is the last loaded version instead.
+There is no polling promise, fabricated completion count, undo or new mutation.
+Validation and limits are recorded in `ui-refresh/R3.4-REVIEW.md`.
 
 The encounter workspace drops the three metric cards and the second patient
 heading. A ruled progress line names the stage in words (Draft, Pending review,

@@ -784,3 +784,78 @@ Historical station `#197` cases and legacy flag-incompatible Today offline cases
 are not claimed as passes. No separate agent review ran; no evidence was force-added.
 
 **Next unit:** R3.4 Queues. Use `ui-refresh/HANDOFF-R3.4.md`.
+
+## R3.4: Queues (2026-11-10)
+
+**Unit/phase:** R3.4, role/workspace content.
+**Screen/components:** Queue route, lane tabs, table/cards and confirmed empty state.
+**Branch/commit:** `ui-refresh/r1-1-tokens`, local commit for this unit; no push.
+The incoming owner edit to `ui-refresh/HANDOFF-R3.1.md` remains separate.
+**Status:** Complete within the recorded validation boundaries.
+
+**Design changes:** Existing permission-gated lane labels and clinical explanations
+sit directly on the workspace sheet. Role default priority remains; URL lane
+selection now follows history and falls back for invalid/inaccessible parameters.
+Cosign still requires the flag, doctor clinic role and permission. One DataTable/
+card state per mounted lane preserves sort/page/loaded rows through resize,
+lane switches and desktop collapse. Cards add actual created/submitted times;
+both layouts have explicit keyboard-accessible Open encounter links. Cosign rows
+use note IDs, actual authors and encounter destinations. Clinical severity and
+glucose thresholds are unchanged.
+
+Unknown first reads never show zero. Missing totals are labelled loaded counts;
+full pages can still load more. Offsets advance by received rows independently
+of deduplication, and refused paging retains rows with retry. Existing resource
+abort/supersession/reconnect behavior retains visibly qualified snapshots;
+clinic/permission changes remount the workspace. The all-lane read stays atomic.
+Only confirmed current online emptiness without contradictory totals shows the
+licensed checklist and dashboard action. It starts on first viewing and retains
+its rest-frame-98 player across refresh/lane switches; reduced motion uses the
+existing static SVG. No completion totals, polling promise, undo or new mutation.
+Shared primitives, other table consumers, shell, forms, API, auth, RBAC definitions,
+database and sync implementation remain unchanged.
+
+**Desktop/tablet/phone/dark:** All 11 widths
+320/390/599/600/744/767/768/1024/1199/1200/1440 in both themes. Actual-container
+modes, retained lane/sort/page, Back/Forward, keyboard, 200% root text, long identity
+fields and fully visible encounter/Show more actions. The 1200px collapse supplement
+proves the same page in expanded cards and collapsed tables in both themes.
+Physical devices and assistive-technology verification remain manual.
+
+**Validation:** 59 distinct focused browser checks have passing completions.
+The final-source 41-case run completed 40 passed / 1 failed; the following
+18-case selection completed 16 passed / 2 failed; corrected boundary/offline
+selection passed 6/6, and the queue-collapse supplement passed 2/2. Failures were
+an unsettled lane-container measurement and hidden-panel legacy selectors.
+The earlier candidate completed 20 passed / 3 failed / 21 not run, including six
+authentication setups and 14 table/dashboard passes. Its heading-order defect was
+corrected; one shared sync-pill contrast finding did not recur after waiting for
+settled state and is not declared a product fix. Repeated checks are counted once.
+Exact totals and source boundaries are in `ui-refresh/R3.4-REVIEW.md`.
+No full suite or flag-off browser build ran; historical station `#197` and legacy
+flag-incompatible Today offline cases are not claimed as passes.
+
+Audit-flag build, standalone TypeScript, changed-file lint/formatting, whitespace
+and final detector pass; detector findings are empty. Focused Jest passed
+7 suites / 54 tests with one worker, retaining existing illustration act warnings.
+Sandbox compilation/binding limits used escalation without product workarounds.
+Both database URLs were separately guarded for the audit database; API logs were
+redirected and credentials were never printed.
+
+**Route audit/evidence:** 12/12 tests, six fresh authentication setups and six role
+sweeps. All 228 route/theme/width rows have zero errors, zero axe findings including
+minor and zero horizontal overflow. Ignored `ui-refresh/evidence/r3-4/after/`
+contains 147 implementation PNGs (114 normal routes, 33 queue supplements),
+audit/validation summaries, selected logs and separate pilot/candidate diagnostics.
+Phone, wide, dark, confirmed-empty and enlarged-text evidence was visually inspected.
+No real-patient or third-party reference directories were inspected; no evidence
+was force-added. No separate agent review ran.
+
+**Outstanding:** Prior open Select/menu findings and short dropdown rows remain
+separate; normal-route scans do not clear them. Physical devices, screen readers,
+Safari/Firefox, installed PWA, virtual keyboard, real safe areas and gesture feel
+remain manual. Earlier Vitals/Crisis/backend acknowledgement and Sunday appointment
+lifecycle work remain separate. Queues require a connection for a first read;
+one refused lane still blocks replacing the atomic snapshot.
+
+**Next unit:** R3.5 Registration. Use `ui-refresh/HANDOFF-R3.5.md`.
