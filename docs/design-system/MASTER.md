@@ -532,8 +532,8 @@ More-to-sync handoff. Without a custom override, the Sheet remembers the actual
 opening control, including selection-controlled panels with no Radix Trigger,
 and returns focus there if still connected and visible, otherwise to main content.
 This does not change modal or focus-trap semantics. All current consumers retain
-their existing side, data, action and save contracts; portal navigation remains
-R2.5 work.
+their existing side, data, action and save contracts. R2.5 portal More uses the
+same bottom Sheet and focus handoff as staff More.
 
 ### Anchored overlays (R1.5)
 
@@ -746,7 +746,7 @@ first hover delay, instant keyboard access and the shared 300ms scanning window.
 The header retains the clinic picker, sync and account controls at every width.
 Message delivery becomes visible from 600px in the staff shell so hiding the phone
 trigger cannot conceal it at 600 to 767px. Clinic settings remains in the account
-menu. Portal header breakpoints remain unchanged. R2.2 replaces the staff hamburger
+menu. R2.5 shares the compact clinic context with the portal. R2.2 replaces the staff hamburger
 with a small brand mark and a persistent bottom bar below 600px. R2.3 stacks the
 staff clinic name above the active role at every width, with independent single-line
 truncation and the complete context in the switcher's accessible name. Explicit
@@ -795,8 +795,8 @@ sync sheet remembers its actual entry point and restores focus on close, falling
 back to main if that control is gone or hidden. Its focus trap and queue behavior
 are unchanged. R2.4 adds the shared drag handle and interruption contract described
 in section 7, retaining these custom focus handlers and existing modal semantics.
-Portal BottomNav remains R2.5. The known open-overlay accessibility findings remain
-unresolved.
+R2.5 reuses this phone bar and More behavior for the patient portal, as specified
+below. The known open-overlay accessibility findings remain unresolved.
 
 ### Navigation utilities (#267)
 
@@ -1046,11 +1046,35 @@ Shipped in [PR #300](https://github.com/akomapahealth/nkwapa/pull/300); before a
 
 ### Patient portal (#276)
 
-Overview, My Health and Appointments share a three-column navigation strip on
-phones. Each destination has an icon, a text label and a 44px minimum target.
-The strip indicates the current section when a patient opens a form. Request
-an appointment is available from Overview and Appointments. Patients reach
-past readings through My Health.
+R2.5 keeps the existing Overview, My Health and Appointments labels and routes.
+Below 600px they appear in the shared fixed BottomNav followed by More, with the
+same moving indicator, wrapping labels, safe-area padding and 44px target floor
+as the staff bar. At 600px and above a wrapping top navigation strip replaces the
+phone bar. Health owns self-report routes; Appointments owns request routes.
+Account and settings routes mark More as current. CSS selects the presentation;
+page content stays mounted across widths.
+
+More reuses the shared draggable bottom Sheet, preserving keyboard access,
+Escape, focus containment, scrolling and sequential More-to-sync focus handoff.
+It contains Manage profile, Your settings and existing permission-filtered
+header/profile utilities. It does not add staff sidebar destinations. Saved
+changes and sync appears only with an active clinic and the same eligibility as
+the existing sync pill: sync permissions, this account's saved changes or held
+changes, including other clinics. An empty patient queue without sync permissions
+exposes neither an inert recovery entry nor an invented synced status. Queue,
+ownership, authentication and permission behavior remain unchanged.
+
+The portal Header uses a phone brand mark and stacked, independently truncating
+clinic/role context. Its former dormant left-menu trigger is absent; phone
+navigation is owned by BottomNav. Existing clinic switching, account menu,
+appearance, tour and install access remain. Authorized Header utilities appear
+from 600px, so hiding phone More cannot conceal them at 600–767px. The portal is
+one card surface on the
+canvas, inset 8px from 600px, with quiet borders and 12px corners. Main has 6rem
+plus bottom safe-area clearance below 600px and 1.5rem above; the inherited bottom
+navigation height variable is available to floating consumers. Chat remains a
+staff-only mount. Request an appointment remains available from Overview and
+Appointments; past readings remain under My Health.
 
 The six portal routes use the existing `RecordSection` top rule, serif
 headings and hairlines between records. The reading and request forms keep

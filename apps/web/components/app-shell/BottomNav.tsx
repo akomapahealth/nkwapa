@@ -16,17 +16,31 @@ import {
 } from '@/components/ui/sheet';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { getNavItemHref, isNavItemActive } from '@/lib/app-nav';
+import { portalNavItems } from '@/lib/portal-nav';
+import { getNavItemHref, isNavItemActive, type AppNavItem } from '@/lib/app-nav';
 import { getMobileNavigation } from '@/lib/mobile-nav';
 import { cn } from '@/lib/utils';
 
-/** Staff phone presentation of the same destinations as Sidebar. Portal stays separate. */
-export function BottomNav() {
+/** Shared phone presentation; each shell supplies its existing destinations. */
+export function BottomNav({
+  portal = false,
+  canOpenSync = true,
+}: {
+  portal?: boolean;
+  canOpenSync?: boolean;
+}) {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const pathname = usePathname();
   const { setSyncCenterOpen } = useSync();
-  const { primary, more, utilities } = getMobileNavigation(bootstrap);
+  const navigation = getMobileNavigation(bootstrap);
+  const primary: AppNavItem[] = portal ? portalNavItems : navigation.primary;
+  const more = portal ? [] : navigation.more;
+  const utilities = navigation.utilities;
+  const isActive = (item: AppNavItem) =>
+    portal
+      ? Boolean(portalNavItems.find((entry) => entry.href === item.href)?.matches(pathname))
+      : isNavItemActive(pathname, item, clinicId);
   const [open, setOpen] = useState(false);
   const syncAfterClose = useRef(false);
   const moreTrigger = useRef<HTMLButtonElement>(null);
@@ -50,7 +64,7 @@ export function BottomNav() {
     [...more.flatMap((section) => section.items), ...utilities].some((item) =>
       isNavItemActive(pathname, item, clinicId),
     ) || /^\/(account|settings)(\/|$)/.test(pathname);
-  const activeIndex = primary.findIndex((item) => isNavItemActive(pathname, item, clinicId));
+  const activeIndex = primary.findIndex(isActive);
   const indicatorIndex = moreActive || open ? primary.length : activeIndex;
   const tabClass =
     'flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-[3px] px-1 py-1 text-center text-[0.71875rem] font-medium leading-tight text-muted-foreground transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring';
@@ -60,7 +74,7 @@ export function BottomNav() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <nav
-        aria-label="Primary"
+        aria-label={portal ? 'Patient portal' : 'Primary'}
         className="safe-edges-x fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] compact:hidden"
       >
         <div
@@ -79,7 +93,7 @@ export function BottomNav() {
           )}
           {primary.map((item) => {
             const Icon = item.icon;
-            const active = isNavItemActive(pathname, item, clinicId);
+            const active = isActive(item);
             const content = (
               <>
                 <Icon aria-hidden="true" className="size-5 shrink-0" />
@@ -132,15 +146,21 @@ export function BottomNav() {
       >
         <SheetHeader className="border-b border-border p-5 pr-20 text-left">
           <SheetTitle className="font-sans">More</SheetTitle>
-          <SheetDescription>Workspace destinations and account tools.</SheetDescription>
+          <SheetDescription>
+            {portal
+              ? 'Patient portal and account tools.'
+              : 'Workspace destinations and account tools.'}
+          </SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-4">
-          <AppNavList
-            bootstrap={bootstrap}
-            mobile
-            sections={more}
-            onNavigate={() => setOpen(false)}
-          />
+          {more.length > 0 && (
+            <AppNavList
+              bootstrap={bootstrap}
+              mobile
+              sections={more}
+              onNavigate={() => setOpen(false)}
+            />
+          )}
           {utilities.length > 0 && (
             <AppNavList
               bootstrap={bootstrap}
@@ -150,7 +170,12 @@ export function BottomNav() {
               onNavigate={() => setOpen(false)}
             />
           )}
-          <div className="flex flex-col gap-px border-t border-border pt-3">
+          <div
+            className={cn(
+              'flex flex-col gap-px',
+              (more.length > 0 || utilities.length > 0) && 'border-t border-border pt-3',
+            )}
+          >
             <Link href="/account" className={utilityClass} onClick={() => setOpen(false)}>
               <UserPen aria-hidden="true" className="size-[18px] shrink-0" />
               Manage profile
@@ -159,18 +184,20 @@ export function BottomNav() {
               <Settings aria-hidden="true" className="size-[18px] shrink-0" />
               Your settings
             </Link>
-            <button
-              type="button"
-              disabled={!clinicId}
-              className={utilityClass}
-              onClick={() => {
-                syncAfterClose.current = true;
-                setOpen(false);
-              }}
-            >
-              <RefreshCw aria-hidden="true" className="size-[18px] shrink-0" />
-              Saved changes and sync
-            </button>
+            {canOpenSync && (
+              <button
+                type="button"
+                disabled={!clinicId}
+                className={utilityClass}
+                onClick={() => {
+                  syncAfterClose.current = true;
+                  setOpen(false);
+                }}
+              >
+                <RefreshCw aria-hidden="true" className="size-[18px] shrink-0" />
+                Saved changes and sync
+              </button>
+            )}
           </div>
         </div>
       </SheetContent>

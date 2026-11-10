@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1 through R1.6 and R2.1 through R2.4 are built on `ui-refresh/r1-1-tokens` and in review. The prior open-Select/menu accessibility finding remains unresolved. Next: R2.5 patient portal shell.
+**Status:** R0 completed 2026-11-07. R1.1 through R1.6 and R2.1 through R2.5 are built on `ui-refresh/r1-1-tokens` and in review. The prior open-Select/menu accessibility finding remains unresolved. Next: R3.1 volunteer dashboard.
 
 ## Phase Status
 
@@ -11,7 +11,7 @@
 | ----- | -------------------------------------- | ----------- |
 | R0    | Current UI audit and design pilot      | Completed   |
 | R1    | Design tokens and shared components    | In review   |
-| R2    | Desktop, tablet, and mobile app shells | In progress |
+| R2    | Desktop, tablet, and mobile app shells | In review   |
 | R3    | Volunteer and clinical workflows       | Not started |
 | R4    | Clinical review and oversight          | Not started |
 | R5    | Patient portal and authentication      | Not started |
@@ -474,3 +474,79 @@ For every unit, confirm:
 **Outstanding problems:** Prior P1 open-Select/menu background accessibility findings and short dropdown rows remain. Physical gesture feel, screen readers, Safari/Firefox, physical devices, installed PWA, virtual keyboard and real safe-area checks remain manual. Root-text scaling and CDP touch input are bounded browser evidence. Earlier R1.4/Vitals/Crisis/backend acknowledgement work and Sunday appointment lifecycle findings remain separate.
 
 **Next unit:** R2.5 patient portal shell; use `ui-refresh/HANDOFF-R2.5.md`. R3 content remains unbuilt.
+
+## R2.5: patient portal shell (2026-11-10)
+
+**Unit ID:** R2.5
+
+**Phase:** R2 adaptive app shell
+
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+
+**Status:** Complete within the validation boundaries below.
+
+**Screen(s) or components:** PortalLayout and its sole production caller in
+SyncWithAuth, the shared Header and BottomNav, patient portal/account/settings
+routes and existing authorized Header utilities for staff visiting portal routes.
+
+**Design changes:** Overview, My Health, Appointments and More share the existing
+phone BottomNav below 600px. Top tabs replace it from 600px. Existing labels,
+routes, clinic scoping and permissions stay intact. Health owns self-reports and
+Appointments owns request routes; More marks account/settings. The portal Header
+uses the compact mark and stacked, independently truncating clinic/role context.
+Its dormant left-menu trigger is removed from the portal presentation. Header
+utilities appear from 600px, preventing a gap when phone More is hidden. The
+portal sits on one card surface with an 8px inset from 600px, 12px corners and
+phone bottom clearance. CSS selects navigation presentations without remounting
+page content.
+
+**Recovery and account access:** More exposes profile/settings and existing
+permission-filtered header/profile utilities. It excludes staff sidebar items
+and empty navigation groups. Sync recovery appears only with an active clinic
+and existing sync permissions or owned/held changes, including other clinics.
+More closes before the provider-controlled sync sheet opens, and return focus
+remembers More or the Header pill. Existing Radix semantics, Sheet gestures,
+queue ownership, authentication, providers, clinical copy and save behavior remain.
+The portal does not newly mount staff chat.
+
+**Files changed:** `components/PortalLayout.tsx`, `components/Header.tsx`,
+`components/app-shell/BottomNav.tsx`, new `lib/portal-nav.ts`, new
+`lib/use-sync-recovery-availability.ts` and `e2e/portal-shell.spec.js`; MASTER,
+this tracker, `ui-refresh/R2.5-REVIEW.md` and `ui-refresh/HANDOFF-R3.1.md`.
+
+**Validation:** Final-source focused selection: **112/112 passed**, comprising
+six fresh authentication setups and **106 distinct browser checks**. The eight
+new portal cases cover the established 11 boundary widths in both themes,
+retained draft/input identity, long clinic names, 200% root text, 44px targets,
+final-action access, More keyboard/drag/focus/route/history/reduced-motion behavior,
+active/other-clinic held recovery and authorized Header utilities. Existing portal
+offline/refusal, settings, dark-mode, responsive, form-error/date and accessibility
+checks and shared staff navigation/Header/sync/Sheet/table-state regressions pass.
+Final audit-flag build, standalone TypeScript, changed-file ESLint/Prettier,
+whitespace and detector checks pass. Jest with two workers: **93 suites / 1019
+tests passed**. The initial 99/99 candidate preceded empty-group and utility-gap
+corrections found in screenshot/code review, not a browser failure. The sandbox
+build stalled and API binding failed with EPERM; approved outside-sandbox runs
+used guarded audit URLs and redirected API logs. The six-role normal-route audit passed **12/12** with six fresh authentication
+setups and six role sweeps: **228 route/theme/width rows**, **zero recorded errors,
+zero axe violations including minor findings, zero horizontal overflow**. No full
+e2e suite, flag-off browser build or blanket release/accessibility sign-off is
+claimed. Exact results and limits are in `ui-refresh/R2.5-REVIEW.md`.
+
+**Evidence:** **142 synthetic PNGs** under ignored `ui-refresh/evidence/r2-5/after/`:
+114 light-theme route images and 28 portal supplements in both themes.
+`route-audit.json`, `validation-summary.json` and build/test/detector diagnostics
+sit beside `after/`. The existing R2.4 patient phone baseline and new phone,
+wide, dark, enlarged-text, More and recovery images were inspected. Evidence
+remains untracked; no real-patient or third-party reference directories were
+inspected. No separate agent review ran.
+
+**Outstanding problems:** Prior P1 open-Select/menu accessibility findings and
+short dropdown rows remain separate. Physical gesture feel, screen readers,
+Safari/Firefox, physical devices, installed PWA, virtual keyboard and real safe
+areas remain manual. Root-text scaling is bounded browser evidence. Earlier
+R1.4/Vitals/Crisis/backend acknowledgement and Sunday appointment lifecycle work
+remain separate.
+
+**Next unit:** R3.1 volunteer dashboard; use `ui-refresh/HANDOFF-R3.1.md`.
+No R3 content was implemented here.

@@ -52,11 +52,13 @@ import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 export function Header({
+  portal = false,
   sidebarCollapsed = false,
   onToggleSidebar,
   mobileOpen = false,
   onMobileOpenChange = () => undefined,
 }: {
+  portal?: boolean;
   sidebarCollapsed?: boolean;
   /** Omitted where there is no sidebar to toggle, as on the patient portal. */
   onToggleSidebar?: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -133,13 +135,13 @@ export function Header({
       .toUpperCase() ?? '?';
 
   // Staff context follows the pilot: clinic above role, with both lines allowed to shrink.
-  // Keep the portal's existing presentation until R2.5.
+  // The portal shares compact clinic context without a staff sidebar control.
   const switcherLabel = `Active clinic: ${clinicName}${roleText ? `, ${roleText}` : ''}`;
   const roleSuffix = roleText ? (
     <span
       className={cn(
         'font-normal text-muted-foreground',
-        onToggleSidebar
+        onToggleSidebar || portal
           ? 'block truncate text-xs leading-tight'
           : 'sr-only shrink-0 sm:not-sr-only',
       )}
@@ -155,16 +157,16 @@ export function Header({
           aria-label={`${switcherLabel}. Switch clinic`}
           className={cn(
             'w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none',
-            onToggleSidebar && 'h-auto min-h-11 min-w-[44px] flex-1 py-1 text-left',
+            (onToggleSidebar || portal) && 'h-auto min-h-11 min-w-[44px] flex-1 py-1 text-left',
           )}
         >
           <span className="min-w-0 truncate text-left font-semibold text-foreground">
             <span className="block truncate" title={clinicName}>
               <SelectValue placeholder="Select clinic">{activeClinic?.clinicName}</SelectValue>
             </span>
-            {onToggleSidebar ? roleSuffix : null}
+            {onToggleSidebar || portal ? roleSuffix : null}
           </span>
-          {!onToggleSidebar ? roleSuffix : null}
+          {!onToggleSidebar && !portal ? roleSuffix : null}
         </SelectTrigger>
         <SelectContent className="max-w-[calc(100vw-2rem)]">
           <SelectGroup>
@@ -182,7 +184,7 @@ export function Header({
       <p
         className={cn(
           'min-w-0 px-2.5 text-sm',
-          onToggleSidebar ? 'flex flex-col justify-center' : 'flex items-center gap-2',
+          onToggleSidebar || portal ? 'flex flex-col justify-center' : 'flex items-center gap-2',
         )}
         aria-label={switcherLabel}
       >
@@ -197,18 +199,18 @@ export function Header({
     <header
       className={cn(
         'pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur',
-        onToggleSidebar && 'compact:rounded-t-xl compact:bg-card/95',
+        (onToggleSidebar || portal) && 'compact:rounded-t-xl compact:bg-card/95',
       )}
     >
       <div
         className={cn(
           'flex min-h-14 items-center gap-2 px-4 md:px-6',
           // Pixel gutters leave room for enlarged text and touch targets at the 320px boundary.
-          onToggleSidebar &&
+          (onToggleSidebar || portal) &&
             'flex-wrap gap-[4px] px-[12px] py-1 compact:gap-2 compact:px-4 desktop:px-5',
         )}
       >
-        {onToggleSidebar && (
+        {(onToggleSidebar || portal) && (
           <Image
             src="/images/nkwapa-mark.png"
             alt="Nkwapa"
@@ -217,7 +219,7 @@ export function Header({
             className="shrink-0 compact:hidden"
           />
         )}
-        {!onToggleSidebar && (
+        {!onToggleSidebar && !portal && (
           <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
             <SheetTrigger asChild>
               <Button
@@ -321,7 +323,7 @@ export function Header({
         <div
           className={cn(
             'flex min-w-0 flex-1 items-center',
-            onToggleSidebar && 'min-w-[6rem] compact:min-w-0',
+            (onToggleSidebar || portal) && 'min-w-[6rem] compact:min-w-0',
           )}
         >
           {clinicSwitcher}
@@ -347,7 +349,9 @@ export function Header({
                     disabled
                     aria-label={`${item.label}: select a clinic first`}
                     className={
-                      onToggleSidebar ? 'hidden compact:inline-flex' : 'hidden md:inline-flex'
+                      onToggleSidebar || portal
+                        ? 'hidden compact:inline-flex'
+                        : 'hidden md:inline-flex'
                     }
                   >
                     <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
@@ -363,7 +367,9 @@ export function Header({
                       variant="ghost"
                       size="icon"
                       className={cn(
-                        onToggleSidebar ? 'hidden compact:inline-flex' : 'hidden md:inline-flex',
+                        onToggleSidebar || portal
+                          ? 'hidden compact:inline-flex'
+                          : 'hidden md:inline-flex',
                         active && 'bg-primary/10 text-primary',
                       )}
                     >
