@@ -88,7 +88,9 @@ export function ScreenerControl({
             if (next && screenerName) void save({ isAccountHolder: true });
           }}
         />
-        <Label htmlFor={`${id}-holder`}>I&apos;m the one screening</Label>
+        <Label htmlFor={`${id}-holder`} className="flex min-h-11 items-center">
+          I&apos;m the one screening
+        </Label>
       </div>
       {!isHolder ? (
         <form

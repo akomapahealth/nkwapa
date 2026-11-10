@@ -954,8 +954,38 @@ minutes remain beside every bar. Staffing is shown as Staffed N of capacity,
 separately from places in use. Manager controls retain their permission, day,
 connection and reason gates.
 
-Station setup, the station workbench, visit history/hand-off and My Assigned use
-`RecordSection` rules. Shared history, eye, counselling, results and shift panels
+### Stations workspace refresh (R3.2)
+
+The Stations overview leads with a compact shift strip. Off duty, it offers the
+existing shift start and eligible role choice without displaying disabled station
+lists or empty queue columns. A missing or refused first read stays unknown.
+Retained data remains visible after refresh failures with an explicit retry.
+Pending starts/ends retain their existing outbox overlays and recovery badges;
+station changes and claims require a server-confirmed active shift. Start/end
+use the shared `useShiftControls` operation with a page reconciliation lock.
+Today, My Assigned and the dashboard retain their own shift presentations.
+
+On duty, a labelled station trigger opens the existing draggable Sheet: bottom
+below 600px, right-side from 600px. The same content and open state survive width
+changes. Choices come from the active station board, including actual waiting
+counts and the current station. Selecting the current station clears it using
+the existing operation. Closure notices and screener attribution remain visible.
+
+The oldest queued patient becomes a ticket with a deep-teal, dashed queue stub,
+patient code, exact wait, check-in time and existing handoff/performer details.
+Other patients retain claim/Continue actions and the account's actual screener.
+The phone's fixed Take action uses the short visible label Take patient, retains
+the full patient name in its accessible label, and leaves space for chat, the
+BottomNav and the safe area. At wider sizes Take remains on the ticket.
+Station capacity and places in use remain explicit and informational, matching
+the existing server contract. Claim and Continue actions remain available.
+Claims and station changes have synchronous duplicate guards; successful claims stay busy through navigation.
+The whole line uses one route stop per actual station, gold for the user's stop,
+with actual waiting/being-seen counts and staffing. It reflows by available width.
+No workflow completion badges, new APIs or undo behavior are inferred from the pilot.
+
+Station setup, the station visit workbench, visit history/hand-off and My Assigned
+use `RecordSection` rules. Shared history, eye, counselling, results and shift panels
 opt into that treatment only on these routes; VitalsForm uses its existing
 station `sections` boundary. Existing clinical fields, units, validation,
 defaults, correction history, offline outbox, held states and save payloads stay

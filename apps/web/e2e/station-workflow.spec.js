@@ -126,13 +126,19 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   await expect(volunteerPage.getByRole('heading', { name: 'Stations' })).toBeVisible({
     timeout: 20_000,
   });
-  const bpButton = volunteerPage.getByRole('button', { name: /^Blood pressure/ });
+  await volunteerPage.getByRole('button', { name: /^(Choose station|Change station:)/ }).click();
+  const bpButton = volunteerPage
+    .getByRole('dialog', { name: 'Choose your station' })
+    .getByRole('button', { name: /^Blood pressure/ });
+  // Selecting the current station clears it; close the sheet instead when already there.
   if ((await bpButton.getAttribute('aria-pressed')) !== 'true') await bpButton.click();
-  await expect(volunteerPage.getByText('Reports headaches this week.')).toBeVisible({
-    timeout: 20_000,
-  });
+  else await volunteerPage.keyboard.press('Escape');
   const row = volunteerPage.locator('div', { hasText: patient.name }).filter({
     has: volunteerPage.getByRole('button', { name: 'Take patient' }),
+  });
+  // Scope to this run's patient; prior interrupted runs may leave the same handoff note.
+  await expect(row.last().getByText('Reports headaches this week.')).toBeVisible({
+    timeout: 20_000,
   });
   await row.last().getByRole('button', { name: 'Take patient' }).click();
   await volunteerPage.waitForURL(/\/stations\/visits\//, { timeout: 20_000 });
@@ -624,8 +630,13 @@ test("a volunteer screening on someone else's account is named on each stop (#22
     await expect(volunteerPage.getByRole('heading', { name: 'Stations' })).toBeVisible({
       timeout: 20_000,
     });
-    const bpButton = volunteerPage.getByRole('button', { name: /^Blood pressure/ });
+    await volunteerPage.getByRole('button', { name: /^(Choose station|Change station:)/ }).click();
+    const bpButton = volunteerPage
+      .getByRole('dialog', { name: 'Choose your station' })
+      .getByRole('button', { name: /^Blood pressure/ });
+    // Selecting the current station clears it; close the sheet instead when already there.
     if ((await bpButton.getAttribute('aria-pressed')) !== 'true') await bpButton.click();
+    else await volunteerPage.keyboard.press('Escape');
     const holder = volunteerPage.getByRole('checkbox', { name: "I'm the one screening" });
     await expect(holder).toBeChecked({ timeout: 20_000 });
     await holder.click();
@@ -915,7 +926,10 @@ test('closing a station clears it from the volunteer working there, who is told 
     await ensureShift('volunteer', clinicId);
     const page = await context.newPage();
     await page.goto('/stations');
-    const choice = page.getByRole('button', { name: new RegExp(`^${name}`) });
+    await page.getByRole('button', { name: /^(Choose station|Change station:)/ }).click();
+    const choice = page
+      .getByRole('dialog', { name: 'Choose your station' })
+      .getByRole('button', { name: new RegExp(`^${name}`) });
     await choice.click();
     await expect(page.getByText(`You are working at ${name}.`)).toBeVisible({ timeout: 20_000 });
 

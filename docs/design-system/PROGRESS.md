@@ -649,3 +649,68 @@ work remains separate.
 
 **Next unit:** R3.2 Stations; use `ui-refresh/HANDOFF-R3.2.md`. No station content
 redesign was implemented in R3.1.
+
+## R3.2: Stations (2026-11-10)
+
+**Unit/phase:** R3.2, role/workspace content.
+**Screen/components:** Stations overview, new Stations-only shift strip, station
+picker Sheet and the shared screener's associated checkbox label.
+**Branch/commit:** `ui-refresh/r1-1-tokens`, local commit for this unit; no push.
+The incoming owner edit to `ui-refresh/HANDOFF-R3.1.md` remains separate.
+**Status:** Complete within the recorded validation boundaries.
+
+**Design changes:** Shift-first off duty; one active station trigger and responsive
+Sheet on duty; next-patient ticket with deep-teal/dashed stub; retained claim and
+Continue actions; capacity/places-in-use information; real staffing/screener route
+stops; fixed phone Take patient with full accessible patient name and chat/nav/
+safe-area clearance. IBM Plex Sans is explicit on route and Sheet headings.
+Unknown first reads, retained stale data, refusals, closed-station notices and
+queued shift overlays remain truthful. Existing operations, permission definitions,
+clinical forms/validation and replay implementation are unchanged. The shared
+shift hook and Today/My Assigned/dashboard presentations are preserved.
+
+**Desktop/tablet/phone/dark:** All 11 boundary widths
+320/390/599/600/744/767/768/1024/1199/1200/1440 in both themes, same mounted
+screener draft, role and open/selected station Sheet across resize. Bottom Sheet
+below 600px; right-side from 600px. 200% root text/long names checked at 390px.
+The bounded phone action remains clickable and clear of chat. Keyboard, Escape,
+focus restoration, reduced motion and screener final action are covered.
+
+**Tests:** 56 distinct browser checks passed, including 15 new Stations cases,
+with six fresh focused-run authentication setups. Existing dashboard work-first,
+station-board, complete station/doctor path, screener attribution/closure and
+offline replay regressions pass. The new Stations cases exercise real online and
+offline queued start/end/replay. Passing completions span 11 new checks, 33 passing
+checks in the broader run and an 18/18 remaining run; a final 2/2 Sheet typography
+recheck repeats two of those cases. Exact candidate failures and limits are in
+`ui-refresh/R3.2-REVIEW.md`. Two legacy flag-incompatible Today offline checks
+remain failed and their third case did not run; none is counted as a pass.
+Historical `#197` cases remain excluded. No full e2e suite or flag-off build ran.
+
+Final audit-flag build, standalone TypeScript, changed-file ESLint/Prettier,
+whitespace and detector pass; detector findings are empty. Focused Jest:
+3 suites / 45 tests passed, at most two workers. Sandboxed compilation/binding
+failures used escalation rather than product workarounds. Both database URLs were
+separately guarded for `nkwapa_audit`; credentials were never printed and API logs
+were redirected.
+
+**Route audit/evidence:** 12/12 tests passed, including six fresh
+authentication setups and six role sweeps. All 228 route/theme/width rows are clean:
+zero recorded errors, zero axe findings including minor, zero horizontal overflow.
+Ignored `ui-refresh/evidence/r3-2/after/` contains 144 implementation PNGs (114 normal
+routes and 30 Stations supplements), audit/validation-summary JSON and diagnostics.
+The approved pilot, candidate failures, final phone/wide/dark/enlarged-text,
+whole-line and both Sheet presentations were visually inspected. No evidence was
+force-added.
+
+**Outstanding:** Prior open Select/menu accessibility findings and short dropdown
+rows remain separate; normal-state scans and Sheet interaction coverage do not
+clear them. Physical devices, screen readers, Safari/Firefox, installed PWA,
+virtual keyboard and real safe areas remain manual. Earlier Vitals/Crisis/backend
+acknowledgement and Sunday appointment lifecycle work remain separate. No backend,
+API, database, RBAC definition, clinical validation or sync implementation changed.
+No unsupported data was added and no production patient data entered evidence.
+No separate agent review ran.
+
+**Next unit:** R3.3 patient registry: toolbar, filter Sheet, cards on phone.
+Use `ui-refresh/HANDOFF-R3.3.md`.

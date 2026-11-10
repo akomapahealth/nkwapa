@@ -2,6 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* A real stop per station. Flow vertically until the available workspace can hold a route. */
+.station-route {
+  display: grid;
+  gap: 1.5rem;
+}
+.station-line {
+  container-type: inline-size;
+}
+.station-route li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.station-route-stop {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.375rem;
+  border: 2px solid hsl(var(--primary));
+  border-radius: 50%;
+  background: hsl(var(--card));
+}
+.station-route-stop-mine {
+  border-color: hsl(var(--secondary));
+  background: hsl(var(--secondary));
+}
+.station-route li:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 0.3125rem;
+  top: 0.75rem;
+  bottom: -1.875rem;
+  width: 2px;
+  background: hsl(var(--mint-line));
+}
+@container (min-width: 48rem) {
+  .station-route {
+    display: flex;
+    gap: 0;
+  }
+  .station-route li {
+    flex: 1;
+    flex-direction: column;
+    padding-right: 1rem;
+  }
+  .station-route li:not(:last-child)::before {
+    left: 0.375rem;
+    right: -0.375rem;
+    top: 0.6875rem;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
+}
+
 @layer base {
   :root {
     /* app/layout.tsx loads each family as two faces; latin-ext only covers its unicode-range. */

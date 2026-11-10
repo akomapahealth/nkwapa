@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
-import { ArrowRight, Clock, ListOrdered, MapPin, RefreshCw, UserCheck } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, ChevronDown, Clock, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -13,6 +13,7 @@ import {
   formatOpsDateTime,
   getEligibleShiftRoles,
   getTodayInTimeZone,
+  hasPermission,
 } from '@/lib/ops';
 import { fetchActiveShifts } from '@/lib/ops-api';
 import { overlayPendingShifts } from '@/lib/ops-offline';
@@ -35,7 +36,6 @@ import {
   type StationVisit,
 } from '@/lib/stations';
 import type { ActiveShiftsResponse } from '@/lib/ops';
-import { AppActionRow } from '@/components/app-shell/AppActionRow';
 import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -46,17 +46,18 @@ import {
   InlineNotice,
   OfflineOpsBanner,
   OpsFeedbackNotice,
-  ShiftControlCard,
 } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  RecordSection as Card,
-  RecordSectionContent as CardContent,
-  RecordSectionDescription as CardDescription,
-  RecordSectionHeader as CardHeader,
-  RecordSectionTitle as CardTitle,
-} from '@/components/patients/RecordSection';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { StationShiftStrip } from '@/components/stations/StationShiftStrip';
 import { cn } from '@/lib/utils';
 
 interface StationsView {
@@ -92,7 +93,22 @@ export default function StationsPage() {
     ),
   );
 
-  const [date] = useState(getTodayInTimeZone());
+  const [date] = useState(getTodayInTimeZone);
+  const [stationSheetOpen, setStationSheetOpen] = useState(false);
+  const stationTrigger = useRef<HTMLButtonElement>(null);
+  const [wideSheet, setWideSheet] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 600px)');
+    const update = () => setWideSheet(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  const actionInFlight = useRef(false);
+  const [awaitingShift, setAwaitingShift] = useState<'start' | 'end' | null>(null);
+  const permissions = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canWork = hasPermission(permissions, 'OPS.STATION.WORK');
+  const canWriteShift = hasPermission(permissions, 'OPS.SHIFT.WRITE');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -137,6 +153,29 @@ export default function StationsPage() {
     onApplied: refresh,
   });
   const currentShift = shiftControls.currentShift;
+  useEffect(() => {
+    if (!shiftControls.feedback) return;
+    if (
+      shiftControls.feedback.tone === 'error' ||
+      (awaitingShift === 'start' && currentShift) ||
+      (awaitingShift === 'end' && (!currentShift || currentShift.pendingCheckOut))
+    )
+      setAwaitingShift(null);
+  }, [awaitingShift, shiftControls.feedback, currentShift]);
+  const knownShift = Boolean(view.data || currentShift);
+  const shiftDisabled =
+    !canWriteShift ||
+    !shiftControls.canSubmit ||
+    shiftControls.busy ||
+    view.isRefreshing ||
+    awaitingShift !== null;
+  const canUseStation =
+    Boolean(currentShift && !currentShift.pendingSync && !currentShift.pendingCheckOut) &&
+    canWork &&
+    isOnline &&
+    !view.isRefreshing &&
+    busyId === null &&
+    awaitingShift === null;
 
   const myStation = stations.find((station) =>
     station.staff.some((member) => member.id === userId),
@@ -164,43 +203,61 @@ export default function StationsPage() {
     ),
   );
   const queue = myStation?.visits ?? [];
+  const nextPatient = queue.find((visit) => visit.status === 'QUEUED') ?? null;
+  const otherPatients = queue.filter((visit) => visit.id !== nextPatient?.id);
+  const inUse = myStation?.inUse ?? queue.filter((visit) => visit.status === 'IN_PROGRESS').length;
+  const atCapacity = myStation?.capacity !== undefined && inUse >= myStation.capacity;
+  const canClaim = canUseStation;
+
   const screeners = screenersByUser(view.data?.board?.onShift);
   const myScreener = screeners.get(userId) ?? null;
 
   const chooseStation = useCallback(
     async (stationId: string | null) => {
-      if (!clinicId || !getToken || !currentShift) return;
+      if (!clinicId || !getToken || !currentShift || !canUseStation || actionInFlight.current)
+        return;
+      actionInFlight.current = true;
       setBusyId(stationId ?? 'none');
       setActionError(null);
       try {
         await setShiftStation(clinicId, currentShift.shiftId, stationId, getToken);
+        setStationSheetOpen(false);
         refresh();
       } catch (error) {
         setActionError(error instanceof Error ? error.message : String(error));
+        if (error instanceof StationRequestError) refresh();
       } finally {
+        actionInFlight.current = false;
         setBusyId(null);
       }
     },
-    [clinicId, getToken, currentShift, refresh],
+    [clinicId, getToken, currentShift, canUseStation, refresh],
   );
 
   const claim = useCallback(
     async (visit: StationVisit) => {
-      if (!clinicId || !getToken) return;
+      if (!clinicId || !getToken || !canClaim || actionInFlight.current) return;
+      actionInFlight.current = true;
       setBusyId(visit.id);
       setActionError(null);
+      let navigating = false;
       try {
         await claimStationVisit(clinicId, visit.id, getToken);
+        navigating = true;
         router.push(`/stations/visits/${visit.id}`);
       } catch (error) {
         // Someone else got there first, or the patient moved on: say so and show the line as it is.
         setActionError(error instanceof Error ? error.message : String(error));
         if (error instanceof StationRequestError) refresh();
       } finally {
-        setBusyId(null);
+        // A successful claim remains locked while the client navigation commits.
+        if (!navigating) {
+          actionInFlight.current = false;
+          setBusyId(null);
+        }
       }
     },
-    [clinicId, getToken, router, refresh],
+    [clinicId, getToken, router, canClaim, refresh],
   );
 
   if (!enabled) {
@@ -219,7 +276,10 @@ export default function StationsPage() {
 
   return (
     <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
-      <div className="space-y-6">
+      <div
+        className="flex min-w-0 flex-col gap-6 [&_h1]:font-body [&_h2]:font-body [&_h3]:font-body"
+        data-testid="station-workspace"
+      >
         <AppPageHeader
           title="Stations"
           description="Take the next patient at your station, record what the station measures, and hand them on."
@@ -239,7 +299,6 @@ export default function StationsPage() {
             </Button>
           }
         />
-
         {!isOnline ? (
           <OfflineOpsBanner
             dataAsOf={view.dataAsOf}
@@ -259,255 +318,345 @@ export default function StationsPage() {
             onRetry={refresh}
           />
         ) : null}
+        {view.refreshError ? (
+          <InlineErrorState
+            title="The station line refresh is affected"
+            description={view.refreshError}
+            onRetry={refresh}
+          />
+        ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
         <OpsFeedbackNotice feedback={shiftControls.feedback} />
-
-        {!view.isInitialLoading && view.data ? (
-          <section
-            aria-labelledby="station-work-needs"
-            className="border-t-2 border-rule-strong pt-4"
-          >
-            <h2 id="station-work-needs" className="type-section-title">
-              Needs you now
-            </h2>
-            <ul>
-              {myPatients.map((visit) => (
-                <AppActionRow
-                  key={visit.id}
-                  icon={UserCheck}
-                  title={patientName(visit.patient)}
-                  detail={`With you at ${visit.station.name}. Continue recording or hand the patient on.`}
-                  action={
-                    <Button asChild>
-                      <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
-                    </Button>
-                  }
-                />
-              ))}
-              {!myPatients.length && myStation && queue.find((visit) => visit.status === 'QUEUED')
-                ? (() => {
-                    const next = queue.find((visit) => visit.status === 'QUEUED')!;
-                    return (
-                      <AppActionRow
-                        icon={ListOrdered}
-                        title={`${patientName(next.patient)} is next`}
-                        detail={`Waiting ${minutesSince(next.queuedAt)} min at ${myStation.name}.`}
-                        action={
-                          <Button
-                            disabled={!currentShift || !isOnline || busyId !== null}
-                            onClick={() => void claim(next)}
-                          >
-                            {busyId === next.id ? 'Taking…' : 'Take patient'}
-                          </Button>
-                        }
-                      />
-                    );
-                  })()
-                : null}
-            </ul>
-            {!myPatients.length && !myStation ? (
-              <p className="py-3 text-sm text-muted-foreground">
-                {currentShift
-                  ? 'Choose your station below to see the next patient.'
-                  : 'Start your shift below to take a patient.'}
-              </p>
-            ) : null}
-            {!myPatients.length &&
-            myStation &&
-            !queue.some((visit) => visit.status === 'QUEUED') ? (
-              <p className="py-3 text-sm text-muted-foreground">
-                Nobody is waiting at your station.
-              </p>
-            ) : null}
-          </section>
-        ) : null}
-
         {view.isInitialLoading ? (
-          <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-            <SectionSkeleton lines={3} />
-            <SectionSkeleton lines={6} />
-          </div>
+          <SectionSkeleton lines={3} />
+        ) : !knownShift ? (
+          <InlineNotice tone="info">
+            Shift status is unavailable. Load the station line before starting or ending a shift.
+          </InlineNotice>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-            <div className="min-w-0 space-y-6">
-              <ShiftControlCard
-                ruled
-                currentShift={currentShift}
-                selectedRole={shiftControls.selectedRole}
-                availableRoles={eligibleShiftRoles}
-                isOnline={isOnline}
-                busy={shiftControls.busy}
-                disabled={!shiftControls.canSubmit}
-                timezone={timezone}
-                onSelectedRoleChange={shiftControls.setSelectedRole}
-                onCheckIn={shiftControls.checkIn}
-                onCheckOut={shiftControls.checkOut}
-              />
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <MapPin className="h-5 w-5 text-primary" aria-hidden="true" />
-                    My station
-                  </CardTitle>
-                  <CardDescription>
-                    {currentShift
-                      ? myStation
-                        ? `You are working at ${myStation.name}.`
-                        : 'Choose where you are working today.'
-                      : 'Start your shift to choose a station.'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  {currentShift && closedNotice ? (
-                    <InlineNotice tone="warning">{closedNotice}</InlineNotice>
-                  ) : null}
-                  {stations.map((station) => {
-                    const selected = myStation?.id === station.id;
-                    return (
+          <StationShiftStrip
+            controls={shiftControls}
+            roles={eligibleShiftRoles}
+            timezone={timezone}
+            disabled={shiftDisabled}
+            onStart={() => {
+              setAwaitingShift('start');
+              shiftControls.checkIn();
+            }}
+            onEnd={() => {
+              setAwaitingShift('end');
+              shiftControls.checkOut();
+            }}
+          />
+        )}
+        {knownShift && !canWriteShift ? (
+          <p className="text-sm text-muted-foreground">This account cannot start or end shifts.</p>
+        ) : null}
+        {currentShift ? (
+          <>
+            <div className="flex flex-col gap-3 compact:flex-row compact:items-center compact:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold">My station</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {myStation
+                    ? `You are working at ${myStation.name}.`
+                    : 'Choose where you are working today.'}
+                </p>
+              </div>
+              <Sheet open={stationSheetOpen} onOpenChange={setStationSheetOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    ref={stationTrigger}
+                    variant="outline"
+                    disabled={!canUseStation}
+                    className="h-auto min-h-11 max-w-full whitespace-normal text-left"
+                  >
+                    <span className="min-w-0 break-words">
+                      {myStation ? `Change station: ${myStation.name}` : 'Choose station'}
+                    </span>
+                    <ChevronDown aria-hidden="true" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent
+                  side={wideSheet ? 'right' : 'bottom'}
+                  onCloseAutoFocus={(event) => {
+                    // The selected station is reconciling, so its trigger may still be disabled.
+                    if (stationTrigger.current?.disabled) {
+                      event.preventDefault();
+                      document.getElementById('main-content')?.focus();
+                    }
+                  }}
+                  className={cn(
+                    'flex flex-col bg-card p-0 pb-[env(safe-area-inset-bottom)]',
+                    wideSheet ? 'w-full sm:max-w-md' : 'max-h-[85dvh] rounded-t-xl',
+                  )}
+                >
+                  <SheetHeader className="px-5 pb-4 pr-20 text-left">
+                    <SheetTitle className="font-body">Choose your station</SheetTitle>
+                    <SheetDescription>
+                      Choose where you are working today. Changes need a connection.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-5 pb-6">
+                    {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
+                    {!stations.length ? (
+                      <p className="text-sm text-muted-foreground">No stations are open.</p>
+                    ) : null}
+                    {stations.map((station) => (
                       <Button
                         key={station.id}
-                        type="button"
-                        variant={selected ? 'default' : 'outline'}
-                        // Station names run long ("Registration and medical history"): wrap
-                        // inside the button rather than push out of the narrow column.
-                        className="h-auto min-h-11 justify-between whitespace-normal py-2 text-left"
-                        aria-pressed={selected}
-                        disabled={!currentShift || !isOnline || busyId !== null}
-                        onClick={() => void chooseStation(selected ? null : station.id)}
+                        variant="outline"
+                        aria-pressed={myStation?.id === station.id}
+                        disabled={!canUseStation}
+                        className={cn(
+                          'h-auto min-h-11 justify-between gap-4 whitespace-normal py-3 text-left',
+                          myStation?.id === station.id && 'border-primary bg-selected',
+                        )}
+                        onClick={() =>
+                          void chooseStation(myStation?.id === station.id ? null : station.id)
+                        }
                       >
-                        <span className="min-w-0 break-words">{station.name}</span>
+                        <span className="min-w-0 break-words">
+                          {station.name}
+                          {myStation?.id === station.id ? ' · you' : ''}
+                        </span>
                         <span className="shrink-0 text-xs">
-                          {station.visits.filter((v) => v.status === 'QUEUED').length} waiting
+                          {station.visits.filter((visit) => visit.status === 'QUEUED').length}{' '}
+                          waiting
                         </span>
                       </Button>
-                    );
-                  })}
-                  {currentShift && clinicId && getToken ? (
-                    <div
-                      role="group"
-                      aria-labelledby="screener-heading"
-                      className="mt-2 border-t pt-4"
-                    >
-                      <p id="screener-heading" className="mb-2 text-sm font-medium">
-                        Who is working on this account?
-                      </p>
-                      <ScreenerControl
-                        clinicId={clinicId}
-                        shiftId={currentShift.shiftId}
-                        screenerName={myScreener}
-                        isOnline={isOnline}
-                        getToken={getToken}
-                        onSaved={refresh}
-                      />
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="min-w-0 space-y-6">
-              {myPatients.length ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <UserCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-                      With you now
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {myPatients.map((visit) => (
-                      <div
-                        key={visit.id}
-                        className="flex flex-col gap-2 border-b border-rule py-3 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div>
-                          <p className="font-heading text-lg font-semibold">
-                            {patientName(visit.patient)}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {visit.patient.patientCode} · {visit.station.name}
-                          </p>
-                        </div>
-                        <Button asChild size="sm">
-                          <Link href={`/stations/visits/${visit.id}`}>
-                            Continue <ArrowRight aria-hidden="true" />
-                          </Link>
-                        </Button>
-                      </div>
                     ))}
-                  </CardContent>
-                </Card>
-              ) : null}
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <ListOrdered className="h-5 w-5 text-primary" aria-hidden="true" />
-                    {myStation ? `${myStation.name} queue` : 'Station queue'}
-                  </CardTitle>
-                  <CardDescription>
-                    Oldest first. The line refreshes every few seconds while this page is open.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {!view.data ? null : !myStation ? (
-                    <EmptyStateCard
-                      title="No station chosen"
-                      description="Choose your station to see who is waiting there."
-                    />
-                  ) : queue.length === 0 ? (
-                    <EmptyStateCard
-                      title="Nobody is waiting"
-                      description="Patients appear here as soon as the previous station hands them on."
-                    />
-                  ) : (
-                    queue.map((visit) => (
-                      <QueueRow
-                        key={visit.id}
-                        visit={visit}
-                        userId={userId}
-                        holderScreener={
-                          visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
-                        }
-                        timezone={timezone}
-                        canClaim={Boolean(currentShift) && isOnline && busyId === null}
-                        busy={busyId === visit.id}
-                        onClaim={() => void claim(visit)}
-                      />
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">The whole line</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-                  {stations.map((station) => (
-                    <div key={station.id} className="min-w-0 border-b border-rule py-3">
-                      <p className="break-words text-sm font-medium">{station.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {station.visits.filter((v) => v.status === 'QUEUED').length} waiting ·{' '}
-                        {station.visits.filter((v) => v.status === 'IN_PROGRESS').length} being seen
-                      </p>
-                      <p className="mt-1 break-words text-xs text-muted-foreground">
-                        {station.staff.length
-                          ? station.staff
-                              .map((member) =>
-                                withScreener(member.displayName, member.screenerName),
-                              )
-                              .join(', ')
-                          : 'Nobody at this station'}
-                      </p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
-          </div>
-        )}
+            {closedNotice ? <InlineNotice tone="warning">{closedNotice}</InlineNotice> : null}
+            {currentShift.pendingSync || currentShift.pendingCheckOut ? (
+              <InlineNotice tone="info" live={false}>
+                Your shift change still needs to sync. Station choices and taking patients need a
+                server-confirmed active shift.
+              </InlineNotice>
+            ) : null}
+          </>
+        ) : null}
+        {myPatients.length ? (
+          <section aria-labelledby="station-with-you" className="flex flex-col gap-3">
+            <h2 id="station-with-you" className="text-xl font-semibold">
+              With you now
+            </h2>
+            {myPatients.map((visit) => (
+              <div
+                key={visit.id}
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3"
+              >
+                <div className="min-w-0">
+                  <p className="break-words font-semibold">{patientName(visit.patient)}</p>
+                  <p className="break-words text-sm text-muted-foreground">
+                    {visit.patient.patientCode} · {visit.station.name}
+                  </p>
+                </div>
+                <Button asChild>
+                  <Link href={`/stations/visits/${visit.id}`}>
+                    Continue
+                    <ArrowRight aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
+            ))}
+          </section>
+        ) : null}
+        {currentShift && myStation ? (
+          <>
+            <div className="grid min-w-0 gap-8 tablet:grid-cols-2">
+              <section aria-labelledby="station-next" className="min-w-0">
+                <h2 id="station-next" className="mb-3 text-xl font-semibold">
+                  Next at {myStation.name}
+                </h2>
+                {nextPatient ? (
+                  <article
+                    aria-label="Next patient"
+                    className="flex min-w-0 overflow-hidden rounded-lg border border-border"
+                  >
+                    <div className="flex w-14 shrink-0 flex-col items-center gap-2 border-r border-dashed border-mint-line bg-deep py-5 text-white compact:w-20">
+                      <span className="text-xs">Queue</span>
+                      <span className="font-mono text-2xl">01</span>
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 compact:p-5">
+                      <div>
+                        <h3 className="break-words text-2xl font-semibold">
+                          {patientName(nextPatient.patient)}
+                        </h3>
+                        <p className="mt-1 break-words font-mono text-sm text-muted-foreground">
+                          {nextPatient.patient.patientCode}
+                        </p>
+                      </div>
+                      <p
+                        className={cn(
+                          'text-sm',
+                          minutesSince(nextPatient.queuedAt) > LONG_WAIT_MINUTES
+                            ? 'text-warning-ink'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        Waiting {minutesSince(nextPatient.queuedAt)} min
+                        {minutesSince(nextPatient.queuedAt) > LONG_WAIT_MINUTES
+                          ? ' · Waiting over 20 min'
+                          : ''}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Checked in {formatOpsDateTime(nextPatient.checkedInAt, timezone)}
+                      </p>
+                      {nextPatient.previous ? (
+                        <p className="break-words text-sm">
+                          From {nextPatient.previous.station.name}
+                          {nextPatient.previous.completedBy
+                            ? ` (${performerLabel(nextPatient.previous.completedBy.displayName, nextPatient.previous.performedByName)})`
+                            : ''}
+                          : {nextPatient.previous.handoffNote ?? 'no hand-off note'}
+                        </p>
+                      ) : null}
+                      {nextPatient.endReason ? (
+                        <p className="text-sm text-muted-foreground">
+                          Returned to the queue: {nextPatient.endReason}
+                        </p>
+                      ) : null}
+                      <Button
+                        disabled={!canClaim}
+                        onClick={() => void claim(nextPatient)}
+                        className="hidden compact:inline-flex"
+                      >
+                        {busyId === nextPatient.id ? 'Taking…' : 'Take patient'}
+                        <ArrowRight aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </article>
+                ) : (
+                  <EmptyStateCard
+                    title="Nobody is waiting"
+                    description="Patients appear here as soon as the previous station hands them on."
+                  />
+                )}
+                {myStation.capacity !== undefined ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {inUse} of {myStation.capacity} places in use.
+                    {atCapacity ? ' This station is at capacity.' : ''}
+                  </p>
+                ) : null}
+              </section>
+              <section aria-labelledby="station-queue" className="min-w-0">
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 id="station-queue" className="text-xl font-semibold">
+                    {myStation.name} queue
+                  </h2>
+                  <span className="text-sm text-muted-foreground">Oldest first</span>
+                </div>
+                {otherPatients.length ? (
+                  otherPatients.map((visit) => (
+                    <QueueRow
+                      key={visit.id}
+                      visit={visit}
+                      userId={userId}
+                      holderScreener={
+                        visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
+                      }
+                      timezone={timezone}
+                      canClaim={canClaim}
+                      busy={busyId === visit.id}
+                      onClaim={() => void claim(visit)}
+                    />
+                  ))
+                ) : (
+                  <p className="py-3 text-sm text-muted-foreground">
+                    {nextPatient
+                      ? 'Nobody else is waiting at your station.'
+                      : 'Nobody is waiting at your station.'}
+                  </p>
+                )}
+              </section>
+            </div>
+            {nextPatient ? (
+              <div
+                data-testid="station-take-action"
+                className="fixed bottom-[calc(var(--workspace-bottom-nav-height,3.75rem)+env(safe-area-inset-bottom)+1rem)] left-4 right-24 z-30 compact:hidden"
+              >
+                <Button
+                  disabled={!canClaim}
+                  aria-label={`Take patient: ${patientName(nextPatient.patient)}`}
+                  onClick={() => void claim(nextPatient)}
+                  className="h-auto min-h-12 w-full whitespace-normal py-3 text-left"
+                >
+                  <span className="min-w-0 break-words">
+                    {busyId === nextPatient.id ? 'Taking…' : 'Take patient'}
+                  </span>
+                </Button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        {currentShift && clinicId && getToken && canWork ? (
+          <section aria-labelledby="screener-heading" className="border-t border-border pt-5">
+            <h2 id="screener-heading" className="mb-3 text-lg font-semibold">
+              Who is working on this account?
+            </h2>
+            <fieldset disabled={!canUseStation} className="min-w-0">
+              <legend className="sr-only">Screener details</legend>
+              <ScreenerControl
+                clinicId={clinicId}
+                shiftId={currentShift.shiftId}
+                screenerName={myScreener}
+                isOnline={isOnline}
+                getToken={getToken}
+                onSaved={refresh}
+              />
+            </fieldset>
+          </section>
+        ) : null}
+        {view.data && currentShift ? (
+          <section
+            aria-labelledby="station-line"
+            className="station-line border-t border-border pt-5"
+          >
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="station-line" className="text-xl font-semibold">
+                The whole line
+              </h2>
+              <p className="text-sm text-muted-foreground">Refreshes while open</p>
+            </div>
+            <ol className="station-route">
+              {stations.map((station) => (
+                <li
+                  key={station.id}
+                  aria-current={myStation?.id === station.id ? 'location' : undefined}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'station-route-stop',
+                      myStation?.id === station.id && 'station-route-stop-mine',
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold">
+                      {station.name}
+                      {myStation?.id === station.id ? ' · you' : ''}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {station.visits.filter((v) => v.status === 'QUEUED').length} waiting ·{' '}
+                      {station.visits.filter((v) => v.status === 'IN_PROGRESS').length} being seen
+                    </p>
+                    <p className="mt-1 break-words text-sm text-muted-foreground">
+                      {station.staff.length
+                        ? station.staff
+                            .map((member) => withScreener(member.displayName, member.screenerName))
+                            .join(', ')
+                        : 'Nobody at this station'}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
       </div>
     </RouteGuard>
   );
@@ -536,19 +685,19 @@ function QueueRow({
   return (
     <div
       className={cn(
-        'flex flex-col gap-3 border-b border-rule py-3 sm:flex-row sm:items-start sm:justify-between',
+        'flex flex-col gap-3 border-b border-border py-4 sm:flex-row sm:items-start sm:justify-between',
         !taken && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES && 'bg-warning-surface',
         taken && !mine && 'bg-muted/40',
       )}
     >
       <div className="min-w-0 space-y-1">
-        <p className="font-medium">
+        <p className="break-words font-medium">
           {patientName(visit.patient)}{' '}
           <span className="text-sm font-normal text-muted-foreground">
             {visit.patient.patientCode}
           </span>
         </p>
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
           <Clock className="h-3.5 w-3.5" aria-hidden="true" />
           {!taken && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES
             ? 'Waiting over 20 min'
