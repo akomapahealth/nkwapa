@@ -859,3 +859,73 @@ lifecycle work remain separate. Queues require a connection for a first read;
 one refused lane still blocks replacing the atomic snapshot.
 
 **Next unit:** R3.5 Registration. Use `ui-refresh/HANDOFF-R3.5.md`.
+
+## R3.5: Registration (2026-11-10)
+
+**Unit/phase:** R3.5, role/workspace content.
+**Screen/components:** Shared registration form, registration-only layout,
+phone actions, duplicate-dialog presentation and submit guard.
+**Branch/commit:** `ui-refresh/r1-1-tokens`, local commit for this unit; no push.
+The owner's incoming `ui-refresh/HANDOFF-R3.1.md` edit remains separate.
+**Status:** Complete within the recorded validation boundaries.
+
+**Design changes:** Both new-patient routes retain their shared form, existing
+permission guards, clinic payload/registry links and chart destination. Four
+ruled sections sit directly on the sheet; paired controls use two columns from
+600px and headings/explanations sit beside controls from 1200px. Existing safety
+help remains in a flat disclosure. All fields, options, defaults, native
+constraints, error summaries/links, no-ID omission/restore, residential clearing,
+duplicate handling and clinical copy remain. Shared form/location/phone/error,
+dialog, shell and edit components are unchanged.
+
+Phone Create patient/Cancel remain visible below 600px, above measured Primary
+navigation height and clear of the actual chat launcher. A local observer handles
+text-size changes; the nominal shell variable was insufficient at 200% text.
+Both actions wrap with at least 44px targets. The registration-only duplicate
+dialog bounds its grid and wraps actions for long identities/enlarged text.
+The synchronous guard stops repeated pending submits, allows refusal retry and
+stays held through successful chart navigation. Existing API idempotency remains.
+Offline copy asks for a connection; values stay in the mounted form after failure.
+No local save, registration outbox or automatic replay was invented. No backend,
+auth, RBAC definitions, database/schema, clinical logic, dependency or sync changes.
+
+**Desktop/tablet/phone/dark:** All 11 widths
+320/390/599/600/744/767/768/1024/1199/1200/1440 in both themes. Retained field and
+residential selections, paired-field geometry, unfiltered normal-page axe scans,
+keyboard/native error focus, summary links, 200% root text, reduced motion and
+full visibility/center hit testing for Create patient/Cancel. Enlarged duplicate
+recovery actions remain fully visible, with no horizontal dialog scrolling.
+Phone, wide, dark, enlarged-action/error and long-identity images were inspected.
+
+**Validation:** 48 distinct focused browser checks have passing completions:
+24/24 final-source checks, plus 24 unchanged-path duplicate/chart/identity/merge
+checks from the first candidate. Those 24 were not repeated after the local
+clearance/dialog fixes. Initial invocation: 51 passed / 2 failed, including six
+fresh authentication setups; both failures exposed the 200% navigation/action
+interception. One separate duplicate-dialog candidate failed clipping. Both
+source defects were corrected together before the 24/24 final run, which reused
+authenticated sessions. Failed checks are not counted as passes. Exact scope and
+source boundaries are recorded in `ui-refresh/R3.5-REVIEW.md`.
+
+Final audit-flag production build, standalone TypeScript, changed-file lint/
+formatting, whitespace and detector pass; detector findings are empty. Jest with
+one worker passes 6 suites / 107 tests. Build/server commands used the established
+sandbox escalation; both database URLs were separately guarded for the audit DB
+and API logs redirected. No full suite or flag-off browser build ran. Historical
+station `#197` and legacy flag-incompatible Today offline cases are not claimed.
+
+**Route audit/evidence:** 12/12 tests, six fresh authentication setups and six role
+sweeps. All 228 route/theme/width rows have zero errors, zero axe findings including
+minor and zero horizontal overflow. Ignored `ui-refresh/evidence/r3-5/after/`
+contains 141 implementation PNGs (114 normal routes, 27 registration supplements),
+audit/validation summaries, selected logs and separate candidate diagnostics.
+No evidence was force-added; no real-patient or third-party reference directories
+were inspected. No separate agent review ran.
+
+**Outstanding:** Prior open Select/menu findings and short dropdown rows remain
+separate. Physical devices, screen readers, Safari/Firefox, installed PWA, virtual
+keyboard, real safe areas and gesture feel remain manual. Earlier Vitals/Crisis/
+backend acknowledgement and Sunday appointment lifecycle work remain separate.
+Registration needs a connection and does not persist an unsaved form across reload.
+
+**Next unit:** R3.6 Profile. Use `ui-refresh/HANDOFF-R3.6.md`.

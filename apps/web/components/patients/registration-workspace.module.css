@@ -1,0 +1,92 @@
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 70rem;
+  min-width: 0;
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+/* Only this form's four existing FormSectionCard sections. Shared forms keep
+   their presentation, fields and validation contracts. */
+.sections > section {
+  padding-block: 1.5rem;
+}
+.sections > section > header,
+.sections > section > div {
+  min-width: 0;
+}
+.form input,
+.form textarea,
+.form button[role='combobox'] {
+  scroll-margin-top: 6rem;
+  scroll-margin-bottom: calc(10rem + var(--workspace-bottom-nav-height, 0px));
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border-top: 2px solid hsl(var(--rule-strong));
+  background: hsl(var(--card));
+  padding-block: 1rem;
+}
+@media (min-width: 600px) {
+  .sections > section > div > [class~='grid'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1200px) {
+  .sections > section {
+    display: grid;
+    grid-template-columns: minmax(10rem, 0.32fr) minmax(0, 1fr);
+    gap: 2rem;
+  }
+  .sections > section > div {
+    margin-top: 0;
+  }
+}
+@media (max-width: 599px) {
+  .actions {
+    position: fixed;
+    z-index: 30;
+    inset-inline: 0;
+    bottom: var(
+      --registration-nav-clearance,
+      calc(var(--workspace-bottom-nav-height, 3.75rem) + env(safe-area-inset-bottom))
+    );
+    padding: 12px var(--registration-chat-clearance, 88px) 12px max(16px, env(safe-area-inset-left));
+    gap: 8px;
+  }
+  /* The chat launcher occupies the right-hand clearance. Both actions wrap at
+     enlarged text rather than forcing horizontal scrolling or clipping copy. */
+  .actions > :first-child {
+    flex: 1 1 auto;
+  }
+  .actions > * {
+    min-width: 0;
+    height: auto;
+    min-height: 44px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+.conflict {
+  grid-template-columns: minmax(0, 1fr);
+}
+.conflict > * {
+  min-width: 0;
+}
+.conflictActions {
+  gap: 0.5rem;
+}
+.conflictActions > * {
+  min-width: 0;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

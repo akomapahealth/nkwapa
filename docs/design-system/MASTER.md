@@ -1028,6 +1028,35 @@ registry still requires a connection for a cold read and retains loaded results
 with the existing stale/offline notices. Validation scope and manual limits are
 recorded in `ui-refresh/R3.3-REVIEW.md`.
 
+### Patient registration workspace refresh (R3.5)
+
+Both new-patient routes keep `RegisterPatientScreen`, their existing permission
+guards, clinic scoping, registry links and successful chart destination. The
+screen sits directly on the workspace sheet with its existing safety help and
+four ruled sections: Identity, Contact details, Residential location and National
+ID. Paired fields use two columns from 600px; from 1200px each section's heading
+and explanation sit beside its controls. All styling is registration-local;
+shared section/location/phone/error components and edit forms keep their contracts.
+
+Below 600px, Create patient and Cancel remain visible above the phone navigation.
+Registration measures the rendered Primary navigation and chat launcher so text
+enlargement cannot turn nominal shell dimensions into covered actions. Both
+buttons wrap when needed and keep 44px targets. The duplicate dialog keeps the
+existing Review details/Open existing patient operations, with a bounded grid and
+wrapping actions for long identity fields and enlarged text.
+
+Required markers, native constraints, field errors/summary links, all field
+labels, options, defaults and payload omission rules are unchanged. In particular,
+No ID document omits the ID number; switching back retains the entered value.
+Unknown/not-recorded residential states keep their existing clearing rules. The
+same synchronous submission guard covers repeated submits, permits retry after
+refusal and stays held while successful navigation leaves the form. The API's
+idempotency contract remains unchanged. Offline copy asks for a connection;
+registration does not invent an outbox, local save or automatic replay. Values
+remain in the mounted form after an unsuccessful request.
+
+Validation, candidate failures and limits are recorded in `ui-refresh/R3.5-REVIEW.md`.
+
 ### Queues and encounters (#272)
 
 `/queues` keeps one count on each permission-gated lane tab. R3.4 puts the
