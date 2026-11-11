@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
 const { readOutbox, waitForOutboxDrain } = require('../playwright/outbox');
+const { hitTarget, minButtonHeight } = require('../playwright/hit-target');
 
 const WIDTHS = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
 const panel = (page) => page.getByRole('region', { name: 'Your shift', exact: true });
@@ -104,9 +105,9 @@ test.describe('volunteer refresh', () => {
           panel(page).getByRole('button', { name: 'Start shift', exact: true }),
         ).toBeEnabled();
         for (const control of await panel(page).locator('button').all()) {
-          const b = await control.boundingBox();
-          if (!b) continue;
-          expect(b.height).toBeGreaterThanOrEqual(44);
+          if (!(await control.boundingBox())) continue;
+          const b = await hitTarget(control);
+          expect(b.height).toBeGreaterThanOrEqual(await minButtonHeight(page));
           expect(b.width).toBeGreaterThanOrEqual(44);
         }
         expect(

@@ -96,7 +96,7 @@ const TabsTrigger = React.forwardRef<
         // Weight stays 500 in both states (the pilot goes to 600): a bolder active label would
         // widen its tab and shift every tab after it. The ring is inset because the scroll wrapper
         // clips anything outside the tab.
-        'relative inline-flex min-h-11 cursor-pointer touch-manipulation items-center justify-center whitespace-nowrap rounded-t-md px-3 text-sm font-medium text-muted-foreground transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:text-foreground [@media(pointer:coarse)]:min-h-12',
+        'relative inline-flex min-h-[var(--tab-height)] cursor-pointer touch-manipulation items-center justify-center whitespace-nowrap rounded-t-md px-3 text-sm font-medium text-muted-foreground transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:text-foreground [@media(pointer:coarse)]:min-h-12',
         className,
       )}
       {...props}

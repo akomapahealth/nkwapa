@@ -1117,4 +1117,6 @@ own unit. Rules are in MASTER section 8 and PRODUCT.md.
 size assertions, 2 real defects fixed, 1 pre-existing portal-shell failure that
 also fails on baseline); final re-run 37/37. Six-role audit 12/12, 228 rows, 0
 violations, 0 overflow. Details and limits in `ui-refresh/R3.8-REVIEW.md`. R3 is
-complete; next is `ui-refresh/HANDOFF-R4.1.md`. Local commit only; no push.
+complete; next is `ui-refresh/HANDOFF-R4.1.md`. Follow-up the same day: tabs
+(40px mouse) and select, dropdown and combobox rows (36px mouse, 44px touch) use
+the same tokens. Local commit only; no push.

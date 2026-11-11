@@ -268,7 +268,7 @@ export function Combobox({
                   }}
                   onMouseEnter={() => setActiveIndex(index)}
                   className={cn(
-                    'flex cursor-pointer items-center gap-2 px-3 py-2 transition-colors',
+                    'flex min-h-[var(--menu-row-height)] cursor-pointer items-center gap-2 px-3 py-2 transition-colors',
                     active && 'bg-accent text-accent-foreground',
                   )}
                 >

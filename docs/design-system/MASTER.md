@@ -566,14 +566,15 @@ keyboard and tooltip scanning remain instant under that preference too.
 
 ## 8. Density, targets, breakpoints
 
-| Rule                       | Value                                                                                             |
-| -------------------------- | ------------------------------------------------------------------------------------------------- |
-| Table row height, desktop  | 44px                                                                                              |
-| Table row height, touch    | 52px                                                                                              |
-| Minimum interactive target | 44px under `pointer: coarse`; 44px hit area for small and icon buttons on a mouse                 |
-| Button height              | 44px touch, 36px mouse (`--button-height`); small 44 / 32; large 48 / 40 (R3.8)                   |
-| Form control height        | 44px touch, 40px mouse (`--field-height`: `Input`, `SelectTrigger`, `Combobox`) (R3.8)            |
-| Breakpoints                | 375 / 768 / 1024 / 1440 (audit widths); named screens `compact` 600, `tablet` 840, `desktop` 1200 |
+| Rule                       | Value                                                                                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Table row height, desktop  | 44px                                                                                                                                           |
+| Table row height, touch    | 52px                                                                                                                                           |
+| Minimum interactive target | 44px under `pointer: coarse`; 44px hit area for small and icon buttons on a mouse                                                              |
+| Button height              | 44px touch, 36px mouse (`--button-height`); small 44 / 32; large 48 / 40 (R3.8)                                                                |
+| Form control height        | 44px touch, 40px mouse (`--field-height`: `Input`, `SelectTrigger`, `Combobox`) (R3.8)                                                         |
+| Tabs and menu rows         | Tabs 48px touch, 40px mouse (`--tab-height`); Select, dropdown and combobox rows 44px touch, 36px mouse (`--menu-row-height`) (R3.8 follow-up) |
+| Breakpoints                | 375 / 768 / 1024 / 1440 (audit widths); named screens `compact` 600, `tablet` 840, `desktop` 1200                                              |
 
 Both row heights are set by `DataTable` (`components/ui/data-table.tsx`, TanStack Table v9). Row actions are real buttons in a right-aligned final column, one primary at most, so they line up down the column. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
 
@@ -590,7 +591,7 @@ Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form contro
 **Segmented controls and tabs (R1.4).** Two looks, one job each (master §5.3):
 
 - `SegmentedControl` is for a mutually exclusive view or filter that reshapes one list (Day/Week, time windows, status filters). It is the pilot `.seg`: a `--surface-2` track with a 1px `--border` inset, and a raised `--card` knob that holds the active label in `--primary` (5.22:1 light, 7.67:1 dark). It stays toggle buttons with `aria-pressed`, not tabs. The knob is one shared Motion element (`layoutId`, re-measured only when the value changes) that moves in 220ms `--ease-in-out` and stretches to 1.12 on x mid-move. The active label colour is wiped in by `clip-path`, never by tweening text colour. Only the change a pointer press made animates. A keyboard press, the first render and a change made elsewhere (a reset, back navigation) snap into place. Four options sit 2x2 on a phone and 1x4 from `sm`. Other counts auto-fit at 7rem or wider. The focus ring is inset. Reduced motion removes all of it. Targets are 42px inside the 3px track (48px total), and 48px under `pointer: coarse`.
-- `Tabs` is for substantial record sections with real panels. It is the pilot `.tabs`: muted labels on a `--rule`, the active label in ink with a 2px `--primary` underline. The underline is a shared `layoutId` element that moves in 200ms `--ease-in-out` after a pointer press and snaps for the arrow keys and for changes made elsewhere. The label weight stays 500 in both states, so the active tab never widens and pushes its neighbours. Tabs never wrap. `TabsList` brings its own `overflow-x-auto` wrapper (a Motion `layoutScroll` element, so the underline measures correctly after a press scrolls a tab into view), so call sites add none. The focus ring is inset, because that wrapper clips anything outside the tab. Radix keeps the roles, `aria-selected` and the arrow keys. Targets are 44px, and 48px under `pointer: coarse`.
+- `Tabs` is for substantial record sections with real panels. It is the pilot `.tabs`: muted labels on a `--rule`, the active label in ink with a 2px `--primary` underline. The underline is a shared `layoutId` element that moves in 200ms `--ease-in-out` after a pointer press and snaps for the arrow keys and for changes made elsewhere. The label weight stays 500 in both states, so the active tab never widens and pushes its neighbours. Tabs never wrap. `TabsList` brings its own `overflow-x-auto` wrapper (a Motion `layoutScroll` element, so the underline measures correctly after a press scrolls a tab into view), so call sites add none. The focus ring is inset, because that wrapper clips anything outside the tab. Radix keeps the roles, `aria-selected` and the arrow keys. Targets are 40px on a mouse, 44px by default and 48px under `pointer: coarse` (`--tab-height`).
 - Gold is never a selected state. Neither control has a filled teal segment or a bordered box any more.
 
 ---

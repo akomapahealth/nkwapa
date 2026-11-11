@@ -212,6 +212,9 @@
     --button-height-sm: 2.75rem;
     --button-height-lg: 3rem;
     --field-height: 2.75rem;
+    /* Select, dropdown and combobox rows, and tab triggers (48px under touch is set on Tabs). */
+    --menu-row-height: 2.75rem;
+    --tab-height: 2.75rem;
   }
 
   @media (pointer: fine) {
@@ -220,6 +223,8 @@
       --button-height-sm: 2rem;
       --button-height-lg: 2.5rem;
       --field-height: 2.5rem;
+      --menu-row-height: 2.25rem;
+      --tab-height: 2.5rem;
     }
   }
 
