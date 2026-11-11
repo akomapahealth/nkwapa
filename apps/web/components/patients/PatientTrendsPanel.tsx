@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import styles from '@/components/vitals-workspace.module.css';
+import { cn } from '@/lib/utils';
 import {
   Activity,
   CalendarClock,
@@ -137,13 +139,9 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="flex min-w-0 flex-col gap-4">
+      <Card className={styles.workspace}>
         <CardHeader className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Trends</Badge>
-            <Badge variant="outline">Patient + encounter readings</Badge>
-          </div>
           <div className="space-y-2">
             <h2 className="type-section-title">Trend view for clinic and home readings</h2>
             <CardDescription className="max-w-3xl text-sm md:text-base">
@@ -162,9 +160,9 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               value: String(days),
               label: `${days} days`,
             }))}
-            className="sm:w-[24rem]"
+            className="w-full max-w-[24rem]"
           />
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className={styles.fields}>
             {FOLLOW_UP_LABELS.map((item) => (
               <div key={item.key} className="border-b border-rule py-3">
                 <p className="type-metric">{followUp[item.key]}</p>
@@ -188,7 +186,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
       {!loading && !error && (
         <>
           <div className="grid gap-4 md:grid-cols-2">
-            <Card>
+            <Card className={styles.workspace}>
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between">
                   <HeartPulse className="h-5 w-5 text-muted-foreground" />
@@ -202,7 +200,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                 </div>
               </CardHeader>
             </Card>
-            <Card>
+            <Card className={styles.workspace}>
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Syringe className="h-5 w-5 text-muted-foreground" />
@@ -216,8 +214,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
             </Card>
           </div>
 
-          <section className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <section className={cn(styles.workspace, 'flex flex-col gap-4')}>
+            <div className={styles.fields}>
               {EXPANDED_MEASUREMENTS.map(({ key, label, suffix, icon: Icon }) => {
                 const latest = expandedVitalInUnits(
                   key,
@@ -229,18 +227,19 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
                     key={key}
                     type="button"
                     onClick={() => setSelectedMeasurement(key)}
-                    className={`min-h-24 cursor-pointer border-b-2 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={cn(
+                      'min-h-24 cursor-pointer border-b-2 p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       selectedMeasurement === key
-                        ? 'border-primary bg-primary/10'
-                        : 'border-input hover:bg-muted/40'
-                    }`}
+                        ? 'border-primary bg-selected'
+                        : 'border-input [@media(hover:hover)]:hover:bg-muted',
+                    )}
                     aria-pressed={selectedMeasurement === key}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="type-label font-normal text-muted-foreground">{label}</span>
                       <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     </div>
-                    <p className="mt-3 type-metric">
+                    <p className="mt-3 type-section-title tabular-nums">
                       {latest == null ? 'No data' : `${latest}${suffixFor(key, suffix)}`}
                     </p>
                   </button>
@@ -258,8 +257,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
             />
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-2">
-            <div className="lg:col-span-2">
+          <section className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="min-w-0 lg:col-span-2">
               <MeasurementTrendChart
                 staffRecord
                 title="Blood pressure trend"
@@ -282,7 +281,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}
               data={glucoseTrend}
             />
-            <Card>
+            <Card className={styles.workspace}>
               <CardHeader>
                 <h3 className="font-body text-base font-semibold">How to read this panel</h3>
                 <CardDescription>

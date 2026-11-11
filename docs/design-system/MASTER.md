@@ -1088,6 +1088,50 @@ Validation and limits are recorded in `ui-refresh/R3.6-REVIEW.md`. The shared
 normal-route audit now explicitly waits for the sync pill's settled synced
 state before measuring contrast; transient sync states remain a separate finding.
 
+### Vitals workspace refresh (R3.7)
+
+One `VitalsForm` still serves encounter Vitals, the new-encounter wizard and
+section-limited station measurements. Ruled `RecordSection` groups replace
+nested panels and tinted icon tiles. The systolic/diastolic pair is visually
+distinct without changing its labels, units, input behavior or validation.
+Container-width grids use one column by default, two from 30rem available width,
+and three from 48rem for ordinary fields (four for chart history measurements).
+The read-only summary uses the same local grouping and explicit saved units.
+No form subtree is remounted on resize. Save and tobacco-review actions wrap with text size and retain 44px targets.
+On phones their row sticks within the form above the measured bottom navigation,
+with clearance for the actual chat launcher. At narrow available text widths,
+that clearance moves below the full-width actions so their labels stay readable. The navigation, launcher and action
+row are observed for resizing; focused fields have matching scroll clearance.
+The row stays bounded by the form, leaving subsequent station handoff controls
+in their original flow.
+
+The local stylesheet permits wrapping selected values, notes and actions.
+Shared Input/Select/Button, shell and station workflow are unchanged. A small
+`min-width`/word-wrap correction to the existing prescription allergy label
+prevents its long words from overflowing the encounter around Vitals at enlarged
+text. The encounter container also permits long words to wrap; no prescribing
+or encounter workflow behavior changed. `FieldError`
+receives the field id, not an already-suffixed error id; temperature, Notes,
+Select and Other context fields now link to their actual error messages.
+Select items are grouped through the existing Radix primitive.
+
+Chart history keeps its chronological reads, provenance, visit links, locked and
+status badges and cursor pagination, while its measurement grid follows actual
+available width. The shared ChartFrame receives only an inert `data-chart-frame`
+marker; Vitals-local CSS wraps its header. Explicit single-column grid tracks
+and `min-width: 0` prevent the blood-pressure chart from sizing the page to its
+minimum content at enlarged text. Other chart consumers retain their layout.
+Trends keeps its range/selected-measurement state, requests,
+exact values, units, graph/table alternatives and source descriptions. The
+measurement selector uses semantic selected surfaces, a quiet value hierarchy,
+visible focus and instant repeated selection. Clinical numbers never animate.
+
+No clinical fields, defaults, validation ranges, classifier, permission,
+finalization, offline/outbox/replay or save handlers changed. Crisis still saves
+first and waits for its existing one-button acknowledgement dialog; recording
+the acknowledgement remains separate backend work. R3.8 owns Encounters.
+Validation and limits are recorded in `ui-refresh/R3.7-REVIEW.md`.
+
 ### Queues and encounters (#272)
 
 `/queues` keeps one count on each permission-gated lane tab. R3.4 puts the

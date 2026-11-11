@@ -1,5 +1,7 @@
 'use client';
 
+import styles from '@/components/vitals-workspace.module.css';
+import { cn } from '@/lib/utils';
 import { useClinicUnits } from '@/lib/bootstrap-context';
 import { formatHeight, formatWeight } from '@nkwapa/db/measurement-units';
 
@@ -56,7 +58,7 @@ function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; cli
         </Link>
       }
     >
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      <dl className={styles.measurements}>
         <ChartMeasurement label="Pulse" value={record.pulseBpm} suffix=" bpm" />
         <ChartMeasurement label="Temperature" value={record.temperatureCelsius} suffix=" °C" />
         <ChartMeasurement label="Respiratory rate" value={record.respiratoryRate} suffix="/min" />
@@ -66,7 +68,9 @@ function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; cli
         <ChartMeasurement label="BMI" value={record.bmi} />
       </dl>
       {record.notes ? (
-        <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{record.notes}</p>
+        <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+          {record.notes}
+        </p>
       ) : null}
     </ChartRecordCard>
   );
@@ -92,8 +96,8 @@ export function PatientVitalsPanel({
   });
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className={cn(styles.workspace, 'flex min-w-0 flex-col gap-6')}>
+      <Card className={styles.workspace}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <HeartPulse className="h-5 w-5 text-muted-foreground" aria-hidden="true" />

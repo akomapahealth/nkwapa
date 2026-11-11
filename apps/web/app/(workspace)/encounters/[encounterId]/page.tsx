@@ -279,7 +279,7 @@ export default function EncounterDetailPage() {
 
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 [overflow-wrap:anywhere]">
         <AppPageHeader
           eyebrow="Encounter workspace"
           title={

@@ -1,0 +1,139 @@
+.workspace {
+  min-width: 0;
+  container: vitals / inline-size;
+  overflow-wrap: anywhere;
+}
+
+.section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+  border-top: 1px solid hsl(var(--rule));
+  padding-block: 1.5rem;
+}
+
+.fields,
+.measurements,
+.summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.fields > *,
+.measurements > *,
+.summary > * {
+  min-width: 0;
+}
+
+/* ChartFrame's normal header stays unchanged outside the Vitals workspace. */
+.workspace :global([data-chart-frame]) > div:first-child {
+  flex-wrap: wrap;
+}
+
+.pressure {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.pressure input {
+  height: auto;
+  min-height: 3.5rem;
+  font-size: 1.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace input,
+.workspace textarea,
+.workspace button[role='combobox'] {
+  scroll-margin-block: 7rem;
+  scroll-margin-bottom: calc(
+    var(--vitals-actions-height, 0px) + var(--vitals-nav-clearance, 0px) + 2rem
+  );
+}
+
+/* A long selected value must remain readable at enlarged text. This is local
+   to measurements; the shared Select and its portal/focus contracts stay intact. */
+.workspace button[role='combobox'] {
+  height: auto;
+  min-height: 44px;
+  white-space: normal;
+  text-align: left;
+}
+
+.workspace button[role='combobox'] > span {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-top: 2px solid hsl(var(--rule-strong));
+  padding-block: 1rem;
+}
+
+.actions > button {
+  height: auto;
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 599px) {
+  .actions {
+    position: sticky;
+    z-index: 20;
+    bottom: var(--vitals-nav-clearance, 0px);
+    background: hsl(var(--card));
+    padding-right: 0;
+  }
+
+  .actions > button {
+    flex: 1 1 100%;
+  }
+
+  .actions > button:last-child {
+    margin-inline-end: var(--vitals-chat-clearance, 88px);
+  }
+
+  /* At enlarged text, reserve vertical room for chat instead of squeezing a
+     clinical action into a column narrower than its words. */
+  @container vitals (max-width: 20rem) {
+    .actions {
+      padding-bottom: calc(var(--vitals-chat-height, 0px) + 1rem);
+    }
+
+    .actions > button:last-child {
+      margin-inline-end: 0;
+    }
+  }
+}
+
+@container vitals (min-width: 30rem) {
+  .fields,
+  .pressure,
+  .measurements,
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container vitals (min-width: 48rem) {
+  .fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .measurements {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

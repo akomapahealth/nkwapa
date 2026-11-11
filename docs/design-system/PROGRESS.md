@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1 through R1.6, R2.1 through R2.5 and R3.1 are built on `ui-refresh/r1-1-tokens` and in review. The prior open-Select/menu accessibility finding remains unresolved. Next: R3.2 Stations.
+**Status:** R0 completed 2026-11-07. R1.1 through R1.6, R2.1 through R2.5 and R3.1 through R3.7 are built on `ui-refresh/r1-1-tokens` and in review. Prior open-overlay accessibility findings remain separate. Next: R3.8 Encounters.
 
 ## Phase Status
 
@@ -12,7 +12,7 @@
 | R0    | Current UI audit and design pilot      | Completed   |
 | R1    | Design tokens and shared components    | In review   |
 | R2    | Desktop, tablet, and mobile app shells | In review   |
-| R3    | Volunteer and clinical workflows       | Not started |
+| R3    | Volunteer and clinical workflows       | In progress |
 | R4    | Clinical review and oversight          | Not started |
 | R5    | Patient portal and authentication      | Not started |
 | R6    | Supporting public experience           | Not started |
@@ -989,3 +989,75 @@ keyboard, real safe areas and gesture feel remain manual. Earlier Vitals/Crisis/
 backend acknowledgement and Sunday appointment lifecycle work remain separate.
 
 **Next unit:** R3.7 Vitals. Use `ui-refresh/HANDOFF-R3.7.md`.
+
+---
+
+## R3.7 Vitals (2026-11-10)
+
+**Status:** Built and in review on `ui-refresh/r1-1-tokens`. Local commit only;
+no push. Review: `ui-refresh/R3.7-REVIEW.md`. Next: R3.8 Encounters.
+
+**Implementation:** Chart Vitals/history/trends and the shared measurement form
+now follow the Layered Clinical Workspace. Ruled groups replace nested panels
+and tinted icon tiles; the BP pair is distinct without replacing its real fields
+or measurement context. Container-width grids adapt without remounting form,
+chart or history state. Read-only values retain explicit units. Phone actions
+wrap and use measured navigation/chat/action geometry; at enlarged text, vertical
+chat clearance preserves full-width labels. Error descriptions now point to the
+actual Select, temperature, Other context and Notes messages. Trends retains
+range/selection, exact data, source descriptions, cursor history and chart/table
+alternatives. Vitals-local chart header wrapping and explicit zero-minimum grid
+tracks fix enlarged chart overflow. An inert ChartFrame marker leaves other
+consumers' layout unchanged. Small adjacent prescription-allergy label and
+encounter-container wrapping fixes address the enlarged viewport around Vitals.
+
+Emil design engineering, Apple design, Impeccable and shadcn guidance informed
+the implementation. Pinned fonts/tokens remain. No backend, schema, auth/RBAC,
+clinical threshold/classification, unit/preference/default, validation range,
+consent, offline/outbox/replay, save or finalization handler changed. All four
+shared-form consumers retain their fields and workflow. Crisis still saves first
+and waits for its existing acknowledgement dialog; persistence is separate
+backend work. R3.8 remains the encounter redesign.
+
+**Confirmed focused validation:** **79/79 distinct Chromium browser checks**,
+including seven new Vitals cases and 72 existing focused cases. Authentication
+states were reused; no setup tests are included in 79. The new cases cover all
+eleven handoff widths in both themes for editable encounter Vitals, loaded chart
+history/trends and read-only measurements; **66 unfiltered normal-size axe scans**
+have zero findings. All three presentations also pass 200% root-text bounds at
+320/390/600/1200 in both themes. They check retained fields/tab/selected trend/
+loaded cursor pages, provenance/source links, keyboard order, reduced motion,
+error descriptions, visible/hit-testable edit actions and finalized read-only
+values. The encounter Crisis check confirms API persistence before acknowledgement,
+focus, Escape refusal, full-page axe and no repeat after completed re-save.
+Existing station Crisis, real offline Vitals/review/finalization, wizard,
+prescribing, clinician-plan, chart/identity/merge/consent/portal/role/shell and
+once-only replay checks pass. Six focused Jest suites pass **64 tests**.
+Production build, standalone TypeScript, changed-file ESLint/Prettier and the
+empty-array detector pass.
+
+**Confirmed normal-route audit:** **12/12 tests** (six fresh authentication
+setups and six role sweeps). All **228 route/theme/width rows** have zero errors,
+zero axe findings including minor and zero horizontal overflow. These are
+settled normal-route scans at 390/1440 in both themes, not open-overlay or
+transient-sync certification. Final ignored evidence contains **218 implementation
+PNGs**: 114 normal routes, 71 Vitals supplements and 33 Profile supplements,
+with candidate diagnostics and live-pilot inspection kept separate.
+
+**Candidate findings:** Earlier runs and exact failed/not-run totals are retained
+in `ui-refresh/R3.7-REVIEW.md`. They exposed error-fixture omission, adjacent
+allergy/long-word overflow, measured resize timing, chart minimum-content overflow
+and cramped enlarged action labels. These are not counted as successful coverage.
+No full suite or flag-off browser build ran. Historical station `#197` and legacy
+flag-incompatible Today offline cases were not run. Evidence is ignored under
+`ui-refresh/evidence/r3-7/after/`; nothing is force-added. The owner's incoming
+`HANDOFF-R3.1.md` change remains separate. No agent review ran.
+
+**Outstanding:** Prior open-overlay accessibility, short dropdown rows and
+transient-sync findings remain separate. These specific Crisis checks do not
+certify every dialog viewport/theme. Physical devices, screen readers,
+Safari/Firefox, installed PWA, virtual keyboards, real safe areas and gesture feel
+remain manual. Backend Crisis acknowledgement and Sunday appointment lifecycle
+work remain separate.
+
+**Next unit:** R3.8 Encounters. Use `ui-refresh/HANDOFF-R3.8.md`.

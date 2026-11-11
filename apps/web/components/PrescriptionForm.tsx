@@ -446,7 +446,7 @@ export function PrescriptionForm({
           />
           <Label
             htmlFor="prescription-allergy-acknowledgement"
-            className="cursor-pointer text-sm leading-5"
+            className="min-w-0 cursor-pointer break-words text-sm leading-5"
           >
             I reviewed the patient&apos;s allergy status before prescribing.
           </Label>
