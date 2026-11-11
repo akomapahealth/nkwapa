@@ -139,6 +139,10 @@ test('expanded vitals save, replay offline, review, finalize, and stay responsiv
   await page.getByRole('button', { name: 'Submit for Review' }).click();
   await page.getByRole('button', { name: 'Mark Reviewed' }).click();
   await page.getByRole('button', { name: 'Finalize' }).click();
+  await page
+    .getByRole('dialog', { name: 'Finalize this visit?' })
+    .getByRole('button', { name: 'Finalize visit' })
+    .click();
   await expect(page.getByRole('heading', { name: 'Clinical measurements' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save measurements' })).toHaveCount(0);
   await expect(page.getByText('80 bpm', { exact: true })).toBeVisible();

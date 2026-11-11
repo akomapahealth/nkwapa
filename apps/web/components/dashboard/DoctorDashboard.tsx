@@ -1,6 +1,5 @@
 'use client';
 
-import { StatusLabel } from '@/components/ui/status-label';
 import { DistributionChart } from './DistributionChart';
 import { HYPERTENSION_ORDER, HYPERTENSION_TONES, toLabelledDistribution } from '@/lib/hypertension';
 import { ClipboardList, Stethoscope } from 'lucide-react';
@@ -8,7 +7,8 @@ import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
 import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
-import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
+import { recentVisitColumns, type RecentVisit } from './recent-visit-columns';
 import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 interface DoctorDashboardProps {
@@ -18,35 +18,9 @@ interface DoctorDashboardProps {
   hypertensionDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
   finalizationsTrend: { date: string; count: number }[];
-  recentEncounters: {
-    id: string;
-    patientCode: string;
-    patientName: string;
-    status: string;
-    createdAt: string;
-  }[];
+  recentEncounters: RecentVisit[];
   pendingClinicalNoteCosigns?: number;
 }
-
-const columns: DataTableColumn<DoctorDashboardProps['recentEncounters'][number]>[] = [
-  { id: 'patientCode', accessorKey: 'patientCode', header: 'Patient Code' },
-  { id: 'patientName', accessorKey: 'patientName', header: 'Patient Name' },
-  {
-    id: 'status',
-    accessorKey: 'status',
-    header: 'Status',
-    cell: ({ getValue }) => <StatusLabel value={String(getValue())} />,
-  },
-  {
-    id: 'createdAt',
-    accessorKey: 'createdAt',
-    header: 'Date',
-    cell: ({ getValue }) => {
-      const v = getValue() as string | number | null | undefined;
-      return v ? new Date(v).toLocaleDateString() : '';
-    },
-  },
-];
 
 export function DoctorDashboard({
   patientsSeen,
@@ -60,7 +34,7 @@ export function DoctorDashboard({
     <section className="space-y-6">
       <DashboardSectionHeader
         title="Doctor queue"
-        hint="Use this section to spot visits that still need a doctor's final decision."
+        hint="Visits you finalized and how this clinic's readings are classified. Visits waiting for your sign-off are under Needs you now."
       />
 
       {/* Sign-off and cosign counts lead the page as "Needs you now" rows; these are done work. */}
@@ -123,7 +97,7 @@ export function DoctorDashboard({
         <div className="overflow-y-hidden">
           <DataTable
             caption="Recent encounters"
-            columns={columns}
+            columns={recentVisitColumns}
             data={recentEncounters}
             pageSizeOptions={[10]}
             initialPageSize={10}

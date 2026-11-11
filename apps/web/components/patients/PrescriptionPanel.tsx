@@ -7,7 +7,6 @@ import type { AllergySummary } from '@/lib/medical-history';
 import { AllergySummaryBanner } from './AllergySummaryBanner';
 import { PrescriptionForm } from '@/components/PrescriptionForm';
 import { PrescriptionList } from '@/components/PrescriptionList';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 const unavailable: AllergySummary = { state: 'UNAVAILABLE', activeAllergies: [] };
 
@@ -51,32 +50,36 @@ export function PrescriptionPanel({
   }, [loadAllergies]);
 
   return (
-    <Card>
-      <CardHeader>
-        <h2 className="text-lg font-semibold">Prescriptions</h2>
-        <p className="text-sm text-muted-foreground">
+    // A ruled section on the sheet, like the clinical note above it (R4.1), not a card.
+    <section
+      aria-labelledby="prescriptions-title"
+      className="space-y-5 border-t-2 border-rule-strong pt-4"
+    >
+      <div>
+        <h2 id="prescriptions-title" className="type-section-title text-foreground">
+          Prescriptions
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Medication decisions remain linked to this encounter and patient chart.
         </p>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {showAllergySafety ? <AllergySummaryBanner summary={summary} compact /> : null}
-        <PrescriptionList
+      </div>
+      {showAllergySafety ? <AllergySummaryBanner summary={summary} compact /> : null}
+      <PrescriptionList
+        clinicId={clinicId}
+        encounterId={encounterId}
+        canWrite={canWrite}
+        isFinalized={isFinalized}
+        refreshKey={refreshKey}
+      />
+      {canWrite && !isFinalized ? (
+        <PrescriptionForm
           clinicId={clinicId}
           encounterId={encounterId}
-          canWrite={canWrite}
-          isFinalized={isFinalized}
-          refreshKey={refreshKey}
+          userId={userId}
+          allergyState={showAllergySafety ? summary.state : undefined}
+          onSaved={() => setRefreshKey((value) => value + 1)}
         />
-        {canWrite && !isFinalized ? (
-          <PrescriptionForm
-            clinicId={clinicId}
-            encounterId={encounterId}
-            userId={userId}
-            allergyState={showAllergySafety ? summary.state : undefined}
-            onSaved={() => setRefreshKey((value) => value + 1)}
-          />
-        ) : null}
-      </CardContent>
-    </Card>
+      ) : null}
+    </section>
   );
 }

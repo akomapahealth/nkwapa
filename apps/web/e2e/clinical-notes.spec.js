@@ -152,3 +152,52 @@ test('regenerating over an edited draft asks before discarding it', async ({ pag
 
   await expect(page.getByLabel('History')).toHaveValue('Typed by the clinician.');
 });
+
+/* R4.1: a note waiting on this doctor says so first, and cosigning still asks before freezing it. */
+test('a note awaiting this doctor leads with the cosign band', async ({ page }) => {
+  const encounterId = await createEncounter(page);
+  const whoami = page.waitForResponse((response) => response.url().includes('/auth/whoami'));
+  await page.route(/\/clinical-note$/, async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const { userId } = await (await whoami).json();
+    return route.fulfill({
+      json: {
+        id: 'synthetic-note',
+        clinicId: 'c',
+        patientId: 'p',
+        encounterId,
+        status: 'PENDING_COSIGN',
+        version: 2,
+        history: 'Synthetic history.',
+        assessment: 'Synthetic assessment.',
+        plan: 'Synthetic plan.',
+        authorUserId: 'synthetic-volunteer',
+        authorRole: 'VOLUNTEER',
+        author: { id: 'synthetic-volunteer', displayName: 'Synthetic Volunteer' },
+        assignedDoctor: { id: userId, displayName: 'Synthetic Doctor' },
+        assignedVolunteerNameSnapshot: 'Synthetic Volunteer',
+        assignedDoctorNameSnapshot: 'Synthetic Doctor',
+        submittedAt: '2026-11-10T09:40:00Z',
+        createdAt: '2026-11-10T09:00:00Z',
+        updatedAt: '2026-11-10T09:40:00Z',
+        addenda: [],
+      },
+    });
+  });
+  await page.goto(`/encounters/${encounterId}?tab=clinical-note`);
+  await page.getByRole('tab', { name: 'Clinical Note' }).click();
+
+  const band = page.getByRole('region', { name: 'Waiting for your cosign' });
+  await expect(band).toBeVisible();
+  await expect(page.getByText('Synthetic history.')).toBeVisible();
+  await expect(page.getByLabel('History')).toHaveCount(0);
+  // Submission time is shown in Accra time (UTC+0): 09:40Z.
+  await expect(page.getByText('Nov 10, 9:40 AM')).toBeVisible();
+
+  await band.getByRole('button', { name: 'Cosign note' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Cosign this HAP note?' });
+  await expect(dialog).toContainText('the note Synthetic Volunteer wrote');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText('Pending cosign', { exact: true })).toBeVisible();
+});

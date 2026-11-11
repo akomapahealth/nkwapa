@@ -1120,3 +1120,27 @@ violations, 0 overflow. Details and limits in `ui-refresh/R3.8-REVIEW.md`. R3 is
 complete; next is `ui-refresh/HANDOFF-R4.1.md`. Follow-up the same day: tabs
 (40px mouse) and select, dropdown and combobox rows (36px mouse, 44px touch) use
 the same tokens. Local commit only; no push.
+
+## R4.1 Doctor review (2026-11-10)
+
+The HAP note is one ruled section (title and status, a provenance list, History,
+Assessment and Plan as ruled reading text) instead of a card holding boxes. A note
+waiting on this doctor leads with the encounter sign-off band, "Waiting for your
+cosign", which holds the only Cosign note action; the dialog names the author.
+Finalize now confirms once ("Finalize this visit?", focus on Not yet), since it
+locks the record. Prescriptions, Add prescription and addenda drop their cards for
+ruled lists. Note, encounter and dashboard times show in Africa/Accra. The doctor
+and review dashboard tables share one column set, and each patient links to the
+visit. Rules are in MASTER under "Queues and encounters".
+
+**Validation:** audit-flag build, TypeScript, changed-file lint/format pass;
+detector `[]`; no related Jest suites. Focused Chromium over clinical-notes,
+vitals, prescribing, diabetes-screening, workspace-smoke,
+volunteer-dashboard-refresh and dashboard-work-first: **50/50** (6 auth setups,
+44 checks, including a new cosign-band test and the three Finalize flows, now
+confirmed through the dialog). Six-role audit **12/12, 228 rows, 0 violations,
+0 overflow, 0 errors**. Scratch screenshot spec 23/23 before and after (light,
+dark, 1440, 390); it caught one real defect, fixed before the runs above.
+Details and limits in `ui-refresh/R4.1-REVIEW.md`; synthetic evidence in ignored
+`ui-refresh/evidence/r4-1/` (before, after, routes). Next is
+`ui-refresh/HANDOFF-R4.2.md`. Local commit only; no push.

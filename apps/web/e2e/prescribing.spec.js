@@ -153,6 +153,10 @@ test.describe('as a doctor', () => {
     await page.getByRole('button', { name: 'Submit for Review' }).click();
     await page.getByRole('button', { name: 'Mark Reviewed' }).click();
     await page.getByRole('button', { name: 'Finalize' }).click();
+    await page
+      .getByRole('dialog', { name: 'Finalize this visit?' })
+      .getByRole('button', { name: 'Finalize visit' })
+      .click();
 
     // The record stays readable -- a finalized encounter is history, not a blank.
     await expect(page.getByRole('listitem').filter({ hasText: 'Atenolol' })).toBeVisible();

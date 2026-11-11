@@ -90,6 +90,10 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   await page.getByRole('button', { name: 'Submit for Review' }).click();
   await page.getByRole('button', { name: 'Mark Reviewed' }).click();
   await page.getByRole('button', { name: 'Finalize' }).click();
+  await page
+    .getByRole('dialog', { name: 'Finalize this visit?' })
+    .getByRole('button', { name: 'Finalize visit' })
+    .click();
   await page.getByRole('tab', { name: 'Diabetes' }).click();
   await expect(page.getByText('This screening is read-only.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save screening' })).toHaveCount(0);

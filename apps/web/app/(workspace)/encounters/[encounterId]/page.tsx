@@ -40,6 +40,8 @@ import { HypertensionHistoryPanel } from '@/components/patients/HypertensionHist
 import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel';
 import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
 import styles from '@/components/encounters/encounter-workspace.module.css';
+import { confirmAction } from '@/components/ui/confirm-dialog';
+import { formatOpsDateTime } from '@/lib/ops';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -314,7 +316,10 @@ export default function EncounterDetailPage() {
                   {STAGES[stage]}
                 </Badge>
                 <span className="tabular-nums">
-                  Started {new Date(encounter.createdAt).toLocaleString()}
+                  Started{' '}
+                  <time dateTime={encounter.createdAt}>
+                    {formatOpsDateTime(encounter.createdAt)}
+                  </time>
                 </span>
               </div>
             </div>
@@ -364,7 +369,20 @@ export default function EncounterDetailPage() {
             <Button
               variant="outline"
               className="border-warning text-warning-ink"
-              onClick={() => doTransition('finalize')}
+              onClick={async () => {
+                // Finalizing locks the record for good, so it takes one deliberate confirmation.
+                if (
+                  await confirmAction({
+                    title: 'Finalize this visit?',
+                    description:
+                      'Every clinical tab becomes read-only and the visit leaves your sign-off queue. This cannot be undone here.',
+                    confirmLabel: 'Finalize visit',
+                    cancelLabel: 'Not yet',
+                    destructive: false,
+                  })
+                )
+                  void doTransition('finalize');
+              }}
               disabled={transitioning}
             >
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />

@@ -1207,6 +1207,21 @@ Cosign note) use the consent precedent: outlined warning ink with `ShieldCheck`.
 Finalize sits in its own "Ready for your sign-off" row saying it locks every
 tab. A finalized care plan reads back as a ruled `<dl>`.
 
+R4.1 (doctor review): Finalize now asks once, in the shared confirm dialog ("Finalize this
+visit?", Not yet / Finalize visit, focus on the safe choice), because it locks the record.
+The HAP note is no longer a card: one ruled section with the title and status, a provenance
+`<dl>` (written by and role, care team at submission, submitted, signed or cosigned by whom)
+and History, Assessment and Plan as ruled blocks. Read-only text is plain reading text at a
+70ch measure, not boxed. A note waiting on this doctor leads with the same warning band as
+encounter sign-off ("Waiting for your cosign") holding the only Cosign note action; the
+dialog names the author. Draft actions end in `FormActions` (split: save state at the start,
+Sign note or Submit for cosign last). Addenda and prescriptions are ruled lists; the
+Prescriptions panel and its Add prescription form drop their card and box. Note, encounter
+and dashboard times use `formatOpsDateTime` (Africa/Accra). The doctor and review dashboard
+tables share `recent-visit-columns.tsx`: Patient (a link to the visit), Code, Status, Visit
+started. Do not give the note wrapper an accessible name containing "History": tests and
+assistive technology find the History field by that label.
+
 The Station session route uses `RecordSection` rows. A cancelled stop's station
 name is struck through beside "Cancelled by", the name, the time and the reason;
 skipped and completed stops keep who and when without the strike. Performer
