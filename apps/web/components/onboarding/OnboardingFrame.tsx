@@ -232,45 +232,49 @@ export function OnboardingFrame({
 
   return (
     <div className="min-h-dvh bg-background">
-      <a
-        href="#main-content"
-        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        Skip to main content
-      </a>
-      <header className="border-b border-rule">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 md:px-6">
-          <OnboardingBrand />
-          <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-            {signedInAs ? (
-              <span className="hidden min-w-0 truncate sm:inline">Signed in as {signedInAs}</span>
-            ) : null}
-            <Button variant="ghost" size="sm" onClick={logout}>
-              <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-              Sign out
-            </Button>
+      <div className="flex min-h-dvh flex-col bg-card compact:m-2 compact:min-h-[calc(100dvh-1rem)] compact:rounded-xl compact:border compact:border-border">
+        <a
+          href="#main-content"
+          className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Skip to main content
+        </a>
+        <header className="border-b border-rule">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 md:px-6">
+            <OnboardingBrand />
+            <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+              {signedInAs ? (
+                <span className="hidden min-w-0 truncate sm:inline">Signed in as {signedInAs}</span>
+              ) : null}
+              <Button variant="ghost" size="sm" onClick={logout}>
+                <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                Sign out
+              </Button>
+            </div>
           </div>
-        </div>
-      </header>
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto grid max-w-5xl gap-10 px-4 pb-12 pt-8 focus-visible:outline-none md:px-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14 lg:pt-12"
-      >
-        <div className="min-w-0 space-y-6">
-          <div className="space-y-2">
-            <p className="text-eyebrow text-muted-foreground">
-              {eyebrow ?? `Step ${index + 1} of ${steps.length}`}
-            </p>
-            <h1 className="type-page-title text-foreground">{title}</h1>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">{lede}</p>
+        </header>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto grid w-full max-w-5xl gap-10 px-4 pb-12 pt-8 focus-visible:outline-none md:px-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14 lg:pt-12"
+        >
+          <div className="min-w-0 space-y-6">
+            <div className="space-y-2">
+              <p className="text-eyebrow text-muted-foreground">
+                {eyebrow ?? `Step ${index + 1} of ${steps.length}`}
+              </p>
+              <h1 className="type-page-title text-foreground">{title}</h1>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+                {lede}
+              </p>
+            </div>
+            {children}
           </div>
-          {children}
-        </div>
-        <aside className="min-w-0">
-          <JourneySteps journey={journey} current={current} needsName={needsName} />
-        </aside>
-      </main>
+          <aside className="min-w-0">
+            <JourneySteps journey={journey} current={current} needsName={needsName} />
+          </aside>
+        </main>
+      </div>
     </div>
   );
 }

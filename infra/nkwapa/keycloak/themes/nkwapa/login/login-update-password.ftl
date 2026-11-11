@@ -16,13 +16,14 @@
                         autocomplete="new-password"
                         autofocus
                         aria-invalid="<#if hasPasswordError>true</#if>"
+                        <#if messagesPerField.existsError('password-new','password')>aria-describedby="input-error-password-new"</#if>
                     />
                     <@layout.passwordToggle targetId="password-new" />
                 </div>
                 <#if messagesPerField.existsError('password-new')>
-                    <span class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('password-new'))?no_esc}</span>
+                    <span id="input-error-password-new" class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('password-new'))?no_esc}</span>
                 <#elseif messagesPerField.existsError('password')>
-                    <span class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('password'))?no_esc}</span>
+                    <span id="input-error-password-new" class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('password'))?no_esc}</span>
                 </#if>
             </div>
 
@@ -36,11 +37,12 @@
                         class="nkwapa-input nkwapa-input--with-toggle"
                         autocomplete="new-password"
                         aria-invalid="<#if hasPasswordError>true</#if>"
+                        <#if messagesPerField.existsError('password-confirm')>aria-describedby="input-error-password-confirm"</#if>
                     />
                     <@layout.passwordToggle targetId="password-confirm" />
                 </div>
                 <#if messagesPerField.existsError('password-confirm')>
-                    <span class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('password-confirm'))?no_esc}</span>
+                    <span id="input-error-password-confirm" class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('password-confirm'))?no_esc}</span>
                 </#if>
             </div>
 

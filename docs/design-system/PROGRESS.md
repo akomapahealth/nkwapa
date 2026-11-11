@@ -1211,3 +1211,20 @@ tests. Focused Chromium over portal, portal-offline, portal-shell, appointments 
 target under 44px on a touch pointer. Details in
 `ui-refresh/R5.1-REVIEW.md`. Local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
+## R5.2 Authentication screens (2026-11-11)
+
+`/login`, every `OnboardingFrame` step and the Keycloak pages now sit on the same inset sheet as the
+portal and staff shells, which closes the R1.1 "login on the canvas" gap. The "I am signing in as"
+control takes the pilot `.seg` look while staying a native radio group. Keycloak sign-in no longer
+sets `autocomplete="off"` on the username, so password managers work; errors are tied to their
+fields with `aria-describedby`, and standalone links are 44px on touch. `/account` uses ruled
+sections, hairline role rows and `FormActions` (also reaching the shared name form), and
+`/claim-record` ends in `FormActions`. R5.1 follow-ups from the owed critique: the request reason
+chips lost their pill shape and show the chosen one, and portal BP fields ask for the numeric keypad.
+
+**Validation:** audit-flag build, TypeScript, changed-file lint/format pass; detector `[]`; no
+related Jest suites. Focused Chromium over 11 auth, account and portal specs **91/91**, then
+**19/19** after the touch fix. Six-role audit **12/12, 228 rows, 0 violations, 0 overflow, 0
+errors**. Scratch evidence: 80 axe rows at 1440 to 320 in both themes, 0 violations, 0 overflow;
+the touch pass found three sub-44px controls, all fixed. Details in `ui-refresh/R5.2-REVIEW.md`.
+**R5 is complete.** Local commit only; no push. Next is `ui-refresh/HANDOFF-R6.1.md`.

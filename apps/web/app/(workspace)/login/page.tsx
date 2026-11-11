@@ -205,193 +205,198 @@ export default function LoginPage() {
   ];
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
-      <header className="border-b border-rule">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 md:px-6">
-          <span className="flex items-center gap-2.5">
-            <span className="relative h-8 w-8">
-              <Image
-                src="/images/nkwapa-mark.png"
-                alt=""
-                fill
-                priority
-                sizes="32px"
-                className="object-contain"
-              />
+    // The canvas with one inset sheet, as in the portal and staff shells (R5.2).
+    <div className="min-h-dvh bg-background">
+      <div className="flex min-h-dvh flex-col bg-card compact:m-2 compact:min-h-[calc(100dvh-1rem)] compact:rounded-xl compact:border compact:border-border">
+        <header className="border-b border-rule">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 md:px-6">
+            <span className="flex items-center gap-2.5">
+              <span className="relative h-8 w-8">
+                <Image
+                  src="/images/nkwapa-mark.png"
+                  alt=""
+                  fill
+                  priority
+                  sizes="32px"
+                  className="object-contain"
+                />
+              </span>
+              <span className="font-heading text-xl font-semibold tracking-tight text-foreground">
+                Nkwapa
+              </span>
             </span>
-            <span className="font-heading text-xl font-semibold tracking-tight text-foreground">
-              Nkwapa
-            </span>
-          </span>
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/">Back to home</Link>
-          </Button>
-        </div>
-      </header>
-
-      <main
-        id="main-content"
-        className="mx-auto grid w-full max-w-5xl flex-1 content-start gap-10 px-4 pb-12 pt-8 md:px-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14 lg:pt-16"
-      >
-        <div className="min-w-0 max-w-xl space-y-6">
-          <div className={RISE} style={riseDelay(0)}>
-            <div className="space-y-2">
-              <p className="text-eyebrow text-muted-foreground">Secure sign in</p>
-              <h1 className="type-page-title text-foreground">
-                {error
-                  ? "We couldn't start secure sign-in"
-                  : nextPath
-                    ? 'Sign in to continue'
-                    : 'Sign in to Nkwapa'}
-              </h1>
-              <p className="text-sm leading-6 text-muted-foreground md:text-base">
-                {error
-                  ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
-                  : destinationCopy}
-              </p>
-            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/">Back to home</Link>
+            </Button>
           </div>
+        </header>
 
-          <fieldset className={RISE} style={riseDelay(1)}>
-            <legend className="type-label text-foreground">I am signing in as</legend>
-            <div className="relative mt-2 grid grid-cols-2 rounded-lg border border-input bg-background p-1">
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md bg-primary shadow-sm transition-transform duration-base ease-out-strong',
-                  audience === 'staff' && 'translate-x-full',
-                )}
-              />
-              {AUDIENCE_OPTIONS.map(({ value, label, icon: Icon }) => (
-                <label
-                  key={value}
-                  className={cn(
-                    'relative flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors duration-fast ease-out-strong has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
-                    audience === value
-                      ? 'text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="sign-in-audience"
-                    value={value}
-                    checked={audience === value}
-                    onChange={() => chooseAudience(value)}
-                    className="sr-only"
-                  />
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {error ? (
-            <div
-              role="alert"
-              className="flex gap-3 border-t-2 border-destructive pt-4 text-sm leading-6"
-            >
-              <AlertTriangle
-                className="mt-0.5 h-5 w-5 shrink-0 text-destructive-ink"
-                aria-hidden="true"
-              />
-              <div className="space-y-1">
-                <p className="font-semibold text-foreground">Secure sign-in is affected</p>
-                <p className="text-muted-foreground">
-                  {error} The public home page is still available, but clinic records stay protected
-                  until sign-in reconnects.
+        <main
+          id="main-content"
+          className="mx-auto grid w-full max-w-5xl flex-1 content-start gap-10 px-4 pb-12 pt-8 md:px-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14 lg:pt-16"
+        >
+          <div className="min-w-0 max-w-xl space-y-6">
+            <div className={RISE} style={riseDelay(0)}>
+              <div className="space-y-2">
+                <p className="text-eyebrow text-muted-foreground">Secure sign in</p>
+                <h1 className="type-page-title text-foreground">
+                  {error
+                    ? "We couldn't start secure sign-in"
+                    : nextPath
+                      ? 'Sign in to continue'
+                      : 'Sign in to Nkwapa'}
+                </h1>
+                <p className="text-sm leading-6 text-muted-foreground md:text-base">
+                  {error
+                    ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
+                    : destinationCopy}
                 </p>
               </div>
             </div>
-          ) : null}
 
-          <div className={cn(RISE, 'space-y-3')} style={riseDelay(2)}>
-            <Button onClick={login} size="lg" className="w-full px-6 sm:w-auto">
-              {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-            <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-              <Lock className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>
-                <span className="font-medium text-foreground">Invitation only.</span> There is no
-                sign-up: every account starts with an email from a clinic.
-              </span>
-            </p>
+            <fieldset className={RISE} style={riseDelay(1)}>
+              <legend className="type-label text-foreground">I am signing in as</legend>
+              <div className="relative mt-2 grid grid-cols-2 rounded-md bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'absolute inset-y-[3px] left-[3px] w-[calc(50%-3px)] rounded-[4px] bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.12),inset_0_0_0_1px_hsl(var(--border))] transition-transform duration-base ease-out-strong',
+                    audience === 'staff' && 'translate-x-full',
+                  )}
+                />
+                {AUDIENCE_OPTIONS.map(({ value, label, icon: Icon }) => (
+                  <label
+                    key={value}
+                    className={cn(
+                      'relative flex min-h-[42px] cursor-pointer touch-manipulation [@media(pointer:coarse)]:min-h-12 items-center justify-center gap-2 rounded-[4px] px-3 text-sm font-medium transition-colors duration-fast ease-out-strong has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
+                      audience === value
+                        ? 'font-semibold text-primary'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="sign-in-audience"
+                      value={value}
+                      checked={audience === value}
+                      onChange={() => chooseAudience(value)}
+                      className="sr-only"
+                    />
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {error ? (
+              <div
+                role="alert"
+                className="flex gap-3 border-t-2 border-destructive pt-4 text-sm leading-6"
+              >
+                <AlertTriangle
+                  className="mt-0.5 h-5 w-5 shrink-0 text-destructive-ink"
+                  aria-hidden="true"
+                />
+                <div className="space-y-1">
+                  <p className="font-semibold text-foreground">Secure sign-in is affected</p>
+                  <p className="text-muted-foreground">
+                    {error} The public home page is still available, but clinic records stay
+                    protected until sign-in reconnects.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className={cn(RISE, 'space-y-3')} style={riseDelay(2)}>
+              <Button onClick={login} size="lg" className="w-full px-6 sm:w-auto">
+                {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
+                <Lock className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  <span className="font-medium text-foreground">Invitation only.</span> There is no
+                  sign-up: every account starts with an email from a clinic.
+                </span>
+              </p>
+            </div>
+
+            <section
+              aria-labelledby="login-next-title"
+              className={cn(RISE, 'border-t-2 border-rule-strong')}
+              style={riseDelay(3)}
+            >
+              <h2 id="login-next-title" className="type-section-title pb-1 pt-4">
+                What happens next
+              </h2>
+              <ol>
+                {nextSteps.map((step, index) => (
+                  <li
+                    key={step.title}
+                    className="flex gap-3 border-t border-rule py-3 first:border-t-0"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-input text-xs font-semibold tabular-nums text-muted-foreground"
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-foreground">
+                        {step.title}
+                      </span>
+                      {/* Keyed by audience so a changed choice cross-fades in rather than snapping. */}
+                      <span
+                        key={index === 2 ? audience : undefined}
+                        className="block text-sm leading-6 text-muted-foreground motion-safe:animate-page-in"
+                      >
+                        {step.detail}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </div>
 
-          <section
-            aria-labelledby="login-next-title"
-            className={cn(RISE, 'border-t-2 border-rule-strong')}
-            style={riseDelay(3)}
+          <aside
+            aria-labelledby="login-first-time-title"
+            className={cn(RISE, 'min-w-0')}
+            style={riseDelay(4)}
           >
-            <h2 id="login-next-title" className="type-section-title pb-1 pt-4">
-              What happens next
-            </h2>
-            <ol>
-              {nextSteps.map((step, index) => (
-                <li
-                  key={step.title}
-                  className="flex gap-3 border-t border-rule py-3 first:border-t-0"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-input text-xs font-semibold tabular-nums text-muted-foreground"
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-foreground">{step.title}</span>
-                    {/* Keyed by audience so a changed choice cross-fades in rather than snapping. */}
-                    <span
-                      key={index === 2 ? audience : undefined}
-                      className="block text-sm leading-6 text-muted-foreground motion-safe:animate-page-in"
-                    >
-                      {step.detail}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-        </div>
-
-        <aside
-          aria-labelledby="login-first-time-title"
-          className={cn(RISE, 'min-w-0')}
-          style={riseDelay(4)}
-        >
-          <figure className="mb-8">
-            <div className="relative aspect-[16/9] overflow-hidden rounded-lg bg-muted motion-safe:animate-photo-reveal lg:aspect-[4/3]">
-              <Image
-                src="/images/Akomapa-19.jpg"
-                alt="A volunteer takes a woman's blood pressure at a folding table during an Akomapa screening."
-                fill
-                sizes="(min-width: 1024px) 20rem, 100vw"
-                placeholder="blur"
-                blurDataURL={LANDING_BLUR['/images/Akomapa-19.jpg']}
-                className="object-cover object-[45%_center] motion-safe:animate-photo-settle"
-              />
-            </div>
-            <figcaption className="pt-2 text-xs leading-5 text-muted-foreground">
-              Patients and volunteers at an Akomapa community screening.
-            </figcaption>
-          </figure>
-          <section className="border-t-2 border-rule-strong">
-            <h2 id="login-first-time-title" className="type-section-title pb-1 pt-4">
-              First time here?
-            </h2>
-            <dl key={audience} className="text-sm leading-6 motion-safe:animate-page-in">
-              {guidance.help.map((item) => (
-                <div key={item.title} className="border-t border-rule py-3">
-                  <dt className="font-medium text-foreground">{item.title}</dt>
-                  <dd className="text-muted-foreground">{item.detail}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        </aside>
-      </main>
+            <figure className="mb-8">
+              <div className="relative aspect-[16/9] overflow-hidden rounded-lg bg-muted motion-safe:animate-photo-reveal lg:aspect-[4/3]">
+                <Image
+                  src="/images/Akomapa-19.jpg"
+                  alt="A volunteer takes a woman's blood pressure at a folding table during an Akomapa screening."
+                  fill
+                  sizes="(min-width: 1024px) 20rem, 100vw"
+                  placeholder="blur"
+                  blurDataURL={LANDING_BLUR['/images/Akomapa-19.jpg']}
+                  className="object-cover object-[45%_center] motion-safe:animate-photo-settle"
+                />
+              </div>
+              <figcaption className="pt-2 text-xs leading-5 text-muted-foreground">
+                Patients and volunteers at an Akomapa community screening.
+              </figcaption>
+            </figure>
+            <section className="border-t-2 border-rule-strong">
+              <h2 id="login-first-time-title" className="type-section-title pb-1 pt-4">
+                First time here?
+              </h2>
+              <dl key={audience} className="text-sm leading-6 motion-safe:animate-page-in">
+                {guidance.help.map((item) => (
+                  <div key={item.title} className="border-t border-rule py-3">
+                    <dt className="font-medium text-foreground">{item.title}</dt>
+                    <dd className="text-muted-foreground">{item.detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          </aside>
+        </main>
+      </div>
     </div>
   );
 }

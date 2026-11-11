@@ -1450,6 +1450,17 @@ The flows, redirects, required actions, API calls and validation are unchanged.
 
 Shipped in [PR #303](https://github.com/akomapahealth/nkwapa/pull/303); before and after screenshots and verification are in the pull request.
 
+**R5.2 (2026-11-11).** `/login`, every `OnboardingFrame` step and the Keycloak pages now sit on
+the same inset sheet as the portal and staff shells: full-bleed white under 600px, then 8px inside
+the canvas with a 12px radius and a hairline (`.nkwapa-auth-sheet` in the theme). The "I am signing
+in as" control is the pilot `.seg` (surface-2 track, raised card knob, primary label), still a
+native radio group; the filled teal segment is gone. Keycloak fields carry `autocomplete="username"`
+(it was `off` on sign-in, which blocked password managers) and point at their error with
+`aria-describedby`. Keycloak controls stay 48px on every pointer: the 44px password toggle sits
+inside the field, so a 40px mouse field would clip it. `/account` and `/account/name` use ruled
+`RecordSection`s, hairline role rows and `FormActions` (the name form ends in it everywhere it is
+used, including the admin user sheet); the permission split is unchanged.
+
 ### Public landing page (#278)
 
 The landing page leads with the clinic, then the product. Copy is unchanged

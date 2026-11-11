@@ -220,7 +220,8 @@ export function AppointmentRequestScreen() {
                       key={suggestion}
                       type="button"
                       onClick={() => setReason(suggestion)}
-                      className="inline-flex min-h-11 items-center rounded-full border border-input bg-background px-4 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-pressed={reason === suggestion}
+                      className="inline-flex min-h-11 items-center rounded-sm border border-input bg-card px-4 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-pressed:border-primary aria-pressed:bg-selected aria-pressed:font-semibold aria-pressed:text-primary"
                     >
                       {suggestion}
                     </button>

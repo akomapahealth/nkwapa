@@ -9,11 +9,12 @@
                     <#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if>
                 </label>
                 <input type="text" id="username" name="username" class="nkwapa-input" autofocus
-                       value="${(auth.attemptedUsername!'')}"
+                       value="${(auth.attemptedUsername!'')}" autocomplete="username" autocapitalize="none" spellcheck="false"
                        aria-invalid="<#if messagesPerField.existsError('username')>true</#if>"
+                       <#if messagesPerField.existsError('username')>aria-describedby="input-error-username"</#if>
                 />
                 <#if messagesPerField.existsError('username')>
-                    <span class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('username'))?no_esc}</span>
+                    <span id="input-error-username" class="nkwapa-error" aria-live="polite">${kcSanitize(messagesPerField.getFirstError('username'))?no_esc}</span>
                 </#if>
             </div>
 

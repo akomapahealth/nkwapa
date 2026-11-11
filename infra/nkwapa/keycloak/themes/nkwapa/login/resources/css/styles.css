@@ -150,10 +150,29 @@ body.nkwapa-auth-body {
 
 /*
   #277: the same frame as the app's /login and account-setup pages. A hairline header with the
-  logo, then the form on the canvas under a strong rule, with the journey beside it. The deep
+  logo, then the form on the sheet (R5.2) under a strong rule, with the journey beside it. The deep
   teal card, its shadow and its marketing copy are gone: MASTER.md section 12 keeps cards for
   things that float, and this page should read as the next screen of Nkwapa, not a poster.
 */
+/*
+  R5.2: the canvas with one inset sheet, as the app's portal and staff shells have from 600px.
+  On a phone the sheet fills the screen; above it, it sits 8px inside the canvas.
+*/
+.nkwapa-auth-sheet {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--nkwapa-surface);
+}
+
+@media (min-width: 600px) {
+  .nkwapa-auth-sheet {
+    margin: 8px;
+    min-height: calc(100dvh - 16px);
+    border: 1px solid var(--nkwapa-border);
+    border-radius: var(--nkwapa-radius-xl);
+  }
+}
+
 .nkwapa-auth-header {
   border-bottom: 1px solid var(--nkwapa-rule);
 }
@@ -516,6 +535,17 @@ body.nkwapa-auth-body {
 .nkwapa-forgot-link:hover,
 .nkwapa-register-link a:hover {
   text-decoration: underline;
+}
+
+/* R5.2: standalone links measured 18 to 20px tall on a phone; 44px under touch (MASTER section 8).
+   Links inside a sentence keep their line height (WCAG 2.5.8 exempts them). */
+@media (pointer: coarse) {
+  .nkwapa-forgot-link,
+  .nkwapa-auth-link-block a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
 }
 
 .nkwapa-btn-primary {

@@ -300,6 +300,7 @@ export function MeasurementComposerScreen() {
                     <Input
                       id="systolic"
                       type="number"
+                      inputMode="numeric"
                       className="tabular-nums"
                       min={50}
                       max={300}
@@ -313,6 +314,7 @@ export function MeasurementComposerScreen() {
                     <Input
                       id="diastolic"
                       type="number"
+                      inputMode="numeric"
                       className="tabular-nums"
                       min={30}
                       max={200}
@@ -326,6 +328,7 @@ export function MeasurementComposerScreen() {
                     <Input
                       id="pulse"
                       type="number"
+                      inputMode="numeric"
                       className="tabular-nums"
                       min={20}
                       max={250}

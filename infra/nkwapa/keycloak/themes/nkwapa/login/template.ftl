@@ -100,6 +100,7 @@
     <#assign themeScripts = (properties.scripts)!'' />
 </head>
 <body class="nkwapa-auth-body">
+<div class="nkwapa-auth-sheet">
     <header class="nkwapa-auth-header">
         <div class="nkwapa-auth-header__inner">
             <img src="${url.resourcesPath}/img/nkwapa-logo.png" alt="Nkwapa" class="nkwapa-auth-logo" />
@@ -147,6 +148,7 @@
             </aside>
         </#if>
     </main>
+</div>
     <#if themeScripts?has_content>
         <#list themeScripts?split(' ') as script>
             <script src="${url.resourcesPath}/${script}" defer></script>
