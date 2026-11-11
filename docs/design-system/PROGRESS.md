@@ -1206,6 +1206,8 @@ hairline rows and `FormActions`.
 **Validation:** CI-flag build, TypeScript, changed-file lint/format pass; related Jest 2 suites / 14
 tests. Focused Chromium over portal, portal-offline, portal-shell, appointments and settings:
 **55/55** after applying the local database's missing migrations (the first run's 39 failures were
-`/auth/whoami` 500s, not this change). The evidence spec and six-role audit did not run. Details in
+`/auth/whoami` 500s, not this change). Six-role audit **12/12, 228 rows, 0 violations, 0 overflow,
+0 errors**; portal evidence at 390/320 in both themes **28 rows, 0 violations, 0 overflow**, no touch
+target under 44px on a touch pointer. Details in
 `ui-refresh/R5.1-REVIEW.md`. Local commit only; no push.
 
