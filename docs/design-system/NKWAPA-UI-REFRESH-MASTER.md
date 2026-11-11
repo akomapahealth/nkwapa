@@ -203,6 +203,14 @@ Inputs, selected states, borders, patient measurements, and warning indicators m
 
 All critical screens must be visually reviewed in both supported themes.
 
+**R7.6 dark-mode rules (apply to all future sessions).** Every dark pairing is measured, not
+eyeballed: text 4.5:1 and icons, control boundaries and rings 3:1 on all nine grounds (canvas, card,
+muted, selected, popover, mint, gold surface, deep, sidebar), including a destructive item on its
+own hover tint. A token change re-measures every pairing (`R7.6-REVIEW.md` lists the method) and
+`npm run design:check-charts` must still pass. Charts sit on the card, never on `--muted`. A theme
+switch the user makes crossfades the page for 200 ms (`switchTheme` in `lib/theme-context.tsx`);
+load and the OS following stay instant; no `dark:` utilities.
+
 ## 4.4 Typography
 
 Retain **IBM Plex Sans** and **Source Serif 4** as the foundation.

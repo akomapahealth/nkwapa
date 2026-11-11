@@ -1350,3 +1350,20 @@ tests), detector clean. New `error-empty-states` spec. Focused Chromium over 17 
 failures are the two known pre-existing ones (`staff-invite` phone save, `patient-redesign` 44px tab)
 and a stale `patient-chart` date-format expectation that no R7.5 file touches. Six-role audit **228
 rows, 0 violations, 0 overflow**. Local commit only; no push. Next is `ui-refresh/HANDOFF-R7.6.md`.
+
+## R7.6 Dark-mode pass (2026-11-11)
+
+Every dark token pairing was computed (270: text and UI tokens on nine grounds, status inks on
+their surfaces and tints, chart series, avatar tones, scrim), then checked against what Chromium
+painted. Five fell short. A destructive menu item on its own hover tint measured 3.99:1 and 4.39:1
+on the gold surface: dark `--destructive` moved from 66% to 71% lightness (4.76:1 and 5.24:1). A
+warning notice's description measured 4.48:1: dark `--muted-foreground` moved from 63.9% to 65%
+(4.63:1). `--chart-3` is 2.87:1 on `--muted`, but lifting it broke the CI tritan floor, so it stays
+and charts stay on the card. A theme switch now crossfades the page for 200 ms instead of jumping
+every surface's brightness in one frame; load and the OS following stay instant. Rules in MASTER
+4.3; detail in `ui-refresh/R7.6-REVIEW.md`.
+
+**Validation:** audit-flag build, TypeScript, changed-file lint/format, Jest 1027/1027, chart
+palette check, design hook clean. Scratch dark spec over the R7.5 states and the switch (deleted).
+Focused Chromium over 10 specs 76/76. Six-role audit **228 rows, 0 violations, 0 overflow**. Local
+commit only; no push. Next is `ui-refresh/HANDOFF-R7.7.md`.

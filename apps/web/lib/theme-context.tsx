@@ -63,6 +63,18 @@ function applyTheme(theme: ResolvedTheme) {
   }
 }
 
+/**
+ * A switch the user makes crossfades the whole page (MASTER 9.1 rule 7) instead of jumping every
+ * surface's brightness in one frame; globals.css sets the clock. Load and the OS following the
+ * user's system setting stay instant.
+ * shortcut: browsers without View Transitions (Firefox before 144) still switch instantly.
+ */
+function switchTheme(theme: ResolvedTheme) {
+  const unchanged = document.documentElement.classList.contains('dark') === (theme === 'dark');
+  if (unchanged || !('startViewTransition' in document)) return applyTheme(theme);
+  document.startViewTransition(() => applyTheme(theme));
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Server renders the light default; the boot script has already corrected the DOM by the
   // time this mounts, and the effect below reconciles React's state with it.
@@ -94,8 +106,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [resolved, theme]);
 
   const setPreference = useCallback((next: ThemePreference) => {
+    const nextTheme = next === 'system' ? systemTheme() : next;
+    switchTheme(nextTheme);
     setPreferenceState(next);
-    setTheme(next === 'system' ? systemTheme() : next);
+    setTheme(nextTheme);
     try {
       if (next === 'system') {
         window.localStorage.removeItem(themeStorageKey);

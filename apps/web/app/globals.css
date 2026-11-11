@@ -270,7 +270,9 @@
     --secondary: 47 85% 52%;
     --secondary-foreground: 192 29.4% 6.7%;
     --muted: 192.9 21.9% 12.5%;
-    --muted-foreground: 190 9.8% 63.9%;
+    /* R7.6: 65% (was 63.9%), because a warning notice's description measured 4.48:1 on
+       --warning-surface. Now 4.63:1 there, 5.25:1 on --selected, 7.27:1 on the card. */
+    --muted-foreground: 190 9.8% 65%;
     --accent: 188.1 42.5% 17.1%;
     --accent-foreground: 188.6 17.1% 92%;
     --surface-2: 192.9 21.9% 12.5%;
@@ -316,8 +318,13 @@
         text on --card         5.48:1
         text on its own 12% tint  4.67:1   (the InlineNotice error tone)
         --destructive-foreground on the fill  5.60:1
+
+      R7.6: 71% (was 66%). At 66% a destructive menu item on its hover and focus tint
+      (--accent, the same as --selected) measured 3.99:1, and 4.39:1 on --gold-surface. At 71%:
+      4.76:1 on --selected, 5.24:1 on --gold-surface, 6.60:1 on the card, 7.17:1 for the dark ink
+      on the fill.
     */
-    --destructive: 0 62% 66%;
+    --destructive: 0 62% 71%;
     --destructive-foreground: 192 29.4% 6.7%;
     /* Same split as light mode: --border stays a soft decorative divider, --input carries the
        3:1 control boundary and measures 4.74:1 against the dark canvas. */
@@ -339,11 +346,14 @@
     --ring: 188 80% 47%;
     --sidebar: 192 29.4% 6.7%;
     --sidebar-border: 198 20.8% 18.8%;
-    --sidebar-muted-foreground: 190 9.8% 63.9%;
+    --sidebar-muted-foreground: 190 9.8% 65%;
     /* Re-stepped for the dark card, not flipped from light: the band is narrower here
        (OKLCH L 0.48-0.67) and every slot clears 3:1 on this surface. */
     --chart-1: 188 100% 37%; /* #00A4BD teal    5.67:1 */
     --chart-2: 48 99% 35%; /* #B28E01 gold    5.44:1 */
+    /* 2.87:1 on --muted, so keep chart-3 on the card. R7.6 tried 48%: it cleared --muted but
+       took chart-3 vs chart-5 (tritan) to deltaE 5.3, below the CI floor. Its two charts are
+       single-series lines on the card. */
     --chart-3: 326 55% 46%; /* #B6357E magenta 3.06:1 */
     --chart-4: 246 96% 74%; /* #8A7DFC violet  5.17:1 */
     --chart-5: 20 96% 41%; /* #CD4704 rust    3.62:1 */
@@ -398,6 +408,14 @@
 [data-avatar-tone='8'] {
   background-color: hsl(var(--avatar-8));
   color: hsl(var(--avatar-8-ink));
+}
+
+/* R7.6: a theme switch crossfades the page (lib/theme-context.tsx). Opacity only, so it also runs
+   under reduced motion; everything on screen changes, hence ease-in-out (MASTER 9.1 rule 1). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-in-out);
 }
 
 @layer base {
