@@ -338,7 +338,7 @@ Verify zoom, long content, virtual-keyboard behavior, and PWA installed display 
 
 **Phase:** R2 adaptive app shell
 
-**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 **Status:** Complete within the validation boundaries below.
 
@@ -447,7 +447,7 @@ For every unit, confirm:
 
 **Phase:** R2 adaptive app shell
 
-**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 **Status:** Complete within the validation boundaries below.
 
@@ -481,7 +481,7 @@ For every unit, confirm:
 
 **Phase:** R2 adaptive app shell
 
-**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 **Status:** Complete within the validation boundaries below.
 
@@ -557,7 +557,7 @@ No R3 content was implemented here.
 
 **Phase:** R3 volunteer and clinical
 
-**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push.
+**Branch:** `ui-refresh/r1-1-tokens`, local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 **Status:** Complete within the validation boundaries below.
 
@@ -1119,7 +1119,7 @@ also fails on baseline); final re-run 37/37. Six-role audit 12/12, 228 rows, 0
 violations, 0 overflow. Details and limits in `ui-refresh/R3.8-REVIEW.md`. R3 is
 complete; next is `ui-refresh/HANDOFF-R4.1.md`. Follow-up the same day: tabs
 (40px mouse) and select, dropdown and combobox rows (36px mouse, 44px touch) use
-the same tokens. Local commit only; no push.
+the same tokens. Local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 ## R4.1 Doctor review (2026-11-10)
 
@@ -1143,7 +1143,7 @@ confirmed through the dialog). Six-role audit **12/12, 228 rows, 0 violations,
 dark, 1440, 390); it caught one real defect, fixed before the runs above.
 Details and limits in `ui-refresh/R4.1-REVIEW.md`; synthetic evidence in ignored
 `ui-refresh/evidence/r4-1/` (before, after, routes). Next is
-`ui-refresh/HANDOFF-R4.2.md`. Local commit only; no push.
+`ui-refresh/HANDOFF-R4.2.md`. Local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 ## R4.2 Preceptor and manager oversight (2026-11-10)
 
@@ -1167,7 +1167,7 @@ volunteer roster, and the three Mark Reviewed → Finalize flows. Audit-flag foc
 Chromium **58/58**. Six-role audit **12/12, 228 rows, 0 violations, 0 overflow, 0
 errors**. Details and limits in `ui-refresh/R4.2-REVIEW.md`; synthetic evidence in
 ignored `ui-refresh/evidence/r4-2/`. Next is `ui-refresh/HANDOFF-R4.3.md`. Local commit
-only; no push.
+only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 ## R4.3 Director and system administrator oversight (2026-11-11)
 
@@ -1190,7 +1190,7 @@ portal): **210/210**. Scratch evidence spec **11/11**: 144 rows at 1440 to 320 i
 violations, 0 overflow, plus the sticky-column, audit and access-sheet checks. Six-role audit **12/12,
 228 rows, 0 violations, 0 overflow, 0 errors**. Details and limits in `ui-refresh/R4.3-REVIEW.md`; synthetic evidence in ignored
 `ui-refresh/evidence/r4-3/`. R4 is complete; next is `ui-refresh/HANDOFF-R5.1.md`. Local commit
-only; no push.
+only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
 ## R5.1 Patient portal (2026-11-11)
 
@@ -1209,5 +1209,5 @@ tests. Focused Chromium over portal, portal-offline, portal-shell, appointments 
 `/auth/whoami` 500s, not this change). Six-role audit **12/12, 228 rows, 0 violations, 0 overflow,
 0 errors**; portal evidence at 390/320 in both themes **28 rows, 0 violations, 0 overflow**, no touch
 target under 44px on a touch pointer. Details in
-`ui-refresh/R5.1-REVIEW.md`. Local commit only; no push.
+`ui-refresh/R5.1-REVIEW.md`. Local commit only; no push. Next is `ui-refresh/HANDOFF-R5.2.md`.
 
