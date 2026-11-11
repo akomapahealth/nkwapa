@@ -75,7 +75,7 @@ export function PatientClinicalNotesPanel({
           onRetry={() => void load()}
         />
       ) : null}
-      {!notes.length ? (
+      {error && !notes.length ? null : !notes.length ? (
         <ChartSectionEmpty
           title="No clinical notes recorded"
           description="HAP notes created from this patient's encounters will appear here."

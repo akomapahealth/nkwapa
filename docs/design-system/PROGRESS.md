@@ -1329,3 +1329,24 @@ over 25 specs 209/220; the failures were a mid-slide measurement in a new test (
 that passed on re-run, and two failures reproduced on a stashed HEAD build (`staff-invite` phone
 save, `patient-redesign` 44px tab). Six-role audit **228 rows, 0 violations, 0 overflow, 0
 errors**. Local commit only; no push. Next is `ui-refresh/HANDOFF-R7.5.md`.
+
+## R7.5 Error and empty states (2026-11-11)
+
+An inventory of every empty, error and offline branch (about 50 files) found list routes already
+correct and the defects in hand-rolled chart panels. A failed medication load had shown "No
+medications recorded" and an enabled **Record no known medications** under the error; it now shows
+only the error with retry. Medical history, diabetes and hypertension history, and clinical notes no
+longer show "none recorded" under a failed load; the history allergy banner says "unavailable"
+instead of "not recorded" and waits for the first read. An empty device copy says "No … saved on
+this device", not "No … recorded". The chat staff picker reports a failed directory with Try again
+instead of "No users found". Error toasts stay until dismissed. The root error boundaries no longer
+print `error.message` (possible patient identifiers). `FullscreenStatus` and `PageSkeleton` became
+one sheet on the canvas: no eyebrow, no decorative recovery panel, no fake progress steps. Avatars
+take one of eight measured tones from a stable hash of the person (`lib/avatar-tone.ts`). Rules in
+MASTER 8.1; detail in `ui-refresh/R7.5-REVIEW.md`.
+
+**Validation:** two audit-flag builds, TypeScript, changed-file lint/format, Jest 6/6 (two new
+tests), detector clean. New `error-empty-states` spec. Focused Chromium over 17 specs 170/179; the
+failures are the two known pre-existing ones (`staff-invite` phone save, `patient-redesign` 44px tab)
+and a stale `patient-chart` date-format expectation that no R7.5 file touches. Six-role audit **228
+rows, 0 violations, 0 overflow**. Local commit only; no push. Next is `ui-refresh/HANDOFF-R7.6.md`.

@@ -217,6 +217,28 @@
     /* Select, dropdown and combobox rows, and tab triggers (48px under touch is set on Tabs). */
     --menu-row-height: 2.75rem;
     --tab-height: 2.75rem;
+
+    /*
+      Avatar tones (R7.5): eight hues, one per person, picked by `lib/avatar-tone.ts` from a stable
+      hash so a colleague keeps their colour on every surface. Red, green and amber are left out so a
+      tone never reads as a status. Initials measure 5.4:1 or better on each fill in both themes.
+    */
+    --avatar-1: 188 60% 88%;
+    --avatar-1-ink: 188 60% 25%;
+    --avatar-2: 208 60% 88%;
+    --avatar-2-ink: 208 60% 25%;
+    --avatar-3: 230 60% 88%;
+    --avatar-3-ink: 230 60% 25%;
+    --avatar-4: 255 60% 88%;
+    --avatar-4-ink: 255 60% 25%;
+    --avatar-5: 280 60% 88%;
+    --avatar-5-ink: 280 60% 25%;
+    --avatar-6: 305 60% 88%;
+    --avatar-6-ink: 305 60% 25%;
+    --avatar-7: 330 60% 88%;
+    --avatar-7-ink: 330 60% 25%;
+    --avatar-8: 50 75% 88%;
+    --avatar-8-ink: 50 75% 25%;
   }
 
   @media (pointer: fine) {
@@ -325,7 +347,57 @@
     --chart-3: 326 55% 46%; /* #B6357E magenta 3.06:1 */
     --chart-4: 246 96% 74%; /* #8A7DFC violet  5.17:1 */
     --chart-5: 20 96% 41%; /* #CD4704 rust    3.62:1 */
+    --avatar-1: 188 33% 26%;
+    --avatar-1-ink: 188 55% 86%;
+    --avatar-2: 208 33% 26%;
+    --avatar-2-ink: 208 55% 86%;
+    --avatar-3: 230 33% 26%;
+    --avatar-3-ink: 230 55% 86%;
+    --avatar-4: 255 33% 26%;
+    --avatar-4-ink: 255 55% 86%;
+    --avatar-5: 280 33% 26%;
+    --avatar-5-ink: 280 55% 86%;
+    --avatar-6: 305 33% 26%;
+    --avatar-6-ink: 305 55% 86%;
+    --avatar-7: 330 33% 26%;
+    --avatar-7-ink: 330 55% 86%;
+    --avatar-8: 50 42% 26%;
+    --avatar-8-ink: 50 70% 86%;
   }
+}
+
+/* Outside the layers so Tailwind never purges a tone it cannot see in a template literal. */
+[data-avatar-tone='1'] {
+  background-color: hsl(var(--avatar-1));
+  color: hsl(var(--avatar-1-ink));
+}
+[data-avatar-tone='2'] {
+  background-color: hsl(var(--avatar-2));
+  color: hsl(var(--avatar-2-ink));
+}
+[data-avatar-tone='3'] {
+  background-color: hsl(var(--avatar-3));
+  color: hsl(var(--avatar-3-ink));
+}
+[data-avatar-tone='4'] {
+  background-color: hsl(var(--avatar-4));
+  color: hsl(var(--avatar-4-ink));
+}
+[data-avatar-tone='5'] {
+  background-color: hsl(var(--avatar-5));
+  color: hsl(var(--avatar-5-ink));
+}
+[data-avatar-tone='6'] {
+  background-color: hsl(var(--avatar-6));
+  color: hsl(var(--avatar-6-ink));
+}
+[data-avatar-tone='7'] {
+  background-color: hsl(var(--avatar-7));
+  color: hsl(var(--avatar-7-ink));
+}
+[data-avatar-tone='8'] {
+  background-color: hsl(var(--avatar-8));
+  color: hsl(var(--avatar-8-ink));
 }
 
 @layer base {

@@ -81,6 +81,7 @@ import {
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { removeWithUndo } from '@/lib/undoable';
+import { avatarToneProps } from '@/lib/avatar-tone';
 
 export interface StaffInvitesCardProps {
   clinicId: string;
@@ -729,11 +730,13 @@ function InviteRow({
         !isOpen && 'bg-muted/20',
       )}
     >
+      {/* A closed invitation stays grey: its colour would suggest a live person on the roster. */}
       <span
         aria-hidden="true"
+        {...(isOpen ? avatarToneProps(invite.inviteeName ?? invite.email) : {})}
         className={cn(
-          'flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold',
-          isOpen ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+          !isOpen && 'bg-muted text-muted-foreground',
         )}
       >
         {initialsOf(invite)}

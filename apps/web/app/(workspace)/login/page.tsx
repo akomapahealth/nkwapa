@@ -163,8 +163,7 @@ export default function LoginPage() {
     return (
       <PageSkeleton
         title="Opening your workspace"
-        description="Your session is active. We are selecting the right clinic context and opening your workspace."
-        steps={['Session restored', 'Clinic selected', 'Dashboard loading']}
+        description="Your session is active."
         className="min-h-screen"
       />
     );
@@ -176,8 +175,7 @@ export default function LoginPage() {
     return (
       <PageSkeleton
         title="Finishing your account setup"
-        description="Your password is saved. Taking you to secure sign-in, so you can confirm your details and open your record."
-        steps={['Password saved', 'Secure sign-in', 'Confirming your details']}
+        description="Your password is saved. Taking you to sign in, where you confirm your details and open your record."
         className="min-h-screen"
       />
     );

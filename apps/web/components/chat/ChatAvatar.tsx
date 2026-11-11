@@ -2,6 +2,7 @@
 
 import { Users } from 'lucide-react';
 import { initialsOf } from '@/lib/chat-display';
+import { avatarToneProps } from '@/lib/avatar-tone';
 import { cn } from '@/lib/utils';
 
 const SIZES = {
@@ -29,8 +30,9 @@ export function ChatAvatar({
   return (
     <span className="relative inline-flex shrink-0">
       <span
+        {...avatarToneProps(name)}
         className={cn(
-          'flex items-center justify-center rounded-full bg-primary/10 font-semibold text-primary',
+          'flex items-center justify-center rounded-full font-semibold',
           SIZES[size],
           online !== undefined && 'ring-2 ring-offset-2 ring-offset-background',
           online ? 'ring-success' : 'ring-transparent',

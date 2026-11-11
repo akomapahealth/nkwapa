@@ -155,10 +155,7 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
   if (!isReady) {
     return (
       <KeycloakContext.Provider value={value}>
-        <PageSkeleton
-          title="Starting secure access"
-          description="Connecting to Keycloak, restoring your session, and preparing the safest route into the app."
-        />
+        <PageSkeleton title="Signing you in" description="Restoring your session." />
       </KeycloakContext.Provider>
     );
   }

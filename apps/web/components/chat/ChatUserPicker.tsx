@@ -46,6 +46,9 @@ export function ChatUserPicker({
   const [groupName, setGroupName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A directory that failed to load is not an empty clinic; it says so and offers a retry.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const multi = mode !== 'direct';
   const minimum = mode === 'group' ? 2 : 1;
 
@@ -54,11 +57,14 @@ export function ChatUserPicker({
     let current = true;
     (async () => {
       setLoading(true);
+      setLoadFailed(false);
       try {
         const res = await apiFetch(`/clinics/${activeClinicId}/chat/users`, { getToken });
-        if (res.ok && current) setUsers(await res.json());
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const loaded = (await res.json()) as PickerUser[];
+        if (current) setUsers(loaded);
       } catch {
-        // The list stays empty and says so.
+        if (current) setLoadFailed(true);
       } finally {
         if (current) setLoading(false);
       }
@@ -66,7 +72,7 @@ export function ChatUserPicker({
     return () => {
       current = false;
     };
-  }, [activeClinicId, getToken]);
+  }, [activeClinicId, getToken, attempt]);
 
   const needle = filter.toLowerCase();
   const available = users.filter((user) => !excludeUserIds.includes(user.id));
@@ -143,9 +149,29 @@ export function ChatUserPicker({
       </div>
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <p className="px-3 py-4 text-center text-xs text-muted-foreground">Loading...</p>
+          <p role="status" className="px-3 py-4 text-center text-xs text-muted-foreground">
+            Loading staff…
+          </p>
+        ) : loadFailed ? (
+          <div role="alert" className="flex flex-col items-center px-4 py-6 text-center">
+            <p className="text-xs font-medium text-foreground">The staff list could not load</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Starting a conversation needs a connection.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAttempt((count) => count + 1)}
+              className="mt-2 min-h-11 cursor-pointer rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Try again
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
-          <p className="px-3 py-4 text-center text-xs text-muted-foreground">No users found</p>
+          <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+            {needle
+              ? `No staff match \u201c${filter.trim()}\u201d`
+              : 'No other staff in this clinic yet'}
+          </p>
         ) : (
           filtered.map((user) => {
             const online = chat?.onlineUserIds.has(user.id) ?? false;

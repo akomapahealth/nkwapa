@@ -815,6 +815,16 @@ The mobile shell must retain access to pending-sync information.
 
 Preserve all existing offline and conflict behavior.
 
+## 8.1 State rules (R7.5, applies to all future sessions)
+
+- **A read that failed is never an empty list.** Under an error, render no empty state and no action that attests to absence ("Record no known medications", "Add history"). `ResourceState` already orders this; hand-rolled panels keep a load error apart from save errors and branch on it.
+- **An empty device copy says where it looked.** Offline or served from Dexie, an empty list reads "No … saved on this device" and names the next step (reconnect), never "No … recorded".
+- **Every error offers its recovery.** A read error has a retry; a save error stays where the user acted (inline or in its dialog), titled for the save, not the load.
+- **Error toasts stay until dismissed.** Confirmations time out; a failure does not (`showToast` tone `error`). A failed clinical save is inline first; a toast is never its only record.
+- **Never print `error.message` in a boundary.** It can carry a patient identifier; show the digest as a reference.
+- **Whole-page states** (`FullscreenStatus`, `PageSkeleton`) are one sheet on the canvas: no eyebrow, no decorative panel, no fake progress steps. State swaps (skeleton to content, error to retry) are instant: they happen tens of times a day (section 9.1).
+- **Avatars** take one of eight measured tones from `lib/avatar-tone.ts` (`avatarToneProps(name)`), the same person in the same colour on every surface. Closed or inactive identities (a cancelled invitation) stay grey.
+
 # 9. Motion and Micro-Interactions
 
 Motion must improve comprehension, not decorate the application.

@@ -24,6 +24,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { avatarToneProps } from '@/lib/avatar-tone';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -392,7 +393,10 @@ export function Header({
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full" aria-label="User menu">
                 <Avatar className="size-9">
-                  <AvatarFallback className="bg-selected text-xs font-semibold text-primary">
+                  <AvatarFallback
+                    {...avatarToneProps(bootstrap?.displayName)}
+                    className="text-xs font-semibold"
+                  >
                     {initials}
                   </AvatarFallback>
                 </Avatar>

@@ -10,6 +10,7 @@ import { StaffNameForm } from '@/components/account/StaffNameForm';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { avatarToneProps } from '@/lib/avatar-tone';
 import { Button } from '@/components/ui/button';
 import {
   RecordSection,
@@ -125,7 +126,10 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
       <RecordSectionContent className="space-y-5 pt-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12">
-            <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+            <AvatarFallback
+              {...avatarToneProps(bootstrap.displayName)}
+              className="text-sm font-semibold"
+            >
               {initialsOf(bootstrap.displayName)}
             </AvatarFallback>
           </Avatar>

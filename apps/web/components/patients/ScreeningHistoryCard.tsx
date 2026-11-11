@@ -128,7 +128,8 @@ export function ScreeningHistoryCard<TItem extends ScreeningHistoryItemBase>({
           />
         ) : null}
         {loading ? <ChartSectionLoading label={copy.noun} /> : null}
-        {!loading && currentEncounterId ? (
+        {/* error is set only when no copy loaded: "none recorded" under it would be untrue. */}
+        {!loading && !error && currentEncounterId ? (
           <section aria-labelledby={`current-${slug}`} className="space-y-3">
             <h3 id={`current-${slug}`} className="text-eyebrow text-muted-foreground">
               Current encounter
@@ -140,16 +141,18 @@ export function ScreeningHistoryCard<TItem extends ScreeningHistoryItemBase>({
             )}
           </section>
         ) : null}
-        <section aria-labelledby={`previous-${slug}`} className="space-y-3">
-          <h3 id={`previous-${slug}`} className="text-eyebrow text-muted-foreground">
-            {currentEncounterId ? copy.previousHeading : copy.historyHeading}
-          </h3>
-          {!loading && previous.length === 0 ? (
-            <ChartSectionEmpty title={copy.emptyTitle} description={copy.emptyDescription} />
-          ) : (
-            <ol className="space-y-3">{previous.map((item) => renderRecord(item, false))}</ol>
-          )}
-        </section>
+        {error ? null : (
+          <section aria-labelledby={`previous-${slug}`} className="space-y-3">
+            <h3 id={`previous-${slug}`} className="text-eyebrow text-muted-foreground">
+              {currentEncounterId ? copy.previousHeading : copy.historyHeading}
+            </h3>
+            {!loading && previous.length === 0 ? (
+              <ChartSectionEmpty title={copy.emptyTitle} description={copy.emptyDescription} />
+            ) : (
+              <ol className="space-y-3">{previous.map((item) => renderRecord(item, false))}</ol>
+            )}
+          </section>
+        )}
       </CardContent>
     </Card>
   );

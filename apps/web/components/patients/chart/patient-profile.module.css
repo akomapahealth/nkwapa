@@ -51,8 +51,7 @@
   height: 3.5rem;
   flex-shrink: 0;
   border-radius: 50%;
-  background: hsl(var(--selected));
-  color: hsl(var(--primary));
+  /* Background and ink come from the person's avatar tone (data-avatar-tone, globals.css). */
   font-weight: 600;
   font-size: 1.125rem;
 }

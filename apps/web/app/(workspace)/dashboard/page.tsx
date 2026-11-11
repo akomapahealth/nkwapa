@@ -6,7 +6,11 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { DashboardLoadingState, InlineErrorState } from '@/components/feedback/AppState';
+import {
+  DashboardLoadingState,
+  InlineErrorState,
+  SelectClinicState,
+} from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
@@ -28,7 +32,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { pickDashboardTab, readDashboardTab, writeDashboardTab } from '@/lib/dashboard-tab-storage';
 import { useToast } from '@/components/ui/toast';
-import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { RefreshCw } from 'lucide-react';
 import { zoneQueryString, type ZoneFilter, type ZoneSummary } from '@/lib/clinic-zones';
 import type { DashboardWorkItem } from '@/lib/dashboard-work-items';
@@ -317,12 +320,7 @@ export default function DashboardPage() {
           />
         )}
 
-        {!clinicId ? (
-          <EmptyStateCard
-            title="Pick a clinic"
-            description="Choose a clinic in the header to load this dashboard."
-          />
-        ) : null}
+        {!clinicId ? <SelectClinicState surface="The dashboard" /> : null}
 
         {isInitialLoading ? <DashboardLoadingState clinicName={activeClinic?.clinicName} /> : null}
 

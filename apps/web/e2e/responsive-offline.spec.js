@@ -95,7 +95,7 @@ for (const template of workspaceRoutes()) {
           .first(),
       ).toBeVisible({ timeout: 25_000 });
       // Wait for data/state resolution. A shell-only probe would miss the table/form that follows.
-      await expect(page.getByRole('heading', { name: 'Starting secure access' })).toHaveCount(0);
+      await expect(page.getByRole('status', { name: 'Signing you in' })).toHaveCount(0);
       await page.waitForLoadState('networkidle');
       expect(new URL(page.url()).pathname, 'must not measure a redirected login page').not.toBe(
         '/login',

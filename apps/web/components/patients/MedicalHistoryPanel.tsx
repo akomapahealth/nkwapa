@@ -140,6 +140,10 @@ export function MedicalHistoryPanel({
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A failed read, kept apart from save errors: nothing under it may read as "no history".
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Until the first read settles, the allergy banner has nothing true to say.
+  const [settled, setSettled] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -179,7 +183,7 @@ export function MedicalHistoryPanel({
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const search = new URLSearchParams();
       if (categoryFilter !== 'ALL') search.set('category', categoryFilter);
@@ -200,10 +204,13 @@ export function MedicalHistoryPanel({
       try {
         await loadLocal();
       } catch {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load history.');
+        setRecords([]);
+        setAllergySummary({ state: 'UNAVAILABLE', activeAllergies: [] });
+        setLoadError(loadError instanceof Error ? loadError.message : 'Unable to load history.');
       }
     } finally {
       setLoading(false);
+      setSettled(true);
     }
   }, [categoryFilter, clinicId, getToken, loadLocal, patientId, statusFilter]);
 
@@ -399,7 +406,7 @@ export function MedicalHistoryPanel({
 
   return (
     <div className="space-y-4">
-      <AllergySummaryBanner summary={allergySummary} />
+      {settled ? <AllergySummaryBanner summary={allergySummary} /> : null}
       <Card
         className={
           ruled
@@ -415,7 +422,7 @@ export function MedicalHistoryPanel({
                 Active information appears first. Prior revisions remain recoverable.
               </p>
             </div>
-            {canWrite ? (
+            {canWrite && !loadError ? (
               <Button onClick={openCreate} className="rounded-lg">
                 <Plus className="h-4 w-4" />
                 Add history
@@ -461,20 +468,24 @@ export function MedicalHistoryPanel({
           {offline ? (
             <ChartSectionOffline description="Showing history saved on this device. Pending changes sync automatically once you reconnect." />
           ) : null}
-          {error ? (
+          {loadError ? (
             <ChartSectionError
-              title="Unable to load medical history"
-              description={error}
+              title="Medical history could not be loaded"
+              description={`${loadError} Nothing is listed until it loads, so missing records are never read as none.`}
               onRetry={() => void load()}
             />
           ) : null}
           {loading ? (
             <ChartSectionLoading label="medical history" />
-          ) : visibleRecords.length === 0 ? (
+          ) : loadError ? null : visibleRecords.length === 0 ? (
             <ChartSectionEmpty
               icon={History}
-              title="No matching history records"
-              description="This is an explicit empty state, not a record of no known conditions or allergies."
+              title={offline ? 'No history saved on this device' : 'No matching history records'}
+              description={
+                offline
+                  ? 'This device has no copy of this history. Reconnect to see the full record; this is not a record of no known conditions or allergies.'
+                  : 'This is an explicit empty state, not a record of no known conditions or allergies.'
+              }
             />
           ) : (
             <ul className="space-y-3">

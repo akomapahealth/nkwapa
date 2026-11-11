@@ -1,31 +1,28 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  Activity,
-  AlertTriangle,
-  Building2,
-  Inbox,
-  Lock,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react';
+import Image from 'next/image';
+import { AlertTriangle, Building2, Inbox, Lock, MapPinOff, RefreshCw } from 'lucide-react';
 import { isValidElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
+/**
+ * A whole-page wait: session start, access checks, route changes before the shell exists.
+ *
+ * R7.5: this used to show three "steps" that pulsed in sequence. They were decoration, not
+ * progress: nothing told them which step was actually running. It now says one true thing and
+ * draws the page's shape, so nothing jumps when the real page arrives.
+ */
 export function PageSkeleton({
-  title = 'Preparing your workspace',
-  description = 'Loading clinic context, recent activity, and the safest next actions for this page.',
-  steps = ['Secure session', 'Clinic context', 'Workspace data'],
+  title = 'Loading',
+  description,
   className,
 }: {
   title?: string;
   description?: string;
-  steps?: string[];
   className?: string;
 }) {
   return (
@@ -33,57 +30,17 @@ export function PageSkeleton({
       role="status"
       aria-label={title}
       aria-busy="true"
-      className={cn('min-h-[60vh] bg-clinical-grid px-4 py-8 md:px-6', className)}
+      className={cn('min-h-[60vh] bg-background px-4 py-8 md:px-6', className)}
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-card/95">
-          <div className="h-1.5 w-full overflow-hidden bg-muted/50">
-            <div className="h-full w-1/2 animate-[loading-bar_1.7s_ease-in-out_infinite] bg-primary/80" />
-          </div>
-          <div className="p-6 md:p-8">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-3">
-                <div className="text-eyebrow inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-primary">
-                  <Activity className="h-3.5 w-3.5 animate-pulse" />
-                  Loading
-                </div>
-                <div className="space-y-2">
-                  <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                    {title}
-                  </h1>
-                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-                    {description}
-                  </p>
-                </div>
-                <div className="grid max-w-xl gap-2 pt-2 sm:grid-cols-3">
-                  {steps.map((step, index) => (
-                    <div
-                      key={step}
-                      className="flex items-center gap-2 rounded-md border border-border/70 bg-background/75 px-3 py-2 text-xs font-medium text-muted-foreground"
-                    >
-                      <span
-                        className="h-2 w-2 rounded-full bg-primary"
-                        style={{ animation: `pulse 1.4s ease-in-out ${index * 160}ms infinite` }}
-                      />
-                      <span className="truncate">{step}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="h-24 animate-pulse rounded-md border border-border/70 bg-muted/40"
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+        <div className="space-y-1">
+          <p className="type-label text-foreground">{title}</p>
+          {description ? (
+            <p className="type-meta max-w-prose text-muted-foreground">{description}</p>
+          ) : null}
         </div>
-
-        <SectionSkeleton lines={2} className="rounded-lg p-6 md:p-8" />
-        <SectionSkeleton lines={5} className="rounded-lg p-6 md:p-8" />
+        <SectionSkeleton lines={2} />
+        <SectionSkeleton lines={4} />
       </div>
     </div>
   );
@@ -200,63 +157,69 @@ export function InlineErrorState({
   );
 }
 
+/**
+ * A state that replaces the whole app: a crash, a disabled account, an offline cold start, 404.
+ *
+ * One white sheet on the canvas, as every page is (R1.1). The title says what happened, the
+ * description what is still true and what to do; the actions are the recovery, primary last on
+ * wide screens and first on phones, as FormActions orders them (R3.8). R7.5 removed the eyebrow
+ * and the decorative "Recovery actions" panel that sat beside the message.
+ */
 export function FullscreenStatus({
-  eyebrow = 'Nkwapa',
   title,
   description,
   tone = 'neutral',
+  icon,
+  detail,
   primaryAction,
   secondaryAction,
 }: {
-  eyebrow?: string;
   title: string;
   description: string;
   tone?: 'neutral' | 'danger';
+  /** Defaults to a warning sign for danger and none for neutral. */
+  icon?: LucideIcon;
+  /** Something true about this device, such as changes waiting to sync. */
+  detail?: React.ReactNode;
   primaryAction?: React.ReactNode;
   secondaryAction?: React.ReactNode;
 }) {
+  const Icon = icon ?? (tone === 'danger' ? AlertTriangle : null);
   return (
-    <div className="flex min-h-screen items-center justify-center bg-clinical-grid p-6">
-      <Card className="w-full max-w-3xl overflow-hidden rounded-xl border-border/70 bg-card/95">
-        <CardContent className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
-          <section className="relative overflow-hidden px-6 py-8 md:px-8 md:py-10">
-            <div className="relative space-y-5">
-              <p
-                className={cn(
-                  'text-eyebrow',
-                  tone === 'danger' ? 'text-destructive' : 'text-primary',
-                )}
-              >
-                {eyebrow}
-              </p>
-              <div className="space-y-2">
-                <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  {title}
-                </h1>
-                <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-                  {description}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="border-t border-border/70 bg-background/70 px-6 py-8 md:px-8 lg:border-l lg:border-t-0">
-            <CardHeader className="px-0 pt-0">
-              <CardTitle className="flex items-center gap-2 text-2xl">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                Recovery actions
-              </CardTitle>
-              <CardDescription>
-                Choose the safest next step to recover without losing your place.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 px-0 pb-0">
-              {primaryAction}
-              {secondaryAction}
-            </CardContent>
-          </section>
-        </CardContent>
-      </Card>
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
+      <Image
+        src="/images/nkwapa-logo.png"
+        alt="Nkwapa"
+        width={112}
+        height={32}
+        priority
+        className="mb-6 h-8 w-auto"
+      />
+      <section className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        {Icon ? (
+          <span
+            className={cn(
+              'mb-4 flex h-11 w-11 items-center justify-center rounded-full',
+              tone === 'danger'
+                ? 'bg-destructive-surface text-destructive-ink'
+                : 'bg-selected text-primary',
+            )}
+          >
+            <Icon aria-hidden="true" className="h-5 w-5" />
+          </span>
+        ) : null}
+        <h1 className="type-record-title text-balance text-foreground">{title}</h1>
+        <p className="type-body mt-2 max-w-prose text-pretty text-muted-foreground">
+          {description}
+        </p>
+        {detail ? <div className="mt-4">{detail}</div> : null}
+        {primaryAction || secondaryAction ? (
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {secondaryAction}
+            {primaryAction}
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }
@@ -264,16 +227,16 @@ export function FullscreenStatus({
 export function NotFoundState() {
   return (
     <FullscreenStatus
-      eyebrow="Page status"
+      icon={MapPinOff}
       title="This page couldn't be found"
-      description="The address may be outdated, or the page may have moved after a clinic or portal update."
+      description="The link may be out of date, or the page may have moved. Nothing you have saved is affected."
       primaryAction={
-        <Button asChild className="rounded-md">
+        <Button asChild>
           <Link href="/dashboard">Open dashboard</Link>
         </Button>
       }
       secondaryAction={
-        <Button asChild variant="outline" className="rounded-md">
+        <Button asChild variant="outline">
           <Link href="/">Back to home</Link>
         </Button>
       }

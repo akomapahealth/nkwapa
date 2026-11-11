@@ -42,12 +42,7 @@ export function RouteGuard({
   });
 
   if (state === 'resolving') {
-    return (
-      <PageSkeleton
-        title="Checking your access"
-        description="Confirming clinic membership, active permissions, and the safest route into this page."
-      />
-    );
+    return <PageSkeleton title="Checking your access" />;
   }
 
   // Identity could not be loaded. This is not a permission decision, so it must not read

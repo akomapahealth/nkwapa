@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import styles from './patient-profile.module.css';
+import { avatarToneProps } from '@/lib/avatar-tone';
 
 /** Identity stays visible during chart review without duplicating chart actions or focus stops. */
 export function PatientProfileHeader({
@@ -91,7 +92,7 @@ export function PatientProfileHeader({
           Back to Patient Search
         </Link>
         <div className={styles.identityRow}>
-          <span className={styles.avatar} aria-hidden="true">
+          <span className={styles.avatar} aria-hidden="true" {...avatarToneProps(name)}>
             {name
               .split(/\s+/)
               .filter(Boolean)

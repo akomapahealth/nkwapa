@@ -44,6 +44,7 @@ import {
   assembleMedicationRecords,
 } from '@/lib/medication-reconciliation';
 import { AllergySummaryBanner } from './AllergySummaryBanner';
+import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -215,6 +216,8 @@ export function MedicationReconciliationPanel({
   const [saving, setSaving] = useState(false);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A failed read, kept apart from save errors: it hides the lists instead of reading as "none".
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [medicationOpen, setMedicationOpen] = useState(false);
   const [editingMedication, setEditingMedication] = useState<MedicationRecord | null>(null);
@@ -268,7 +271,7 @@ export function MedicationReconciliationPanel({
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const response = await apiFetch(endpoint, { getToken, activeClinicId: clinicId });
       if (!response.ok) throw new Error(await readApiError(response));
@@ -280,7 +283,9 @@ export function MedicationReconciliationPanel({
         await loadOffline();
         setOffline(true);
       } catch {
-        setError(loadError instanceof Error ? loadError.message : 'Medication history unavailable');
+        setLoadError(
+          loadError instanceof Error ? loadError.message : 'Medication history unavailable',
+        );
       }
     } finally {
       setLoading(false);
@@ -841,6 +846,24 @@ export function MedicationReconciliationPanel({
     }
   }
 
+  /*
+    A list that never loaded is not an empty list. Without this the panel said "No medications
+    recorded" under the error and offered "Record no known medications", an attestation made
+    against a chart nobody could see.
+  */
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <AllergySummaryBanner summary={allergies} compact />
+        <ChartSectionError
+          title="Medications could not be loaded"
+          description={`${loadError} Nothing is shown until the list loads, so an empty list is never mistaken for no medications.`}
+          onRetry={() => void load()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <AllergySummaryBanner summary={allergies} compact />
@@ -852,12 +875,12 @@ export function MedicationReconciliationPanel({
           {notice}
         </StatusMessage>
       ) : null}
-      {error ? (
-        <ChartSectionError
-          title="Unable to load medications"
-          description={error}
-          onRetry={() => void load()}
-        />
+      {/* Dialog saves report inside their dialog; this is for Reconcile, which has none. */}
+      {error && !medicationOpen && !pharmacyOpen ? (
+        <InlineNotice tone="error">
+          <p className="font-medium">The change was not saved</p>
+          <p className="mt-1">{error}</p>
+        </InlineNotice>
       ) : null}
 
       <Card>
@@ -908,7 +931,7 @@ export function MedicationReconciliationPanel({
               onHistory={(record) => void openHistory('medication', record)}
             />
           ) : (
-            <MedicationEmpty state={listState} />
+            <MedicationEmpty state={listState} offline={offline} />
           )}
         </CardContent>
       </Card>
@@ -930,7 +953,9 @@ export function MedicationReconciliationPanel({
             />
           ) : (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No past or stopped medications recorded.
+              {offline
+                ? 'No past or stopped medications saved on this device.'
+                : 'No past or stopped medications recorded.'}
             </p>
           )}
         </CardContent>
@@ -1256,10 +1281,26 @@ function MedicationList({
   );
 }
 
-function MedicationEmpty({ state }: { state: ReturnType<typeof medicationListState> }) {
+function MedicationEmpty({
+  state,
+  offline,
+}: {
+  state: ReturnType<typeof medicationListState>;
+  offline: boolean;
+}) {
   // Three distinct clinical meanings that must not be confused with one another: an attested
   // "none", a chart with only past medications, and a chart nobody has filled in.
   const noKnown = state === 'NO_KNOWN_CURRENT_MEDICATIONS';
+  // A fourth: this device simply has no copy. The server may hold a full list (R7.5).
+  if (offline && !noKnown && state !== 'HISTORICAL_ONLY') {
+    return (
+      <ChartSectionEmpty
+        icon={CircleSlash2}
+        title="No medications saved on this device"
+        description="This device has no copy of this patient's medications. Reconnect to see the full list before relying on it."
+      />
+    );
+  }
   return (
     <ChartSectionEmpty
       icon={noKnown ? CheckCircle2 : state === 'HISTORICAL_ONLY' ? History : CircleSlash2}

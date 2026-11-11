@@ -111,7 +111,11 @@ test('an empty offline chart remains not-recorded until an authorized attestatio
   await medicationsTab.click();
 
   await expect(page.getByText(/Showing medications saved on this device/)).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'No medications recorded' })).toBeVisible();
+  // Offline and empty must not read as "no medications" (R7.5).
+  await expect(
+    page.getByRole('heading', { name: 'No medications saved on this device' }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No medications recorded' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No known current medications' })).toHaveCount(0);
 
   await context.setOffline(false);

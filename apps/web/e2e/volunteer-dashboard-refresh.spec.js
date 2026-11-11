@@ -332,7 +332,7 @@ test.describe('volunteer refresh', () => {
   test('no clinic makes no shift request', async ({ page }) => {
     const state = await mockRoster(page, { noClinic: true });
     await page.goto('/dashboard');
-    await expect(page.getByText('Pick a clinic', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Select a clinic first' })).toBeVisible();
     await expect(panel(page)).toHaveCount(0);
     expect(state.reads).toBe(0);
   });
