@@ -273,7 +273,7 @@ export function AppointmentRequestScreen() {
 
               <Button type="submit" disabled={submitting || !writeGate.canWrite} className="w-full">
                 <Send aria-hidden="true" className="h-4 w-4" />
-                {submitting ? 'Submitting request...' : 'Submit appointment request'}
+                {submitting ? 'Sending request…' : 'Submit appointment request'}
               </Button>
             </div>
           </form>

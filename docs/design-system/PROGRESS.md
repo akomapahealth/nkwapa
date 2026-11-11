@@ -14,7 +14,7 @@
 | R2    | Desktop, tablet, and mobile app shells | In review   |
 | R3    | Volunteer and clinical workflows       | In progress |
 | R4    | Clinical review and oversight          | Not started |
-| R5    | Patient portal and authentication      | Not started |
+| R5    | Patient portal and authentication      | In progress |
 | R6    | Supporting public experience           | Not started |
 | R7    | Motion and visual polish               | Not started |
 | R8    | Final QA and release readiness         | Not started |
@@ -1191,3 +1191,21 @@ violations, 0 overflow, plus the sticky-column, audit and access-sheet checks. S
 228 rows, 0 violations, 0 overflow, 0 errors**. Details and limits in `ui-refresh/R4.3-REVIEW.md`; synthetic evidence in ignored
 `ui-refresh/evidence/r4-3/`. R4 is complete; next is `ui-refresh/HANDOFF-R5.1.md`. Local commit
 only; no push.
+
+## R5.1 Patient portal (2026-11-11)
+
+Overview now leads with the next appointment in a ruled band, then latest readings, care team
+advice and reminders. The four identity and count tiles became one name and patient code line, and
+waiting requests are said at the end of the appointment description. Quick actions are hairline
+thumb rows (64px, icon, title, one-line hint). Appointments lost its four count tiles (counts end
+the history descriptions), and the clinic note is a ruled band. Health's five follow-up counts are
+one sentence. Portal dates now format in Africa/Accra at the root (`formatPortalDate*`), and chart
+ticks read `12 Nov` through `formatTrendLabel` instead of an ambiguous `11/12`. "Your data" uses
+hairline rows and `FormActions`.
+
+**Validation:** CI-flag build, TypeScript, changed-file lint/format pass; related Jest 2 suites / 14
+tests. Focused Chromium over portal, portal-offline, portal-shell, appointments and settings:
+**55/55** after applying the local database's missing migrations (the first run's 39 failures were
+`/auth/whoami` 500s, not this change). The evidence spec and six-role audit did not run. Details in
+`ui-refresh/R5.1-REVIEW.md`. Local commit only; no push.
+

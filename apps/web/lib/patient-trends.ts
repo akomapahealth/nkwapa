@@ -1,5 +1,7 @@
 'use client';
 
+import { OPS_DEFAULT_TIMEZONE } from '@/lib/ops';
+
 import type {
   BloodPressureTrendPoint,
   ExpandedVitalsTrendPoint,
@@ -22,6 +24,15 @@ export function formatTrendRangeFrom(days: number) {
   return from.toISOString();
 }
 
+/** A chart tick, in the clinic's zone: "12 Nov" reads one way everywhere, "11/12" does not. */
+export function formatTrendLabel(value: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: OPS_DEFAULT_TIMEZONE,
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(value));
+}
+
 export function readTrendNumber(value: unknown) {
   const parsed =
     typeof value === 'number'
@@ -34,10 +45,7 @@ export function readTrendNumber(value: unknown) {
 
 export function buildBloodPressureTrendData(points: BloodPressureTrendPoint[]) {
   return points.map((point) => ({
-    label: new Date(point.t).toLocaleDateString(undefined, {
-      month: 'numeric',
-      day: 'numeric',
-    }),
+    label: formatTrendLabel(point.t),
     systolic: point.sys,
     diastolic: point.dia,
   }));
@@ -46,10 +54,7 @@ export function buildBloodPressureTrendData(points: BloodPressureTrendPoint[]) {
 /** Stored mg/dL points, plotted in the clinic's unit. */
 export function buildGlucoseTrendData(points: GlucoseTrendPoint[], unit: GlucoseUnit = 'MG_DL') {
   return points.map((point) => ({
-    label: new Date(point.t).toLocaleDateString(undefined, {
-      month: 'numeric',
-      day: 'numeric',
-    }),
+    label: formatTrendLabel(point.t),
     glucose: glucoseFromMgDl(point.value, unit),
   }));
 }
@@ -73,10 +78,7 @@ export function buildExpandedVitalsTrendData(
   return points
     .filter((point) => point[key] != null)
     .map((point) => ({
-      label: new Date(point.t).toLocaleDateString(undefined, {
-        month: 'numeric',
-        day: 'numeric',
-      }),
+      label: formatTrendLabel(point.t),
       value: expandedVitalInUnits(key, point[key] as number | null, units),
     }));
 }

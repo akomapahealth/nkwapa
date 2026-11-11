@@ -4,17 +4,13 @@ import Link from 'next/link';
 import { useState } from 'react';
 import {
   ArrowRight,
-  CalendarClock,
   CalendarDays,
-  CheckCircle2,
-  Clock3,
   FileClock,
   Plus,
   RefreshCw,
   RotateCcw,
   XCircle,
 } from 'lucide-react';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
@@ -295,7 +291,7 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
           ) : null}
 
           {request.rejectionReason ? (
-            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+            <div className="border-l-2 border-destructive/60 bg-destructive/5 py-3 pl-4 pr-3">
               <h4 className="text-eyebrow text-destructive-ink">Clinic note</h4>
               <p className="mt-2 text-sm leading-6 text-foreground">{request.rejectionReason}</p>
             </div>
@@ -304,6 +300,27 @@ function RequestRow({ request }: { request: AppointmentRequestRecord }) {
       </div>
     </article>
   );
+}
+
+function plural(count: number, one: string, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** Visit counts said in words at the end of the description, not boxed tiles above the lists. */
+function describeVisits(appointments: AppointmentSummary[], now: Date) {
+  const upcoming = appointments.filter((a) => isPatientAppointmentActionable(a, now)).length;
+  const completed = appointments.filter((a) => a.status === 'COMPLETED').length;
+  const closed = appointments.filter(
+    (a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW',
+  ).length;
+  if (appointments.length === 0) return 'Visits your clinic has booked for you.';
+  return `Visits your clinic has booked for you: ${upcoming} upcoming, ${completed} completed, ${closed} cancelled or missed.`;
+}
+
+function describeRequests(requests: AppointmentRequestRecord[]) {
+  const pending = requests.filter(isPendingRequest).length;
+  const lead = 'Requests to book, cancel or move an appointment.';
+  return pending ? `${lead} ${plural(pending, 'request')} waiting for the clinic.` : lead;
 }
 
 export function AppointmentsPortalScreen() {
@@ -526,34 +543,6 @@ export function AppointmentsPortalScreen() {
           ) : null}
         </section>
 
-        {schedule.data ? (
-          <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
-            <AppMetricCard
-              icon={CalendarClock}
-              title="Upcoming confirmed"
-              value={appointments.filter((a) => isPatientAppointmentActionable(a, now)).length}
-            />
-            <AppMetricCard
-              icon={FileClock}
-              title="Requests pending"
-              value={requests.filter(isPendingRequest).length}
-            />
-            <AppMetricCard
-              icon={CheckCircle2}
-              title="Completed visits"
-              value={appointments.filter((a) => a.status === 'COMPLETED').length}
-            />
-            <AppMetricCard
-              icon={Clock3}
-              title="Cancelled or missed"
-              value={
-                appointments.filter((a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW')
-                  .length
-              }
-            />
-          </AppMetricGroup>
-        ) : null}
-
         {/*
           The counts above change without anything moving, so a screen-reader user gets no signal
           that a refresh finished. `ResourceState` announces loading and failure; this announces
@@ -590,7 +579,7 @@ export function AppointmentsPortalScreen() {
               <section className={PORTAL_HERO_GRID}>
                 <PortalPanel
                   title="Confirmed appointment history"
-                  description="Scheduled visits across upcoming, completed, cancelled, and missed outcomes."
+                  description={describeVisits(loadedAppointments, now)}
                   contentClassName="space-y-4"
                 >
                   <SegmentedControl
@@ -631,7 +620,7 @@ export function AppointmentsPortalScreen() {
 
                 <PortalPanel
                   title="Request history"
-                  description="See requests to book, cancel, or move an appointment."
+                  description={describeRequests(loadedRequests)}
                   contentClassName="space-y-4"
                 >
                   <SegmentedControl
@@ -673,7 +662,7 @@ export function AppointmentsPortalScreen() {
           if (!open) closeChangeDialog();
         }}
       >
-        <DialogContent className="max-w-xl rounded-xl [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11">
+        <DialogContent className="max-w-xl [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11">
           <DialogHeader>
             <DialogTitle className="text-2xl">
               {changeDialog?.action === 'cancel' ? 'Request cancellation' : 'Request reschedule'}

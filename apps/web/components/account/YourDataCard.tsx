@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { FormActions } from '@/components/ui/form-actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -131,13 +132,15 @@ export function YourDataCard() {
               placeholder="Anything that helps the clinic, such as what is wrong."
             />
           </div>
-          <Button
-            type="submit"
-            disabled={submitting || !getToken || !clinicId}
-            aria-busy={submitting}
-          >
-            {submitting ? 'Sending…' : 'Send request'}
-          </Button>
+          <FormActions>
+            <Button
+              type="submit"
+              disabled={submitting || !getToken || !clinicId}
+              aria-busy={submitting}
+            >
+              {submitting ? 'Sending…' : 'Send request'}
+            </Button>
+          </FormActions>
         </form>
 
         <section aria-labelledby="data-requests-history" className="space-y-2">
@@ -155,16 +158,16 @@ export function YourDataCard() {
           ) : requests.length === 0 ? (
             <p className="text-sm text-muted-foreground">You have not made a request.</p>
           ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
+            <ul className="divide-y divide-rule border-y border-rule">
               {requests.map((request) => {
                 const due = describeDataRequestDue(request);
                 return (
-                  <li key={request.id} className="space-y-1 px-3 py-2.5 text-sm">
+                  <li key={request.id} className="space-y-1 py-3 text-sm">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                       <p className="font-medium text-foreground">
                         {dataRequestTypeLabel(request.type)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm tabular-nums text-muted-foreground">
                         {DATA_REQUEST_STATUS_LABEL[request.status]}
                         {' · '}
                         Sent {formatInviteDate(request.createdAt)}

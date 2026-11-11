@@ -440,7 +440,7 @@ export function MeasurementComposerScreen() {
 
               <Button type="submit" disabled={submitting || !writeGate.canWrite} className="w-full">
                 {submitting
-                  ? 'Saving measurement...'
+                  ? 'Saving reading…'
                   : `Save ${activeOption.label.toLowerCase()} reading`}
               </Button>
             </div>

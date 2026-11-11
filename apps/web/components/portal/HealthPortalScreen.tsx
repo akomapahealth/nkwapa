@@ -33,6 +33,7 @@ import {
   TREND_RANGE_OPTIONS,
   buildBloodPressureTrendData,
   buildGlucoseTrendData,
+  formatTrendLabel,
   formatTrendRangeFrom,
   getLatestBloodPressureTrend,
   getLatestGlucoseTrend,
@@ -75,10 +76,7 @@ function buildWeightTrendData(measurements: MeasurementRecord[], bodyUnit: BodyM
     .slice()
     .reverse()
     .map((measurement) => ({
-      label: new Date(measurement.recordedAt).toLocaleDateString(undefined, {
-        month: 'numeric',
-        day: 'numeric',
-      }),
+      label: formatTrendLabel(measurement.recordedAt),
       weight: (() => {
         const kg = readTrendNumber(measurement.payload.kg);
         return kg == null ? null : weightFromKg(kg, bodyUnit);
@@ -105,16 +103,23 @@ function latestGlucoseLabel(point: GlucoseTrendPoint | null) {
   return `Recorded ${formatPortalDate(point.t)} • ${readingSource(point.source)}`;
 }
 
-const FOLLOW_UP_LABELS: Array<{
-  key: keyof PatientTrendsResponse['followUp'];
-  label: string;
-}> = [
-  { key: 'requested', label: 'Requested' },
-  { key: 'confirmed', label: 'Confirmed' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'noShow', label: 'No-show' },
-  { key: 'closed', label: 'Closed' },
+const FOLLOW_UP_PHRASES: Array<[keyof PatientTrendsResponse['followUp'], string]> = [
+  ['requested', 'requested'],
+  ['confirmed', 'confirmed'],
+  ['completed', 'completed'],
+  ['noShow', 'missed'],
+  ['closed', 'closed'],
 ];
+
+/** Visit counts said in words, in the description, rather than five boxed numbers. */
+function describeFollowUp(followUp: PatientTrendsResponse['followUp'], rangeDays: number) {
+  const parts = FOLLOW_UP_PHRASES.filter(([key]) => followUp[key] > 0).map(
+    ([key, phrase]) => `${followUp[key]} ${phrase}`,
+  );
+  return parts.length
+    ? `Your appointment requests and visits over the last ${rangeDays} days: ${parts.join(', ')}.`
+    : `No appointment requests or visits in the last ${rangeDays} days.`;
+}
 
 export function HealthPortalScreen() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
@@ -288,18 +293,8 @@ export function HealthPortalScreen() {
 
                 <PortalPanel
                   title="Follow-up activity"
-                  description={`Appointment requests and visit outcomes across the last ${rangeDays} days.`}
-                  contentClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
-                >
-                  {FOLLOW_UP_LABELS.map((item) => (
-                    <PortalFact
-                      key={item.key}
-                      label={item.label}
-                      value={followUp[item.key]}
-                      valueClassName="text-2xl font-semibold"
-                    />
-                  ))}
-                </PortalPanel>
+                  description={describeFollowUp(followUp, rangeDays)}
+                />
 
                 <section className="grid gap-4 lg:grid-cols-2">
                   <h2 className="type-section-title lg:col-span-2">Reading trends</h2>

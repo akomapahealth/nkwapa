@@ -8,8 +8,8 @@ import {
   BellRing,
   CalendarDays,
   ChevronRight,
-  ClipboardList,
   HeartPulse,
+  LineChart,
   Scale,
   Syringe,
 } from 'lucide-react';
@@ -67,6 +67,36 @@ function getPendingRequestCount(requests: AppointmentRequestRecord[]) {
   ).length;
 }
 
+const QUICK_ACTIONS = [
+  {
+    href: '/portal/self-reports/new?type=bp',
+    title: 'Log a reading',
+    hint: 'Blood pressure, glucose or weight from home.',
+    icon: HeartPulse,
+  },
+  {
+    href: '/portal/appointments/request',
+    title: 'Request an appointment',
+    hint: 'Pick the days that suit you; the clinic confirms a time.',
+    icon: CalendarDays,
+  },
+  {
+    href: '/portal/health',
+    title: 'Review my trends',
+    hint: 'See how your readings have changed.',
+    icon: LineChart,
+  },
+] as const;
+
+/** The waiting-request count, said in words at the end of the description. */
+function describeAppointments(hasNext: boolean, pending: number) {
+  const lead = hasNext
+    ? 'Your next confirmed visit with the clinic.'
+    : 'Request an appointment and your clinic will confirm the exact time.';
+  if (pending === 0) return lead;
+  return `${lead} ${pending} ${pending === 1 ? 'request is' : 'requests are'} waiting for the clinic.`;
+}
+
 export function OverviewPortalScreen() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getPortalClinicId(bootstrap);
@@ -118,25 +148,29 @@ export function OverviewPortalScreen() {
             description="See your recent readings, advice from your care team, and appointments."
           />
 
-          <PortalPanel title="Quick actions" contentClassName="space-y-3">
-            <Button asChild className="w-full justify-between">
-              <Link href="/portal/self-reports/new?type=bp">
-                Log a reading
-                <ChevronRight aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-between">
-              <Link href="/portal/appointments/request">
-                Request an appointment
-                <ChevronRight aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-between">
-              <Link href="/portal/health">
-                Review my trends
-                <ChevronRight aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
+          <PortalPanel title="What would you like to do?">
+            <ul className="divide-y divide-rule border-y border-rule">
+              {QUICK_ACTIONS.map(({ href, title, hint, icon: Icon }) => (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    className="group flex min-h-16 items-center gap-3 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [@media(hover:hover)]:hover:bg-muted/50"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
+                      <Icon aria-hidden="true" className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium text-foreground">{title}</span>
+                      <span className="block text-sm leading-5 text-muted-foreground">{hint}</span>
+                    </span>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-150 ease-out motion-reduce:transition-none [@media(hover:hover)]:group-hover:translate-x-0.5"
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </PortalPanel>
         </section>
 
@@ -156,30 +190,58 @@ export function OverviewPortalScreen() {
 
             return (
               <div className="space-y-6">
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <PortalFact
-                    label="Your record"
-                    value={`${me.patient.firstName} ${me.patient.lastName}`}
-                  />
-                  <PortalFact
-                    label="Patient code"
-                    value={me.patient.patientCode}
-                    valueClassName="font-mono"
-                  />
-                  <PortalFact
-                    label="Next follow-up"
-                    value={formatPortalDate(me.recommendations?.followUpDate)}
-                  />
-                  <PortalFact
-                    label="Pending requests"
-                    value={`${pendingRequests} ${pendingRequests === 1 ? 'request' : 'requests'}`}
-                  />
-                </section>
+                <p className="text-sm text-muted-foreground">
+                  {me.patient.firstName} {me.patient.lastName}
+                  <span aria-hidden="true"> · </span>
+                  <span className="sr-only">, </span>
+                  Patient code{' '}
+                  <span className="font-mono tabular-nums text-foreground">
+                    {me.patient.patientCode}
+                  </span>
+                </p>
 
+                <PortalPanel
+                  title="Next appointment"
+                  description={describeAppointments(Boolean(nextAppointment), pendingRequests)}
+                  contentClassName="space-y-4"
+                >
+                  {nextAppointment ? (
+                    <div className="border-l-2 border-primary py-1 pl-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-lg font-semibold tabular-nums text-foreground">
+                            {formatPortalDateTime(nextAppointment.startsAt)}
+                          </p>
+                          <p className="text-sm tabular-nums text-muted-foreground">
+                            Ends {formatPortalDateTime(nextAppointment.endsAt)}
+                          </p>
+                        </div>
+                        <AppointmentStatusBadge status={nextAppointment.status} />
+                      </div>
+                      {nextAppointment.notes && (
+                        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                          {nextAppointment.notes}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      density="compact"
+                      icon={CalendarDays}
+                      title="No confirmed appointment yet"
+                      description="Send a request and your clinic will confirm a time for you."
+                    />
+                  )}
+                  <Button asChild variant="outline" className="w-full sm:w-auto">
+                    <Link href="/portal/appointments">See all appointments</Link>
+                  </Button>
+                </PortalPanel>
+
+                <h2 className="type-section-title text-foreground">Latest readings</h2>
                 <AppMetricGroup className="md:grid-cols-3">
                   <AppMetricCard
                     icon={HeartPulse}
-                    title="Latest blood pressure"
+                    title="Blood pressure"
                     value={
                       latestBp
                         ? `${readTrendNumber(latestBp.payload.systolic) ?? '—'}/${readTrendNumber(latestBp.payload.diastolic) ?? '—'} mmHg`
@@ -193,7 +255,7 @@ export function OverviewPortalScreen() {
                   />
                   <AppMetricCard
                     icon={Syringe}
-                    title="Latest glucose"
+                    title="Glucose"
                     value={
                       latestGlucose
                         ? (formatGlucose(
@@ -210,7 +272,7 @@ export function OverviewPortalScreen() {
                   />
                   <AppMetricCard
                     icon={Scale}
-                    title="Latest weight"
+                    title="Weight"
                     value={
                       latestWeight
                         ? (formatWeight(readTrendNumber(latestWeight.payload.kg), units.bodyUnit) ??
@@ -225,91 +287,13 @@ export function OverviewPortalScreen() {
                   />
                 </AppMetricGroup>
 
-                <section className={PORTAL_HERO_GRID}>
-                  <PortalPanel
-                    title="Appointment status"
-                    description={
-                      nextAppointment
-                        ? `Your next confirmed appointment is ${formatPortalDateTime(nextAppointment.startsAt)}.`
-                        : 'Request an appointment and your clinic will confirm the exact time.'
-                    }
-                    action={<CalendarDays aria-hidden="true" className="h-5 w-5 text-primary" />}
-                    contentClassName="space-y-4"
-                  >
-                    {nextAppointment ? (
-                      <div className="border-b border-border py-3">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="font-medium tabular-nums text-foreground">
-                              {formatPortalDateTime(nextAppointment.startsAt)}
-                            </p>
-                            <p className="text-sm tabular-nums text-muted-foreground">
-                              Ends {formatPortalDateTime(nextAppointment.endsAt)}
-                            </p>
-                          </div>
-                          <AppointmentStatusBadge status={nextAppointment.status} />
-                        </div>
-                        {nextAppointment.notes && (
-                          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                            {nextAppointment.notes}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <EmptyState
-                        density="compact"
-                        icon={CalendarDays}
-                        title="No confirmed appointment yet"
-                        description="Send a request and your clinic will confirm a time for you."
-                      />
-                    )}
-
-                    <div className="flex flex-wrap gap-3">
-                      <Button asChild variant="outline">
-                        <Link href="/portal/appointments">View all requests</Link>
-                      </Button>
-                    </div>
-                  </PortalPanel>
-
-                  <PortalPanel
-                    title="Upcoming reminders"
-                    description="Scheduled notices from your clinic or care plan."
-                    action={<BellRing aria-hidden="true" className="h-5 w-5 text-primary" />}
-                  >
-                    {me.reminders?.length ? (
-                      <div className="space-y-3">
-                        {me.reminders.slice(0, 4).map((reminder) => (
-                          <div
-                            key={reminder.id}
-                            className="flex items-center justify-between gap-3 border-b border-border py-3"
-                          >
-                            <div>
-                              <p className="text-sm font-medium tabular-nums text-foreground">
-                                {formatPortalDateTime(reminder.scheduledAt)}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {statusLabel(reminder.status)}
-                              </p>
-                            </div>
-                            <Badge variant="outline">{reminder.channel}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState
-                        density="compact"
-                        icon={BellRing}
-                        title="No reminders scheduled"
-                        description="Your clinic will send reminders here when your care plan schedules one."
-                      />
-                    )}
-                  </PortalPanel>
-                </section>
-
                 <PortalPanel
-                  title="Recent recommendations"
-                  description="Advice from your most recent visit."
-                  action={<ClipboardList aria-hidden="true" className="h-5 w-5 text-primary" />}
+                  title="From your care team"
+                  description={
+                    me.recommendations?.followUpDate
+                      ? `Advice from your most recent visit. Your next follow-up is ${formatPortalDate(me.recommendations.followUpDate)}.`
+                      : 'Advice from your most recent visit.'
+                  }
                   contentClassName="grid gap-4 md:grid-cols-2"
                 >
                   <PortalFact
@@ -339,6 +323,39 @@ export function OverviewPortalScreen() {
                     }
                     valueClassName="font-normal text-muted-foreground"
                   />
+                </PortalPanel>
+
+                <PortalPanel
+                  title="Upcoming reminders"
+                  description="Scheduled notices from your clinic or care plan."
+                >
+                  {me.reminders?.length ? (
+                    <ul className="divide-y divide-rule">
+                      {me.reminders.slice(0, 4).map((reminder) => (
+                        <li
+                          key={reminder.id}
+                          className="flex items-center justify-between gap-3 py-3"
+                        >
+                          <div>
+                            <p className="text-sm font-medium tabular-nums text-foreground">
+                              {formatPortalDateTime(reminder.scheduledAt)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {statusLabel(reminder.status)}
+                            </p>
+                          </div>
+                          <Badge variant="outline">{reminder.channel}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <EmptyState
+                      density="compact"
+                      icon={BellRing}
+                      title="No reminders scheduled"
+                      description="Your clinic will send reminders here when your care plan schedules one."
+                    />
+                  )}
                 </PortalPanel>
               </div>
             );
