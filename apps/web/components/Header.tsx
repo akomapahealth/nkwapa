@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -245,8 +246,7 @@ export function Header({
                 <SheetTitle className="text-left">
                   <div className="space-y-3">
                     <div className="relative h-11 w-40">
-                      <Image
-                        src="/images/nkwapa-logo.png"
+                      <BrandWordmark
                         alt="Nkwapa EMR"
                         fill
                         sizes="160px"

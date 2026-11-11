@@ -31,9 +31,9 @@ Load `impeccable` (context, audit, optimize) and `accessibility` for regressions
 
 - **R7.6 dark rules (MASTER 4.3).** Measure every dark pairing on all nine grounds; charts sit on
   the card; `design:check-charts` must pass; theme switch crossfades only on a user pick.
-- **R7.6 open:** wordmark teal reads dim on the dark canvas (logo, brand decision); the landing
-  release banner is a bright band on a dark page; `transition-colors` controls tween inside the
-  crossfade; `PageSkeleton` not seen in dark.
+- **R7.6 open:** `transition-colors` controls tween inside the crossfade; `PageSkeleton` not seen
+  in dark; `BrandWordmark` with `priority` (`FullscreenStatus`) preloads both theme files.
+  `shell-responsive` "pointer collapse interrupts" flakes under load (passes alone).
 - **R7.5 state rules (MASTER 8.1)** and open items: "Record no known medications" offline against
   an empty device copy (product decision); audit and notifications "0 events loaded" above a failed
   first load; `global-error.tsx` may render without the app's fonts and tokens.

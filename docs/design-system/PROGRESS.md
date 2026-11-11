@@ -1359,7 +1359,8 @@ painted. Five fell short. A destructive menu item on its own hover tint measured
 on the gold surface: dark `--destructive` moved from 66% to 71% lightness (4.76:1 and 5.24:1). A
 warning notice's description measured 4.48:1: dark `--muted-foreground` moved from 63.9% to 65%
 (4.63:1). `--chart-3` is 2.87:1 on `--muted`, but lifting it broke the CI tritan floor, so it stays
-and charts stay on the card. A theme switch now crossfades the page for 200 ms instead of jumping
+and charts stay on the card. The wordmark has a dark variant (teal lifted to the dark brand teal,
+4.25:1 to 7.66:1 on the card) via `BrandWordmark`. A theme switch now crossfades the page for 200 ms instead of jumping
 every surface's brightness in one frame; load and the OS following stay instant. Rules in MASTER
 4.3; detail in `ui-refresh/R7.6-REVIEW.md`.
 

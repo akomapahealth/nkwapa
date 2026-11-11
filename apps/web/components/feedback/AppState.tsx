@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import { AlertTriangle, Building2, Inbox, Lock, MapPinOff, RefreshCw } from 'lucide-react';
 import { isValidElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
@@ -187,14 +187,7 @@ export function FullscreenStatus({
   const Icon = icon ?? (tone === 'danger' ? AlertTriangle : null);
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
-      <Image
-        src="/images/nkwapa-logo.png"
-        alt="Nkwapa"
-        width={112}
-        height={32}
-        priority
-        className="mb-6 h-8 w-auto"
-      />
+      <BrandWordmark alt="Nkwapa" width={112} height={32} priority className="mb-6 h-8 w-auto" />
       <section className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
         {Icon ? (
           <span

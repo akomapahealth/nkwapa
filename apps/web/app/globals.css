@@ -410,6 +410,12 @@
   color: hsl(var(--avatar-8-ink));
 }
 
+/* Art drawn for one theme (BrandWordmark). */
+.dark .theme-light-only,
+html:not(.dark) .theme-dark-only {
+  display: none;
+}
+
 /* R7.6: a theme switch crossfades the page (lib/theme-context.tsx). Opacity only, so it also runs
    under reduced motion; everything on screen changes, hence ease-in-out (MASTER 9.1 rule 1). */
 ::view-transition-old(root),

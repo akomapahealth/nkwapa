@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import Link from 'next/link';
 import { ArrowUpRight, Menu, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
@@ -48,8 +48,7 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
           href={`${base}#top`}
           className="relative flex min-h-11 w-[118px] items-center shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Image
-            src="/images/nkwapa-logo.png"
+          <BrandWordmark
             alt="Nkwapa home"
             width={118}
             height={32}

@@ -209,7 +209,8 @@ muted, selected, popover, mint, gold surface, deep, sidebar), including a destru
 own hover tint. A token change re-measures every pairing (`R7.6-REVIEW.md` lists the method) and
 `npm run design:check-charts` must still pass. Charts sit on the card, never on `--muted`. A theme
 switch the user makes crossfades the page for 200 ms (`switchTheme` in `lib/theme-context.tsx`);
-load and the OS following stay instant; no `dark:` utilities.
+load and the OS following stay instant; no `dark:` utilities. The wordmark is always
+`BrandWordmark` (light and dark art, swapped in CSS), never a bare `nkwapa-logo.png`.
 
 ## 4.4 Typography
 

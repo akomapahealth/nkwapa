@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import { Keyboard } from 'lucide-react';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -50,8 +51,7 @@ export function Sidebar({
               collapsed || rail ? 'pointer-events-none opacity-0' : 'opacity-100',
             )}
           >
-            <Image
-              src="/images/nkwapa-logo.png"
+            <BrandWordmark
               alt={collapsed || rail ? '' : 'Nkwapa EMR'}
               fill
               sizes="144px"
