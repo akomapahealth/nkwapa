@@ -87,7 +87,7 @@ export function ConfirmHost() {
               <DialogTitle>{shown.title}</DialogTitle>
               <DialogDescription className="pt-1 leading-6">{shown.description}</DialogDescription>
             </DialogHeader>
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter>
               {/* Focus starts on the safe choice, so Enter on a misread dialog does no harm. */}
               {shown.acknowledgeOnly ? null : (
                 <Button variant="outline" onClick={() => answer(false)} autoFocus>

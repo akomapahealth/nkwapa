@@ -362,6 +362,18 @@
     outline-offset: 2px;
   }
 
+  /* R7.3: Chromium's date and time calendar button is its own tab stop, drawn with the browser's
+     blue. A pseudo-element cannot take :focus, but the host then matches :focus-within and not
+     :focus, so that state draws the house ring on the button (the field rings on focus-within). */
+  input::-webkit-calendar-picker-indicator {
+    border-radius: 2px;
+    outline: none;
+  }
+  input:focus-within:not(:focus)::-webkit-calendar-picker-indicator {
+    background-color: hsl(var(--ring) / 0.16);
+    box-shadow: 0 0 0 2px hsl(var(--ring));
+  }
+
   /* WCAG 2.4.11: a control that focus scrolls into view clears the sticky header, and on phones
      the bottom nav and the chat button above it (8rem together); from 600px only the chat
      button. Without this, Skip to main content then Tab put the first control under the header. */
@@ -613,7 +625,25 @@ html:has([data-landing]) {
   transition-duration: 0s !important;
 }
 
-/* R7.1: dialogs and sheets (tailwindcss-animate keyframes, which read these variables).
+/* R7.3: dialogs share the anchored clock above (scale from the centre, since a modal has no
+   trigger to grow from). The scrim only fades, on the shorter clock. */
+.dialog-scrim {
+  --overlay-enter: var(--duration-fast);
+  --overlay-exit: var(--duration-fast-exit);
+}
+
+.dialog-scrim,
+.dialog-scrim[data-state='closed'] {
+  transform: none;
+}
+
+@starting-style {
+  .dialog-scrim {
+    transform: none;
+  }
+}
+
+/* R7.1: sheets (tailwindcss-animate keyframes, which read these variables).
    Reduced motion keeps the fade and drops the zoom and slide; keyboard opens and closes are instant,
    as for the anchored overlays above. Presence still sees an animation end, so nothing strands. */
 @media (prefers-reduced-motion: reduce) {

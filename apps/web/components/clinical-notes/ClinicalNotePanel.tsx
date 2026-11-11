@@ -539,7 +539,7 @@ export function ClinicalNotePanel({
               addenda and cannot rewrite the signed record.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmAction(null)} disabled={busy}>
               Cancel
             </Button>
@@ -582,7 +582,7 @@ export function ClinicalNotePanel({
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setAddendumOpen(false)} disabled={busy}>
               Cancel
             </Button>

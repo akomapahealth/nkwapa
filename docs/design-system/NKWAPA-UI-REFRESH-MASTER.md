@@ -859,6 +859,8 @@ The full mapping, with where each principle applies in Nkwapa and its exact valu
 
 **R7.1 motion review decisions.** Workspace route changes no longer fade in (the 150 ms page fade ran on every navigation, blanked the new page instead of overlapping it, and made axe read half-transparent text). Dialogs open at 200 ms and close at 160 ms with fade and `scale(.95)` from the centre, centred by margin so nothing drifts; sheets open at 240 ms and close at 190 ms on `--ease-drawer`, with the scrim on the same clock. Dialogs and sheets opened or closed from the keyboard are instant, as menus and Selects already were; with reduced motion they fade only. The landing scroll cue's heartbeat runs three times and rests. The full inventory is in `ui-refresh/R7.1-REVIEW.md`.
 
+**R7.3 dialog clock.** Dialogs (and the welcome tour) left the tailwindcss-animate keyframes for the anchored transition clock that menus and Selects use (`anchored-overlay`, with `dialog-scrim` for the fading scrim): same 200 ms in and 160 ms out, `scale(.95)` from the dialog's own centre, but a dialog closed mid-entrance now reverses from the frame it is on instead of restarting its exit. Keyboard opens and closes stay instant; reduced motion fades only. Sheets stay on keyframes, because their drag hook owns `transform`.
+
 # 10. Accessibility and Clinical Usability
 
 Target WCAG 2.2 AA.
@@ -893,7 +895,9 @@ On smaller screens, do not hide critical patient identity, clinical measurements
 - **Not obscured (2.4.11).** `html:has(#main-content)` carries `scroll-padding` for the sticky header (top) and the bottom nav plus chat button (bottom). A new fixed or sticky bar must widen it.
 - **Skip link on every layout.** It targets a `<main tabIndex={-1}>` with `focus-visible:outline-none`, so focus lands on `main` rather than staying on `body`.
 - **Behind a modal is inert.** `InertBehindModal` mirrors Radix's `data-aria-hidden` marker onto `inert`. Do not exclude `[data-aria-hidden]` from axe sweeps; the rule stays live.
-- **Text fields ring on `:focus`**, not `:focus-visible`, so a date field shows its ring whichever segment holds focus.
+- **Text fields ring on `:focus-within`** (R7.3; was `:focus`), so a date field shows its ring whichever segment holds focus, including Chromium's calendar button. That button is its own tab stop; the host then matches only `:focus-within`, and `globals.css` draws the house ring on the button instead of the browser's blue. The native date control stays: it brings the platform's picker, locale order and typed entry, which a house control would have to rebuild.
+- **Overlays return focus to what opened them.** Radix's modal Dialog returns focus only to its own `Trigger`; most of ours open from an ordinary Button, so focus used to fall to `<body>`. `useReturnFocus` (Dialog, Sheet, welcome tour) remembers the opener and falls back to `main`.
+- **A failed submit moves focus to the field the message is about** (WCAG 3.3.1). Page or dialog messages name the field and `focusField(id)` takes the user there, marking it `aria-invalid` and pointing `aria-describedby` at the message. Forms on native validation cancel Chromium's bubble (the message is inline and in the summary) and focus the first invalid field themselves.
 
 # 11. Engineering Strategy
 

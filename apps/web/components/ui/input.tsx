@@ -6,10 +6,12 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   ({ className, type, ...props }, ref) => {
     return (
       // 44px on touch, 40px on a mouse (--field-height, MASTER section 8); SelectTrigger matches.
+      // Rings on focus-within: when Chromium's date calendar button holds focus, the host matches
+      // only :focus-within (R7.3), and the button's own ring comes from globals.css.
       <input
         type={type}
         className={cn(
-          'flex h-[var(--field-height)] w-full rounded-sm border border-input bg-card px-3.5 py-2 text-base transition-colors duration-fast file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm aria-[invalid=true]:border-destructive aria-[invalid=true]:focus:ring-destructive',
+          'flex h-[var(--field-height)] w-full rounded-sm border border-input bg-card px-3.5 py-2 text-base transition-colors duration-fast file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus:outline-none focus-within:ring-2 focus-within:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-within:ring-destructive',
           className,
         )}
         ref={ref}

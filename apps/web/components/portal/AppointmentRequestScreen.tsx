@@ -31,6 +31,7 @@ import { usePortalResource } from '@/components/portal/use-portal-resource';
 import { RouteGuard } from '@/components/RouteGuard';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
+import { focusField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -79,6 +80,17 @@ export function AppointmentRequestScreen() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The field the message is about, so it can be focused and marked invalid.
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const fail = (message: string, field: string | null = null) => {
+    setError(message);
+    setErrorField(field);
+    if (field) focusField(field);
+  };
+  const invalidProps = (id: string) =>
+    errorField === id
+      ? { 'aria-invalid': true as const, 'aria-describedby': 'appointment-request-error' }
+      : {};
   const { showToast } = useToast();
 
   const context = usePortalResource<AppointmentRequestRecord[]>({
@@ -99,22 +111,26 @@ export function AppointmentRequestScreen() {
     if (!writeGate.canWrite) return;
 
     if (!clinicId || !getToken) {
-      setError('An active clinic is required before you can submit a request.');
+      fail('An active clinic is required before you can submit a request.');
       return;
     }
 
     if (!preferredStartDate || !preferredEndDate) {
-      setError('Please choose both a start date and an end date.');
+      fail(
+        'Please choose both a start date and an end date.',
+        preferredStartDate ? 'preferredEndDate' : 'preferredStartDate',
+      );
       return;
     }
 
     if (preferredEndDate < preferredStartDate) {
-      setError('Your preferred end date must be on or after the start date.');
+      fail('Your preferred end date must be on or after the start date.', 'preferredEndDate');
       return;
     }
 
     setSubmitting(true);
     setError(null);
+    setErrorField(null);
 
     try {
       await createAppointmentRequest(clinicId, getToken, {
@@ -176,6 +192,7 @@ export function AppointmentRequestScreen() {
                   <Label htmlFor="preferredStartDate">Preferred start date</Label>
                   <Input
                     id="preferredStartDate"
+                    {...invalidProps('preferredStartDate')}
                     type="date"
                     className="tabular-nums"
                     value={preferredStartDate}
@@ -195,6 +212,7 @@ export function AppointmentRequestScreen() {
                   <Label htmlFor="preferredEndDate">Preferred end date</Label>
                   <Input
                     id="preferredEndDate"
+                    {...invalidProps('preferredEndDate')}
                     type="date"
                     className="tabular-nums"
                     value={preferredEndDate}

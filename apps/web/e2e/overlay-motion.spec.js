@@ -245,3 +245,98 @@ test('tooltips skip delay and motion while scanning neighbouring icons', async (
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
 });
+
+// R7.3: dialogs left the tailwindcss-animate keyframes for the anchored transition clock. A
+// keyframe exit restarts from its end state; a transition reverses from the frame it is on.
+async function openCreateClinic(page) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/admin/clinics');
+  const trigger = page.getByRole('button', { name: 'Create clinic', exact: true }).first();
+  await expect(trigger).toBeVisible({ timeout: 30_000 });
+  return trigger;
+}
+
+for (const reduced of [false, true]) {
+  test(`dialog scales from the centre and reverses mid-entrance${reduced ? ', fade only with reduced motion' : ''}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+    const trigger = await openCreateClinic(page);
+    // A real pointer gesture marks the input as pointer, as a click on the trigger would.
+    const box = await trigger.boundingBox();
+    await page.mouse.move(box.x + 4, box.y + 4);
+    await expect(page.locator('html')).toHaveAttribute('data-overlay-input', 'pointer');
+    // One browser task, so test-runner latency cannot finish the entrance before the close.
+    const result = await trigger.evaluate(async (element) => {
+      // A real mouse press focuses the button before the click; a scripted click does not.
+      element.focus();
+      element.click();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const dialog = document.querySelector('[role="dialog"]');
+      const scrim = document.querySelector('.dialog-scrim');
+      const enterProps = dialog
+        .getAnimations()
+        .filter((a) => a.transitionProperty)
+        .map((a) => a.transitionProperty)
+        .sort();
+      const style = getComputedStyle(dialog);
+      const enter = {
+        duration: style.transitionDuration,
+        scrimDuration: getComputedStyle(scrim).transitionDuration,
+        scrimTransform: getComputedStyle(scrim).transform,
+        origin: style.transformOrigin,
+        size: [parseFloat(style.width), parseFloat(style.height)],
+      };
+      for (const animation of dialog.getAnimations()) {
+        animation.pause();
+        animation.currentTime = 60;
+      }
+      const before = Number(getComputedStyle(dialog).opacity);
+      const transformBefore = getComputedStyle(dialog).transform;
+      [...dialog.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cancel').click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const exit = dialog.getAnimations().find((a) => a.transitionProperty === 'opacity');
+      return {
+        enterProps,
+        enter,
+        before,
+        transformBefore,
+        state: dialog.dataset.state,
+        exitDuration: getComputedStyle(dialog).transitionDuration,
+        exitStart: Number(exit?.effect.getKeyframes()[0].opacity),
+      };
+    });
+    expect(result.enter.duration).toBe('0.2s');
+    expect(result.enter.scrimDuration).toBe('0.15s');
+    expect(result.enter.scrimTransform).toBe('none');
+    // Reduced motion pins transform, so only opacity transitions.
+    expect(result.enterProps).toEqual(reduced ? ['opacity'] : ['opacity', 'transform']);
+    // Modals have no trigger to grow from: the origin is the dialog's own centre.
+    result.enter.origin.split(' ').forEach((part, index) => {
+      expect(parseFloat(part)).toBeCloseTo(result.enter.size[index] / 2, 0);
+    });
+    if (reduced) expect(result.transformBefore).toBe('none');
+    else expect(result.transformBefore).not.toBe('none');
+    expect(result.before).toBeGreaterThan(0);
+    expect(result.before).toBeLessThan(1);
+    expect(result.state).toBe('closed');
+    expect(result.exitDuration).toBe('0.16s');
+    // The exit starts where the entrance was, not from fully open.
+    expect(result.exitStart).toBeCloseTo(result.before, 2);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+}
+
+test('keyboard opens and closes a dialog instantly', async ({ page }) => {
+  const trigger = await openCreateClinic(page);
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCSS('transition-duration', '0s');
+  await expect(dialog).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});

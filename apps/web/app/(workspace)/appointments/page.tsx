@@ -50,6 +50,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { focusField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -609,10 +610,12 @@ export default function StaffAppointmentsPage() {
         const endsAt = fromClinicDateTimeLocal(rescheduleEndsAt, timezone);
         if (!startsAt || !endsAt) {
           setLifecycleError('Choose valid start and end times.');
+          focusField(startsAt ? 'reschedule-ends-at' : 'reschedule-starts-at');
           return;
         }
         if (new Date(endsAt) <= new Date(startsAt)) {
           setLifecycleError('End time must be after start time.');
+          focusField('reschedule-ends-at');
           return;
         }
         await rescheduleStaffAppointment(clinicId, appointment.id, getToken, {
@@ -624,6 +627,7 @@ export default function StaffAppointmentsPage() {
         const reason = lifecycleReason.trim();
         if (!reason) {
           setLifecycleError('Add a cancellation reason before continuing.');
+          focusField('lifecycle-reason');
           return;
         }
         await cancelStaffAppointment(clinicId, appointment.id, getToken, { reason });
@@ -1194,7 +1198,7 @@ export default function StaffAppointmentsPage() {
             </div>
           ) : null}
 
-          <DialogFooter className="mt-2 gap-2 sm:gap-0">
+          <DialogFooter className="mt-2">
             <Button
               type="button"
               variant="outline"

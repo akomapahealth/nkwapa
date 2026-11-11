@@ -769,7 +769,7 @@ export function AppointmentsPortalScreen() {
             </div>
           ) : null}
 
-          <DialogFooter className="mt-2 gap-2 sm:gap-0">
+          <DialogFooter className="mt-2">
             <Button
               type="button"
               variant="outline"

@@ -595,7 +595,7 @@ export function VitalsForm({
                 {Object.entries(errors).map(([id, message]) => (
                   <li key={id}>
                     <a
-                      className="inline-flex min-h-11 items-center text-primary underline"
+                      className="inline-flex min-h-[var(--button-height)] items-center text-primary underline underline-offset-4"
                       href={`#${id}`}
                       onClick={(event) => {
                         event.preventDefault();

@@ -1285,3 +1285,26 @@ two modal-open axe sweeps counting the now-inert background, a new-spec Tab coun
 sync-state miss; after scoping those sweeps to the dialog, the affected specs passed 34/34.
 Six-role audit **228 rows, 0 violations, 0 overflow, 0 errors**. Local commit only; no push. Next
 is `ui-refresh/HANDOFF-R7.3.md`.
+
+## R7.3 Forms and modal refinements (2026-11-11)
+
+Dialogs and the welcome tour moved from tailwindcss-animate keyframes to the anchored transition
+clock menus and Selects already use: same 200/160 ms and `scale(.95)` from the centre, but a dialog
+closed mid-entrance now reverses instead of restarting its exit, and keyboard opens are instant
+(the tour missed that rule since R7.1). Sheets stay on keyframes because their drag owns
+`transform`. New `useReturnFocus` fixes a real bug: Radix's modal Dialog returns focus only to its
+own Trigger, so every controlled dialog opened from a plain Button dropped focus to `<body>` on
+close; Dialog, Sheet and the tour now return it to the opener. Failed submits in the appointment
+dialogs, portal request and self-report move focus to the field the message names (WCAG 3.3.1);
+registration cancels Chromium's duplicate validation bubble and focuses the first invalid field
+itself. The native date control stays; its calendar button now draws the house ring. Dialog
+headers are left-aligned on phones, footers gap at every width, error summary links follow the
+pointer-aware height, and clinic settings uses `FormActions`. Rules in MASTER 9.1 and 10.1; detail
+in `ui-refresh/R7.3-REVIEW.md`.
+
+**Validation:** four audit-flag builds, TypeScript, changed-file lint/format, Jest 91/91; detector
+clean. New `form-errors.spec.js` (3), plus 3 dialog tests in `overlay-motion` and 1 in
+`welcome-tour`. Focused Chromium over 22 specs **185/188**: one known flake that passed alone, and
+two failures reproduced on a stashed HEAD build (`patient-redesign` 44px tab expectation, `vitals`
+BMI text). Six-role audit **228 rows, 0 violations, 0 overflow, 0 errors**. Local commit only; no
+push. Next is `ui-refresh/HANDOFF-R7.4.md`.

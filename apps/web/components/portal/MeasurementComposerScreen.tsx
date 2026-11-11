@@ -37,6 +37,7 @@ import { usePortalResource } from '@/components/portal/use-portal-resource';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { focusField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -114,6 +115,17 @@ export function MeasurementComposerScreen() {
     states below; this is validation and save failures only.
   */
   const [error, setError] = useState<string | null>(null);
+  // The field the message is about, so it can be focused and marked invalid.
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const fail = (message: string, field: string | null = null) => {
+    setError(message);
+    setErrorField(field);
+    if (field) focusField(field);
+  };
+  const invalidProps = (id: string) =>
+    errorField === id
+      ? { 'aria-invalid': true as const, 'aria-describedby': 'measurement-error' }
+      : {};
 
   useEffect(() => {
     const requestedType = measurementTypeFromPreset(searchParams.get('type'));
@@ -145,13 +157,13 @@ export function MeasurementComposerScreen() {
     if (!writeGate.canWrite) return;
 
     if (!clinicId || !getToken) {
-      setError('An active clinic is required before you can save a reading.');
+      fail('An active clinic is required before you can save a reading.');
       return;
     }
 
     const parsedRecordedAt = recordedAt ? new Date(recordedAt) : new Date();
     if (Number.isNaN(parsedRecordedAt.getTime())) {
-      setError('Please enter a valid date and time for this reading.');
+      fail('Please enter a valid date and time for this reading.', 'recordedAt');
       return;
     }
 
@@ -159,7 +171,10 @@ export function MeasurementComposerScreen() {
 
     if (type === 'BP') {
       if (!systolic || !diastolic) {
-        setError('Please enter both systolic and diastolic values.');
+        fail(
+          'Please enter both systolic and diastolic values.',
+          systolic ? 'diastolic' : 'systolic',
+        );
         return;
       }
       payload = {
@@ -171,13 +186,13 @@ export function MeasurementComposerScreen() {
       }
     } else if (type === 'GLUCOSE') {
       if (!glucoseValue) {
-        setError('Please enter your glucose value.');
+        fail('Please enter your glucose value.', 'glucoseValue');
         return;
       }
       const glucoseError = glucoseEntryError(glucoseValue, glucoseUnit);
       const mgDl = glucoseTextToMgDl(glucoseValue, glucoseUnit);
       if (glucoseError || mgDl === null) {
-        setError(glucoseError ?? 'Please enter your glucose value.');
+        fail(glucoseError ?? 'Please enter your glucose value.', 'glucoseValue');
         return;
       }
       // Always mg/dL: the portal API stores one unit whatever the patient's meter reads.
@@ -189,7 +204,7 @@ export function MeasurementComposerScreen() {
       const kg = weightTextToKg(weight, units.bodyUnit);
       const weightError = weightEntryError(weight, units.bodyUnit);
       if (weightError || kg === null) {
-        setError(weightError ?? 'Please enter your weight.');
+        fail(weightError ?? 'Please enter your weight.', 'weightKg');
         return;
       }
       payload = { kg };
@@ -197,6 +212,7 @@ export function MeasurementComposerScreen() {
 
     setSubmitting(true);
     setError(null);
+    setErrorField(null);
 
     try {
       await createMeasurement(clinicId, getToken, {
@@ -284,6 +300,7 @@ export function MeasurementComposerScreen() {
                   <Label htmlFor="recordedAt">Date and time</Label>
                   <Input
                     id="recordedAt"
+                    {...invalidProps('recordedAt')}
                     type="datetime-local"
                     className="tabular-nums"
                     value={recordedAt}
@@ -299,6 +316,7 @@ export function MeasurementComposerScreen() {
                     <Label htmlFor="systolic">Systolic (mmHg)</Label>
                     <Input
                       id="systolic"
+                      {...invalidProps('systolic')}
                       type="number"
                       inputMode="numeric"
                       className="tabular-nums"
@@ -313,6 +331,7 @@ export function MeasurementComposerScreen() {
                     <Label htmlFor="diastolic">Diastolic (mmHg)</Label>
                     <Input
                       id="diastolic"
+                      {...invalidProps('diastolic')}
                       type="number"
                       inputMode="numeric"
                       className="tabular-nums"
@@ -346,6 +365,7 @@ export function MeasurementComposerScreen() {
                     <div className="flex gap-2">
                       <Input
                         id="glucoseValue"
+                        {...invalidProps('glucoseValue')}
                         type="number"
                         inputMode={glucoseUnit === 'MMOL_L' ? 'decimal' : 'numeric'}
                         step={glucoseUnit === 'MMOL_L' ? '0.1' : '1'}
@@ -389,6 +409,7 @@ export function MeasurementComposerScreen() {
                     <Label htmlFor="weightKg">Weight ({weightUnitLabel(units.bodyUnit)})</Label>
                     <Input
                       id="weightKg"
+                      {...invalidProps('weightKg')}
                       type="number"
                       inputMode="decimal"
                       className="tabular-nums"

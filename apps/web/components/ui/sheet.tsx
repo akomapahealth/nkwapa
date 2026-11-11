@@ -8,6 +8,7 @@ import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSheetDrag } from './use-sheet-drag';
 import { useOverlayInput } from './use-overlay-input';
+import { useReturnFocus } from './use-return-focus';
 
 function Sheet(props: React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root>) {
   useOverlayInput();
@@ -67,7 +68,7 @@ const SheetContent = React.forwardRef<
   SheetContentProps
 >(({ side = 'right', className, children, onOpenAutoFocus, onCloseAutoFocus, ...props }, ref) => {
   const { setNode, closeRef, handleProps } = useSheetDrag(side ?? 'right');
-  const returnFocusTo = React.useRef<HTMLElement | null>(null);
+  const focusReturn = useReturnFocus(onOpenAutoFocus, onCloseAutoFocus);
   const contentRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       setNode(node);
@@ -83,24 +84,7 @@ const SheetContent = React.forwardRef<
         ref={contentRef}
         className={cn(sheetVariants({ side }), className)}
         {...props}
-        onOpenAutoFocus={(event) => {
-          returnFocusTo.current = document.activeElement as HTMLElement | null;
-          onOpenAutoFocus?.(event);
-        }}
-        onCloseAutoFocus={(event) => {
-          onCloseAutoFocus?.(event);
-          if (event.defaultPrevented) return;
-          // Provider/selection-controlled Sheets can have no Radix Trigger at all.
-          const previous = returnFocusTo.current;
-          const target =
-            previous?.isConnected && previous !== document.body && previous.getClientRects().length
-              ? previous
-              : document.getElementById('main-content');
-          if (target && target !== document.body) {
-            event.preventDefault();
-            target.focus();
-          }
-        }}
+        {...focusReturn}
       >
         <SheetPrimitive.Close
           ref={closeRef}

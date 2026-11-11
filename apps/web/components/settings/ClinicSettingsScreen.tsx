@@ -13,6 +13,7 @@ import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Label } from '@/components/ui/label';
 import {
   RecordSection,
@@ -253,7 +254,15 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                   <InlineNotice tone="success">{saveConfirmation}</InlineNotice>
                 ) : null}
 
-                <div className="flex flex-wrap items-center gap-3">
+                {/* R7.3: the house action row; the status note sits at the start, Save last. */}
+                <FormActions split>
+                  {/*
+                    Reserving the row keeps the button from jumping when the message appears.
+                    MASTER.md principle: help and status must not move content.
+                  */}
+                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                    {isDirty ? 'You have unsaved changes.' : ' '}
+                  </p>
                   <Button
                     variant={changesSafetyPolicy ? 'outline' : 'default'}
                     className={changesSafetyPolicy ? 'border-warning text-warning-ink' : undefined}
@@ -265,14 +274,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                     ) : null}
                     {saving ? 'Saving…' : 'Save settings'}
                   </Button>
-                  {/*
-                    Reserving the row keeps the button from jumping when the message appears.
-                    MASTER.md principle: help and status must not move content.
-                  */}
-                  <p className="text-sm text-muted-foreground" aria-live="polite">
-                    {isDirty ? 'You have unsaved changes.' : ' '}
-                  </p>
-                </div>
+                </FormActions>
               </RecordSectionContent>
             </RecordSection>
 

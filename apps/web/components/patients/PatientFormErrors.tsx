@@ -28,8 +28,15 @@ export function usePatientFormErrors() {
       setErrors((current) => (id ? current.filter((error) => error.id !== id) : []));
     },
     onInvalidCapture: (event: FormEvent<HTMLFormElement>) => {
+      // R7.3: the message is already inline and in the summary; Chromium's bubble repeated it
+      // over the next field. Cancelling it also cancels the browser's focus move, so do that here.
+      event.preventDefault();
+      const next = readErrors(event.currentTarget);
       setSubmitted(true);
-      setErrors(readErrors(event.currentTarget));
+      setErrors(next);
+      if (next[0] && document.activeElement?.id !== next[0].id) {
+        document.getElementById(next[0].id)?.focus();
+      }
     },
     onChange: (event: FormEvent<HTMLFormElement>) => {
       const field = event.target;
@@ -76,7 +83,7 @@ export function PatientFormErrors({
             <li key={id}>
               <a
                 href={`#${id}`}
-                className="inline-flex min-h-11 items-center text-primary underline underline-offset-4"
+                className="inline-flex min-h-[var(--button-height)] items-center text-primary underline underline-offset-4"
                 onClick={(event) => {
                   event.preventDefault();
                   document.getElementById(id)?.focus();

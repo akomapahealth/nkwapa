@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { focusField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -180,10 +181,12 @@ export function AppointmentRequestsPanel({
         const end = fromClinicDateTimeLocal(endsAt, timezone);
         if (!start || !end) {
           setDialogError('Choose valid start and end times.');
+          focusField(start ? 'confirm-ends-at' : 'confirm-starts-at');
           return;
         }
         if (new Date(end) <= new Date(start)) {
           setDialogError('End time must be after start time.');
+          focusField('confirm-ends-at');
           return;
         }
         await confirmStaffAppointmentRequest(clinicId, request.id, getToken, {
@@ -197,6 +200,7 @@ export function AppointmentRequestsPanel({
         const trimmed = reason.trim();
         if (!trimmed) {
           setDialogError('Add a reason so the patient knows why.');
+          focusField('reject-reason');
           return;
         }
         await rejectStaffAppointmentRequest(clinicId, request.id, getToken, { reason: trimmed });

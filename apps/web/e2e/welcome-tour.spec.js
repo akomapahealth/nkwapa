@@ -61,3 +61,21 @@ test('Escape leaves the tour and it stays gone after a reload', async ({ page })
   await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test('opened from the keyboard, the tour appears at once on the dialog clock', async ({ page }) => {
+  await page.goto('/dashboard');
+  await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
+  const menu = page.getByRole('button', { name: 'User menu' });
+  await menu.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: 'Take the tour' }).focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Welcome to Nkwapa' })).toBeVisible();
+  // R7.3: the tour shares the house dialog clock, so a keyboard open does not animate.
+  await expect(dialog).toHaveClass(/anchored-overlay/);
+  await expect(dialog).toHaveCSS('transition-duration', '0s');
+  await expect(dialog).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});

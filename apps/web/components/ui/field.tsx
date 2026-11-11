@@ -123,6 +123,14 @@ export function RequiredLegend({ className }: { className?: string }) {
 }
 
 /**
+ * Moves focus to the one control a form-level message is about (WCAG 3.3.1). Without it a failed
+ * submit leaves focus on the button, and the message names a field the user has to go and find.
+ */
+export function focusField(id: string) {
+  document.getElementById(id)?.focus();
+}
+
+/**
  * Moves focus to the first control that failed validation.
  *
  * No form in the product did this. On a long form -- VitalsForm is eleven fields across four
