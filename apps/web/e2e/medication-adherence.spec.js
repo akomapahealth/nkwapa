@@ -210,8 +210,7 @@ test('each condition keeps its own adherence answers for the same encounter', as
  * It lives here rather than in `accessibility.spec.js` because the setup is the expensive part: a
  * patient, a catalogued medication and an encounter have to exist before there is a card to sweep,
  * and duplicating that into the accessibility suite would double the slowest fixture in it for one
- * assertion. No `Select` is open during the sweep, so the `aria-hidden-focus` exclusion the
- * accessibility suite needs for Radix popups does not apply.
+ * assertion. No `Select` is open during the sweep.
  */
 test('the adherence section is axe-clean at phone and desktop widths', async ({ page }) => {
   test.setTimeout(150_000);

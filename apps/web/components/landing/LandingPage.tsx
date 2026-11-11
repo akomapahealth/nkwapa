@@ -53,7 +53,7 @@ export function LandingPage({ release }: { release: Release }) {
       <ReleaseBanner release={release} />
       <LandingHeader />
       <LandingMotion>
-        <main id="main">
+        <main id="main" tabIndex={-1} className="focus-visible:outline-none">
           <HeroSection />
           <ProblemSection />
           <ClinicalJourney />

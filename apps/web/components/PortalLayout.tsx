@@ -23,7 +23,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen min-w-0 flex-col bg-card px-safe [--workspace-bottom-nav-height:3.75rem] compact:m-2 compact:rounded-xl compact:border compact:border-border compact:[--workspace-bottom-nav-height:0px]">
       <a
         href="#main-content"
-        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
+        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm"
       >
         Skip to main content
       </a>

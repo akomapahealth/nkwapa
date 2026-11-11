@@ -1265,3 +1265,23 @@ New sheet timing, reduced-motion and keyboard tests. Focused Chromium over 14 sp
 fixed; overlay specs green after; `sheet-drag` 36/36 twice. Six-role audit **228 rows, 0
 violations, 0 overflow, 0 errors**. Local commit only; no push. Next is
 `ui-refresh/HANDOFF-R7.2.md`.
+
+## R7.2 Keyboard and focus polish (2026-11-11)
+
+A tab-walk probe over 11 real routes at 1440 and 390 found what the focus states actually did
+(table in `ui-refresh/R7.2-REVIEW.md`). Button rings faded in over 150 ms because `box-shadow` was
+in the transition list; they now appear in the frame focus arrives. A base `:focus-visible`
+outline replaces Chromium's blue on anything without its own ring, chat rings went from 1px to
+2px, and text fields ring on `:focus`. `scroll-padding` on the workspace and portal keeps focused
+controls clear of the sticky header, the phone bottom nav and the chat button (WCAG 2.4.11).
+`InertBehindModal` mirrors Radix's `data-aria-hidden` onto `inert`, closing the `aria-hidden-focus`
+finding carried since R1.5 without touching Radix focus management. Every layout's skip link now
+lands on a focusable `main` (sign-in gained one). The landing page no longer smooth-scrolls on Tab;
+pointer clicks on section links still glide. Focus rules recorded in MASTER section 10.1.
+
+**Validation:** three audit-flag builds, TypeScript, changed-file lint/format pass; detector clean.
+New `keyboard-focus.spec.js` (8 tests). Focused Chromium over 23 specs 214/227; the failures were
+two modal-open axe sweeps counting the now-inert background, a new-spec Tab count and one
+sync-state miss; after scoping those sweeps to the dialog, the affected specs passed 34/34.
+Six-role audit **228 rows, 0 violations, 0 overflow, 0 errors**. Local commit only; no push. Next
+is `ui-refresh/HANDOFF-R7.3.md`.

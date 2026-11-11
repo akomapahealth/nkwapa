@@ -208,6 +208,12 @@ export default function LoginPage() {
     // The canvas with one inset sheet, as in the portal and staff shells (R5.2).
     <div className="min-h-dvh bg-background">
       <div className="flex min-h-dvh flex-col bg-card compact:m-2 compact:min-h-[calc(100dvh-1rem)] compact:rounded-xl compact:border compact:border-border">
+        <a
+          href="#main-content"
+          className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm"
+        >
+          Skip to main content
+        </a>
         <header className="border-b border-rule">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 md:px-6">
             <span className="flex items-center gap-2.5">
@@ -233,7 +239,8 @@ export default function LoginPage() {
 
         <main
           id="main-content"
-          className="mx-auto grid w-full max-w-5xl flex-1 content-start gap-10 px-4 pb-12 pt-8 md:px-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14 lg:pt-16"
+          tabIndex={-1}
+          className="mx-auto grid w-full max-w-5xl flex-1 content-start gap-10 px-4 pb-12 pt-8 md:px-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14 lg:pt-16 focus-visible:outline-none"
         >
           <div className="min-w-0 max-w-xl space-y-6">
             <div className={RISE} style={riseDelay(0)}>

@@ -885,6 +885,16 @@ All clinical information must remain understandable without relying on color alo
 
 On smaller screens, do not hide critical patient identity, clinical measurements, validation messages, or necessary actions merely to make the layout visually cleaner.
 
+## 10.1 Focus rules (R7.2, applies to all future sessions)
+
+- **One indicator.** A 2px `--ring` outline at a 2px offset is the base style for every `:focus-visible` element (`globals.css`). Components that draw their own ring use `ring-2 ring-ring`, never `ring-1` and never the browser's blue. On a teal or photographic band, the ring is white (`ring-primary-foreground` / `ring-white`).
+- **Focus never animates.** No `box-shadow` (the ring) in a transition list; `Button` transitions colour and transform only. Focus is a keyboard event (section 9.1).
+- **Keyboard scrolling never animates.** No `scroll-behavior: smooth` on `html`: it glides every Tab. Pointer clicks on in-page links glide from `LandingHeader`; keyboard activation stays native.
+- **Not obscured (2.4.11).** `html:has(#main-content)` carries `scroll-padding` for the sticky header (top) and the bottom nav plus chat button (bottom). A new fixed or sticky bar must widen it.
+- **Skip link on every layout.** It targets a `<main tabIndex={-1}>` with `focus-visible:outline-none`, so focus lands on `main` rather than staying on `body`.
+- **Behind a modal is inert.** `InertBehindModal` mirrors Radix's `data-aria-hidden` marker onto `inert`. Do not exclude `[data-aria-hidden]` from axe sweeps; the rule stays live.
+- **Text fields ring on `:focus`**, not `:focus-visible`, so a date field shows its ring whichever segment holds focus.
+
 # 11. Engineering Strategy
 
 Use the existing Next.js, React, Tailwind, shadcn/Radix, table, chart, and test infrastructure.

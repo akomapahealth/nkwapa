@@ -42,7 +42,7 @@ export function ChatMessageBubble({
           <button
             type="button"
             onClick={() => onRetry?.(message)}
-            className="mt-1 block cursor-pointer text-left text-[10px] font-medium text-destructive underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="mt-1 block cursor-pointer text-left text-[10px] font-medium text-destructive underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Could not send. Try again.
           </button>

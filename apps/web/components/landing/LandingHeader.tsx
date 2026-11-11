@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowUpRight, Menu, Moon, Sun } from 'lucide-react';
@@ -23,6 +23,23 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
   const pendingHash = useRef<string | null>(null);
   const { theme, setPreference } = useTheme();
   const nextTheme = theme === 'dark' ? 'light' : 'dark';
+
+  // In-page links glide when clicked or tapped. Tab focus and keyboard activation (a click with
+  // `detail` 0) stay instant: a CSS scroll-behavior on <html> animated every focus stop too.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest?.('a[href^="#"]');
+      const href = link?.getAttribute('href') ?? '';
+      const target = href.length > 1 && document.getElementById(href.slice(1));
+      if (!target || event.detail === 0 || event.defaultPrevented) return;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      event.preventDefault();
+      history.pushState(null, '', href);
+      target.scrollIntoView({ behavior: 'smooth' });
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-background">

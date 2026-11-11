@@ -6,6 +6,7 @@ import { PwaBoot } from '@/components/pwa/PwaBoot';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import { ToastProvider } from '@/components/ui/toast';
 import { CookieConsent } from '@/components/CookieConsent';
+import { InertBehindModal } from '@/components/ui/inert-behind-modal';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
 
@@ -174,6 +175,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ServiceWorkerRegistration />
             <PwaBoot />
             <CookieConsent />
+            <InertBehindModal />
           </ToastProvider>
         </ThemeProvider>
       </body>

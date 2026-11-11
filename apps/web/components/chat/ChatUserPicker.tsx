@@ -105,7 +105,7 @@ export function ChatUserPicker({
       <div className="flex items-center gap-2 border-b px-3 py-2.5">
         <button
           onClick={onBack}
-          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Back"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -124,7 +124,7 @@ export function ChatUserPicker({
             placeholder="Group name (optional)"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
       ) : null}
@@ -137,7 +137,7 @@ export function ChatUserPicker({
             aria-label="Search staff"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-full rounded-md border bg-background py-1.5 pl-8 pr-3 text-sm outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border bg-background py-1.5 pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
       </div>
@@ -157,7 +157,7 @@ export function ChatUserPicker({
                 role={multi ? 'checkbox' : undefined}
                 aria-checked={multi ? checked : undefined}
                 className={cn(
-                  'flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
+                  'flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                   checked && 'bg-primary/5',
                 )}
               >

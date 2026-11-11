@@ -355,7 +355,7 @@ export function ChatConversation({
       <div className="flex items-center gap-2 border-b px-3 py-2.5">
         <button
           onClick={onBack}
-          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Back to conversations"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -388,7 +388,7 @@ export function ChatConversation({
         {group ? (
           <button
             onClick={() => setPanel(panel === 'members' ? 'none' : 'members')}
-            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Members"
             aria-expanded={panel === 'members'}
           >
@@ -418,7 +418,7 @@ export function ChatConversation({
                 value={renaming}
                 maxLength={200}
                 onChange={(event) => setRenaming(event.target.value)}
-                className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
               <button
                 type="submit"
@@ -541,12 +541,12 @@ export function ChatConversation({
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             rows={1}
-            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="touch-target cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="touch-target cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Send message"
           >
             <Send className="h-4 w-4" />

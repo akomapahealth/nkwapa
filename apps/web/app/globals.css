@@ -354,6 +354,26 @@
   figcaption {
     text-wrap: pretty;
   }
+
+  /* R7.2: one focus indicator. Anything without its own ring gets the house teal instead of the
+     browser's blue, and nothing transitions it in: focus is a keyboard event (MASTER 9.1). */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* WCAG 2.4.11: a control that focus scrolls into view clears the sticky header, and on phones
+     the bottom nav and the chat button above it (8rem together); from 600px only the chat
+     button. Without this, Skip to main content then Tab put the first control under the header. */
+  html:has(#main-content) {
+    scroll-padding-top: calc(4.5rem + env(safe-area-inset-top));
+    scroll-padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 600px) {
+    html:has(#main-content) {
+      scroll-padding-bottom: 5rem;
+    }
+  }
 }
 
 /* Utility classes */
@@ -487,9 +507,9 @@
   margin-bottom: -0.14em;
 }
 
-/* Anchor links on the landing page glide; the reduced-motion rule below turns this off. */
+/* Section anchors clear the sticky header. Clicked links glide from LandingHeader instead of a
+   scroll-behavior here, which also animated every Tab (R7.2). */
 html:has([data-landing]) {
-  scroll-behavior: smooth;
   scroll-padding-top: 4rem;
 }
 

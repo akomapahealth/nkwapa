@@ -114,7 +114,9 @@ test('encounter Crisis saves first, requires acknowledgement, and does not repea
   await expect(dialog.getByRole('button', { name: "I've told a clinician" })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  // The chart behind the alert is inert (R7.2), so the sweep covers what a person can reach.
+  const crisisAxe = await new AxeBuilder({ page }).include('[role="alertdialog"]').analyze();
+  expect(crisisAxe.violations).toEqual([]);
   await shot(page, 'encounter-crisis');
   await dialog.getByRole('button', { name: "I've told a clinician" }).click();
   const save = page.getByRole('button', { name: 'Save measurements', exact: true });

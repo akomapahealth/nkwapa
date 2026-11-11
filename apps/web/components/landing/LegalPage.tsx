@@ -43,7 +43,7 @@ export function LegalPage({
         Skip to content
       </a>
       <LandingHeader base="/" />
-      <main id="main">
+      <main id="main" tabIndex={-1} className="focus-visible:outline-none">
         <div className="border-b border-rule">
           <div className="landing-container grid gap-8 pb-10 pt-6 sm:pb-12 sm:pt-8 lg:grid-cols-12">
             <div className="lg:col-span-9">

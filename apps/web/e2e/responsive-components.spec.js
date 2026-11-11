@@ -75,7 +75,15 @@ for (const width of WIDTHS)
           await expect(confirmation).toBeVisible();
           await confirmation.getByRole('button', { name: 'Discard change', exact: true }).hover();
           await capture('sync-discard');
-          if (!baseline) expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+          // Everything behind the confirmation is inert (R7.2), so the sweep covers the dialog a
+          // person can reach; the sheet is swept on its own below.
+          if (!baseline) {
+            const labelledBy = await confirmation.getAttribute('aria-labelledby');
+            const discardAxe = await new AxeBuilder({ page })
+              .include(`[aria-labelledby="${labelledBy}"]`)
+              .analyze();
+            expect(discardAxe.violations).toEqual([]);
+          }
           await confirmation.getByRole('button', { name: 'Keep it', exact: true }).click();
         }
         if (!baseline) {
