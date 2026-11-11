@@ -385,7 +385,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           </Link>
         ) : null}
         <AppPageHeader
-          eyebrow={clinicName ? `Research operations · ${clinicName}` : 'Research operations'}
+          context={clinicName ?? undefined}
           title="Research exports"
           description="Check readiness, decide on runs and schedules, and download de-identified packs."
           actions={

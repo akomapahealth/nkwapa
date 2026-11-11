@@ -238,7 +238,6 @@ export default function LoginPage() {
           <div className="min-w-0 max-w-xl space-y-6">
             <div className={RISE} style={riseDelay(0)}>
               <div className="space-y-2">
-                <p className="text-eyebrow text-muted-foreground">Secure sign in</p>
                 <h1 className="type-page-title text-foreground">
                   {error
                     ? "We couldn't start secure sign-in"

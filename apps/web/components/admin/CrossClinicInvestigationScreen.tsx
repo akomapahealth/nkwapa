@@ -224,7 +224,6 @@ export function CrossClinicInvestigationScreen() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Patient identity"
         title="Cross-clinic duplicates"
         description="Charts in different clinics that look like the same person, counted per clinic pair. For sizing the problem, not fixing it: nothing here changes or merges a record."
         badges={<Badge variant="outline">Investigation only</Badge>}

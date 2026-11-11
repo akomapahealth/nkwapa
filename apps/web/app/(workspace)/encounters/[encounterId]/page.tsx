@@ -296,7 +296,7 @@ export default function EncounterDetailPage() {
           </Link>
           <div className={styles.identityRow}>
             <div className={styles.identity}>
-              <p className="text-eyebrow text-muted-foreground">Encounter</p>
+              <p className="text-sm text-muted-foreground">Encounter</p>
               <h1 className="mt-1 type-page-title">
                 {encounter.patient
                   ? `${encounter.patient.firstName} ${encounter.patient.lastName}`

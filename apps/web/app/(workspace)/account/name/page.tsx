@@ -99,7 +99,6 @@ export default function AccountNamePage() {
   return (
     <div className="max-w-2xl space-y-6">
       <AppPageHeader
-        eyebrow="Your account"
         title="Your name"
         description="Your name appears on the records you work on, so colleagues and auditors can see who did what."
       />

@@ -159,7 +159,6 @@ export function RecordConsentScreen({
       </Button>
 
       <AppPageHeader
-        eyebrow="Research consent"
         title="Record Research Consent"
         description="Document informed consent for de-identified research participation with an auditable, clinic-scoped workflow."
       />

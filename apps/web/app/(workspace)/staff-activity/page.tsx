@@ -89,7 +89,6 @@ function StaffActivityContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Oversight"
         title="Staff activity"
         description="Who did what work at this clinic, and when. Listed by name, not ranked."
         helpTitle="What these numbers are"

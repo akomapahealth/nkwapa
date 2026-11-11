@@ -260,7 +260,7 @@ export function OnboardingFrame({
         >
           <div className="min-w-0 space-y-6">
             <div className="space-y-2">
-              <p className="text-eyebrow text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {eyebrow ?? `Step ${index + 1} of ${steps.length}`}
               </p>
               <h1 className="type-page-title text-foreground">{title}</h1>

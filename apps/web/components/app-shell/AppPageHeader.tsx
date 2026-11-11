@@ -4,7 +4,7 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
 
 export function AppPageHeader({
-  eyebrow,
+  context,
   breadcrumbs,
   title,
   description,
@@ -15,7 +15,11 @@ export function AppPageHeader({
   badges,
   className,
 }: {
-  eyebrow?: string;
+  /**
+   * Facts the title cannot carry, such as the station a visit is at. Never a category label: the
+   * uppercase kicker above page titles was retired in R7.1 (MASTER section 4.4).
+   */
+  context?: string;
   breadcrumbs?: React.ReactNode;
   title: string;
   description?: string;
@@ -45,14 +49,14 @@ export function AppPageHeader({
       {breadcrumbs ? <div className="mb-2">{breadcrumbs}</div> : null}
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          {eyebrow ? <p className="text-eyebrow text-muted-foreground">{eyebrow}</p> : null}
+          {context ? <p className="text-sm text-muted-foreground">{context}</p> : null}
           {/*
             The title and its help flow as one line of text. The trigger is inline and
             `align-middle`, so it sits on the title's last line at the middle of its x-height,
             whatever the title wraps to. As a flex sibling with `items-start` and a hand-tuned
             `mt-1` it lined up with nothing, and wrapped onto a line of its own on phones.
           */}
-          <div className="mt-2 type-page-title">
+          <div className={cn('type-page-title', context && 'mt-1')}>
             <h1 className="inline align-middle text-foreground">{title}</h1>
             {helpText ? (
               <InfoHint label={helpTitle ?? 'How this page works'} className="ml-2">

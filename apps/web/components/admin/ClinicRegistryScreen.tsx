@@ -345,7 +345,6 @@ export function ClinicRegistryScreen() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="System administration"
         title="Clinics"
         description="Manage clinic records, location metadata, and availability."
         helpTitle="What you manage here"

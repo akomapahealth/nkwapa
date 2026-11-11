@@ -146,7 +146,6 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Clinic controls"
         title="Clinic settings"
         description="Set research and approval rules."
         helpTitle="How these settings affect the clinic"

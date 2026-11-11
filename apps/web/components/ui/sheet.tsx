@@ -7,8 +7,12 @@ import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useSheetDrag } from './use-sheet-drag';
+import { useOverlayInput } from './use-overlay-input';
 
-const Sheet = SheetPrimitive.Root;
+function Sheet(props: React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root>) {
+  useOverlayInput();
+  return <SheetPrimitive.Root {...props} />;
+}
 
 const SheetTrigger = SheetPrimitive.Trigger;
 
@@ -22,7 +26,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-50 bg-black/80 duration-fast ease-out-strong  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'modal-motion fixed inset-0 z-50 bg-black/80 ease-out-strong data-[state=open]:duration-sheet data-[state=closed]:duration-sheet-exit data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className,
     )}
     {...props}
@@ -32,7 +36,10 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  'safe-edges-x fixed z-50 max-w-full gap-4 bg-background p-6 shadow-lg transition-transform duration-base ease-out-strong data-[state=closed]:duration-base data-[state=open]:duration-base data-[state=open]:animate-in data-[state=closed]:animate-out',
+  // 240ms in, 190ms out on the drawer curve (MASTER 9.1 rule 3); the scrim keeps the same clock.
+  // Keep transition-transform: without it the handle drag stops tracking in Chromium (sheet-drag
+  // spec, R7.1). Not root-caused; nothing transitions transform here, the keyframes own it.
+  'modal-motion safe-edges-x fixed z-50 max-w-full gap-4 bg-background p-6 shadow-lg transition-transform ease-drawer data-[state=open]:duration-sheet data-[state=closed]:duration-sheet-exit data-[state=open]:animate-in data-[state=closed]:animate-out',
   {
     variants: {
       side: {

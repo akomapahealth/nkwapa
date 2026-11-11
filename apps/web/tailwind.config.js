@@ -55,6 +55,8 @@ module.exports = {
         base: 'var(--duration-base)',
         exit: 'var(--duration-exit)',
         'fast-exit': 'var(--duration-fast-exit)',
+        sheet: 'var(--duration-sheet)',
+        'sheet-exit': 'var(--duration-sheet-exit)',
       },
       keyframes: {
         // Landing hero entrance. CSS rather than GSAP so it plays on first paint, before hydration.

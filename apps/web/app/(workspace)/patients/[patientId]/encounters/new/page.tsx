@@ -189,7 +189,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         </Link>
         <div className={styles.identityRow}>
           <div className={styles.identity}>
-            <p className="text-eyebrow text-muted-foreground">New visit</p>
+            <p className="text-sm text-muted-foreground">New visit</p>
             <h1 className="mt-1 type-page-title">
               {patient.firstName} {patient.lastName}
             </h1>

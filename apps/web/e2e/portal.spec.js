@@ -28,12 +28,6 @@ const PORTAL_ROUTES = [
   { path: '/portal/self-reports/new', heading: /measurement details/i },
 ];
 
-async function waitForPageEntrance(page) {
-  // The workspace template fades in over 150ms. Axe otherwise measures text through a partially
-  // transparent ancestor and reports transient contrast instead of the settled page colours.
-  await expect(page.locator('.animate-page-in')).toHaveCSS('opacity', '1');
-}
-
 /** Staff surfaces a patient must never be shown the contents of. */
 const STAFF_ROUTES = [
   '/dashboard',
@@ -116,7 +110,6 @@ test('the portal has no automatically detectable accessibility violations', asyn
   for (const route of PORTAL_ROUTES) {
     await page.goto(route.path);
     await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
-    await waitForPageEntrance(page);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
@@ -172,7 +165,6 @@ for (const theme of ['light', 'dark']) {
     await expect(
       page.getByRole('heading', { name: 'Measurement details', exact: true }),
     ).toBeVisible();
-    await waitForPageEntrance(page);
     // Keep normal motion: a scan must not rely on suppressing the transition that exposed this.
     for (const choice of [
       /Glucose.*Share fasting/,
@@ -218,7 +210,6 @@ test.describe('clinic notes on rejected requests', () => {
       await page.addInitScript((value) => localStorage.setItem('nkwapa-theme', value), theme);
       await page.goto('/portal/appointments');
       await expect(page.getByText(reason, { exact: true }).first()).toBeVisible();
-      await waitForPageEntrance(page);
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();

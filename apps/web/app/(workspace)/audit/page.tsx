@@ -169,7 +169,6 @@ export default function AuditPage() {
     <RouteGuard requiredPermission="AUDIT.READ">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Governance"
           title="Audit log"
           description="Trace clinic activity and changes."
           helpTitle="How to investigate activity"

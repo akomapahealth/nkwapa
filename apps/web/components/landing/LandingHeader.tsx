@@ -94,7 +94,7 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="w-[min(22rem,90vw)] overflow-y-auto border-l border-rule px-6 pb-8 pt-6 data-[state=open]:duration-200 data-[state=closed]:duration-150 [&>button]:flex [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:items-center [&>button]:justify-center"
+              className="w-[min(22rem,90vw)] overflow-y-auto border-l border-rule px-6 pb-8 pt-6 [&>button]:flex [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:items-center [&>button]:justify-center"
               aria-describedby={undefined}
               onCloseAutoFocus={(event) => {
                 if (!pendingHash.current) return;

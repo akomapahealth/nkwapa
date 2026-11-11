@@ -40,7 +40,6 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Your account"
         title="Your settings"
         description="How Nkwapa looks and works for you on this device."
       />

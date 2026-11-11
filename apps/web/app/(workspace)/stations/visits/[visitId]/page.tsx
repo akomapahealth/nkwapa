@@ -245,7 +245,7 @@ export default function StationVisitPage() {
         ) : (
           <>
             <AppPageHeader
-              eyebrow={visit.station.name}
+              context={visit.station.name}
               title={patientName(visit.patient)}
               description={`${visit.patient.patientCode}${visit.patient.dob ? ` · born ${visit.patient.dob}` : ''} · checked in ${formatOpsDateTime(visit.checkedInAt, timezone)}`}
               actions={

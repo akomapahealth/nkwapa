@@ -112,7 +112,6 @@ export function DataRequestsScreen() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Patient rights"
         title="Data requests"
         description={
           rows ? `${openCount} open. Each must be answered within 30 days of receipt.` : undefined

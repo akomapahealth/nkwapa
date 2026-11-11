@@ -50,7 +50,6 @@ export default function AccountPage() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Your account"
         title="Profile"
         description="How you appear to colleagues, and how Nkwapa reaches you."
         actions={

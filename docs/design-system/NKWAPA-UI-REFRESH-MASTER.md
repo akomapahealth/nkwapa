@@ -237,6 +237,8 @@ These values are starting points and must accommodate text zoom, mobile width, a
 
 Apply tabular numerals to measurements, dates, times, and relevant numeric columns.
 
+**Page eyebrows retired (R7.1).** No uppercase tracked kicker above a page or section title ("CLINIC SNAPSHOT", "OVERSIGHT", "SECURE SIGN IN"): the title carries its own weight and the navigation already says where you are. Where the line above a title states a fact the title cannot carry (the station a visit is at, the active clinic, "Step 2 of 3", "Encounter" above a patient's name), it stays as a sentence-case `text-sm` muted line (`AppPageHeader` `context`). `.text-eyebrow` remains for field labels, legends, table headers and status-screen badges, which label content rather than introduce it.
+
 ## 4.5 Spacing and geometry
 
 Use a coherent spacing scale rather than independent values for every page.
@@ -854,6 +856,8 @@ The full mapping, with where each principle applies in Nkwapa and its exact valu
 8. Arcs only for objects moving freely across the screen. Reuse the same element across layouts (shared layout animation) rather than removing and re-adding it.
 9. A success pulse confirms only what actually happened: a local save says it is on this device and waiting to sync.
 10. Added in R0: never animate clinical numbers; nothing animates on actions repeated many times a day; transitions stay interruptible; transform and opacity only; hover effects only on devices that hover; tooltips skip their delay once one is open.
+
+**R7.1 motion review decisions.** Workspace route changes no longer fade in (the 150 ms page fade ran on every navigation, blanked the new page instead of overlapping it, and made axe read half-transparent text). Dialogs open at 200 ms and close at 160 ms with fade and `scale(.95)` from the centre, centred by margin so nothing drifts; sheets open at 240 ms and close at 190 ms on `--ease-drawer`, with the scrim on the same clock. Dialogs and sheets opened or closed from the keyboard are instant, as menus and Selects already were; with reduced motion they fade only. The landing scroll cue's heartbeat runs three times and rests. The full inventory is in `ui-refresh/R7.1-REVIEW.md`.
 
 # 10. Accessibility and Clinical Usability
 

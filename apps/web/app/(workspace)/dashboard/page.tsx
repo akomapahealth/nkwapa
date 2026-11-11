@@ -279,7 +279,6 @@ export default function DashboardPage() {
           <VolunteerWelcome actions={refreshAction} />
         ) : (
           <AppPageHeader
-            eyebrow="Clinic snapshot"
             title={activeClinic?.clinicName ?? 'Dashboard'}
             description="Current clinic totals and next work."
             // Was a persistent ProgressiveHelp card under the page title. It is generic orientation

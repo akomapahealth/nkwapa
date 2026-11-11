@@ -3,8 +3,12 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
+import { useOverlayInput } from './use-overlay-input';
 
-const Dialog = DialogPrimitive.Root;
+function Dialog(props: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root>) {
+  useOverlayInput();
+  return <DialogPrimitive.Root {...props} />;
+}
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
@@ -16,7 +20,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/80 duration-fast ease-out-strong data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'modal-motion fixed inset-0 z-50 bg-black/80 ease-out-strong data-[state=open]:duration-fast data-[state=closed]:duration-fast-exit data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className,
     )}
     {...props}
@@ -36,7 +40,10 @@ const DialogContent = React.forwardRef<
         // A dialog must fit the screen it opens on. The default was a fixed max width with no
         // height bound and no scrolling, so a long clinical form ran off a 375 pixel viewport with
         // its actions unreachable. Every panel had been working around this with its own override.
-        'fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-6 duration-base ease-out-strong data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
+        // Centred by margin, not a translate, so the enter keyframe owns transform: the old
+        // shadcn slide offsets (48% against 50%) made every dialog drift 2% as it opened.
+        // Durations sit on the state variants: a plain duration-* loses to the variant animate-in.
+        'modal-motion fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-6 ease-out-strong data-[state=open]:duration-base data-[state=closed]:duration-exit data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
         className,
       )}
       {...props}

@@ -664,7 +664,6 @@ export default function StaffAppointmentsPage() {
     <RouteGuard requiredPermission="APPOINTMENT.READ">
       <div className="space-y-8">
         <AppPageHeader
-          eyebrow="Appointment schedule"
           title="Appointments"
           description="Requests from patients come first, then the schedule by day or week."
           hint={
@@ -701,7 +700,7 @@ export default function StaffAppointmentsPage() {
         <RecordSection aria-labelledby="appointment-range-title">
           <RecordSectionHeader className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-1.5">
-              <p className="text-eyebrow text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {viewMode === 'day' ? 'Day schedule' : 'Week schedule'}
               </p>
               <RecordSectionTitle id="appointment-range-title">{rangeLabel}</RecordSectionTitle>

@@ -372,7 +372,6 @@ export default function RemindersPage() {
     <RouteGuard requiredPermission="REMINDER.READ">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Oversight"
           title="Message delivery"
           description={
             seesStaffNotices

@@ -256,7 +256,6 @@ function EditPatientForm() {
       </Button>
 
       <AppPageHeader
-        eyebrow="Clinic chart maintenance"
         title={`Edit Patient ${patient.patientCode}`}
         description="Update the current chart without changing protected identity history."
         helpTitle="How patient edits work"

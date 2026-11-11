@@ -256,3 +256,68 @@ for (const side of ['bottom', 'right']) {
     );
   });
 }
+
+// R7.1: 240ms in and 190ms out on the drawer curve from a pointer; reduced motion fades only;
+// keyboard opens and closes do not wait for an animation.
+async function sampleSheet(sheet, milliseconds) {
+  return sheet.evaluate((el, milliseconds) => {
+    const animations = el.getAnimations();
+    animations.forEach((animation) => {
+      animation.pause();
+      animation.currentTime = milliseconds;
+    });
+    const style = getComputedStyle(el);
+    const result = {
+      duration: style.animationDuration,
+      easing: style.animationTimingFunction,
+      opacity: Number(style.opacity),
+      transform: style.transform,
+    };
+    animations.forEach((animation) => animation.finish());
+    return result;
+  }, milliseconds);
+}
+
+for (const reduced of [false, true]) {
+  test(`sheet timing from a pointer${reduced ? ', fade only with reduced motion' : ''}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+    await mount(page);
+    await page.getByRole('button', { name: 'Open bottom', exact: true }).click();
+    const sheet = page.getByRole('dialog');
+    const enter = await sampleSheet(sheet, 100);
+    expect(enter.duration).toBe(reduced ? '0.2s' : '0.24s');
+    if (reduced) {
+      // The keyframe still runs, with every translate and scale variable at rest.
+      expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(enter.transform);
+      expect(enter.opacity).toBeGreaterThan(0);
+      expect(enter.opacity).toBeLessThan(1);
+    } else {
+      expect(enter.easing).toBe('cubic-bezier(0.32, 0.72, 0, 1)');
+      expect(enter.transform).not.toBe('none');
+    }
+    // Slow the clock so a 190ms exit cannot finish before it is sampled.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Animation.enable');
+    await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
+    await page.mouse.click(200, 40);
+    const closing = page.locator('[role="dialog"][data-state="closed"]');
+    const exit = await sampleSheet(closing, 60);
+    expect(exit.duration).toBe(reduced ? '0.16s' : '0.19s');
+    await expect(sheet).toBeHidden();
+  });
+}
+
+test('keyboard opens and closes a sheet without waiting', async ({ page }) => {
+  await mount(page);
+  const trigger = page.getByRole('button', { name: 'Open bottom', exact: true });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const sheet = page.getByRole('dialog');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveCSS('animation-duration', '1e-05s');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+  await expect(trigger).toBeFocused();
+});

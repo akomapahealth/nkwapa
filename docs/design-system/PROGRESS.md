@@ -1248,3 +1248,20 @@ Focused Chromium over 7 public and auth specs **91/91**. Six-role audit **228 ro
 0 overflow; touch pass found only inline links and the hidden skip link. Details in
 `ui-refresh/R6.1-REVIEW.md`. **R6 is complete.** Local commit only; no push. Next is
 `ui-refresh/HANDOFF-R7.1.md`.
+
+## R7.1 Motion review (2026-11-11)
+
+Every animation in the workspace, portal and public pages was inventoried by how often a person
+sees it (table in `ui-refresh/R7.1-REVIEW.md`). The workspace route fade is gone: it ran on every
+navigation and blanked the new page. Dialogs and sheets had been running Tailwind's 150 ms default
+because a plain `duration-*` loses to the variant `animate-in`; they now run 200/160 and 240/190 on
+the drawer curve, dialogs no longer drift 2% while opening, keyboard opens and closes are instant
+(as menus already were), and reduced motion fades them instead of cutting. The landing scroll cue
+pulses three times and rests. Page eyebrows are retired (MASTER section 4.4): decorative kickers
+removed from 20 page headers and sign-in, factual context kept as a sentence-case line.
+
+**Validation:** four audit-flag builds, TypeScript, changed-file lint/format pass; detector clean.
+New sheet timing, reduced-motion and keyboard tests. Focused Chromium over 14 specs 131/132 then
+fixed; overlay specs green after; `sheet-drag` 36/36 twice. Six-role audit **228 rows, 0
+violations, 0 overflow, 0 errors**. Local commit only; no push. Next is
+`ui-refresh/HANDOFF-R7.2.md`.

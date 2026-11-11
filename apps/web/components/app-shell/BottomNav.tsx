@@ -84,7 +84,7 @@ export function BottomNav({
           {indicatorIndex >= 0 && (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute -top-px left-0 h-0.5 bg-primary transition-transform duration-base ease-in-out"
+              className="pointer-events-none absolute -top-px left-0 h-0.5 bg-primary transition-transform duration-base ease-in-out-strong"
               style={{
                 width: `${100 / (primary.length + 1)}%`,
                 transform: `translateX(${indicatorIndex * 100}%)`,

@@ -50,7 +50,6 @@ function MetricsContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Oversight"
         title="Metrics"
         description="How often key workflows run at this clinic, how they end, and why they fail."
         helpTitle="What these numbers are"

@@ -313,7 +313,6 @@ export function DuplicateReviewScreen() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Patient identity"
         title="Duplicate review"
         description="Charts that look like the same person, ranked by how strong the match is. Nothing here changes a record."
         actions={

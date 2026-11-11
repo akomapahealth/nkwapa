@@ -994,7 +994,6 @@ export default function AdminUsersPage() {
     <RouteGuard requiredPermission="CLINIC.MANAGE">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Access lifecycle"
           title="Staff & Access"
           description="Manage clinic access and roster status."
           helpTitle="How access changes work"
