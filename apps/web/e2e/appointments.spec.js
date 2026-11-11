@@ -97,9 +97,45 @@ test.describe('patient request triage', () => {
 
     await page.getByRole('button', { name: 'Decline request' }).click();
     await expect(page.getByRole('alert')).toContainText(/reason/i);
+    // R7.3: focus goes to the field the message names, not back to the button.
+    await expect(page.getByLabel('Reason', { exact: true })).toBeFocused();
+    await expect(page.getByLabel('Reason', { exact: true })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
 
     await page.getByRole('button', { name: 'Keep waiting' }).click();
     await expect(row).toBeVisible();
+    // A controlled dialog opened from a plain button returns focus to it (useReturnFocus).
+    await expect(row.getByRole('button', { name: 'Decline', exact: true })).toBeFocused();
+    const cleanup = await apiRequestAs(
+      'staff',
+      'post',
+      `/clinics/${request.clinicId}/appointment-requests/${request.id}/reject`,
+      { clinicId: request.clinicId, data: { reason: 'E2E fixture finished' } },
+    );
+    expect(cleanup.ok(), cleanup.text()).toBeTruthy();
+  });
+
+  test('confirming with an end before the start focuses the end time', async ({ page }) => {
+    const request = await createTriageRequest();
+    await page.goto('/appointments');
+    const row = page
+      .getByRole('listitem')
+      .filter({ has: page.getByText(request.reason, { exact: true }) });
+    const confirm = row.getByRole('button', { name: 'Confirm request', exact: true });
+    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    await confirm.click();
+    await expect(page.getByRole('heading', { name: 'Confirm request' })).toBeVisible();
+
+    const start = await page.getByLabel('Start time').inputValue();
+    await page.getByLabel('End time').fill(start);
+    await page.getByRole('button', { name: 'Book appointment' }).click();
+    await expect(page.getByRole('alert')).toContainText(/after start time/i);
+    await expect(page.getByLabel('End time')).toBeFocused();
+
+    await page.getByRole('button', { name: 'Keep waiting' }).click();
+    await expect(confirm).toBeFocused();
     const cleanup = await apiRequestAs(
       'staff',
       'post',
@@ -166,6 +202,7 @@ test.describe('lifecycle actions', () => {
     await page.getByLabel('End time').fill(start);
     await page.getByRole('button', { name: 'Reschedule', exact: true }).last().click();
     await expect(page.getByRole('alert')).toContainText(/after start time/i);
+    await expect(page.getByLabel('End time')).toBeFocused();
 
     await page.getByRole('button', { name: 'Keep appointment' }).click();
   });
@@ -181,6 +218,7 @@ test.describe('lifecycle actions', () => {
     await expect(page.getByRole('heading', { name: 'Cancel' })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).last().click();
     await expect(page.getByRole('alert')).toContainText(/cancellation reason/i);
+    await expect(page.getByLabel('Cancellation reason')).toBeFocused();
 
     await page.getByRole('button', { name: 'Keep appointment' }).click();
   });

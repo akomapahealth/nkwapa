@@ -549,11 +549,7 @@ export function VitalsForm({
 
   if (!canEdit) return <ReadOnlyMeasurements vitals={initialData} tobacco={initialTobaccoData} />;
 
-  const numberField = (
-    id: VitalsTextField,
-    label: string,
-    options?: { step?: string; placeholder?: string },
-  ) => (
+  const numberField = (id: VitalsTextField, label: string, options?: { step?: string }) => (
     <div className="flex min-w-0 flex-col gap-2">
       <Label htmlFor={id}>{label}</Label>
       <Input
@@ -561,7 +557,6 @@ export function VitalsForm({
         type="number"
         inputMode="decimal"
         step={options?.step}
-        placeholder={options?.placeholder}
         value={vitals[id]}
         onChange={(event) => updateVital(id, event.target.value)}
         className="h-11"
@@ -618,8 +613,8 @@ export function VitalsForm({
                 description="Record the reading and measurement context together."
               />
               <div className={styles.pressure}>
-                {numberField('systolicBp', 'Systolic BP (mmHg)', { placeholder: '120' })}
-                {numberField('diastolicBp', 'Diastolic BP (mmHg)', { placeholder: '80' })}
+                {numberField('systolicBp', 'Systolic BP (mmHg)')}
+                {numberField('diastolicBp', 'Diastolic BP (mmHg)')}
               </div>
               <BloodPressureSignal
                 systolic={vitals.systolicBp}
@@ -711,9 +706,9 @@ export function VitalsForm({
                 description="Capture pulse, breathing, oxygen saturation, and temperature."
               />
               <div className={styles.fields}>
-                {numberField('pulseBpm', 'Pulse (bpm)', { placeholder: '72' })}
-                {numberField('respiratoryRate', 'Respiratory rate (/min)', { placeholder: '16' })}
-                {numberField('spo2Percent', 'SpO₂ (%)', { placeholder: '98' })}
+                {numberField('pulseBpm', 'Pulse (bpm)')}
+                {numberField('respiratoryRate', 'Respiratory rate (/min)')}
+                {numberField('spo2Percent', 'SpO₂ (%)')}
                 <div className="flex min-w-0 flex-col gap-2">
                   <Label htmlFor="temperatureValue">
                     Temperature ({vitals.temperatureUnit === 'CELSIUS' ? '°C' : '°F'})
@@ -792,7 +787,6 @@ export function VitalsForm({
               <div className={styles.fields}>
                 {numberField('weight', `Weight (${weightUnitLabel(vitals.bodyUnit)})`, {
                   step: '0.1',
-                  placeholder: vitals.bodyUnit === 'US' ? '154' : '70',
                 })}
                 {vitals.bodyUnit === 'US' ? (
                   <fieldset className="space-y-2">
@@ -803,7 +797,8 @@ export function VitalsForm({
                         aria-label="Height, feet"
                         type="number"
                         inputMode="numeric"
-                        placeholder="5"
+                        // Unit names, not example values: example numbers read as recorded data.
+                        placeholder="ft"
                         value={vitals.heightFeet}
                         onChange={(event) => updateVital('heightFeet', event.target.value)}
                         className="h-11 min-w-0"
@@ -814,7 +809,7 @@ export function VitalsForm({
                         type="number"
                         inputMode="decimal"
                         step="0.1"
-                        placeholder="7"
+                        placeholder="in"
                         value={vitals.heightInches}
                         onChange={(event) => updateVital('heightInches', event.target.value)}
                         className="h-11 min-w-0"
@@ -824,7 +819,7 @@ export function VitalsForm({
                     <FieldError id="height" message={errors.height} />
                   </fieldset>
                 ) : (
-                  numberField('height', 'Height (cm)', { step: '0.1', placeholder: '170' })
+                  numberField('height', 'Height (cm)', { step: '0.1' })
                 )}
                 <div className="flex min-w-0 flex-col gap-2">
                   <Label>BMI (kg/m²)</Label>

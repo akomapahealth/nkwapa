@@ -34,8 +34,9 @@ Load `impeccable` (context, adapt, polish, detector), `accessibility`, and `emil
 
 - Pre-existing spec failures, reproduced on HEAD in R7.3: `patient-redesign` expects a 44px tab
   (the R3.8 token is 40px on a mouse), and `vitals` cannot find the BMI text `24.2`.
-- Vitals example placeholders can read as recorded values (R7.3 P3); copy is not ours to change
-  without the owner.
+- Cross-browser (R7.3 follow-up): Playwright Firefox passes every R7.3 behaviour; its
+  `sheet-drag` and paused-frame reversal checks are Chromium-specific. Playwright WebKit cannot sign
+  in against local http Keycloak, so real Safari needs staging (HTTPS) or a device.
 - Transient sync states, backend Crisis acknowledgement (`TASK-crisis-acknowledgement.md`), the
   Sunday appointment lifecycle, Safari/Firefox, screen readers, real devices.
 - The portal's "Next appointment" did not show an appointment inserted directly into a throwaway
