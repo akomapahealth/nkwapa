@@ -198,7 +198,6 @@ function SelectField({
       >
         <SelectTrigger
           id={id}
-          className="h-11"
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
         >

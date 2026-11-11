@@ -244,7 +244,7 @@ export function AppointmentRequestsPanel({
         <Button
           type="button"
           variant="outline"
-          className="h-11 shrink-0 cursor-pointer"
+          className="shrink-0 cursor-pointer"
           onClick={() => void load({ background: true })}
           disabled={loading || refreshing}
         >
@@ -311,7 +311,7 @@ export function AppointmentRequestsPanel({
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button
                           type="button"
-                          className="h-11 cursor-pointer"
+                          className="cursor-pointer"
                           onClick={() => openDialog('confirm', request)}
                         >
                           <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
@@ -320,7 +320,7 @@ export function AppointmentRequestsPanel({
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-11 cursor-pointer text-destructive hover:text-destructive"
+                          className="cursor-pointer text-destructive hover:text-destructive"
                           onClick={() => openDialog('reject', request)}
                         >
                           <XCircle className="h-4 w-4" aria-hidden="true" />
@@ -476,7 +476,7 @@ export function AppointmentRequestsPanel({
             <Button
               type="button"
               variant="outline"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={closeDialog}
               disabled={submitting}
             >
@@ -484,7 +484,7 @@ export function AppointmentRequestsPanel({
             </Button>
             <Button
               type="button"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={() => void submit()}
               disabled={submitting}
             >

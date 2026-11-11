@@ -190,7 +190,7 @@ export function NeedsYouNow({
               {...row}
               action={
                 href ? (
-                  <Button asChild variant="outline" className="min-h-11">
+                  <Button asChild variant="outline">
                     <Link href={href}>{label}</Link>
                   </Button>
                 ) : undefined

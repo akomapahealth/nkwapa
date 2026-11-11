@@ -12,6 +12,8 @@ import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppStat
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
+import styles from '@/components/encounters/encounter-workspace.module.css';
 import {
   RecordSection,
   RecordSectionContent,
@@ -180,30 +182,36 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" asChild>
-          <Link href={patientHref}>
-            <ArrowLeft className="h-4 w-4" />
-            Back to Patient
-          </Link>
-        </Button>
-        <span className="text-sm text-muted-foreground">
-          Step {step + 1} of {STEPS.length}
-        </span>
-      </div>
+      <header className={styles.header}>
+        <Link className={styles.back} href={patientHref}>
+          <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Back to Patient
+        </Link>
+        <div className={styles.identityRow}>
+          <div className={styles.identity}>
+            <p className="text-eyebrow text-muted-foreground">New visit</p>
+            <h1 className="mt-1 type-page-title">
+              {patient.firstName} {patient.lastName}
+            </h1>
+            <div className={styles.metadata}>
+              <span className="font-mono tabular-nums" translate="no">
+                {patient.patientCode}
+              </span>
+              <span className="tabular-nums">
+                Step {step + 1} of {STEPS.length}
+              </span>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <ol aria-label="Visit steps" className="grid grid-cols-5 gap-2 border-t-2 border-rule-strong">
+      <ol aria-label="Visit steps" className={styles.wizardSteps}>
         {STEPS.map((s, i) => (
           <li
             key={s}
+            data-state={i < step ? 'done' : i === step ? 'current' : 'next'}
             aria-current={i === step ? 'step' : undefined}
-            className={`truncate border-t-2 pt-2 text-xs sm:text-sm ${
-              i === step
-                ? 'border-primary font-semibold text-foreground'
-                : i < step
-                  ? 'border-primary/40 text-muted-foreground'
-                  : 'border-transparent text-muted-foreground'
-            }`}
+            className={styles.step}
           >
             {STEP_LABELS[s]}
           </li>
@@ -218,13 +226,13 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
             <RecordSectionTitle id="new-visit-confirm">Confirm Patient</RecordSectionTitle>
           </RecordSectionHeader>
           <RecordSectionContent>
-            <p className="font-heading text-2xl">
-              {patient.firstName} {patient.lastName}
+            <p className="text-muted-foreground">
+              Check that the name and patient code above match the person in front of you before you
+              record anything.
             </p>
-            <p className="font-mono text-sm text-muted-foreground">{patient.patientCode}</p>
-            <Button className="mt-4" onClick={() => setStep(1)}>
-              Continue to Vitals
-            </Button>
+            <FormActions className="mt-4">
+              <Button onClick={() => setStep(1)}>Continue to Vitals</Button>
+            </FormActions>
           </RecordSectionContent>
         </RecordSection>
       )}
@@ -309,20 +317,22 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
               Review the data in each section. You can go back to edit. When ready, submit for
               clinical review.
             </p>
-            <div className="flex gap-2">
+            <FormActions split>
               <Button variant="outline" onClick={() => setStep(3)}>
                 Back to Diabetes
               </Button>
               <Button onClick={handleSubmitForReview} disabled={submitting}>
                 {submitting ? 'Submitting…' : 'Submit for Clinical Review'}
               </Button>
-            </div>
+            </FormActions>
           </RecordSectionContent>
         </RecordSection>
       )}
 
+      {/* Its own row under the step's save row, at the start edge: the wizard's split layout. */}
       {!isLastStep && currentStep !== 'confirm' && currentStep !== 'review' && (
         <Button variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))}>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back
         </Button>
       )}

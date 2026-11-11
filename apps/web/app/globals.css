@@ -203,6 +203,24 @@
       ground while still reading as yellow. Every chart that uses it therefore names its series in
       a legend and labels the marks directly, so colour is never the only channel.
     */
+    /*
+      Control heights, MASTER section 8. Touch keeps the 44px floor; a mouse or trackpad does not
+      need it, and on the shared clinic laptops 44px controls read as oversized. Icon and small
+      buttons keep a 44px hit area through a pseudo-element on fine pointers too.
+    */
+    --button-height: 2.75rem;
+    --button-height-sm: 2.75rem;
+    --button-height-lg: 3rem;
+    --field-height: 2.75rem;
+  }
+
+  @media (pointer: fine) {
+    :root {
+      --button-height: 2.25rem;
+      --button-height-sm: 2rem;
+      --button-height-lg: 2.5rem;
+      --field-height: 2.5rem;
+    }
   }
 
   .dark {

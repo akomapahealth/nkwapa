@@ -1101,3 +1101,20 @@ limits remain. Overall risk scoring, backend Crisis acknowledgement and Sunday
 appointment lifecycle work remain separate. The owner's `HANDOFF-R3.1.md` edit
 is preserved. R3.8 handoff includes the new signal contract. Local commit only;
 no push.
+
+## R3.8 Encounters and pointer-aware controls (2026-11-10)
+
+Encounter detail and the new-visit wizard now share a back link, an `h1`
+identity line and a ruled review route; stage actions sit on the right, and
+prescriptions follow the clinical tabs. Owner decisions the same day: controls
+are 36px (buttons) and 40px (fields) on a mouse and 44px under touch, controls
+use a 4px radius, and forms end in the new `FormActions` row (right-aligned,
+primary last). The encounter forms adopted it; other screens adopt it in their
+own unit. Rules are in MASTER section 8 and PRODUCT.md.
+
+**Validation:** build, TypeScript, lint, format and detector pass; related Jest
+5 suites / 11 tests. Focused Chromium first pass 139/168 (26 outdated
+size assertions, 2 real defects fixed, 1 pre-existing portal-shell failure that
+also fails on baseline); final re-run 37/37. Six-role audit 12/12, 228 rows, 0
+violations, 0 overflow. Details and limits in `ui-refresh/R3.8-REVIEW.md`. R3 is
+complete; next is `ui-refresh/HANDOFF-R4.1.md`. Local commit only; no push.

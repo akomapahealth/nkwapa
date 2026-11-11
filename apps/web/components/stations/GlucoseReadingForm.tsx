@@ -157,7 +157,7 @@ export function GlucoseReadingForm({
           <div className="space-y-2">
             <Label htmlFor="glucoseType">Timing</Label>
             <Select value={type} onValueChange={(next) => setType(next as GlucoseReadingType)}>
-              <SelectTrigger id="glucoseType" className="h-11">
+              <SelectTrigger id="glucoseType">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'relative inline-flex min-h-11 min-w-11 touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-[color,background-color,border-color,box-shadow,transform] duration-fast ease-out-strong active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'relative inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-semibold transition-[color,background-color,border-color,box-shadow,transform] duration-fast ease-out-strong active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -23,14 +23,17 @@ const buttonVariants = cva(
         ghost: 'hover:bg-muted',
         link: 'text-primary underline-offset-4 hover:underline',
       },
-      // 44 pixels is the minimum comfortable touch target, and these are used on phones in
-      // clinics. The default used to be 40, which is why panels were sprinkling on
-      // some buttons and not others.
+      // Heights come from the pointer-aware tokens in globals.css (MASTER section 8): 44px under
+      // touch, 36px (32px small) on a mouse. The min-height keeps the floor when a call site sets
+      // `h-auto` so a long label can wrap. Small and icon buttons are below 44px on a mouse, so
+      // a centred pseudo-element keeps their hit area at 44px. Small buttons are never narrower
+      // than 44px and extend only vertically, so the hit area cannot widen a row past its edge.
       size: {
-        default: 'h-11 px-4 py-2',
-        sm: 'h-11 rounded-md px-3 text-xs',
-        lg: 'h-12 rounded-md px-8',
-        icon: 'h-11 w-11',
+        default:
+          'h-[var(--button-height)] min-h-[var(--button-height)] min-w-[var(--button-height)] px-4 py-2',
+        sm: "h-[var(--button-height-sm)] min-h-[var(--button-height-sm)] min-w-11 px-3 text-xs [@media(pointer:fine)]:after:absolute [@media(pointer:fine)]:after:inset-x-0 [@media(pointer:fine)]:after:-inset-y-1.5 [@media(pointer:fine)]:after:content-['']",
+        lg: 'h-[var(--button-height-lg)] min-h-[var(--button-height-lg)] min-w-[var(--button-height-lg)] px-6',
+        icon: "h-[var(--button-height)] w-[var(--button-height)] min-w-[var(--button-height)] [@media(pointer:fine)]:after:absolute [@media(pointer:fine)]:after:-inset-1 [@media(pointer:fine)]:after:content-['']",
       },
     },
     defaultVariants: {

@@ -61,7 +61,7 @@
    to measurements; the shared Select and its portal/focus contracts stay intact. */
 .workspace button[role='combobox'] {
   height: auto;
-  min-height: 44px;
+  min-height: var(--field-height);
   white-space: normal;
   text-align: left;
 }
@@ -83,7 +83,7 @@
 
 .actions > button {
   height: auto;
-  min-height: 44px;
+  min-height: var(--button-height);
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;

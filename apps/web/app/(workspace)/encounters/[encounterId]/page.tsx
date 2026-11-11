@@ -8,7 +8,6 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -40,6 +39,7 @@ import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel
 import { HypertensionHistoryPanel } from '@/components/patients/HypertensionHistoryPanel';
 import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel';
 import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
+import styles from '@/components/encounters/encounter-workspace.module.css';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -280,53 +280,62 @@ export default function EncounterDetailPage() {
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
       <div className="min-w-0 space-y-6 [overflow-wrap:anywhere]">
-        <AppPageHeader
-          eyebrow="Encounter workspace"
-          title={
-            encounter.patient
-              ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
-              : 'Encounter Workspace'
-          }
-          description="Capture vitals, diabetes assessments, hypertension evaluation, and care plan decisions from a shared charting flow."
-          badges={
-            <>
-              {encounter.patient ? (
-                <Badge variant="outline" className="border-primary/25 bg-background/80 font-mono">
-                  {encounter.patient.patientCode}
+        <header className={styles.header}>
+          <Link
+            className={styles.back}
+            href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Back to Patient
+          </Link>
+          <div className={styles.identityRow}>
+            <div className={styles.identity}>
+              <p className="text-eyebrow text-muted-foreground">Encounter</p>
+              <h1 className="mt-1 type-page-title">
+                {encounter.patient
+                  ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
+                  : 'Encounter Workspace'}
+              </h1>
+              <div className={styles.metadata}>
+                {encounter.patient ? (
+                  <span className="font-mono tabular-nums" translate="no">
+                    {encounter.patient.patientCode}
+                  </span>
+                ) : null}
+                <Badge
+                  variant={
+                    isFinalized
+                      ? 'finalized'
+                      : encounter.status === 'IN_REVIEW'
+                        ? 'review'
+                        : 'draft'
+                  }
+                >
+                  {STAGES[stage]}
                 </Badge>
-              ) : null}
-              <Badge
-                variant={
-                  isFinalized ? 'finalized' : encounter.status === 'IN_REVIEW' ? 'review' : 'draft'
-                }
-              >
-                {STAGES[stage]}
-              </Badge>
-            </>
-          }
-          actions={
-            <>
-              <Button asChild variant="ghost">
-                <Link href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}>
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Patient
-                </Link>
-              </Button>
-              {canSubmit ? (
-                <Button size="sm" onClick={() => doTransition('submit')} disabled={transitioning}>
-                  Submit for Review
-                </Button>
-              ) : null}
-              {canReview ? (
-                <Button size="sm" onClick={() => doTransition('review')} disabled={transitioning}>
-                  Mark Reviewed
-                </Button>
-              ) : null}
-            </>
-          }
-        />
+                <span className="tabular-nums">
+                  Started {new Date(encounter.createdAt).toLocaleString()}
+                </span>
+              </div>
+            </div>
+            {canSubmit || canReview ? (
+              <div role="group" aria-label="Encounter actions" className={styles.actions}>
+                {canSubmit ? (
+                  <Button onClick={() => doTransition('submit')} disabled={transitioning}>
+                    Submit for Review
+                  </Button>
+                ) : null}
+                {canReview ? (
+                  <Button onClick={() => doTransition('review')} disabled={transitioning}>
+                    Mark Reviewed
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </header>
 
-        <EncounterProgress stage={stage} createdAt={encounter.createdAt} />
+        <EncounterProgress stage={stage} />
 
         {error ? (
           <InlineErrorState
@@ -337,11 +346,8 @@ export default function EncounterDetailPage() {
         ) : null}
 
         {canFinalize ? (
-          <section
-            aria-labelledby="encounter-signoff"
-            className="flex flex-col gap-3 border-y-2 border-warning py-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex items-start gap-3">
+          <section aria-labelledby="encounter-signoff" className={styles.signoff}>
+            <div className={styles.signoffText}>
               <ShieldCheck
                 className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink"
                 aria-hidden="true"
@@ -365,18 +371,6 @@ export default function EncounterDetailPage() {
               Finalize
             </Button>
           </section>
-        ) : null}
-
-        {canReadPrescriptions && clinicId ? (
-          <PrescriptionPanel
-            clinicId={clinicId}
-            patientId={encounter.patientId}
-            encounterId={encounterId}
-            userId={userId}
-            canWrite={canWritePrescriptions}
-            isFinalized={isFinalized}
-            showAllergySafety={medicalHistoryEnabled}
-          />
         ) : null}
 
         {clinicId && (
@@ -542,6 +536,19 @@ export default function EncounterDetailPage() {
           </Tabs>
         )}
 
+        {/* After the clinical tabs: prescribing follows the assessment it rests on. */}
+        {canReadPrescriptions && clinicId ? (
+          <PrescriptionPanel
+            clinicId={clinicId}
+            patientId={encounter.patientId}
+            encounterId={encounterId}
+            userId={userId}
+            canWrite={canWritePrescriptions}
+            isFinalized={isFinalized}
+            showAllergySafety={medicalHistoryEnabled}
+          />
+        ) : null}
+
         {isFinalized && (
           <div className="space-y-4">
             <InlineNotice tone="info">
@@ -592,32 +599,36 @@ export default function EncounterDetailPage() {
 }
 
 /** Where this visit is on the review path, in words; the current step is not colour alone. */
-function EncounterProgress({ stage, createdAt }: { stage: number; createdAt: string }) {
+function EncounterProgress({ stage }: { stage: number }) {
   return (
-    <section aria-label="Review progress" className="border-t-2 border-rule-strong pt-3">
-      <ol className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-        {STAGES.map((label, index) => (
-          <li
-            key={label}
-            aria-current={index === stage ? 'step' : undefined}
-            className={
-              index === stage
-                ? 'border-t-2 border-primary pt-2 text-sm font-semibold text-foreground'
-                : 'border-t-2 border-transparent pt-2 text-sm text-muted-foreground'
-            }
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {index < stage ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
-              {label}
-            </span>
-            <span className="block text-xs font-normal text-muted-foreground">
-              {index < stage ? 'Done' : index === stage ? 'Current' : 'Not yet'}
-            </span>
-          </li>
-        ))}
+    <section aria-label="Review progress">
+      <ol className={styles.progress}>
+        {STAGES.map((label, index) => {
+          const state = index < stage ? 'done' : index === stage ? 'current' : 'next';
+          return (
+            <li
+              key={label}
+              data-state={state}
+              aria-current={index === stage ? 'step' : undefined}
+              className={styles.step}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {index < stage ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
+                {label}
+              </span>
+              <span className={styles.stepState}>
+                {state === 'done' ? 'Done' : state === 'current' ? 'Current' : 'Not yet'}
+              </span>
+            </li>
+          );
+        })}
       </ol>
-      <p className="mt-3 text-xs text-muted-foreground tabular-nums">
-        Started {new Date(createdAt).toLocaleString()}
+      <p className={styles.progressSummary} aria-hidden="true">
+        <span className="font-semibold">{STAGES[stage]}</span>
+        <span className="text-muted-foreground">
+          {' '}
+          · step {stage + 1} of {STAGES.length}
+        </span>
       </p>
     </section>
   );

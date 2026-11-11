@@ -305,7 +305,7 @@ export default function StationVisitPage() {
                   type="button"
                   variant="link"
                   size="sm"
-                  className="min-h-11 px-2 text-info-ink"
+                  className="px-2 text-info-ink"
                   aria-label="Change who is screening"
                   aria-expanded={changingScreener}
                   onClick={() => setChangingScreener((open) => !open)}

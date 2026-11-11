@@ -69,7 +69,14 @@ for (const route of PORTAL_ROUTES) {
   });
 }
 
-test('portal controls are at least 44px at phone width', async ({ page }) => {
+// Patients use the portal on phones, which are touch devices: a mouse gets smaller controls.
+test('portal controls are at least 44px at phone width', async ({ browser }) => {
+  const context = await browser.newContext({
+    hasTouch: true,
+    storageState: storageStateFor('patient'),
+    baseURL: test.info().project.use.baseURL,
+  });
+  const page = await context.newPage();
   await page.setViewportSize({ width: 390, height: 844 });
   for (const route of PORTAL_ROUTES) {
     await page.goto(route.path);
@@ -89,6 +96,7 @@ test('portal controls are at least 44px at phone width', async ({ page }) => {
       );
     expect(undersized, route.path).toEqual([]);
   }
+  await context.close();
 });
 
 test('a patient is refused every staff surface', async ({ page }) => {

@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const bundleFixture = require('./component-fixtures/bundle.cjs');
 const { WIDTHS, overflow } = require('../playwright/responsive-routes');
+const { hitTarget } = require('../playwright/hit-target');
 let bundle;
 test.beforeAll(async () => {
   bundle = await bundleFixture({
@@ -109,7 +110,7 @@ for (const width of WIDTHS)
               el.style.height = '24px';
               el.style.width = '24px';
             });
-            const target = await action.boundingBox();
+            const target = await hitTarget(action);
             expect(target.height).toBeGreaterThanOrEqual(44);
             expect(target.width).toBeGreaterThanOrEqual(44);
             await action.evaluate((el) => {
@@ -118,7 +119,7 @@ for (const width of WIDTHS)
             });
           }
           const close = dialog.getByRole('button', { name: 'Close', exact: true });
-          const box = await close.boundingBox();
+          const box = await hitTarget(close);
           expect(box.width).toBeGreaterThanOrEqual(44);
           expect(box.height).toBeGreaterThanOrEqual(44);
         }

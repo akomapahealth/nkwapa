@@ -10,6 +10,7 @@ import {
 } from '@nkwapa/db';
 import { AlertTriangle, CalendarClock, CheckCircle2, CloudOff, Droplets } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -416,7 +417,7 @@ export function DiabetesScreeningForm({
           </InlineNotice>
         ) : null}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-5">
+        <FormActions split>
           <p className="text-sm text-muted-foreground">
             {canEdit
               ? 'Changes save locally first and sync automatically.'
@@ -427,7 +428,7 @@ export function DiabetesScreeningForm({
               {saving ? 'Saving…' : 'Save diabetes screening'}
             </Button>
           ) : null}
-        </div>
+        </FormActions>
       </CardContent>
     </Card>
   );

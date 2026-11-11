@@ -308,13 +308,13 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       */
       cell: ({ row }) => (
         <DataTableActions>
-          <Button asChild variant="outline" size="sm" className="min-h-11 w-20">
+          <Button asChild variant="outline" size="sm" className="w-20">
             <Link href={patientHref(row.original.id)}>View</Link>
           </Button>
           {canCreateOpsCheckIn ? (
             <Button
               size="sm"
-              className="min-h-11 w-24"
+              className="w-24"
               loading={checkIn.busyPatientId === row.original.id}
               disabled={checkIn.isBusy || !checkIn.canSubmit}
               onClick={() => void submitCheckIn(row.original)}
@@ -547,7 +547,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             <Button
               key={filter.label}
               variant="outline"
-              className="h-auto min-h-11 max-w-full gap-2 whitespace-normal py-2 text-left"
+              className="h-auto max-w-full gap-2 whitespace-normal py-2 text-left"
               aria-label={`Remove ${filter.label} filter`}
               onClick={filter.onRemove}
             >

@@ -60,7 +60,6 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
           <Button
             variant="ghost"
             size="icon"
-            className="min-h-11 min-w-11"
             aria-label={`Switch to ${nextTheme} mode`}
             onClick={() => setPreference(nextTheme)}
           >
@@ -89,12 +88,7 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="min-h-11 min-w-11 lg:hidden"
-                aria-label="Open menu"
-              >
+              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
                 <Menu className="h-5 w-5" aria-hidden />
               </Button>
             </SheetTrigger>

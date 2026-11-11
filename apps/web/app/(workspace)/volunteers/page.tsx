@@ -404,12 +404,7 @@ function VolunteersContent() {
               />
               <FieldError id="volunteer-email" message={errors.email} reserveSpace={submitted} />
               {existingId ? (
-                <Button
-                  type="button"
-                  variant="link"
-                  className="min-h-11 px-0"
-                  onClick={openExisting}
-                >
+                <Button type="button" variant="link" className="px-0" onClick={openExisting}>
                   Open existing
                 </Button>
               ) : null}

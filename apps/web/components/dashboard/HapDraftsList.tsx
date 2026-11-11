@@ -61,7 +61,7 @@ export function HapDraftRows({
             title={`${hapDraftPatientName(draft)} (${draft.patient.patientCode})`}
             detail={`Last saved ${formatOpsDateTime(draft.updatedAt, timezone)}`}
             action={
-              <Button asChild variant="outline" className="min-h-11">
+              <Button asChild variant="outline">
                 <Link href={`/encounters/${draft.encounterId}`}>Open visit</Link>
               </Button>
             }

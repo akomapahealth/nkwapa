@@ -128,7 +128,7 @@ function PendingActionRow({
       }
       action={
         action.encounterId ? (
-          <Button asChild variant="outline" className="min-h-11">
+          <Button asChild variant="outline">
             <Link href={buildEncounterHref(clinicId, action.encounterId)}>
               Open visit
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

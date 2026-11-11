@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const bundleFixture = require('./component-fixtures/bundle.cjs');
 const { storageStateFor } = require('../playwright/roles');
+const { hitTarget } = require('../playwright/hit-target');
 
 const WIDTHS = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
 const LABELS = {
@@ -33,8 +34,9 @@ async function inBounds(locator, width) {
   expect(box).not.toBeNull();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
-  expect(box.width).toBeGreaterThanOrEqual(44);
-  expect(box.height).toBeGreaterThanOrEqual(44);
+  const target = await hitTarget(locator);
+  expect(target.width).toBeGreaterThanOrEqual(44);
+  expect(target.height).toBeGreaterThanOrEqual(44);
 }
 
 test.describe('production header', () => {

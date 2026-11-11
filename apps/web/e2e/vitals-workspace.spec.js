@@ -6,6 +6,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
 const { apiRequestAs } = require('../playwright/api-client');
 const { overflow } = require('../playwright/responsive-routes');
+const { minButtonHeight } = require('../playwright/hit-target');
 
 test.use({ storageState: storageStateFor('staff') });
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
@@ -47,7 +48,7 @@ async function actionVisible(page, name) {
   const target = page.getByRole('button', { name, exact: true });
   await target.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
   await expect(target).toBeInViewport({ ratio: 1 });
-  expect((await target.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  expect((await target.boundingBox()).height).toBeGreaterThanOrEqual(await minButtonHeight(page));
   expect(
     await target.evaluate((el) => {
       const r = el.getBoundingClientRect();

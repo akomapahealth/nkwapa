@@ -274,7 +274,7 @@ function AppointmentActions({
           type="button"
           variant="outline"
           size="icon"
-          className="h-11 w-11 cursor-pointer rounded-full"
+          className="w-11 cursor-pointer rounded-full"
           disabled={disabled}
         >
           <MoreHorizontal className="h-4 w-4" />
@@ -676,7 +676,7 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={() => void loadSchedule({ background: true })}
               disabled={filtersBusy}
             >
@@ -715,7 +715,7 @@ export default function StaffAppointmentsPage() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-11 w-11 cursor-pointer"
+                className="w-11 cursor-pointer"
                 onClick={() => shiftRange(-1)}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -724,7 +724,7 @@ export default function StaffAppointmentsPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 cursor-pointer"
+                className="cursor-pointer"
                 onClick={() => setSelectedDate(getTodayInTimeZone())}
               >
                 Today
@@ -733,7 +733,7 @@ export default function StaffAppointmentsPage() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-11 w-11 cursor-pointer"
+                className="w-11 cursor-pointer"
                 onClick={() => shiftRange(1)}
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -1199,7 +1199,7 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={closeLifecycleDialog}
               disabled={lifecycleSubmitting}
             >
@@ -1208,7 +1208,7 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant={lifecycleDialog?.action === 'cancel' ? 'destructive' : 'default'}
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={() => void submitLifecycleAction()}
               disabled={lifecycleSubmitting}
             >

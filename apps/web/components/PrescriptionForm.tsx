@@ -7,6 +7,7 @@ import { mapServerFieldErrors, mayQueueAfterFailure } from '@/lib/prescription-s
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -458,9 +459,11 @@ export function PrescriptionForm({
       />
       {/* Only `saving` disables this. A control that refuses to work without saying why is
           worse than one that explains the problem when pressed. */}
-      <Button className="w-full sm:w-auto" onClick={handleSave} disabled={saving}>
-        {saving ? 'Saving…' : 'Add prescription'}
-      </Button>
+      <FormActions>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Add prescription'}
+        </Button>
+      </FormActions>
     </div>
   );
 }

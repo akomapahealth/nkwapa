@@ -3,6 +3,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
 const bundleFixture = require('./component-fixtures/bundle.cjs');
+const { hitTarget, minButtonHeight } = require('../playwright/hit-target');
 let bundle;
 test.beforeAll(async () => {
   bundle = await bundleFixture({ entry: 'DataTableSurfaces.tsx' });
@@ -144,8 +145,8 @@ for (const theme of ['light', 'dark']) {
     const headerAfter = await panel.locator('thead').boundingBox();
     expect(headerAfter.y).toBe(headerBefore.y);
     for (const box of await panel.getByRole('button').all()) {
-      const bounds = await box.boundingBox();
-      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      const bounds = await hitTarget(box);
+      expect(bounds.height).toBeGreaterThanOrEqual(await minButtonHeight(page));
     }
     await shot(page, `scroll-${theme}`);
   });

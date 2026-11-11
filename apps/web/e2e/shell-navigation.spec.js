@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { storageStateFor } = require('../playwright/roles');
+const { hitTarget } = require('../playwright/hit-target');
 
 /**
  * #266: the staff shell changed shape, not who can reach what.
@@ -261,7 +262,7 @@ for (const role of Object.keys(EXPECTED)) {
       for (const [label, href] of header) {
         const icon = banner.getByRole('link', { name: label, exact: true });
         await expect(icon).toHaveAttribute('href', href);
-        const box = await icon.boundingBox();
+        const box = await hitTarget(icon);
         expect(box.height).toBeGreaterThanOrEqual(44);
         expect(box.width).toBeGreaterThanOrEqual(44);
         // A ledger of outbound messages: nothing is unread, so the icon carries no badge.

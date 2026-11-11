@@ -391,7 +391,7 @@ export function DataTable<TData extends RowData>({
                   table.setPagination({ pageIndex: 0, pageSize: Number(value) })
                 }
               >
-                <SelectTrigger aria-label="Rows per page" className="h-11 w-[76px]">
+                <SelectTrigger aria-label="Rows per page" className="w-[76px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

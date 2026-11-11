@@ -58,6 +58,7 @@ import {
   shouldPromptRepeat,
 } from '@nkwapa/db';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Textarea } from '@/components/ui/textarea';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { FieldLabel, RequiredLegend, focusFirstInvalid } from '@/components/ui/field';
@@ -1027,9 +1028,11 @@ export function HypertensionInterviewForm({
       {saveMessage ? <InlineNotice tone="success">{saveMessage}</InlineNotice> : null}
 
       {canEdit ? (
-        <Button onClick={() => void handleSave().catch(() => undefined)} disabled={saving}>
-          {saving ? 'Saving…' : 'Save assessment'}
-        </Button>
+        <FormActions>
+          <Button onClick={() => void handleSave().catch(() => undefined)} disabled={saving}>
+            {saving ? 'Saving…' : 'Save assessment'}
+          </Button>
+        </FormActions>
       ) : (
         <p className="text-sm text-muted-foreground">This assessment is read-only.</p>
       )}

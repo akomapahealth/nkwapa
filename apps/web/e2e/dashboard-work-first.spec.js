@@ -24,7 +24,14 @@ async function expectWorkFirst(page) {
 test.describe('volunteer', () => {
   test.use({ storageState: storageStateFor('volunteer') });
 
-  test('sees their own work in the first screen on a phone', async ({ page }) => {
+  // A phone is a touch device; Desktop Chrome at 390px would still report a mouse pointer.
+  test('sees their own work in the first screen on a phone', async ({ browser }) => {
+    const context = await browser.newContext({
+      hasTouch: true,
+      storageState: storageStateFor('volunteer'),
+      baseURL: test.info().project.use.baseURL,
+    });
+    const page = await context.newPage();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/dashboard');
     const section = await needsSection(page);
@@ -39,6 +46,7 @@ test.describe('volunteer', () => {
     await expect(worklist).toBeInViewport();
     const box = await worklist.boundingBox();
     expect(box.height).toBeGreaterThanOrEqual(44);
+    await context.close();
   });
 
   test('can read each chart as a table and back', async ({ page }) => {

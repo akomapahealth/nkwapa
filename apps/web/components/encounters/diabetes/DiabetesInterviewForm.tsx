@@ -48,6 +48,7 @@ import {
   reviewReasonsForDiabetesEscalation,
 } from '@nkwapa/db';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
@@ -825,9 +826,11 @@ export function DiabetesInterviewForm({
       {saveMessage ? <InlineNotice tone="success">{saveMessage}</InlineNotice> : null}
 
       {canEdit ? (
-        <Button onClick={() => void handleSave().catch(() => undefined)} disabled={saving}>
-          {saving ? 'Saving…' : 'Save screening'}
-        </Button>
+        <FormActions>
+          <Button onClick={() => void handleSave().catch(() => undefined)} disabled={saving}>
+            {saving ? 'Saving…' : 'Save screening'}
+          </Button>
+        </FormActions>
       ) : (
         <p className="text-sm text-muted-foreground">This screening is read-only.</p>
       )}

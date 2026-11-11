@@ -372,12 +372,12 @@ Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:
 
 `--radius` is `0.5rem` (8px), so the scale is 4 / 6 / 8 / 12 (UI refresh R1.1, R0-AUDIT section 4).
 
-| Step | Value | Used for                             |
-| ---- | ----- | ------------------------------------ |
-| `sm` | 4px   | Badges, tags, chips, tooltips, focus |
-| `md` | 6px   | Buttons, inputs, selects             |
-| `lg` | 8px   | Panels, popovers, menus              |
-| `xl` | 12px  | The sheet, dialogs, side sheets      |
+| Step | Value | Used for                                                                  |
+| ---- | ----- | ------------------------------------------------------------------------- |
+| `sm` | 4px   | Buttons, inputs, selects, textareas, badges, tags, tooltips, focus (R3.8) |
+| `md` | 6px   | Tab tops, menu items                                                      |
+| `lg` | 8px   | Panels, popovers, menus                                                   |
+| `xl` | 12px  | The sheet, dialogs, side sheets                                           |
 
 All four steps are real Tailwind classes, derived from `--radius` in `tailwind.config.js`.
 
@@ -570,15 +570,20 @@ keyboard and tooltip scanning remain instant under that preference too.
 | -------------------------- | ------------------------------------------------------------------------------------------------- |
 | Table row height, desktop  | 44px                                                                                              |
 | Table row height, touch    | 52px                                                                                              |
-| Minimum interactive target | 44px                                                                                              |
-| Form control height, touch | 48px (`Input`, `SelectTrigger` under `pointer: coarse`)                                           |
+| Minimum interactive target | 44px under `pointer: coarse`; 44px hit area for small and icon buttons on a mouse                 |
+| Button height              | 44px touch, 36px mouse (`--button-height`); small 44 / 32; large 48 / 40 (R3.8)                   |
+| Form control height        | 44px touch, 40px mouse (`--field-height`: `Input`, `SelectTrigger`, `Combobox`) (R3.8)            |
 | Breakpoints                | 375 / 768 / 1024 / 1440 (audit widths); named screens `compact` 600, `tablet` 840, `desktop` 1200 |
 
 Both row heights are set by `DataTable` (`components/ui/data-table.tsx`, TanStack Table v9). Row actions are real buttons in a right-aligned final column, one primary at most, so they line up down the column. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
 
-The 44px floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
+**Pointer-aware sizing (R3.8, owner decision 2026-11-10).** Staff work mostly on shared laptops with a mouse, where 44px controls read as oversized. The height tokens in `globals.css` switch under `@media (pointer: fine)`; touch keeps 44px. Call sites never set `h-11`/`min-h-11` on `Button`, `Input` or `SelectTrigger`; that would pin 44px on a mouse. Use `h-auto` when a label must wrap; the variant's `min-height` keeps the floor. Playwright's Desktop Chrome reports `pointer: fine` even at 390px, so a phone-target assertion must run in a touch context (`devices['Pixel 7']` or `hasTouch`).
 
-**Buttons (R1.2).** Flat fills, semibold labels, 6px radius, no shadow. Primary hovers to `--primary-hover` (`#006A7A`, darker, 6.27:1 with white). `outline` and `secondary` are the same secondary action: white `--card` fill with the 3:1 `--input` boundary, hovering to `--muted` (R0-AUDIT A4). Gold is only the explicit `gold` variant. Destructive keeps `/95` on hover; `/90` falls to 4.51:1. Controls drop their shadow; placeholders stay `--muted-foreground` (5.99:1), not `--faint`.
+**Action placement (R3.8).** A form ends in `FormActions` (`components/ui/form-actions.tsx`): from 600px right-aligned, primary last, Cancel immediately before it; `split` pins the first child (a wizard's Back, or a status note) to the start edge. Phones stack full width with the primary on top; measured sticky rows (Vitals) keep the primary at the thumb. Dialog footers already follow the same order. Screens adopt it in their own unit.
+
+The 44px touch floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
+
+**Buttons (R1.2, radius R3.8).** Flat fills, semibold labels, 4px radius, no shadow. Primary hovers to `--primary-hover` (`#006A7A`, darker, 6.27:1 with white). `outline` and `secondary` are the same secondary action: white `--card` fill with the 3:1 `--input` boundary, hovering to `--muted` (R0-AUDIT A4). Gold is only the explicit `gold` variant. Destructive keeps `/95` on hover; `/90` falls to 4.51:1. Controls drop their shadow; placeholders stay `--muted-foreground` (5.99:1), not `--faint`.
 
 Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form controls and `ring-2` on everything else.
 

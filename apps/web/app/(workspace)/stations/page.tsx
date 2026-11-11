@@ -369,7 +369,7 @@ export default function StationsPage() {
                     ref={stationTrigger}
                     variant="outline"
                     disabled={!canUseStation}
-                    className="h-auto min-h-11 max-w-full whitespace-normal text-left"
+                    className="h-auto max-w-full whitespace-normal text-left"
                   >
                     <span className="min-w-0 break-words">
                       {myStation ? `Change station: ${myStation.name}` : 'Choose station'}

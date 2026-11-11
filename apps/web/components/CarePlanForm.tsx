@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -170,9 +171,11 @@ export function CarePlanForm({
         </fieldset>
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
         {canEdit ? (
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Care Plan'}
-          </Button>
+          <FormActions>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Care Plan'}
+            </Button>
+          </FormActions>
         ) : (
           <p className="text-sm text-muted-foreground">This care plan is read-only.</p>
         )}

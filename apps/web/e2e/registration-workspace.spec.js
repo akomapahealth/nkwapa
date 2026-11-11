@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
 const { overflow } = require('../playwright/responsive-routes');
+const { minButtonHeight } = require('../playwright/hit-target');
 
 test.use({ storageState: storageStateFor('staff') });
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
@@ -50,7 +51,7 @@ async function finalActions(page) {
       )
       .toBe(true);
     const box = await action.boundingBox();
-    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(await minButtonHeight(action.page()));
   }
 }
 async function shot(page, name, fullPage = false) {
