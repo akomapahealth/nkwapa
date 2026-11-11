@@ -147,7 +147,7 @@ function EventsContent() {
       </ResourceState>
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>New screening day</DialogTitle>
             <DialogDescription>Times are in clinic time ({timezone}).</DialogDescription>

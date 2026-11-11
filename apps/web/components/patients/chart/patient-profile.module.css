@@ -43,6 +43,8 @@
   letter-spacing: -0.02em;
 }
 .avatar {
+  /* R7.4: beside the first line of a name that wraps, not halfway down it. */
+  align-self: flex-start;
   display: grid;
   place-items: center;
   width: 3.5rem;

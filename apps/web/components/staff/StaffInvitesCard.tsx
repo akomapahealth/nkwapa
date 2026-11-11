@@ -415,7 +415,7 @@ export function StaffInvitesCard({
       </RecordSectionContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>Invite a colleague</DialogTitle>
             <DialogDescription>
@@ -657,11 +657,16 @@ function inviteColumns(busy: Busy, onAct: OnAct): DataTableColumn<StaffInvite>[]
         const invite = row.original;
         return (
           <div className="flex min-w-0 flex-col py-1">
-            <span className="truncate font-medium text-foreground">
+            <span
+              className="truncate font-medium text-foreground"
+              title={invite.inviteeName ?? invite.email}
+            >
               {invite.inviteeName ?? invite.email}
             </span>
             {invite.inviteeName ? (
-              <span className="truncate text-xs text-muted-foreground">{invite.email}</span>
+              <span className="truncate text-xs text-muted-foreground" title={invite.email}>
+                {invite.email}
+              </span>
             ) : null}
             <InviteSetup invite={invite} />
           </div>
@@ -738,7 +743,7 @@ function InviteRow({
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <p
             className={cn(
-              'truncate font-medium',
+              'font-medium [overflow-wrap:anywhere]',
               isOpen ? 'text-foreground' : 'text-muted-foreground',
             )}
           >
@@ -747,7 +752,7 @@ function InviteRow({
           <span className="text-sm text-muted-foreground">{formatStaffRole(invite.role)}</span>
         </div>
         {invite.inviteeName ? (
-          <p className="truncate text-sm text-muted-foreground">{invite.email}</p>
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{invite.email}</p>
         ) : null}
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
           <InviteStatus invite={invite} />

@@ -698,7 +698,7 @@ export function StationLineBoard() {
       </p>
 
       <Dialog open={override !== null} onOpenChange={(open) => (!open ? close() : undefined)}>
-        <DialogContent>
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>
               {override?.kind === 'assign'

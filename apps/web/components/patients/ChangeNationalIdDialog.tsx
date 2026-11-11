@@ -134,7 +134,7 @@ export function ChangeNationalIdDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent>
+      <DialogContent variant="form">
         <form
           onSubmit={submit}
           onInvalidCapture={validation.onInvalidCapture}

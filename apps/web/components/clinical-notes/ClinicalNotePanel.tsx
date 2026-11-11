@@ -551,7 +551,7 @@ export function ClinicalNotePanel({
       </Dialog>
 
       <Dialog open={addendumOpen} onOpenChange={setAddendumOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent variant="form" className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Append an addendum</DialogTitle>
             <DialogDescription>

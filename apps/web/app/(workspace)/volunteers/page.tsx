@@ -364,7 +364,7 @@ function VolunteersContent() {
       </ResourceState>
 
       <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>{editing === 'new' ? 'Add volunteer' : 'Edit volunteer'}</DialogTitle>
             <DialogDescription>

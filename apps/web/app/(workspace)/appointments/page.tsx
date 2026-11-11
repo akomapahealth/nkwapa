@@ -375,7 +375,7 @@ function AppointmentRow({
           <p className="text-sm font-semibold text-foreground">
             <AppointmentTime appointment={appointment} timezone={timezone} />
           </p>
-          <p className="mt-1 truncate text-base font-medium text-foreground">
+          <p className="mt-1 text-base font-medium text-foreground [overflow-wrap:anywhere]">
             {appointment.patient.displayName}
           </p>
           <p className="text-sm text-muted-foreground">{appointment.patient.patientCode}</p>
@@ -1069,7 +1069,7 @@ export default function StaffAppointmentsPage() {
           if (!open) closeLifecycleDialog();
         }}
       >
-        <DialogContent className="max-w-xl rounded-lg border-border/80">
+        <DialogContent variant="form" className="max-w-xl rounded-lg border-border/80">
           <DialogHeader>
             <DialogTitle className="font-heading text-2xl">
               {lifecycleDialog ? getActionLabel(lifecycleDialog.action) : 'Update appointment'}

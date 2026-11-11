@@ -1308,3 +1308,24 @@ clean. New `form-errors.spec.js` (3), plus 3 dialog tests in `overlay-motion` an
 two failures reproduced on a stashed HEAD build (`patient-redesign` 44px tab expectation, `vitals`
 BMI text). Six-role audit **228 rows, 0 violations, 0 overflow, 0 errors**. Local commit only; no
 push. Next is `ui-refresh/HANDOFF-R7.4.md`.
+
+## R7.4 Responsive edge cases (2026-11-11)
+
+Two scratch probes covered the widths the route audit misses (320, 599/600, 767/768, 1199/1200,
+200% zoom, landscape phone) and long content (API responses rewritten in the browser, no DB
+changes). The baseline had no overflow at any size; the defects were long dialogs on short screens
+and names that truncate. A dialog holding a multi-field form now uses `DialogContent
+variant="form"`: below 600px a bottom sheet on the dialog's interruptible clock (240/190 ms, drawer
+curve), and at every width a pinned `DialogFooter`, so Save is reachable in landscape and at 200%
+zoom. Twenty form dialogs opted in; confirmations and single-field prompts stay centred alerts. New
+`KeyboardInset` publishes the height a virtual keyboard covers; form sheets sit above it and the
+keyboard takes the bottom nav's offset, lifting the chat button. Patient, clinic, station and invite
+names and emails wrap on phone cards instead of truncating; truncated table cells carry a `title`.
+Rule in MASTER 5.4; detail in `ui-refresh/R7.4-REVIEW.md`.
+
+**Validation:** five audit-flag builds, TypeScript, changed-file lint/format, Jest 6/6; detector
+clean. Three new sheet tests in `overlay-motion` and a `KeyboardInset` unit test. Focused Chromium
+over 25 specs 209/220; the failures were a mid-slide measurement in a new test (fixed), three flakes
+that passed on re-run, and two failures reproduced on a stashed HEAD build (`staff-invite` phone
+save, `patient-redesign` 44px tab). Six-role audit **228 rows, 0 violations, 0 overflow, 0
+errors**. Local commit only; no push. Next is `ui-refresh/HANDOFF-R7.5.md`.

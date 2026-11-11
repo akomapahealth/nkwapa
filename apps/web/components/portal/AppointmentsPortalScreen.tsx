@@ -662,7 +662,10 @@ export function AppointmentsPortalScreen() {
           if (!open) closeChangeDialog();
         }}
       >
-        <DialogContent className="max-w-xl [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11">
+        <DialogContent
+          variant="form"
+          className="max-w-xl [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11"
+        >
           <DialogHeader>
             <DialogTitle className="text-2xl">
               {changeDialog?.action === 'cancel' ? 'Request cancellation' : 'Request reschedule'}

@@ -538,7 +538,7 @@ export function MedicalHistoryPanel({
       </Card>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent variant="form" className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Revise history record' : 'Add history record'}</DialogTitle>
             <DialogDescription>

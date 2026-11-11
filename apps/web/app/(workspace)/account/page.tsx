@@ -130,13 +130,14 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate font-heading text-lg font-semibold text-foreground">
+            <p className="font-heading text-lg font-semibold text-foreground [overflow-wrap:anywhere]">
               {bootstrap.displayName}
             </p>
             {email ? (
-              <p className="flex items-center gap-1.5 truncate text-sm text-muted-foreground">
-                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{email}</span>
+              <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                {/* 3px centres the 14px icon on the first 20px line when the email wraps. */}
+                <Mail className="mt-[3px] h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 [overflow-wrap:anywhere]">{email}</span>
               </p>
             ) : null}
           </div>
@@ -163,7 +164,9 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
                   aria-hidden="true"
                 />
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{membership.clinicName}</p>
+                  <p className="font-medium text-foreground [overflow-wrap:anywhere]">
+                    {membership.clinicName}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {membership.roles.map(formatRoleLabel).join(', ')}
                   </p>

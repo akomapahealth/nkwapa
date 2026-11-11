@@ -511,7 +511,7 @@ export function PortalAccessCard({
       </Card>
 
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent>
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>
               {currentInvite ? 'Replace portal invitation' : 'Create portal invite'}

@@ -220,7 +220,7 @@ export function ClinicMetadataDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent variant="form" className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Create clinic' : 'Edit clinic'}</DialogTitle>
           <DialogDescription>

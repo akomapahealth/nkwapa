@@ -332,6 +332,18 @@ For mobile, prefer full-width bottom sheets or full-screen forms when a centered
 
 Do not automatically turn every small popover into a fullscreen experience.
 
+**R7.4 rule (applies to all future sessions).** A dialog that holds a multi-field form uses
+`DialogContent variant="form"` and ends with `DialogFooter`. Below 600px it is a bottom sheet: full
+width, flush with the bottom edge, rounded top, sliding up on the dialog's interruptible transition
+clock (240 ms in, 190 ms out, drawer curve; fade only with reduced motion; instant from the
+keyboard). At every width its footer stays pinned while the fields scroll, so Save is reachable in
+landscape and at 200% zoom. Confirmations and single-field prompts stay centred alerts. The sheet has
+no drag handle, because it has no drag. `KeyboardInset` (root layout) publishes the height a virtual
+keyboard covers as `--keyboard-inset` and `data-keyboard` on `<html>`; form sheets sit above it and,
+while it is up, the keyboard takes the bottom nav's offset (`--workspace-bottom-nav-height`), which
+lifts the chat button and panel. Names, emails and codes on phone cards wrap
+(`[overflow-wrap:anywhere]`) rather than truncate; a truncated table cell carries a `title`.
+
 ## 5.5 Tables and lists
 
 Use the existing table infrastructure.

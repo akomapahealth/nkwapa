@@ -720,7 +720,7 @@ function TodayBoardPage() {
             }
           }}
         >
-          <DialogContent className="max-w-xl">
+          <DialogContent variant="form" className="max-w-xl">
             <DialogHeader>
               <DialogTitle className="font-heading text-2xl">
                 {assignmentDialog?.mode === 'reassign' ? 'Reassign patient' : 'Assign patient'}

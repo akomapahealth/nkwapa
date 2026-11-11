@@ -288,7 +288,7 @@ export function AppointmentRequestsPanel({
                         </span>
                         <AppointmentRequestStatusBadge status={request.status} />
                       </div>
-                      <p className="truncate text-base font-medium text-foreground">
+                      <p className="text-base font-medium text-foreground [overflow-wrap:anywhere]">
                         {patientName(request)}
                         {request.patient?.patientCode ? (
                           <span className="ml-2 text-sm font-normal text-muted-foreground">
@@ -345,7 +345,7 @@ export function AppointmentRequestsPanel({
       </div>
 
       <Dialog open={Boolean(dialog)} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
-        <DialogContent className="max-w-lg rounded-lg">
+        <DialogContent variant="form" className="max-w-lg rounded-lg">
           <DialogHeader>
             <DialogTitle>
               {dialog?.action === 'confirm' ? 'Confirm request' : 'Decline request'}

@@ -696,8 +696,10 @@ export default function AdminUsersPage() {
         const row = params.original;
         return (
           <div className="flex min-w-0 flex-col py-2">
-            <span className="truncate font-medium text-foreground">{nameForRow(row)}</span>
-            <span className="truncate text-xs text-muted-foreground">
+            <span className="truncate font-medium text-foreground" title={nameForRow(row)}>
+              {nameForRow(row)}
+            </span>
+            <span className="truncate text-xs text-muted-foreground" title={row.email || undefined}>
               {row.email || 'No email on file'}
             </span>
           </div>
@@ -1345,10 +1347,10 @@ export default function AdminUsersPage() {
                       <article key={row.id} className="py-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <h3 className="truncate text-base font-semibold text-foreground">
+                            <h3 className="text-base font-semibold text-foreground [overflow-wrap:anywhere]">
                               {nameForRow(row)}
                             </h3>
-                            <p className="mt-1 truncate text-sm text-muted-foreground">
+                            <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
                               {row.email || 'No email on file'}
                             </p>
                           </div>
@@ -1453,7 +1455,7 @@ export default function AdminUsersPage() {
                   <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-eyebrow text-muted-foreground">Name on records</p>
-                      <p className="mt-2 truncate text-sm font-medium text-foreground">
+                      <p className="mt-2 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
                         {nameForRow(selectedUser)}
                       </p>
                       {!selectedUser.firstName || !selectedUser.lastName ? (

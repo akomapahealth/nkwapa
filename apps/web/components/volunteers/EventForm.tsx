@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DialogFooter } from '@/components/ui/dialog';
 import { FieldError, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -185,14 +186,14 @@ export function EventForm({
           </Label>
         </div>
       ) : null}
-      <div className="flex flex-col-reverse gap-2 border-t border-rule pt-4 sm:flex-row sm:justify-end">
+      <DialogFooter className="border-t border-rule pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={saving || disabled}>
           {saving ? 'Saving…' : submitLabel}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

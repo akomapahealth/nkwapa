@@ -26,34 +26,52 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+interface DialogContentProps extends React.ComponentPropsWithoutRef<
+  typeof DialogPrimitive.Content
+> {
+  /**
+   * R7.4: `form` for a dialog that holds a multi-field form. Below 600px it becomes a bottom sheet
+   * (full width, lifted above the virtual keyboard) and, at every width, its `DialogFooter` stays
+   * pinned to the bottom while the fields scroll (globals.css `.dialog-form`). Confirmations and
+   * single-field prompts keep the default: a centred alert, which is what MASTER 5.4 asks for.
+   */
+  variant?: 'alert' | 'form';
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onOpenAutoFocus, onCloseAutoFocus, ...props }, ref) => {
-  const focusReturn = useReturnFocus(onOpenAutoFocus, onCloseAutoFocus);
-  return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          // A dialog must fit the screen it opens on. The default was a fixed max width with no
-          // height bound and no scrolling, so a long clinical form ran off a 375 pixel viewport with
-          // its actions unreachable. Every panel had been working around this with its own override.
-          // Centred by margin, not a translate, so the motion owns transform and scales from the
-          // centre. R7.3: the same transition clock as menus and Selects (globals.css), so a dialog
-          // closed mid-entrance reverses from where it is instead of restarting its exit.
-          'anchored-overlay fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-6',
-          className,
-        )}
-        {...props}
-        {...focusReturn}
-      >
-        {children}
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  );
-});
+  DialogContentProps
+>(
+  (
+    { className, children, variant = 'alert', onOpenAutoFocus, onCloseAutoFocus, ...props },
+    ref,
+  ) => {
+    const focusReturn = useReturnFocus(onOpenAutoFocus, onCloseAutoFocus);
+    return (
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            // A dialog must fit the screen it opens on. The default was a fixed max width with no
+            // height bound and no scrolling, so a long clinical form ran off a 375 pixel viewport with
+            // its actions unreachable. Every panel had been working around this with its own override.
+            // Centred by margin, not a translate, so the motion owns transform and scales from the
+            // centre. R7.3: the same transition clock as menus and Selects (globals.css), so a dialog
+            // closed mid-entrance reverses from where it is instead of restarting its exit.
+            'anchored-overlay fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-6',
+            variant === 'form' && 'dialog-form',
+            className,
+          )}
+          {...props}
+          {...focusReturn}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    );
+  },
+);
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -63,7 +81,10 @@ DialogHeader.displayName = 'DialogHeader';
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
+    className={cn(
+      'dialog-footer flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+      className,
+    )}
     {...props}
   />
 );

@@ -788,7 +788,7 @@ function PatientChartWorkspace() {
                     </div>
 
                     <Dialog open={portalLinkOpen} onOpenChange={setPortalLinkOpen}>
-                      <DialogContent>
+                      <DialogContent variant="form">
                         <DialogHeader>
                           <DialogTitle>Link portal account</DialogTitle>
                         </DialogHeader>

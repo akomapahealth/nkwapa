@@ -643,6 +643,72 @@ html:has([data-landing]) {
   }
 }
 
+/* R7.4: form dialogs (`DialogContent variant="form"`). The footer stays pinned to the bottom of
+   the dialog while the fields scroll, so Save is reachable on a short screen (landscape phones,
+   200% zoom) without scrolling past every field. The dialog's own bottom padding moves into the
+   footer so the pinned and resting positions are the same. */
+.dialog-form {
+  padding-bottom: 0;
+}
+.dialog-form:not(:has(.dialog-footer)) {
+  padding-bottom: 1.5rem;
+}
+.dialog-form .dialog-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-inline: -1.5rem;
+  padding: 0.75rem 1.5rem 1.5rem;
+  border-top: 1px solid hsl(var(--rule));
+  background-color: hsl(var(--background));
+}
+
+/* Below 600px a form dialog is a bottom sheet (MASTER 5.4): full width, flush with the bottom edge
+   and lifted above the virtual keyboard (`--keyboard-inset`, KeyboardInset). It keeps the dialog's
+   transition clock, so a sheet closed mid-entrance slides back from where it is, on the drawer
+   curve and the sheet timings (240 ms in, 190 ms out). No drag handle: it would promise a gesture
+   this surface does not have; Cancel and Escape close it. */
+@media (max-width: 599.98px) {
+  .anchored-overlay.dialog-form {
+    --overlay-enter: var(--duration-sheet);
+    --overlay-exit: var(--duration-sheet-exit);
+    inset: auto 0 var(--keyboard-inset, 0px) 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - var(--keyboard-inset, 0px) - env(safe-area-inset-top) - 0.75rem);
+    border-width: 1px 0 0;
+    border-radius: 0.75rem 0.75rem 0 0;
+    padding-inline: max(1.5rem, env(safe-area-inset-left)) max(1.5rem, env(safe-area-inset-right));
+    transition-timing-function: var(--ease-drawer);
+  }
+  .dialog-form:not(:has(.dialog-footer)) {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+  .dialog-form .dialog-footer {
+    margin-inline: min(-1.5rem, calc(-1 * env(safe-area-inset-left)))
+      min(-1.5rem, calc(-1 * env(safe-area-inset-right)));
+    padding: 0.75rem max(1.5rem, env(safe-area-inset-right))
+      calc(1rem + env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+  }
+  /* The keyboard is its own bottom edge: no home-indicator padding above it. */
+  :root[data-keyboard] .dialog-form .dialog-footer {
+    padding-bottom: 0.75rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .anchored-overlay.dialog-form[data-state='closed'] {
+      opacity: 1;
+      transform: translateY(100%);
+    }
+    @starting-style {
+      .anchored-overlay.dialog-form {
+        opacity: 1;
+        transform: translateY(100%);
+      }
+    }
+  }
+}
+
 /* R7.1: sheets (tailwindcss-animate keyframes, which read these variables).
    Reduced motion keeps the fade and drops the zoom and slide; keyboard opens and closes are instant,
    as for the anchored overlays above. Presence still sees an animation end, so nothing strands. */

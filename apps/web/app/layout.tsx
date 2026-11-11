@@ -7,6 +7,7 @@ import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistr
 import { ToastProvider } from '@/components/ui/toast';
 import { CookieConsent } from '@/components/CookieConsent';
 import { InertBehindModal } from '@/components/ui/inert-behind-modal';
+import { KeyboardInset } from '@/components/ui/keyboard-inset';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
 
@@ -176,6 +177,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <PwaBoot />
             <CookieConsent />
             <InertBehindModal />
+            <KeyboardInset />
           </ToastProvider>
         </ThemeProvider>
       </body>

@@ -20,7 +20,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
   const displayName = bootstrap?.displayName ?? 'Patient';
 
   return (
-    <div className="flex min-h-screen min-w-0 flex-col bg-card px-safe [--workspace-bottom-nav-height:3.75rem] compact:m-2 compact:rounded-xl compact:border compact:border-border compact:[--workspace-bottom-nav-height:0px]">
+    <div className="flex min-h-screen min-w-0 flex-col bg-card px-safe [--workspace-bottom-nav-height:3.75rem] compact:m-2 compact:rounded-xl compact:border compact:border-border compact:[--workspace-bottom-nav-height:0px] [:root[data-keyboard]_&]:[--workspace-bottom-nav-height:var(--keyboard-inset)]">
       <a
         href="#main-content"
         className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm"

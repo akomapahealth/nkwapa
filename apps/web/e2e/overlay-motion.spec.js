@@ -340,3 +340,87 @@ test('keyboard opens and closes a dialog instantly', async ({ page }) => {
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
 });
+
+// R7.4: below 600px a form dialog is a bottom sheet on the same transition clock. It slides up
+// instead of scaling, reverses from where it is, keeps Save pinned while the fields scroll, and
+// sits above the virtual keyboard (KeyboardInset publishes the covered height).
+for (const reduced of [false, true]) {
+  test(`form dialog is a bottom sheet on phones and reverses mid-entrance${reduced ? ', fade only with reduced motion' : ''}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/admin/clinics');
+    const trigger = page.getByRole('button', { name: 'Create clinic', exact: true }).first();
+    await expect(trigger).toBeVisible({ timeout: 30_000 });
+    const box = await trigger.boundingBox();
+    await page.mouse.move(box.x + 4, box.y + 4);
+    await expect(page.locator('html')).toHaveAttribute('data-overlay-input', 'pointer');
+    const result = await trigger.evaluate(async (element) => {
+      element.focus();
+      element.click();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const dialog = document.querySelector('[role="dialog"]');
+      const duration = getComputedStyle(dialog).transitionDuration;
+      for (const animation of dialog.getAnimations()) {
+        animation.pause();
+        animation.currentTime = 80;
+      }
+      const before = getComputedStyle(dialog).transform;
+      const opacityBefore = Number(getComputedStyle(dialog).opacity);
+      [...dialog.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cancel').click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const exit = dialog.getAnimations().find((a) => a.transitionProperty === 'transform');
+      return {
+        duration,
+        before,
+        opacityBefore,
+        exitDuration: getComputedStyle(dialog).transitionDuration,
+        exitStart: exit ? exit.effect.getKeyframes()[0].transform : null,
+      };
+    });
+    expect(result.duration).toBe('0.24s');
+    expect(result.exitDuration).toBe('0.19s');
+    if (reduced) {
+      expect(result.before).toBe('none');
+      expect(result.opacityBefore).toBeLessThan(1);
+    } else {
+      // Mid-slide: translated down, fully opaque, and the exit starts from that frame.
+      expect(result.before).toMatch(/^matrix\(1, 0, 0, 1, 0, [1-9]/);
+      expect(result.opacityBefore).toBe(1);
+      expect(result.exitStart).toBe(result.before);
+    }
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+}
+
+test('form dialog sheet pins Save above the fields and the virtual keyboard', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/admin/clinics');
+  await page.getByRole('button', { name: 'Create clinic', exact: true }).first().click();
+  const dialog = page.getByRole('dialog');
+  // A sheet is opaque for its whole slide, so wait for the slide itself to finish.
+  await expect(dialog).toHaveCSS('transform', /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+  const save = dialog.getByRole('button', { name: 'Create clinic', exact: true });
+  const sheet = await dialog.boundingBox();
+  // Full width and flush with the bottom edge.
+  expect(sheet.x).toBe(0);
+  expect(sheet.width).toBe(390);
+  expect(Math.round(sheet.y + sheet.height)).toBe(844);
+  // The form is taller than the screen, yet Save is on screen before any scrolling.
+  expect(await dialog.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await expect(save).toBeInViewport({ ratio: 1 });
+  // A keyboard covering 300px lifts the sheet; Save stays on the visible part of the screen.
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--keyboard-inset', '300px');
+    document.documentElement.setAttribute('data-keyboard', '');
+  });
+  await expect
+    .poll(async () =>
+      Math.round((await dialog.boundingBox()).y + (await dialog.boundingBox()).height),
+    )
+    .toBe(544);
+  const saveBox = await save.boundingBox();
+  expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(544);
+});

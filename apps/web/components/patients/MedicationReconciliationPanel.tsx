@@ -1333,7 +1333,7 @@ function MedicationDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent variant="form" className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>
             {editing ? 'Revise reported medication' : 'Add reported medication'}
@@ -1572,7 +1572,7 @@ function PharmacyDialog({
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent variant="form" className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? 'Revise pharmacy' : 'Add pharmacy'}</DialogTitle>
           <DialogDescription>

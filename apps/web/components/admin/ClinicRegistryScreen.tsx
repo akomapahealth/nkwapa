@@ -273,8 +273,13 @@ export function ClinicRegistryScreen() {
         cell: ({ row: params }) =>
           params.original.organization ? (
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate">{params.original.organization.name}</span>
-              <span className="truncate font-mono text-xs text-muted-foreground">
+              <span className="truncate" title={params.original.organization.name}>
+                {params.original.organization.name}
+              </span>
+              <span
+                className="truncate font-mono text-xs text-muted-foreground"
+                title={params.original.organization.slug}
+              >
                 {params.original.organization.slug}
               </span>
             </span>
@@ -507,10 +512,10 @@ export function ClinicRegistryScreen() {
                       <article key={clinic.id} className="py-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <h3 className="truncate text-base font-semibold text-foreground">
+                            <h3 className="text-base font-semibold text-foreground [overflow-wrap:anywhere]">
                               {clinic.name}
                             </h3>
-                            <p className="mt-1 truncate text-sm text-muted-foreground">
+                            <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
                               {clinic.region || 'No region assigned'}
                             </p>
                           </div>
@@ -522,21 +527,23 @@ export function ClinicRegistryScreen() {
                         <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                           <div className="min-w-0">
                             <dt className="text-muted-foreground">Location code</dt>
-                            <dd className="truncate font-mono text-xs text-foreground">
+                            <dd className="font-mono text-xs text-foreground [overflow-wrap:anywhere]">
                               {clinic.locationCode || 'Not set'}
                             </dd>
                           </div>
                           <div className="min-w-0">
                             <dt className="text-muted-foreground">Time zone</dt>
-                            <dd className="truncate text-foreground">{clinic.timezone}</dd>
+                            <dd className="text-foreground [overflow-wrap:anywhere]">
+                              {clinic.timezone}
+                            </dd>
                           </div>
                           <div className="min-w-0">
                             <dt className="text-muted-foreground">Zone</dt>
                             <dd
                               className={
                                 clinic.zoneCode
-                                  ? 'truncate font-mono text-xs text-foreground'
-                                  : 'truncate text-xs text-muted-foreground'
+                                  ? 'font-mono text-xs text-foreground [overflow-wrap:anywhere]'
+                                  : 'text-xs text-muted-foreground [overflow-wrap:anywhere]'
                               }
                             >
                               {zoneLabel(clinic.zoneCode)}
@@ -544,7 +551,7 @@ export function ClinicRegistryScreen() {
                           </div>
                           <div className="min-w-0">
                             <dt className="text-muted-foreground">Organization</dt>
-                            <dd className="truncate text-foreground">
+                            <dd className="text-foreground [overflow-wrap:anywhere]">
                               {clinic.organization?.name ?? 'Not linked'}
                             </dd>
                           </div>
