@@ -111,6 +111,10 @@ for (const [role, routes] of Object.entries(PLAN)) {
                 .waitFor({ timeout: 8_000 })
                 .catch(() => {});
               await page.waitForTimeout(600);
+              // Normal-route contrast is measured at rest; transient sync states are a separate audit.
+              const sync = page.getByTestId('sync-status');
+              if (await sync.count())
+                await expect(sync).toHaveAttribute('data-state', 'synced', { timeout: 15_000 });
               row.landed = new URL(page.url()).pathname;
               row.h1 = (
                 await page

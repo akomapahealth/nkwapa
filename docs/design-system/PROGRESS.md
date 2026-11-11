@@ -929,3 +929,63 @@ backend acknowledgement and Sunday appointment lifecycle work remain separate.
 Registration needs a connection and does not persist an unsaved form across reload.
 
 **Next unit:** R3.6 Profile. Use `ui-refresh/HANDOFF-R3.6.md`.
+
+## R3.6: Profile (2026-11-10)
+
+**Unit/phase:** R3.6, role/workspace content.
+
+**Confirmed implementation:** The canonical chart has a dedicated patient
+identity header with real name/code/sex and existing consent badge, a real
+clinic-scoped back link and original permission-gated Edit/check-in operations.
+A measured, opaque compact identity strip takes over on scroll. It is portaled
+outside page spacing/clipping, follows shell resizing/collapse, adds no focus
+stops/duplicate announcements/entrance motion, and yields if it would obscure
+keyboard focus. Complete identity values remain in the full header/details;
+compact context can ellipsize on narrow or enlarged screens.
+
+Needs you now remains first. Summary columns split at 840px; profile
+identity/location and existing portal/admin/next-step details use one column
+below 1200px and a bounded 2:1 split above. Existing portal and merge buttons
+wrap at enlarged text within the profile. Shared primitives, shell, location,
+portal and merge implementations remain unchanged. The normal-route audit now
+waits for a settled synced pill before contrast scans, without clearing prior
+transient sync-state findings.
+
+The R3.6 handoff, R0 patient-header handover decision, checked-in pilot and live
+artifact's embedded record screen informed the layout. Installed Emil design
+engineering, Apple design, Impeccable and shadcn skills informed the craft.
+Pinned fonts/tokens remain. No backend, schema, auth, clinical thresholds/units,
+validation, consent or offline/outbox/replay logic changed. Legacy/merged-chart
+redirects, URL tabs, lazy longitudinal reads, portal and new-encounter access
+remain on their existing paths. Vitals/Encounters remain separate units.
+
+**Confirmed validation:** Final-source focused Chromium checks pass **50/50**:
+six new Profile cases and 44 existing chart/identity/merge/duplicate/consent/
+portal/role/consumer cases. The six new cases cover all eleven handoff widths
+in both themes, all 22 unfiltered normal-page axe scans, retained tab/URL state,
+long identity values, measured scroll/shell handover, keyboard/focus protection,
+reduced motion, and 200% root text at 320/390/600/1200 in both themes with
+header/portal/merge actions fully visible and hit-testable and no page/main
+overflow. Five focused Jest suites pass **100 tests**. Production build,
+standalone TypeScript, changed-file ESLint/Prettier and detector pass; ESLint
+retains its existing root Pages-directory notice. The final-source
+six-role route audit passes **12/12 tests**, including six fresh authentication
+setups. All **228 route/theme/width rows** have **zero errors, zero axe findings
+including minor and zero horizontal overflow**. The ignored after evidence has
+**147 implementation PNGs**: 114 normal routes and 33 Profile supplements, plus
+separate candidate diagnostics and validation summaries.
+
+Candidate failures and corrections are retained in `ui-refresh/R3.6-REVIEW.md`:
+initial scroll/API-interception fixture errors, inherited strip spacing/clipping,
+portal/merge button overflow at enlarged text and viewport-edge action measuring.
+A sandbox build was interrupted and successfully escalated. Failed and not-run
+cases are not counted as passes. No full suite or flag-off browser build ran.
+Evidence is ignored under `ui-refresh/evidence/r3-6/after/`; no force-add or push.
+The owner's incoming `HANDOFF-R3.1.md` change remains separate. No agent review ran.
+
+**Outstanding:** Prior open-overlay accessibility and short dropdown rows remain
+separate. Physical devices, screen readers, Safari/Firefox, installed PWA, virtual
+keyboard, real safe areas and gesture feel remain manual. Earlier Vitals/Crisis/
+backend acknowledgement and Sunday appointment lifecycle work remain separate.
+
+**Next unit:** R3.7 Vitals. Use `ui-refresh/HANDOFF-R3.7.md`.

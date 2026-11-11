@@ -1,0 +1,142 @@
+.workspace {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.header {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  margin-bottom: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  text-underline-offset: 0.25rem;
+}
+
+.back:hover {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+.back:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.identityRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.identity {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.identity h1 {
+  letter-spacing: -0.02em;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: hsl(var(--selected));
+  color: hsl(var(--primary));
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+.metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+.actions > * {
+  min-height: 2.75rem;
+  height: auto;
+  white-space: normal;
+}
+.context {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-2));
+  visibility: hidden;
+  pointer-events: none;
+}
+.context[data-visible='true'] {
+  visibility: visible;
+}
+.details {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.details > * {
+  min-width: 0;
+}
+.details :global(button) {
+  min-height: 2.75rem;
+  height: auto;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.summary {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.workspace :global([role='tabpanel']) {
+  scroll-margin-top: 9rem;
+}
+.workspace :global(section) {
+  min-width: 0;
+}
+
+@media (min-width: 600px) {
+  .actions {
+    width: auto;
+    flex: 1 1 100%;
+    padding-left: 4.5rem;
+  }
+}
+@media (min-width: 1200px) {
+  .actions {
+    flex: 0 1 auto;
+    padding-left: 0;
+    margin-left: auto;
+  }
+  .details {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 2rem;
+  }
+}
+@media (min-width: 840px) {
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

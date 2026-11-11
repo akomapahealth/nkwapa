@@ -35,6 +35,7 @@ import {
   type PatientChartSectionId,
   type PatientChartSummary,
 } from '@/lib/patient-chart';
+import styles from './patient-profile.module.css';
 import { ChartLockedBadge, ChartStatusBadge } from './ChartStatusBadge';
 
 function SummaryCard({
@@ -51,7 +52,7 @@ function SummaryCard({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <h3 className="type-label font-body font-semibold">{title}</h3>
@@ -236,7 +237,7 @@ export function PatientChartOverview({
         </CardContent>
       </Card>
 
-      <section aria-label="Current clinical summary" className="grid gap-3 md:grid-cols-2">
+      <section aria-label="Current clinical summary" className={styles.summary}>
         {summary?.vitals ? (
           <SummaryCard
             icon={HeartPulse}

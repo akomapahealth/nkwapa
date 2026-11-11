@@ -1057,6 +1057,37 @@ remain in the mounted form after an unsuccessful request.
 
 Validation, candidate failures and limits are recorded in `ui-refresh/R3.5-REVIEW.md`.
 
+### Patient profile workspace refresh (R3.6)
+
+The canonical clinic-scoped chart keeps its data lifecycle, role/flag gates,
+legacy and merged-record redirects, URL tabs and lazy longitudinal reads. Its
+profile header now puts patient name, patient code, existing sex label and
+recorded research-consent badge together. An initials marker is decorative.
+Back to Patient Search remains a real clinic-scoped link; existing Edit and
+Check In Patient operations remain permission-gated, with their original
+handlers and pending/refusal/offline behavior. No encounter or registration
+workflow is invented from the visual pilot.
+
+On scroll, a compact identity strip keeps the actual name and patient code in
+view below the measured workspace header. It follows shell resizing/collapse,
+adds no duplicate focus stops or announcements, and yields if it would cover a
+keyboard-focused control. It updates without entrance motion, including under
+reduced motion. Opaque semantic surfaces preserve legibility in both themes.
+The strip is portaled outside the scrolling page to avoid inherited spacing and
+clipping. Measurements are chart-local; the shell and shared primitives are unchanged.
+
+Needs you now still leads the overview. Clinical summaries use one column below
+840px and two above; demographics/location and existing portal/admin/next-step
+sections use one column below 1200px and a 2:1 split above. Long identity values
+wrap; header, portal and merge actions wrap and retain 44px targets. Clinical values, labels,
+units, empty/error states, consent, merge refusal, portal access and new-encounter
+access remain on their existing implementations. The separate Vitals and
+Encounters redesigns remain R3.7 and R3.8.
+
+Validation and limits are recorded in `ui-refresh/R3.6-REVIEW.md`. The shared
+normal-route audit now explicitly waits for the sync pill's settled synced
+state before measuring contrast; transient sync states remain a separate finding.
+
 ### Queues and encounters (#272)
 
 `/queues` keeps one count on each permission-gated lane tab. R3.4 puts the

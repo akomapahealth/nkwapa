@@ -12,7 +12,8 @@ import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { hasPermission, readApiError } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
-import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { PatientProfileHeader } from '@/components/patients/chart/PatientProfileHeader';
+import profileStyles from '@/components/patients/chart/patient-profile.module.css';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
@@ -596,26 +597,19 @@ function PatientChartWorkspace() {
   };
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        title={`${patient.firstName} ${patient.lastName}`}
-        description="Review clinic-scoped demographics, encounter history, portal access, and patient-reported updates from a single chart workspace."
+    <div className={`space-y-6 ${profileStyles.workspace}`}>
+      <PatientProfileHeader
+        name={`${patient.firstName} ${patient.lastName}`}
+        patientCode={patient.patientCode}
+        sex={statusLabel(patient.sex)}
+        clinicId={clinicId}
         badges={
           <>
-            <Badge variant="outline" className="tabular-nums">
-              {patient.patientCode}
-            </Badge>
             {hasGrantedResearchConsent ? <Badge variant="finalized">Consent Granted</Badge> : null}
           </>
         }
         actions={
           <>
-            <Button asChild variant="ghost">
-              <Link href={`/clinics/${clinicId}/patients`}>
-                <ArrowLeft className="h-4 w-4" />
-                Back to Patient Search
-              </Link>
-            </Button>
             {canUpdatePatient ? (
               <Button asChild variant="outline">
                 <Link href={`/clinics/${clinicId}/patients/${patientId}/edit`}>
@@ -675,7 +669,7 @@ function PatientChartWorkspace() {
                   onRetry={loadSummary}
                   onNavigate={chartTabs.goToSection}
                 >
-                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className={profileStyles.details}>
                     <div className="space-y-4">
                       <Card>
                         <CardHeader>
