@@ -14,6 +14,7 @@ import {
   RecordSectionHeader as CardHeader,
 } from '@/components/patients/RecordSection';
 import styles from './vitals-workspace.module.css';
+import { BloodPressureSignal } from '@/components/patients/BloodPressureSignal';
 import {
   Select,
   SelectContent,
@@ -300,6 +301,13 @@ function ReadOnlyMeasurements({
               <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="font-semibold">{title}</h3>
             </div>
+            {title === 'Blood Pressure' ? (
+              <BloodPressureSignal
+                systolic={vitals?.systolicBp}
+                diastolic={vitals?.diastolicBp}
+                compact
+              />
+            ) : null}
             <dl className="space-y-3">
               {rows.map(([label, value]) => (
                 <div
@@ -614,6 +622,17 @@ export function VitalsForm({
                 {numberField('systolicBp', 'Systolic BP (mmHg)', { placeholder: '120' })}
                 {numberField('diastolicBp', 'Diastolic BP (mmHg)', { placeholder: '80' })}
               </div>
+              <BloodPressureSignal
+                systolic={vitals.systolicBp}
+                diastolic={vitals.diastolicBp}
+                draft={
+                  !(
+                    localVitals &&
+                    Number(vitals.systolicBp) === localVitals.systolicBp &&
+                    Number(vitals.diastolicBp) === localVitals.diastolicBp
+                  )
+                }
+              />
               <div className={styles.fields}>
                 <SelectField
                   id="bpSite"

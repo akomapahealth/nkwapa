@@ -1061,3 +1061,43 @@ remain manual. Backend Crisis acknowledgement and Sunday appointment lifecycle
 work remain separate.
 
 **Next unit:** R3.8 Encounters. Use `ui-refresh/HANDOFF-R3.8.md`.
+
+---
+
+## R3.7 follow-up: Persistent BP signals (2026-11-10)
+
+**Status:** Built and in review. See `ui-refresh/R3.7-SIGNALS-REVIEW.md`.
+
+The owner requested an enduring highlight alongside the Crisis popup, with
+broader stratification later. BP entry now shows the exact reading/unit, existing
+category badge and a checked five-band strip. History and read-only measurements
+keep compact tags. Stage 1 uses warning, Stage 2 severe and Crisis destructive;
+text/checks carry meaning without color. Unsaved BP is distinguished from BP
+matching the locally saved reading, independently of bundle sync state.
+
+This is reading-level staging, not an overall patient-risk score. The existing
+shared classifier, plausible bounds, ordering and low-BP predicate are reused.
+Incomplete/invalid pairs have no category; low readings do not acquire a
+reassuring Normal/Elevated tag. No clinical thresholds, validation, save,
+permissions, sync/outbox/replay or acknowledgement logic changed. A future
+low/medium/high risk model needs an agreed decision, inputs, missing/stale-data
+rules and clinical approval. The Crisis popup remains unchanged.
+
+**Validation:** Final build, standalone TypeScript, changed-file lint/format and
+empty-array detector pass. Focused Jest passes **4 suites / 39 tests**. Focused
+Chromium passes **25/25 distinct checks**, including two new category/persistence
+cases and 23 existing Vitals/wizard/station/chart cases. Both themes, all five
+categories, invalid/low readings, draft/saved state, reload/history persistence,
+responsive/enlarged text, Crisis, offline replay and finalization are covered.
+The initial candidate had **24 passes / 1 failure**: dark Stage 1 secondary copy
+measured 4.49:1. Warning/severe ink fixes that measured contrast defect. No test
+was removed or relaxed. Evidence: **83 ignored PNGs** under
+`ui-refresh/evidence/r3-7-signals/after/` plus logs and separate candidate output.
+
+No full suite, flag-off build or six-role route audit was repeated for this
+bounded follow-up. Prior open-overlay/transient-sync findings and physical-device,
+screen-reader, non-Chromium, installed-PWA, virtual-keyboard/safe-area and gesture
+limits remain. Overall risk scoring, backend Crisis acknowledgement and Sunday
+appointment lifecycle work remain separate. The owner's `HANDOFF-R3.1.md` edit
+is preserved. R3.8 handoff includes the new signal contract. Local commit only;
+no push.

@@ -13,6 +13,7 @@ import {
   RecordSectionContent as CardContent,
   RecordSectionHeader as CardHeader,
 } from '@/components/patients/RecordSection';
+import { BloodPressureSignal } from '@/components/patients/BloodPressureSignal';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import {
   buildEncounterHref,
@@ -58,6 +59,7 @@ function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; cli
         </Link>
       }
     >
+      <BloodPressureSignal systolic={record.systolicBp} diastolic={record.diastolicBp} compact />
       <dl className={styles.measurements}>
         <ChartMeasurement label="Pulse" value={record.pulseBpm} suffix=" bpm" />
         <ChartMeasurement label="Temperature" value={record.temperatureCelsius} suffix=" °C" />

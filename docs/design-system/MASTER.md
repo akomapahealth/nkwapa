@@ -1132,6 +1132,30 @@ first and waits for its existing one-button acknowledgement dialog; recording
 the acknowledgement remains separate backend work. R3.8 owns Encounters.
 Validation and limits are recorded in `ui-refresh/R3.7-REVIEW.md`.
 
+### Persistent BP reading signals (R3.7 follow-up)
+
+Vitals entry now keeps a reading-level signal beneath the BP pair: the exact
+number/unit, existing category badge, and a five-band strip with a visible check
+and `aria-current` on the selected category. Saved history and finalized views
+show compact tags beside their readings. Stage 1 uses warning, Stage 2 severe,
+and Crisis destructive, from the existing hypertension presentation map. Nothing
+animates. Text and the check preserve meaning without color.
+
+The signal reuses the shared classifier and low-BP predicate. A presentation
+guard with the existing shared plausible bounds and systolic/diastolic ordering
+withholds staging for incomplete/invalid pairs. Low BP is shown separately;
+a low reading is not given a Normal/Elevated badge or a selected hypertension
+band. Mixed high-systolic/low-diastolic readings retain both existing signals.
+No clinical rule, save, escalation, permission, outbox or acknowledgement behavior
+changes. The Crisis dialog remains.
+
+Entry labels distinguish unsaved BP from BP matching the locally saved reading;
+they make no claim about whether other fields are saved or the bundle is synced.
+Category changes announce politely without announcing numeric keystrokes. These
+are BP categories, not low/medium/high overall patient risk. A broader risk model
+remains later work and needs a specified clinical objective, inputs and approval.
+Review and evidence: `ui-refresh/R3.7-SIGNALS-REVIEW.md`.
+
 ### Queues and encounters (#272)
 
 `/queues` keeps one count on each permission-gated lane tab. R3.4 puts the

@@ -313,3 +313,64 @@ test('finalized measurements keep values and units readable without save control
     await page.evaluate(() => (document.documentElement.style.fontSize = ''));
   }
 });
+
+for (const theme of ['light', 'dark']) {
+  test(`persistent BP categories distinguish draft, invalid, low and saved readings: ${theme}`, async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await page.addInitScript((theme) => localStorage.setItem('nkwapa-theme', theme), theme);
+    const { clinicId, patientId } = await openEncounter(page);
+    const signal = page.getByRole('region', { name: 'Blood pressure category', exact: true });
+    for (const [sys, dia, category] of [
+      [119, 79, 'Normal'],
+      [125, 79, 'Elevated'],
+      [135, 85, 'Stage 1'],
+      [145, 95, 'Stage 2'],
+      [182, 96, 'Crisis'],
+    ]) {
+      await page.getByLabel('Systolic BP (mmHg)').fill(String(sys));
+      await page.getByLabel('Diastolic BP (mmHg)').fill(String(dia));
+      await expect(signal.getByTestId('bp-category')).toHaveText(`BP: ${category}`);
+      await expect(signal).toContainText('Unsaved BP reading');
+      await expect(signal.locator('[aria-current="step"]')).toHaveText(category);
+      await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    }
+    for (const width of [320, 390, 600, 1200, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await noOverflow(page);
+      await signal.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      await shot(page, `bp-signal-${theme}-${width}`);
+    }
+    await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+    await page.setViewportSize({ width: 320, height: 900 });
+    await noOverflow(page);
+    await signal.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await shot(page, `bp-signal-${theme}-text200`);
+    await page.evaluate(() => (document.documentElement.style.fontSize = ''));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByLabel('Systolic BP (mmHg)').fill('85');
+    await page.getByLabel('Diastolic BP (mmHg)').fill('55');
+    await expect(signal.getByTestId('bp-category')).toHaveText('Low BP');
+    await expect(signal.locator('[aria-current="step"]')).toHaveCount(0);
+    await page.getByLabel('Systolic BP (mmHg)').fill('301');
+    await expect(page.getByTestId('bp-category-unavailable')).toBeVisible();
+    await expect(page.getByTestId('bp-category')).toHaveCount(0);
+    await page.getByLabel('Systolic BP (mmHg)').fill('145');
+    await page.getByLabel('Diastolic BP (mmHg)').fill('95');
+    await page.getByLabel('Measurement site', { exact: true }).click();
+    await page.getByRole('option', { name: 'Left arm', exact: true }).click();
+    await page.getByRole('button', { name: 'Save measurements', exact: true }).click();
+    await expect(page.getByText('Measurements saved and synced.', { exact: true })).toBeVisible();
+    await expect(signal).toContainText('Saved BP reading');
+    await page.reload();
+    await expect(signal.getByTestId('bp-category')).toHaveText('BP: Stage 2');
+    await expect(signal).toContainText('Saved BP reading');
+    await page.goto(`/clinics/${clinicId}/patients/${patientId}?tab=vitals`);
+    const history = page.getByRole('list', { name: 'Recorded vitals history' });
+    await expect(history.getByTestId('bp-category')).toHaveText('BP: Stage 2');
+    await expect(history).toContainText('145/95 mmHg');
+  });
+}

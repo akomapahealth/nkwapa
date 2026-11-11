@@ -61,6 +61,17 @@ parent continues. Escape/outside clicks cannot dismiss it. Re-saving the same
 reading does not repeat the alert. No acknowledgement persistence was introduced.
 Read `TASK-crisis-acknowledgement.md`; that work needs its own backend branch.
 
+### Persistent BP signal follow-up
+
+Read `R3.7-SIGNALS-REVIEW.md`. Preserve `BloodPressureSignal` on the existing
+entry, saved-history and read-only surfaces. It uses the shared classifier,
+low-BP predicate, plausible bounds and existing severity tones, with no new
+clinical risk score. Incomplete/invalid pairs have no category. Low readings
+must not acquire a reassuring Normal badge. Entry distinguishes unsaved BP from
+locally saved BP; this is not bundle-sync state. The existing Crisis dialog and
+backend acknowledgement task remain unchanged. Keep the selected-band text/check,
+reduced-motion/static presentation, wrapping and compact history provenance.
+
 ## Scope
 
 Inspect actual encounter detail, new-encounter wizard, visit history, station
