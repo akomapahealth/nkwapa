@@ -8,7 +8,12 @@ import Link from 'next/link';
 import { statusLabel } from '@/lib/status-presentation';
 import { ShieldCheck } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import {
+  EmptyState,
+  InlineErrorState,
+  SectionSkeleton,
+  SelectClinicState,
+} from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
 import { RecordSection, RecordSectionContent } from '@/components/patients/RecordSection';
@@ -116,7 +121,10 @@ export function DataRequestsScreen() {
       />
 
       {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
-      {error ? (
+      {/* Without a clinic nothing loads, and the skeleton below would spin forever. */}
+      {!clinicId ? (
+        <SelectClinicState surface="The data request queue" />
+      ) : error ? (
         <InlineErrorState
           title="Data requests could not be loaded"
           description={error}

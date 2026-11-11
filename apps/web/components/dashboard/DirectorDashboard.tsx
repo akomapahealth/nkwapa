@@ -29,7 +29,13 @@ interface DirectorDashboardProps {
 }
 
 const staffColumns: DataTableColumn<StaffActivityRow>[] = [
-  { id: 'displayName', accessorKey: 'displayName', header: 'Name' },
+  {
+    id: 'displayName',
+    accessorKey: 'displayName',
+    header: 'Name',
+    // Stays in view while a phone scrolls the counts sideways (R4.2 contract).
+    meta: { className: 'sticky left-0 z-[1] bg-card [thead_&]:bg-surface-2' },
+  },
   {
     id: 'role',
     accessorKey: 'role',

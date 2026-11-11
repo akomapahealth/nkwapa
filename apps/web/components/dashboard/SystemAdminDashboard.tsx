@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Building2, Users, Activity, Map } from 'lucide-react';
+import { Building2, Users, Activity, Map, UserRound } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DashboardKpiCard } from './DashboardKpiCard';
 import { TrendChart } from './TrendChart';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/feedback/AppState';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -50,8 +51,23 @@ interface SystemAdminDashboardProps {
   isRefreshing?: boolean;
 }
 
+/*
+  One table at every width. The name column stays in view while a phone scrolls the counts
+  sideways; it replaced a second, boxed card list below md that said the same thing (R4.3).
+  The header cell keeps the header band's fill, the body cell the sheet's.
+*/
+const STICKY_NAME = 'sticky left-0 z-[1] bg-card [thead_&]:bg-surface-2';
+
 const columns: DataTableColumn<ClinicComparisonRow>[] = [
-  { id: 'clinicName', accessorKey: 'clinicName', header: 'Clinic' },
+  {
+    id: 'clinicName',
+    accessorKey: 'clinicName',
+    header: 'Clinic',
+    meta: { className: STICKY_NAME },
+    cell: ({ row: params }) => (
+      <span className="font-medium text-foreground">{params.original.clinicName}</span>
+    ),
+  },
   {
     id: 'zoneCode',
     accessorKey: 'zoneCode',
@@ -63,9 +79,24 @@ const columns: DataTableColumn<ClinicComparisonRow>[] = [
         <span className="text-muted-foreground">{zoneLabel(null)}</span>
       ),
   },
-  { id: 'totalPatients', accessorKey: 'totalPatients', header: 'Patients' },
-  { id: 'totalEncounters', accessorKey: 'totalEncounters', header: 'Encounters' },
-  { id: 'totalFinalized', accessorKey: 'totalFinalized', header: 'Finalized' },
+  {
+    id: 'totalPatients',
+    accessorKey: 'totalPatients',
+    header: 'Patients',
+    meta: { align: 'right' },
+  },
+  {
+    id: 'totalEncounters',
+    accessorKey: 'totalEncounters',
+    header: 'Visits',
+    meta: { align: 'right' },
+  },
+  {
+    id: 'totalFinalized',
+    accessorKey: 'totalFinalized',
+    header: 'Finalized',
+    meta: { align: 'right' },
+  },
 ];
 
 export function SystemAdminDashboard({
@@ -127,6 +158,7 @@ export function SystemAdminDashboard({
         <DashboardKpiCard
           title="Patients across clinics"
           value={systemWidePatients}
+          icon={UserRound}
           hint="Patients recorded across the full network."
         />
         <DashboardKpiCard
@@ -182,79 +214,35 @@ export function SystemAdminDashboard({
             emptyLabel="All zones"
           />
         </div>
-        <div>
-          {clinicComparison.length === 0 ? (
-            <div className="rounded-lg border border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
-              <p>
-                {isFiltered
-                  ? `No clinic is in ${zoneFilterLabel(shownZone)}.`
-                  : 'No clinic has any activity to compare yet.'}
-              </p>
-              {isFiltered ? (
-                <Button variant="outline" className="mt-3" onClick={() => onZoneFilterChange(null)}>
+        {clinicComparison.length === 0 ? (
+          <EmptyState
+            density="compact"
+            icon={Building2}
+            title={isFiltered ? 'No clinics in this zone' : 'Nothing to compare yet'}
+            description={
+              isFiltered
+                ? `No clinic is in ${zoneFilterLabel(shownZone)}.`
+                : 'No clinic has any activity to compare yet.'
+            }
+            action={
+              isFiltered ? (
+                <Button variant="outline" onClick={() => onZoneFilterChange(null)}>
                   Show all zones
                 </Button>
-              ) : null}
-            </div>
-          ) : (
-            <>
-              {/*
-                Card list below md, grid above -- the same dual tree the clinic registry uses.
-                This table was previously a bare DataGrid with a 560px floor, so on a phone the
-                only way to read the last column was to scroll a nested region sideways.
-              */}
-              <ul className="space-y-3 md:hidden">
-                {clinicComparison.map((row) => (
-                  <li
-                    key={row.clinicId}
-                    className="rounded-lg border border-border bg-background p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <h4 className="min-w-0 truncate text-base font-semibold text-foreground">
-                        {row.clinicName}
-                      </h4>
-                      <span
-                        className={
-                          row.zoneCode
-                            ? 'shrink-0 font-mono text-xs text-foreground'
-                            : 'shrink-0 text-xs text-muted-foreground'
-                        }
-                      >
-                        {zoneLabel(row.zoneCode)}
-                      </span>
-                    </div>
-                    <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
-                      <div>
-                        <dt className="text-muted-foreground">Patients</dt>
-                        <dd className="tabular-nums text-foreground">{row.totalPatients}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Encounters</dt>
-                        <dd className="tabular-nums text-foreground">{row.totalEncounters}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Finalized</dt>
-                        <dd className="tabular-nums text-foreground">{row.totalFinalized}</dd>
-                      </div>
-                    </dl>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="hidden overflow-y-hidden md:block">
-                <DataTable
-                  caption="Clinics compared"
-                  columns={columns}
-                  data={clinicComparison}
-                  getRowId={(row) => row.clinicId}
-                  isRefreshing={isRefreshing}
-                  pageSizeOptions={[10]}
-                  initialPageSize={10}
-                />
-              </div>
-            </>
-          )}
-        </div>
+              ) : undefined
+            }
+          />
+        ) : (
+          <DataTable
+            caption="Clinics compared"
+            columns={columns}
+            data={clinicComparison}
+            getRowId={(row) => row.clinicId}
+            isRefreshing={isRefreshing}
+            pageSizeOptions={[10]}
+            initialPageSize={10}
+          />
+        )}
       </section>
     </section>
   );

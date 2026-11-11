@@ -12,10 +12,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { apiFetch } from '@/lib/api';
-import { formatRoleLabel, readApiError } from '@/lib/ops';
+import { formatOpsTimestamp, formatRoleLabel, readApiError } from '@/lib/ops';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
-import { ShieldCheck } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import {
@@ -37,6 +36,7 @@ import {
 } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { cn } from '@/lib/utils';
 import { StaffInvitesCard } from '@/components/staff/StaffInvitesCard';
 import { describeIdentitySync, type IdentitySync } from '@/lib/identity-sync';
 import type { OrganizationSummary } from '@/lib/clinic-metadata';
@@ -58,7 +58,6 @@ import {
   RecordSectionHeader,
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -199,7 +198,8 @@ function describeLifecycleIdentity(result: LifecycleResult, enabling: boolean): 
 }
 
 function statusBadgeVariant(isActive: boolean) {
-  return isActive ? 'finalized' : 'destructive';
+  // Deactivation is undone by Reactivate, so it reads as a neutral state, not an error.
+  return isActive ? 'finalized' : 'secondary';
 }
 
 function nameForRow(row: StaffAccessRow) {
@@ -244,7 +244,7 @@ function formatAdminTimestamp(value?: string) {
     return 'Not available';
   }
 
-  return new Date(value).toLocaleString();
+  return formatOpsTimestamp(value);
 }
 
 function isPortalMismatch(status: PortalLinkStatus) {
@@ -1043,25 +1043,19 @@ export default function AdminUsersPage() {
           amber so a "portal mismatches" count was the only metric in the product that did not use
           the status tokens.
         */}
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup
+          className={cn('sm:grid-cols-2', showPortalFilter ? 'xl:grid-cols-4' : 'xl:grid-cols-3')}
+        >
+          {/* Counts only. The scope is the roster's own title and the view switch above. */}
           <AppMetricCard
-            title="Scope"
-            value={viewMode === 'clinic' ? (activeClinicName ?? 'Clinic roster') : 'All users'}
-            detail={
-              viewMode === 'clinic'
-                ? 'Current clinic access and lifecycle actions'
-                : 'System-wide visibility for system admin review'
-            }
+            title="Active accounts"
+            value={activeCount}
+            detail={viewMode === 'clinic' ? 'Can sign in to this clinic' : 'Can sign in'}
           />
           <AppMetricCard
-            title="Visible records"
-            value={visibleRows.length}
-            detail={`${rows.length} loaded before role filtering`}
-          />
-          <AppMetricCard
-            title="Account status"
-            value={`${activeCount} / ${inactiveCount}`}
-            detail="Active vs deactivated in this dataset"
+            title="Deactivated"
+            value={inactiveCount}
+            detail="Kept for history; Reactivate restores access"
           />
           <AppMetricCard
             title="Broader access"
@@ -1303,12 +1297,13 @@ export default function AdminUsersPage() {
                       ? activeClinicName
                         ? `Lifecycle controls for ${activeClinicName}.`
                         : 'Choose a clinic to load the roster.'
-                      : 'System-wide user visibility for platform administration.'}
+                      : 'System-wide user visibility for platform administration.'}{' '}
+                    {loading ? null : (
+                      <span className="tabular-nums">
+                        Showing {visibleRows.length} of {rows.length}.
+                      </span>
+                    )}
                   </RecordSectionDescription>
-                </div>
-                <div className="hidden rounded-lg border border-border bg-background px-4 py-3 text-right sm:block">
-                  <p className="text-eyebrow text-muted-foreground">Showing</p>
-                  <p className="mt-1 text-xl font-semibold">{visibleRows.length}</p>
                 </div>
               </div>
               <ActiveFilterSummary
@@ -1346,12 +1341,9 @@ export default function AdminUsersPage() {
                 emptyState
               ) : (
                 <>
-                  <div className="md:hidden space-y-3">
+                  <div className="divide-y divide-rule border-y border-rule md:hidden">
                     {visibleRows.map((row) => (
-                      <article
-                        key={row.id}
-                        className="rounded-lg border border-border bg-background p-4"
-                      >
+                      <article key={row.id} className="py-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-semibold text-foreground">
@@ -1382,9 +1374,9 @@ export default function AdminUsersPage() {
                           ) : null}
                         </div>
 
-                        <div className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
-                          <p>{summarizeExtraAccess(row)}</p>
-                        </div>
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          {summarizeExtraAccess(row)}
+                        </p>
 
                         <Button
                           variant="outline"
@@ -1450,16 +1442,16 @@ export default function AdminUsersPage() {
 
           {selectedUser ? (
             <div className="mt-8 space-y-6">
-              <Card className="bg-background">
-                <CardHeader>
-                  <CardTitle className="text-lg">Identity and cleanup</CardTitle>
-                  <CardDescription>
+              <RecordSection>
+                <RecordSectionHeader>
+                  <h3 className="type-section-title">Identity and cleanup</h3>
+                  <RecordSectionDescription>
                     Use identity metadata to confirm whether this is the current sign-in account or
                     a stale legacy record.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent className="divide-y divide-rule border-b border-rule">
+                  <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-eyebrow text-muted-foreground">Name on records</p>
                       <p className="mt-2 truncate text-sm font-medium text-foreground">
@@ -1482,13 +1474,13 @@ export default function AdminUsersPage() {
                       </Button>
                     ) : null}
                   </div>
-                  <div className="rounded-lg border border-border bg-card p-4">
+                  <div className="py-3">
                     <p className="text-eyebrow text-muted-foreground">Keycloak subject</p>
                     <p className="mt-2 break-all text-sm font-medium text-foreground">
                       {selectedUser.keycloakSub ?? 'Not exposed in this view'}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-border bg-card p-4">
+                  <div className="py-3">
                     <p className="text-eyebrow text-muted-foreground">Account lifecycle</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       Created {formatAdminTimestamp(selectedUser.createdAt)}
@@ -1497,7 +1489,7 @@ export default function AdminUsersPage() {
                       Updated {formatAdminTimestamp(selectedUser.updatedAt)}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-border bg-card p-4 sm:col-span-2">
+                  <div className="py-3">
                     <p className="text-eyebrow text-muted-foreground">Replacement workflow</p>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
                       If this account no longer represents a real Keycloak user, deactivate it, ask
@@ -1505,20 +1497,20 @@ export default function AdminUsersPage() {
                       account instead of trying to recreate the old identity manually.
                     </p>
                   </div>
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
 
               {showPortalDetails ? (
-                <Card className="bg-background">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Patient portal linkage</CardTitle>
-                    <CardDescription>
+                <RecordSection>
+                  <RecordSectionHeader>
+                    <h3 className="type-section-title">Patient portal linkage</h3>
+                    <RecordSectionDescription>
                       Use this state to spot role-only mismatches and repair access from the correct
                       patient chart.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
+                    </RecordSectionDescription>
+                  </RecordSectionHeader>
+                  <RecordSectionContent className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-3">
                       <Badge variant={portalStatusVariant(selectedUser.patientPortal!.status)}>
                         {portalStatusLabel(selectedUser.patientPortal!.status)}
                       </Badge>
@@ -1529,7 +1521,7 @@ export default function AdminUsersPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-lg border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
+                    <div className="text-sm leading-6 text-muted-foreground">
                       {selectedUser.patientPortal!.status === 'LINKED' ? (
                         <p>
                           This account is linked correctly. If the user still cannot access the
@@ -1554,18 +1546,18 @@ export default function AdminUsersPage() {
                         </p>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </RecordSectionContent>
+                </RecordSection>
               ) : null}
 
-              <Card className="bg-background">
-                <CardHeader>
-                  <CardTitle className="text-lg">Account status</CardTitle>
-                  <CardDescription>
+              <RecordSection>
+                <RecordSectionHeader>
+                  <h3 className="type-section-title">Account status</h3>
+                  <RecordSectionDescription>
                     Lifecycle changes affect sign-in access globally.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
                       {selectedUser.email || 'No email on file'}
@@ -1579,13 +1571,13 @@ export default function AdminUsersPage() {
                   <Badge variant={statusBadgeVariant(selectedUser.isActive)}>
                     {selectedUser.isActive ? 'Active' : 'Deactivated'}
                   </Badge>
-                </CardContent>
+                </RecordSectionContent>
                 {/*
                   The sign-in identity, as its own fact. The account state above is written here
                   and always lands; this half is applied to Keycloak afterwards and may not.
                 */}
                 {selectedIdentity ? (
-                  <CardContent className="space-y-3 border-t border-border/60 pt-4">
+                  <RecordSectionContent className="space-y-3 border-t border-rule pt-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-foreground">Sign-in</span>
                       <Badge variant={selectedIdentity.variant}>{selectedIdentity.label}</Badge>
@@ -1603,20 +1595,20 @@ export default function AdminUsersPage() {
                         Sync sign-in
                       </Button>
                     ) : null}
-                  </CardContent>
+                  </RecordSectionContent>
                 ) : null}
-              </Card>
+              </RecordSection>
 
-              <Card className="bg-background">
-                <CardHeader>
-                  <CardTitle className="text-lg">
+              <RecordSection>
+                <RecordSectionHeader>
+                  <h3 className="type-section-title">
                     {viewMode === 'clinic' ? 'Current clinic access' : 'Active clinic access'}
-                  </CardTitle>
-                  <CardDescription>
+                  </h3>
+                  <RecordSectionDescription>
                     Role removal stays clinic-local and does not delete history.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent className="space-y-3">
                   {detailLoading ? (
                     <SectionSkeleton
                       lines={2}
@@ -1632,7 +1624,7 @@ export default function AdminUsersPage() {
                       return (
                         <div
                           key={role.id}
-                          className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex flex-col gap-3 border-b border-rule py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div>
                             <p className="font-medium text-foreground">
@@ -1661,18 +1653,18 @@ export default function AdminUsersPage() {
                       description="Switch the header clinic or open the clinic roster view to manage a different clinic-scoped membership."
                     />
                   )}
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
 
-              <Card className="bg-background">
-                <CardHeader>
-                  <CardTitle className="text-lg">Broader access summary</CardTitle>
-                  <CardDescription>
+              <RecordSection>
+                <RecordSectionHeader>
+                  <h3 className="type-section-title">Broader access summary</h3>
+                  <RecordSectionDescription>
                     Use this section to spot global roles or memberships outside the clinic before
                     deactivating the account.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent className="space-y-3">
                   {detailLoading ? (
                     <SectionSkeleton
                       lines={2}
@@ -1680,7 +1672,7 @@ export default function AdminUsersPage() {
                     />
                   ) : detailReadError && userRoles.length === 0 ? null : userRoles.length > 0 ? (
                     userRoles.map((role) => (
-                      <div key={role.id} className="rounded-lg border border-border bg-card p-4">
+                      <div key={role.id} className="border-b border-rule py-3 last:border-b-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={role.clinicId === null ? 'secondary' : 'outline'}>
                             {formatRoleLabel(role.role)}
@@ -1703,19 +1695,19 @@ export default function AdminUsersPage() {
                       description="This usually means the user has not been granted any clinic or global access yet."
                     />
                   )}
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
 
               {canAssignRoles ? (
-                <Card className="bg-background">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Assign a new role</CardTitle>
-                    <CardDescription>
+                <RecordSection>
+                  <RecordSectionHeader>
+                    <h3 className="type-section-title">Assign a new role</h3>
+                    <RecordSectionDescription>
                       Directors can assign roles only for clinics they direct. System Admins can
                       assign staff and admin roles here.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                    </RecordSectionDescription>
+                  </RecordSectionHeader>
+                  <RecordSectionContent className="space-y-4">
                     <InlineNotice>
                       Patient access is granted from the patient record portal-link action. It is
                       intentionally excluded from generic role assignment here.
@@ -1775,20 +1767,20 @@ export default function AdminUsersPage() {
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </RecordSectionContent>
+                </RecordSection>
               ) : null}
 
               {!selectedUser.isActive ? (
-                <Card className="bg-background">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Reactivate account</CardTitle>
-                    <CardDescription>
+                <RecordSection>
+                  <RecordSectionHeader>
+                    <h3 className="type-section-title">Reactivate account</h3>
+                    <RecordSectionDescription>
                       Restores access to Nkwapa and re-enables their sign-in. They keep their
                       existing password and are emailed to say so.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                    </RecordSectionDescription>
+                  </RecordSectionHeader>
+                  <RecordSectionContent>
                     <Button
                       onClick={() => void handleLifecycleAction('reactivate')}
                       disabled={!selectedCanReactivate || mutationLoading}
@@ -1796,24 +1788,21 @@ export default function AdminUsersPage() {
                     >
                       Reactivate account
                     </Button>
-                  </CardContent>
-                </Card>
+                  </RecordSectionContent>
+                </RecordSection>
               ) : null}
 
               {selectedUser.isActive ? (
-                <Card className="border-destructive/25 bg-destructive/5">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-                      <ShieldAlert className="h-5 w-5 text-destructive" />
-                      Deactivate account
-                    </CardTitle>
-                    <CardDescription>
+                <RecordSection>
+                  <RecordSectionHeader>
+                    <h3 className="type-section-title">Deactivate account</h3>
+                    <RecordSectionDescription>
                       This blocks API and app access without deleting audit or clinical history,
                       then disables their sign-in and ends any open sessions. For someone who also
                       works in another clinic, only this clinic&apos;s access is withdrawn.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                    </RecordSectionDescription>
+                  </RecordSectionHeader>
+                  <RecordSectionContent className="space-y-4">
                     {selectedHasProtectedExternalAccess &&
                     !isSystemAdmin &&
                     viewMode === 'clinic' ? (
@@ -1833,13 +1822,12 @@ export default function AdminUsersPage() {
                       variant="outline"
                       onClick={() => setDeactivateOpen(true)}
                       disabled={!selectedCanDeactivate || mutationLoading}
-                      className="w-full border-warning text-warning-ink sm:w-auto"
+                      className="w-full sm:w-auto"
                     >
-                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                       Deactivate account
                     </Button>
-                  </CardContent>
-                </Card>
+                  </RecordSectionContent>
+                </RecordSection>
               ) : null}
             </div>
           ) : null}
@@ -1855,7 +1843,7 @@ export default function AdminUsersPage() {
               and any other clinic or global access remains untouched.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border border-border bg-card p-4 text-sm">
+          <div className="border-y border-rule py-3 text-sm">
             <p className="font-medium text-foreground">
               {selectedUser ? nameForRow(selectedUser) : 'Selected user'}
             </p>
@@ -1874,11 +1862,9 @@ export default function AdminUsersPage() {
             </Button>
             <Button
               variant="outline"
-              className="border-warning text-warning-ink"
               onClick={() => void handleConfirmRoleRevoke()}
               disabled={mutationLoading}
             >
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               {mutationLoading ? 'Removing...' : 'Remove role'}
             </Button>
           </DialogFooter>
@@ -1926,7 +1912,7 @@ export default function AdminUsersPage() {
               encounters, and clinic records are preserved.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4 text-sm">
+          <div className="border-y border-rule py-3 text-sm">
             <p className="font-medium text-foreground">
               {selectedUser ? nameForRow(selectedUser) : 'Selected user'}
             </p>
@@ -1946,11 +1932,9 @@ export default function AdminUsersPage() {
             </Button>
             <Button
               variant="outline"
-              className="border-warning text-warning-ink"
               onClick={() => void handleConfirmDeactivate()}
               disabled={mutationLoading || !selectedCanDeactivate}
             >
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               {mutationLoading ? 'Deactivating...' : 'Deactivate account'}
             </Button>
           </DialogFooter>

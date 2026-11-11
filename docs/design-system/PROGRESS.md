@@ -1168,3 +1168,26 @@ Chromium **58/58**. Six-role audit **12/12, 228 rows, 0 violations, 0 overflow, 
 errors**. Details and limits in `ui-refresh/R4.2-REVIEW.md`; synthetic evidence in
 ignored `ui-refresh/evidence/r4-2/`. Next is `ui-refresh/HANDOFF-R4.3.md`. Local commit
 only; no push.
+
+## R4.3 Director and system administrator oversight (2026-11-11)
+
+Warning ink and `ShieldCheck` now mark only what cannot be undone here (merge, erasure, queueing a
+confirmed duplicate for merge). Deactivate account, Remove role and taking a clinic offline are
+plain outline buttons or a routine Save, and Inactive and Deactivated are neutral badges. Boxed
+"Showing N" tiles became words at the end of each section description, and non-figure metric cells
+(audit "Has more results", Staff "Scope" and "15 / 0") are gone. The network clinic comparison is
+one table at every width with a sticky clinic column and right-aligned counts, as are director
+staff activity and both organization tables. The audit log opens on 25 rows (its Rows select was
+blank), shows Accra timestamps with seconds, and ends its filters in `FormActions`. Data requests
+no longer spin forever without a clinic. The access sheet's nested cards are ruled sections; phone
+rows are hairlines. Rules are in MASTER under "Administration and oversight".
+
+**Validation:** audit-flag build, TypeScript, changed-file lint/format pass; detector `[]`; related
+Jest 5 suites / 100 tests. Focused Chromium over 15 specs (governance, clinic metadata, both
+duplicate screens, metrics, both organization specs, dashboard-work-first, workspace-smoke,
+staff-invite, route-audit-findings, responsive-migration, responsive-offline, shell-navigation,
+portal): **210/210**. Scratch evidence spec **11/11**: 144 rows at 1440 to 320 in both themes, 0
+violations, 0 overflow, plus the sticky-column, audit and access-sheet checks. Six-role audit **12/12,
+228 rows, 0 violations, 0 overflow, 0 errors**. Details and limits in `ui-refresh/R4.3-REVIEW.md`; synthetic evidence in ignored
+`ui-refresh/evidence/r4-3/`. R4 is complete; next is `ui-refresh/HANDOFF-R5.1.md`. Local commit
+only; no push.

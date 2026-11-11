@@ -102,6 +102,7 @@ export function OrganizationReportScreen() {
         id: 'clinicName',
         accessorKey: 'clinicName',
         header: 'Clinic',
+        meta: { className: 'sticky left-0 z-[1] bg-card [thead_&]:bg-surface-2' },
         cell: ({ row: params }) => (
           <span className="flex items-center gap-2">
             <span className="truncate">{params.original.clinicName}</span>
@@ -115,22 +116,42 @@ export function OrganizationReportScreen() {
         header: 'Zone',
         accessorFn: (row) => zoneLabel(row.zoneCode),
       },
-      { id: 'patients', accessorKey: 'patients', header: 'Patients', width: 100 },
-      { id: 'encounters', accessorKey: 'encounters', header: 'Encounters', width: 110 },
+      {
+        id: 'patients',
+        accessorKey: 'patients',
+        header: 'Patients',
+        width: 100,
+        meta: { align: 'right' },
+      },
+      {
+        id: 'encounters',
+        accessorKey: 'encounters',
+        header: 'Encounters',
+        width: 110,
+        meta: { align: 'right' },
+      },
       {
         id: 'openWork',
         accessorKey: 'openWork',
         header: 'Open work',
+        meta: { align: 'right' },
         accessorFn: (row) => openWork(row),
       },
       {
         id: 'hypertensionScreeningRate',
         accessorKey: 'hypertensionScreeningRate',
         header: 'BP screened',
+        meta: { align: 'right' },
         enableSorting: false,
         accessorFn: (row) => formatRate(row.hypertensionScreeningRate),
       },
-      { id: 'activeStaff', accessorKey: 'activeStaff', header: 'Staff', width: 90 },
+      {
+        id: 'activeStaff',
+        accessorKey: 'activeStaff',
+        header: 'Staff',
+        width: 90,
+        meta: { align: 'right' },
+      },
       {
         id: 'drilldown',
         accessorKey: 'drilldown',

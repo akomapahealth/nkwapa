@@ -120,26 +120,52 @@ export function OrganizationAnalyticsPanel({
 
   const columns = useMemo<DataTableColumn<ClinicAnalyticsRow>[]>(
     () => [
-      { id: 'clinicName', accessorKey: 'clinicName', header: 'Clinic', minWidth: 180 },
+      {
+        id: 'clinicName',
+        accessorKey: 'clinicName',
+        header: 'Clinic',
+        minWidth: 180,
+        meta: { className: 'sticky left-0 z-[1] bg-card [thead_&]:bg-surface-2' },
+      },
       {
         id: 'zoneCode',
         accessorKey: 'zoneCode',
         header: 'Zone',
         accessorFn: (row) => zoneLabel(row.zoneCode),
       },
-      { id: 'encounters', accessorKey: 'encounters', header: 'Encounters', width: 110 },
-      { id: 'patients', accessorKey: 'patients', header: 'Patients', width: 100 },
+      {
+        id: 'encounters',
+        accessorKey: 'encounters',
+        header: 'Encounters',
+        width: 110,
+        meta: { align: 'right' },
+      },
+      {
+        id: 'patients',
+        accessorKey: 'patients',
+        header: 'Patients',
+        width: 100,
+        meta: { align: 'right' },
+      },
       {
         id: 'finalized',
         accessorKey: 'finalized',
         header: 'Finalized',
+        meta: { align: 'right' },
         accessorFn: (row) => row.encountersByStatus.FINALIZED,
       },
-      { id: 'appointments', accessorKey: 'appointments', header: 'Appointments', width: 130 },
+      {
+        id: 'appointments',
+        accessorKey: 'appointments',
+        header: 'Appointments',
+        width: 130,
+        meta: { align: 'right' },
+      },
       {
         id: 'noShows',
         accessorKey: 'noShows',
         header: 'No-shows',
+        meta: { align: 'right' },
         accessorFn: (row) => row.appointmentsByStatus.NO_SHOW,
       },
       {

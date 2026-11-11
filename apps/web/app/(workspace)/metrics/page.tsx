@@ -138,10 +138,9 @@ function MetricsContent() {
                 <DistributionChart
                   title="Most common failure reasons"
                   hint="The codes behind failed and refused actions. Support can search logs for the code."
+                  // One neutral series: the title already says these are failures, and a wall of
+                  // red bars read as an outage when most codes are routine refusals.
                   data={failures}
-                  tones={Object.fromEntries(
-                    Object.keys(failures).map((label) => [label, 'destructive' as const]),
-                  )}
                   layout="horizontal"
                   emptyMessage="Nothing failed in this window."
                 />

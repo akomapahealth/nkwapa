@@ -162,6 +162,18 @@ export function formatOpsDateTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE
   });
 }
 
+/** A record's exact moment, with year and seconds: audit entries are compared to the second. */
+export function formatOpsTimestamp(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+  return formatInTimeZone(value, timeZone, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
 export function formatOpsTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
   return formatInTimeZone(value, timeZone, {
     hour: 'numeric',

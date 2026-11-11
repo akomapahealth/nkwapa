@@ -395,7 +395,10 @@ export function CrossClinicInvestigationScreen() {
                       <RecordSectionDescription>
                         {selectedPair
                           ? `Only pairs between ${clinicPairLabel(selectedPair)}.`
-                          : 'Open a pair to compare the two charts side by side.'}
+                          : 'Open a pair to compare the two charts side by side.'}{' '}
+                        <span className="tabular-nums">
+                          Showing {data.items.length} of {data.total}.
+                        </span>
                       </RecordSectionDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -405,12 +408,6 @@ export function CrossClinicInvestigationScreen() {
                           All clinic pairs
                         </Button>
                       ) : null}
-                      <div className="rounded-lg border border-border/70 bg-background/75 px-4 py-3 text-sm">
-                        <p className="text-muted-foreground">Showing</p>
-                        <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                          {data.items.length} of {data.total}
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </RecordSectionHeader>
@@ -457,7 +454,7 @@ export function CrossClinicInvestigationScreen() {
                         />
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm lg:hidden">
+                      <div className="flex items-center justify-between gap-3 text-sm lg:hidden">
                         <p className="tabular-nums text-muted-foreground">
                           Showing {data.items.length} of {data.total}
                         </p>
@@ -578,7 +575,10 @@ function BurdenByClinicPair({
         <ConfidenceLegend />
       </RecordSectionHeader>
       <RecordSectionContent>
-        <ul className="space-y-2" aria-label="Likely duplicates by clinic pair">
+        <ul
+          className="divide-y divide-rule border-y border-rule"
+          aria-label="Likely duplicates by clinic pair"
+        >
           {burden.clinicPairs.map((row) => {
             const active = row.key === activeKey;
             return (
@@ -588,11 +588,10 @@ function BurdenByClinicPair({
                   aria-pressed={active}
                   onClick={() => onFocus(active ? null : row.key)}
                   className={cn(
-                    'w-full rounded-lg border px-4 py-3 text-left transition-colors duration-150',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                    active
-                      ? 'border-primary/40 bg-primary/10'
-                      : 'border-border/70 bg-background/70 hover:border-primary/30 hover:bg-card',
+                    // A hairline row that fills when chosen, like a selected nav item (R4.3).
+                    'w-full px-3 py-3 text-left transition-colors duration-150',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                    active ? 'bg-selected' : '[@media(hover:hover)]:hover:bg-muted',
                   )}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

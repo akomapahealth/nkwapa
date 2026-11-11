@@ -1305,6 +1305,37 @@ Data request status words are rendered through `lib/status-presentation.ts`.
 
 Shipped in [PR #301](https://github.com/akomapahealth/nkwapa/pull/301); before and after screenshots and verification are in the pull request.
 
+R4.3 (director and system administrator oversight) narrows the warning rule above. Warning ink and
+`ShieldCheck` are for what cannot be undone from this screen: merge, erasure (closing a deletion
+request) and queueing a confirmed duplicate for merge. Deactivating an account, removing a role and
+taking a clinic offline are undone by Reactivate, Add role and reactivating, so they are plain
+outline buttons and a routine Save, and Inactive and Deactivated badges are the neutral `secondary`
+badge, not destructive red. Confirmation dialogs and their copy are unchanged.
+
+- **Counts are words, not tiles.** The boxed "Showing N" and "Loaded rows" tiles beside section
+  titles are gone; the count closes the section description ("Showing 10 of 13."). Metric groups
+  hold counts only: the audit log's "Has more results: Yes" and "Audit scope: Clinic" and Staff &
+  Access's "Scope" and "15 / 0" cells were not figures. Staff shows Active accounts and
+  Deactivated separately; the audit log says how many events are loaded and whether older history
+  remains in its description.
+- **One table at every width for counts.** The network clinic comparison drops its boxed phone
+  card list for the same `DataTable` with a sticky clinic column
+  (`sticky left-0 z-[1] bg-card [thead_&]:bg-surface-2` through the column `meta.className`) and
+  right-aligned counts. Director staff activity and both organization tables use the same sticky
+  name and right-aligned counts. Record lists that carry actions (clinic registry, roster) keep
+  their phone rows, now hairline `article`s instead of rounded boxes.
+- **Sheets hold ruled sections, not cards.** The access sheet's sections are `RecordSection`s with
+  `h3` titles, identity facts are hairline rows, and role rows are hairlines. The duplicate
+  comparison sheet's decision block and the cross-clinic clinic-pair rows are ruled; a chosen pair
+  fills with `--selected`.
+- **Times.** The audit log uses `formatOpsTimestamp` (Accra, with year and seconds, because audit
+  entries are compared to the second); duplicate rows, cards and the phone audit list use
+  `formatOpsDateTime`; `formatInviteDate` (invites and data requests) now reads in Accra too.
+- Audit filters sit in two rows of four and end in `FormActions` (Clear, Apply filters). The audit
+  table opens on 25 rows; its Rows select was blank because 10 was not one of its options. The
+  audit log and data requests use `SelectClinicState` when no clinic is chosen (data requests used
+  to show a skeleton forever). Metrics' failure-reason chart is one neutral series.
+
 ### Analytics and reporting (#275)
 
 `/metrics`, `/staff-activity`, `/reports/organization` (Report and Cohort

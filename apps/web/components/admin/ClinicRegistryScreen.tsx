@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SectionSkeleton } from '@/components/feedback/AppState';
+import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ApiError, apiFetch, readApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useAsyncResource } from '@/lib/use-async-resource';
@@ -310,7 +310,7 @@ export function ClinicRegistryScreen() {
         accessorKey: 'isActive',
         header: 'Status',
         cell: ({ row: params }) => (
-          <Badge variant={params.original.isActive ? 'finalized' : 'destructive'}>
+          <Badge variant={params.original.isActive ? 'finalized' : 'secondary'}>
             {params.original.isActive ? 'Active' : 'Inactive'}
           </Badge>
         ),
@@ -382,20 +382,13 @@ export function ClinicRegistryScreen() {
 
       <RecordSection className="min-w-0">
         <RecordSectionHeader className="space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <RecordSectionTitle>Clinic registry</RecordSectionTitle>
-              <RecordSectionDescription>
-                Review names, location codes, time zones, and activation status.
-              </RecordSectionDescription>
-            </div>
-            <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
-              <p className="text-muted-foreground">Showing</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                {visibleRows.length}
-              </p>
-            </div>
-          </div>
+          <RecordSectionTitle>Clinic registry</RecordSectionTitle>
+          <RecordSectionDescription>
+            Review names, location codes, time zones, and activation status.{' '}
+            <span className="tabular-nums">
+              Showing {visibleRows.length} of {rows.length}.
+            </span>
+          </RecordSectionDescription>
         </RecordSectionHeader>
         <RecordSectionContent className="space-y-4">
           <ProgressiveHelp title="How clinic metadata is used">
@@ -492,22 +485,27 @@ export function ClinicRegistryScreen() {
           >
             {() =>
               visibleRows.length === 0 ? (
-                <div className="rounded-lg border border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
-                  <p>{emptyResultMessage}</p>
-                  {zoneFilter !== null ? (
-                    <Button variant="outline" className="mt-3" onClick={() => setZoneFilter(null)}>
-                      Show all zones
-                    </Button>
-                  ) : null}
-                </div>
+                <EmptyState
+                  density="compact"
+                  icon={Building2}
+                  title={
+                    filter === 'needs-attention' ? 'Nothing needs attention' : 'No clinics match'
+                  }
+                  description={emptyResultMessage}
+                  action={
+                    zoneFilter !== null ? (
+                      <Button variant="outline" onClick={() => setZoneFilter(null)}>
+                        Show all zones
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : (
                 <>
-                  <div className="space-y-3 md:hidden">
+                  {/* Hairline rows, not boxes: the ruled list the oversight screens share (R4.3). */}
+                  <div className="divide-y divide-rule border-y border-rule md:hidden">
                     {visibleRows.map((clinic) => (
-                      <article
-                        key={clinic.id}
-                        className="rounded-lg border border-border bg-background p-4"
-                      >
+                      <article key={clinic.id} className="py-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-semibold text-foreground">
@@ -517,7 +515,7 @@ export function ClinicRegistryScreen() {
                               {clinic.region || 'No region assigned'}
                             </p>
                           </div>
-                          <Badge variant={clinic.isActive ? 'finalized' : 'destructive'}>
+                          <Badge variant={clinic.isActive ? 'finalized' : 'secondary'}>
                             {clinic.isActive ? 'Active' : 'Inactive'}
                           </Badge>
                         </div>

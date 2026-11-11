@@ -15,7 +15,7 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { readApiError } from '@/lib/ops';
+import { formatOpsDateTime, readApiError } from '@/lib/ops';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import {
   buildDuplicateQuery,
@@ -288,7 +288,7 @@ export function DuplicateReviewScreen() {
         enableSorting: false,
         cell: ({ row: params }) => (
           <span className="tabular-nums text-muted-foreground">
-            {params.original.lastUpdatedAt.slice(0, 10)}
+            {formatOpsDateTime(params.original.lastUpdatedAt)}
           </span>
         ),
       },
@@ -417,7 +417,7 @@ export function DuplicateReviewScreen() {
         whenever this view could be showing such a pair.
       */}
       {effectiveScope === 'all' ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card/90 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-y border-rule py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <Building2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <p className="text-sm leading-5 text-muted-foreground">
@@ -478,20 +478,16 @@ export function DuplicateReviewScreen() {
 
         <RecordSection className="min-w-0">
           <RecordSectionHeader className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-1.5">
-                <RecordSectionTitle>Candidates</RecordSectionTitle>
-                <RecordSectionDescription>
-                  Open a pair to compare the two charts side by side.
-                </RecordSectionDescription>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-background/75 px-4 py-3 text-sm">
-                <p className="text-muted-foreground">Showing</p>
-                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                  {queue.data?.items.length ?? 0} of {queue.data?.total ?? 0}
-                </p>
-              </div>
-            </div>
+            <RecordSectionTitle>Candidates</RecordSectionTitle>
+            <RecordSectionDescription>
+              Open a pair to compare the two charts side by side.
+              {queue.data ? (
+                <span className="tabular-nums">
+                  {' '}
+                  Showing {queue.data.items.length} of {queue.data.total}.
+                </span>
+              ) : null}
+            </RecordSectionDescription>
           </RecordSectionHeader>
           <RecordSectionContent className="space-y-4">
             {!scopeReady ? (
@@ -565,7 +561,7 @@ export function DuplicateReviewScreen() {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm lg:hidden">
+                    <div className="flex items-center justify-between gap-3 text-sm lg:hidden">
                       <p className="tabular-nums text-muted-foreground">
                         Showing {data.items.length} of {data.total}
                       </p>

@@ -4,18 +4,23 @@ import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ActivitySquare, FileClock, Search, Shield } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { zoneLabel } from '@/lib/clinic-zones';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { formatOpsDateTime, formatOpsTimestamp } from '@/lib/ops';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import {
+  InlineErrorState,
+  SectionSkeleton,
+  SelectClinicState,
+} from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -136,8 +141,8 @@ export default function AuditPage() {
       accessorKey: 'createdAt',
       header: 'Time',
       cell: ({ getValue }) => {
-        const v = getValue() as string | number | null | undefined;
-        return v ? new Date(v as string).toLocaleString() : '';
+        const v = getValue() as string | null | undefined;
+        return v ? formatOpsTimestamp(v) : '';
       },
     },
     {
@@ -155,9 +160,7 @@ export default function AuditPage() {
   if (!clinicId) {
     return (
       <RouteGuard requiredPermission="AUDIT.READ">
-        <div className="p-4">
-          <p className="text-muted-foreground">Select a clinic to view audit.</p>
-        </div>
+        <SelectClinicState surface="The audit log" />
       </RouteGuard>
     );
   }
@@ -173,27 +176,6 @@ export default function AuditPage() {
           helpText="Search for a person, or select a name in the results, then narrow by date, action, entity, or request ID to rebuild a timeline for support, governance, or incident review."
         />
 
-        <AppMetricGroup className="md:grid-cols-3">
-          <AppMetricCard
-            title="Visible events"
-            value={rows.length}
-            icon={ActivitySquare}
-            detail="Events currently loaded into the investigation view."
-          />
-          <AppMetricCard
-            title="Has more results"
-            value={nextCursor ? 'Yes' : 'No'}
-            icon={FileClock}
-            detail="Cursor pagination remains available when more history exists."
-          />
-          <AppMetricCard
-            title="Audit scope"
-            value="Clinic"
-            icon={Shield}
-            detail="Audit records are filtered to the active clinic context."
-          />
-        </AppMetricGroup>
-
         <RecordSection>
           <RecordSectionHeader className="space-y-3">
             <RecordSectionTitle>Filters</RecordSectionTitle>
@@ -202,7 +184,7 @@ export default function AuditPage() {
             </RecordSectionDescription>
           </RecordSectionHeader>
           <RecordSectionContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div className="space-y-2">
                 <Label htmlFor="from">From</Label>
                 <Input
@@ -254,7 +236,7 @@ export default function AuditPage() {
                   placeholder="Encounter"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="requestId">Request ID</Label>
                 <Input
                   id="requestId"
@@ -264,17 +246,10 @@ export default function AuditPage() {
                 />
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => fetchAudit()} disabled={loading} className="rounded-lg">
-                Apply filters
-                <span aria-live="polite" className="sr-only">
-                  {loading ? 'Applying filters' : ''}
-                </span>
-              </Button>
+            <FormActions>
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-lg"
                 onClick={() => {
                   setFrom('');
                   setTo('');
@@ -288,7 +263,13 @@ export default function AuditPage() {
               >
                 Clear
               </Button>
-            </div>
+              <Button onClick={() => fetchAudit()} disabled={loading}>
+                Apply filters
+                <span aria-live="polite" className="sr-only">
+                  {loading ? 'Applying filters' : ''}
+                </span>
+              </Button>
+            </FormActions>
             <ActiveFilterSummary
               items={[
                 { label: 'From', value: from || null },
@@ -320,18 +301,15 @@ export default function AuditPage() {
 
         <RecordSection>
           <RecordSectionHeader className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <RecordSectionTitle>Audit events</RecordSectionTitle>
-                <RecordSectionDescription>
-                  Recent activity for the active clinic.
-                </RecordSectionDescription>
-              </div>
-              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
-                <p className="text-muted-foreground">Loaded rows</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
-              </div>
-            </div>
+            <RecordSectionTitle>Audit events</RecordSectionTitle>
+            {/* What is loaded, said once in words: a count tile and "Has more: Yes" said it twice. */}
+            <RecordSectionDescription>
+              Newest first, for this clinic only.{' '}
+              <span className="tabular-nums">
+                {rows.length === 1 ? '1 event' : `${rows.length} events`} loaded
+              </span>
+              {nextCursor ? '; older history is available below.' : '.'}
+            </RecordSectionDescription>
           </RecordSectionHeader>
           <RecordSectionContent className="space-y-4">
             {loading && rows.length === 0 ? (
@@ -363,7 +341,7 @@ export default function AuditPage() {
                           </p>
                         </div>
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {new Date(row.createdAt).toLocaleDateString()}
+                          {formatOpsDateTime(row.createdAt)}
                         </span>
                       </div>
                       <p className="mt-3 break-all text-xs text-muted-foreground">
@@ -384,6 +362,7 @@ export default function AuditPage() {
                     data={rows}
                     isRefreshing={loading}
                     pageSizeOptions={[25, 50, 100]}
+                    initialPageSize={25}
                   />
                 </div>
               </>
@@ -396,7 +375,6 @@ export default function AuditPage() {
                   variant="outline"
                   onClick={() => fetchAudit(nextCursor, true)}
                   disabled={loadingMore}
-                  className="rounded-lg"
                 >
                   Load more
                   <span aria-live="polite" className="sr-only">
