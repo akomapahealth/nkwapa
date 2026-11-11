@@ -36,7 +36,7 @@ export function DesktopFrame({
   sizes,
   priority,
   children,
-  src = '/product/station-line.png',
+  src = '/product/station-line-20261111.png',
   alt = DESKTOP_ALT,
 }: DesktopFrameProps) {
   return (
@@ -82,7 +82,7 @@ export function PhoneFrame({
   className,
   sizes,
   priority,
-  src = '/product/stations-phone.png',
+  src = '/product/stations-phone-20261111.png',
   alt = PHONE_ALT,
   height = 1744,
 }: PhoneFrameProps) {

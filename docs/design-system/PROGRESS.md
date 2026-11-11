@@ -1369,6 +1369,21 @@ palette check, design hook clean. Scratch dark spec over the R7.5 states and the
 Focused Chromium over 10 specs 76/76. Six-role audit **228 rows, 0 violations, 0 overflow**. Local
 commit only; no push. Next is `ui-refresh/HANDOFF-R7.7.md`.
 
+## R7.7 follow-up: current product screenshots and a generated link preview (2026-11-11)
+
+Owner request. The six landing screenshots still showed the pre-refresh workspace; they are
+re-captured from the light workspace on a synthetic screening day (`seed-screening-day.ts`, refuses
+anything not `*_shots`) by a committed Playwright harness in `docs/design-system/product-shots/`, under
+new `-20261111` names. The showcase markers still land on the new station line (checked). The
+`og-card.jpg` screenshot is gone: `app/opengraph-image.tsx` draws the card at build time from
+`components/landing/hero-content.ts`, which the hero now reads too, so changing the hero changes
+the card. Static TTF subsets for Satori in `app/fonts/og/`. Recipe in MASTER section 12 (product
+screenshots) and the refresh master 11.1 (link preview).
+
+**Validation:** audit-flag build (card 1200 × 630 JPEG, 85 KB; `og:image` and `twitter:image` carry
+content hashes), TypeScript, changed-file lint/format, Jest 1051/1051, focused Chromium (landing,
+public routes, supporting pages, console-clean, error/empty states) 48/48. Commit only; no push.
+
 ## R7.7 Performance checks (2026-11-11)
 
 Measured twelve workspace, portal and public routes at 390 px with the CPU slowed 4× and "slow 4G",

@@ -1940,6 +1940,15 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   e2e database, whose leftovers ("Review Synthetic-…", 11-hour waits) read as broken. A new
   capture gets a **new file name**: the image optimizer and any CDN cache by URL, so a replaced
   file under an old name keeps serving the old picture.
+- **Re-capturing them** (all six in one run, about two minutes): create a `nkwapa_shots` database,
+  migrate and base-seed it (`SEED_SAMPLE_*=true`), then run
+  `packages/db/prisma/seed-screening-day.ts` with `SHOTS_NOW` set to a clinic morning (e.g.
+  10:40 Accra) so printed times read as daytime. Point `DATABASE_URL` **and** `APP_DATABASE_URL` at
+  it, make an audit-flag build, and from `apps/web` run
+  `WEB_DIR=$PWD SHOTS_DIR=<dir> SHOTS_NOW=<same> npx playwright test -c ../../docs/design-system/product-shots/product-shots.config.cjs --workers=1`.
+  Both the seed and the config refuse any database not named `*_shots`. Files come out as
+  `<name>-<YYYYMMDD>.png`; copy them into `public/product/`, update the four landing components
+  that reference them, check the showcase markers, and drop the database.
 - **What each screen shows.** The showcase is a manager's station line (waits as bars, two past
   20 minutes); its four markers are percentages measured from that image, so a new capture
   re-measures them. The deck is each role's own working screen: a volunteer's Stations, a

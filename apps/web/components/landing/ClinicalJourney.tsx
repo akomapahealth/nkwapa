@@ -63,7 +63,7 @@ const STEPS = [
           priority
           sizes="(min-width: 1024px) 50vw, 92vw"
           className="w-full"
-          src="/product/doctor-record.png"
+          src="/product/doctor-record-20261111.png"
           alt={DOCTOR_RECORD_ALT}
         />
       </div>
@@ -76,7 +76,7 @@ const STEPS = [
       <div className="flex h-full items-center justify-center bg-secondary py-6">
         <PhoneFrame
           priority
-          src="/product/portal-phone.png"
+          src="/product/portal-phone-20261111.png"
           height={1320}
           alt="The patient portal on a phone: a welcome back, then buttons to log a reading from home, request an appointment and review trends."
           sizes="(min-width: 1024px) 200px, 50vw"

@@ -970,8 +970,12 @@ numbers in `ui-refresh/R7.7-REVIEW.md`.
   moves the whole page when the real content replaces the loading state (patient record CLS 0.14).
 - **No `priority` on `BrandWordmark`.** It preloads both theme files; left lazy, the browser skips the
   hidden one.
-- **Link-preview images:** 1200 × 630 JPEG under a new file name whenever the picture changes
-  (crawlers cache by URL), and keep the metadata, JSON-LD and the file in step.
+- **Link-preview card is generated, never a saved picture:** `app/opengraph-image.tsx` (and
+  `twitter-image.tsx`, a re-export) draws it at build time from `components/landing/hero-content.ts`,
+  the same headline, lede, photograph and crop the hero uses. Edit the hero there and the card
+  follows; Next adds a content hash to the `og:image` URL, so crawlers that cache by URL see the new
+  card. It is re-encoded as JPEG (85 KB; Satori's PNG is over 1 MB and WhatsApp drops large previews).
+  Do not add `openGraph.images` to the layout metadata: it would override the generated card.
 - Recharts arrives on non-chart routes only as a `<Link>` prefetch after load; that is intended.
 
 # 12. Implementation Phases

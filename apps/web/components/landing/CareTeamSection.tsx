@@ -9,19 +9,19 @@ const DECK = [
   {
     role: 'Volunteers',
     text: 'Register, check in and measure at their station.',
-    src: '/product/volunteer-stations.png',
+    src: '/product/volunteer-stations-20261111.png',
     alt: "A volunteer's Stations screen: the next patient at blood pressure and how long they have waited, the rest of that station's queue, and the whole line from registration to review with who is at each station.",
   },
   {
     role: 'Doctors',
     text: "Review visits with the patient's history alongside, then sign them off.",
-    src: '/product/doctor-record.png',
+    src: '/product/doctor-record-20261111.png',
     alt: DOCTOR_RECORD_ALT,
   },
   {
     role: 'Clinic managers',
     text: 'Run the day: shifts, assignments, stations and wait times.',
-    src: '/product/manager-dashboard.png',
+    src: '/product/manager-dashboard-20261111.png',
     alt: "A clinic manager's dashboard: a visit waiting for a doctor's sign-off, today's clinic totals, and station flow with the longest wait and the staffing at each station.",
   },
 ];

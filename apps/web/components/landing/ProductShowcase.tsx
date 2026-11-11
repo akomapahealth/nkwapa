@@ -12,7 +12,7 @@ import {
 import { DESKTOP_ALT, DesktopFrame, PhoneFrame } from './ProductFrames';
 import { SectionRule } from './SectionRule';
 
-// Marker positions are percentages of station-line.png (a manager's station line, 1920x1080 at 2x),
+// Marker positions are percentages of station-line-20261111.png (a manager's station line, 1920x1080 at 2x),
 // measured from the screenshot: each sits just left of, and centred on, what it labels.
 const ANNOTATIONS = [
   {
@@ -137,7 +137,7 @@ export function ProductShowcase() {
                 </div>
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <Image
-                    src="/product/station-line.png"
+                    src="/product/station-line-20261111.png"
                     alt={DESKTOP_ALT}
                     width={3840}
                     height={2160}
