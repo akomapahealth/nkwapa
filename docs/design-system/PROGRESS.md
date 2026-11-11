@@ -15,7 +15,7 @@
 | R3    | Volunteer and clinical workflows       | In progress |
 | R4    | Clinical review and oversight          | Not started |
 | R5    | Patient portal and authentication      | In progress |
-| R6    | Supporting public experience           | Not started |
+| R6    | Supporting public experience           | In review   |
 | R7    | Motion and visual polish               | Not started |
 | R8    | Final QA and release readiness         | Not started |
 
@@ -25,24 +25,24 @@ Allowed statuses: `Not started`, `In progress`, `Blocked`, `In review`, `Complet
 
 Track each relevant route and role, not merely each module.
 
-| Screen family                   | Desktop | Tablet | Phone | QA  |
-| ------------------------------- | ------- | ------ | ----- | --- |
-| Staff application shell         | —       | —      | —     | —   |
-| Volunteer dashboard             | —       | —      | —     | —   |
-| Stations                        | —       | —      | —     | —   |
-| Queues                          | —       | —      | —     | —   |
-| Patient registry                | —       | —      | —     | —   |
-| New patient form                | —       | —      | —     | —   |
-| Patient profile                 | —       | —      | —     | —   |
-| Vitals and trends               | —       | —      | —     | —   |
-| Clinical encounters             | —       | —      | —     | —   |
-| Appointments                    | —       | —      | —     | —   |
-| Doctor and preceptor workspaces | —       | —      | —     | —   |
-| Manager operations              | —       | —      | —     | —   |
-| Director and admin workspaces   | —       | —      | —     | —   |
-| Patient portal                  | —       | —      | —     | —   |
-| Authentication                  | —       | —      | —     | —   |
-| Public pages                    | —       | —      | —     | —   |
+| Screen family                   | Desktop | Tablet | Phone | QA   |
+| ------------------------------- | ------- | ------ | ----- | ---- |
+| Staff application shell         | —       | —      | —     | —    |
+| Volunteer dashboard             | —       | —      | —     | —    |
+| Stations                        | —       | —      | —     | —    |
+| Queues                          | —       | —      | —     | —    |
+| Patient registry                | —       | —      | —     | —    |
+| New patient form                | —       | —      | —     | —    |
+| Patient profile                 | —       | —      | —     | —    |
+| Vitals and trends               | —       | —      | —     | —    |
+| Clinical encounters             | —       | —      | —     | —    |
+| Appointments                    | —       | —      | —     | —    |
+| Doctor and preceptor workspaces | —       | —      | —     | —    |
+| Manager operations              | —       | —      | —     | —    |
+| Director and admin workspaces   | —       | —      | —     | —    |
+| Patient portal                  | —       | —      | —     | —    |
+| Authentication                  | —       | —      | —     | —    |
+| Public pages                    | PASS    | PASS   | PASS  | PASS |
 
 Legend: `—` Not reviewed, `WIP` In progress, `PASS` Verified, `FAIL` Needs correction, `N/A` Not applicable.
 
@@ -1228,3 +1228,23 @@ related Jest suites. Focused Chromium over 11 auth, account and portal specs **9
 errors**. Scratch evidence: 80 axe rows at 1440 to 320 in both themes, 0 violations, 0 overflow;
 the touch pass found three sub-44px controls, all fixed. Details in `ui-refresh/R5.2-REVIEW.md`.
 **R5 is complete.** Local commit only; no push. Next is `ui-refresh/HANDOFF-R6.1.md`.
+
+## R6.1 Public site (2026-11-11)
+
+Every product screenshot on the landing page is now the current light workspace, captured from a
+synthetic screening day in a throwaway database. The old `desktop.png` showed the pre-refresh UI
+with 68 patients, which matches the production import (strong inference), so it is gone. The
+screenshots moved to new names in `public/product/` because the image cache kept serving the old
+picture. The showcase is a manager's station line with re-measured markers; the deck shows each
+role's working screen; the journey's Review and Follow up steps show a doctor's record and the
+patient portal. The deck lost its "01 / 03" counters and duplicate gold role pills; showcase
+markers no longer overshoot. Legal pages read on the white sheet under the title on the canvas, and
+on phones the contents list starts folded so the notice starts on the first screen. Public pages
+stay full bleed; the inset sheet is for being inside Nkwapa (MASTER section 12).
+
+**Validation:** four audit-flag builds, TypeScript, changed-file lint/format pass; detector `[]`.
+Focused Chromium over 7 public and auth specs **91/91**. Six-role audit **228 rows, 0 violations,
+0 overflow, 0 errors**. Scratch evidence: 40 axe rows at 1440 to 320 in both themes, 0 violations,
+0 overflow; touch pass found only inline links and the hidden skip link. Details in
+`ui-refresh/R6.1-REVIEW.md`. **R6 is complete.** Local commit only; no push. Next is
+`ui-refresh/HANDOFF-R7.1.md`.

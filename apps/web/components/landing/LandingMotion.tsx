@@ -221,11 +221,11 @@ export function LandingMotion({ children }: { children: React.ReactNode }) {
 
           root.querySelectorAll<HTMLElement>('[data-marker]').forEach((el, index) => {
             gsap.from(el, {
-              scale: 0.6,
+              scale: 0.85,
               opacity: 0,
               duration: 0.5,
-              delay: index * 0.12,
-              ease: 'back.out(2.2)',
+              delay: index * 0.08,
+              ease: 'power3.out',
               scrollTrigger: { trigger: el, start: 'top 75%', once: true },
             });
           });

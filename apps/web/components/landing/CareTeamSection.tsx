@@ -1,28 +1,28 @@
 import Image from 'next/image';
 import { LANDING_BLUR } from '@/lib/landing-blur';
-import { DesktopFrame } from './ProductFrames';
+import { DOCTOR_RECORD_ALT, DesktopFrame } from './ProductFrames';
 import { SectionRule } from './SectionRule';
 
-// Each role's own dashboard, captured at 3840x2160 in dark mode from synthetic seed data
-// (the demo clinic), never from a real clinic.
+// Each role's own screen, captured at 3840x2160 in the light workspace from a synthetic screening
+// day in a throwaway copy of the demo clinic, never from a real clinic (R6.1).
 const DECK = [
   {
     role: 'Volunteers',
     text: 'Register, check in and measure at their station.',
-    src: '/dashboards/volunteer.png',
-    alt: "A volunteer's Nkwapa dashboard: what needs them now, with the next patient at their station and a draft visit to submit, then today's clinic totals and their own work today.",
+    src: '/product/volunteer-stations.png',
+    alt: "A volunteer's Stations screen: the next patient at blood pressure and how long they have waited, the rest of that station's queue, and the whole line from registration to review with who is at each station.",
   },
   {
     role: 'Doctors',
     text: "Review visits with the patient's history alongside, then sign them off.",
-    src: '/dashboards/doctor.png',
-    alt: "A doctor's Nkwapa dashboard: one visit waiting for their sign-off, today's clinic totals, and their doctor queue with visits finalized today and this week.",
+    src: '/product/doctor-record.png',
+    alt: DOCTOR_RECORD_ALT,
   },
   {
     role: 'Clinic managers',
     text: 'Run the day: shifts, assignments, stations and wait times.',
-    src: '/dashboards/manager.png',
-    alt: "A clinic manager's Nkwapa dashboard: a visit waiting for a doctor's sign-off, today's clinic totals, and station flow showing the wait and staffing at each station.",
+    src: '/product/manager-dashboard.png',
+    alt: "A clinic manager's dashboard: a visit waiting for a doctor's sign-off, today's clinic totals, and station flow with the longest wait and the staffing at each station.",
   },
 ];
 
@@ -68,21 +68,14 @@ export function CareTeamSection() {
 
         <div data-deck className="mt-14 lg:mt-20">
           <ol data-deck-list className="grid gap-16 lg:gap-24">
-            {DECK.map((item, index) => (
+            {DECK.map((item) => (
               <li
                 key={item.role}
                 data-deck-item
                 className="grid gap-6 lg:grid-cols-12 lg:items-center lg:gap-10"
               >
                 <div data-deck-text className="lg:col-span-4">
-                  <p className="font-heading text-sm font-semibold tabular-nums text-primary">
-                    {String(index + 1).padStart(2, '0')}
-                    <span className="text-muted-foreground">
-                      {' '}
-                      / {String(DECK.length).padStart(2, '0')}
-                    </span>
-                  </p>
-                  <h3 className="mt-2 font-heading text-4xl font-semibold leading-tight sm:text-5xl">
+                  <h3 className="font-heading text-4xl font-semibold leading-tight sm:text-5xl">
                     {item.role}
                   </h3>
                   <p className="mt-4 max-w-md text-lg leading-relaxed text-foreground/80">
@@ -95,11 +88,7 @@ export function CareTeamSection() {
                     sizes="(min-width: 1024px) 56vw, 92vw"
                     src={item.src}
                     alt={item.alt}
-                  >
-                    <span className="absolute left-3 top-3 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground sm:left-5 sm:top-5 sm:text-sm">
-                      {item.role}
-                    </span>
-                  </DesktopFrame>
+                  />
                 </div>
               </li>
             ))}

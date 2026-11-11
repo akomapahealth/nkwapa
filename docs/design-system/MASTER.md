@@ -1921,6 +1921,37 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   the one entrance on this page longer than section 7's 200 ms, allowed because it is a
   public page, not a clinical view, and nothing waits on it.
 
+### Public site frame and product screenshots (R6.1)
+
+- **The inset sheet means "you are in Nkwapa".** `/login`, onboarding, the portal and the staff
+  shell sit on it (R5.2). The landing page and the legal pages stay full bleed: the landing hero
+  is a photograph to the window edges and its sections are coloured bands, which an inset frame
+  would cut into, and the legal pages share the landing header and footer. The hand-off is the
+  header's "Log in", and `/login` keeps its "Back to home".
+- **Legal pages layer the same way the workspace does:** the page switcher, title and metadata
+  sit on the canvas (`bg-background`), and the notice reads on the white sheet (`bg-card`). Below
+  `lg` the contents list starts folded behind "Show all N sections" (`aria-expanded`,
+  `aria-controls`), so the notice starts on the first screen of a phone; choosing a section folds
+  it again. From `lg` up it is the sticky list from #279, unchanged.
+- **Product screenshots live in `public/product/`** and are captured from the current light
+  workspace: 1920 × 1080 at 2x for laptop frames, 404 × 872 at 2x for phones. They come from a
+  synthetic screening day in a throwaway database (seeded demo clinic, invented Ghanaian names,
+  patients spread along the station line, staff on shifts). Never from a real clinic or the shared
+  e2e database, whose leftovers ("Review Synthetic-…", 11-hour waits) read as broken. A new
+  capture gets a **new file name**: the image optimizer and any CDN cache by URL, so a replaced
+  file under an old name keeps serving the old picture.
+- **What each screen shows.** The showcase is a manager's station line (waits as bars, two past
+  20 minutes); its four markers are percentages measured from that image, so a new capture
+  re-measures them. The deck is each role's own working screen: a volunteer's Stations, a
+  doctor's patient record, a manager's dashboard. The journey's Review step uses the doctor's
+  record and Follow up the patient portal.
+- **Frames.** The laptop frame keeps the light canvas in both themes, because the screenshots are
+  the light workspace. The deck dropped its "01 / 03" counters and the gold role pills on each
+  screenshot: neither was a sequence or new information. The journey's "01 / 05" stays, because
+  that order is the visit's.
+- **Showcase markers** ease in from 0.85 scale (`power3.out`, 80 ms apart) instead of
+  overshooting: bounce is for momentum a person gave, not a scroll reveal.
+
 ## 13. Library decisions and open items
 
 ### #263 library decisions, 2026-11-01

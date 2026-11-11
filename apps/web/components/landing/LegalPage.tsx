@@ -18,8 +18,8 @@ const LEGAL_PAGES = [
 ];
 
 /**
- * Shared layout for /privacy and /terms: the landing chrome, an editorial title band, a numbered
- * contents list that follows the reader, and unchanged legal text.
+ * Shared layout for /privacy, /terms and /cookies: the landing chrome, the title on the canvas, then
+ * the unchanged legal text on the white sheet with a numbered contents list that follows the reader.
  */
 export function LegalPage({
   path,
@@ -89,53 +89,56 @@ export function LegalPage({
           </div>
         </div>
 
-        <div className="landing-container grid gap-x-12 gap-y-8 pb-16 pt-8 lg:grid-cols-12">
-          <nav aria-label="Contents" className="lg:col-span-3">
-            <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
-              <h2 className="border-t-2 border-rule-strong pt-4 type-section-title">Contents</h2>
-              <LegalContents sections={sections.map(({ id, title }) => ({ id, title }))} />
-            </div>
-          </nav>
+        {/* The notice reads on the white sheet, below the title on the canvas, as workspace pages do. */}
+        <div className="bg-card">
+          <div className="landing-container grid gap-x-12 gap-y-8 pb-16 pt-8 lg:grid-cols-12">
+            <nav aria-label="Contents" className="lg:col-span-3">
+              <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+                <h2 className="border-t-2 border-rule-strong pt-4 type-section-title">Contents</h2>
+                <LegalContents sections={sections.map(({ id, title }) => ({ id, title }))} />
+              </div>
+            </nav>
 
-          <div className="min-w-0 lg:col-span-9">
-            <div className="max-w-[68ch] type-body leading-relaxed text-foreground [&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_h3]:mt-8 [&_h3]:font-semibold [&_a]:rounded-sm [&_a]:font-medium [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:focus-visible]:outline [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-ring [&_code]:[overflow-wrap:anywhere]">
-              {sections.map((section, index) => (
-                <section
-                  key={section.id}
-                  aria-labelledby={section.id}
-                  className="mb-12 border-t-2 border-rule-strong pt-5"
-                >
-                  <h2 id={section.id} className="scroll-mt-24 type-section-title">
-                    <span
-                      aria-hidden="true"
-                      className="mr-3 text-sm tabular-nums text-muted-foreground"
-                    >
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    {section.title}
-                  </h2>
-                  {section.body}
-                </section>
-              ))}
-            </div>
+            <div className="min-w-0 lg:col-span-9">
+              <div className="max-w-[68ch] type-body leading-relaxed text-foreground [&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_h3]:mt-8 [&_h3]:font-semibold [&_a]:rounded-sm [&_a]:font-medium [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:focus-visible]:outline [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-ring [&_code]:[overflow-wrap:anywhere]">
+                {sections.map((section, index) => (
+                  <section
+                    key={section.id}
+                    aria-labelledby={section.id}
+                    className="mb-12 border-t-2 border-rule-strong pt-5"
+                  >
+                    <h2 id={section.id} className="scroll-mt-24 type-section-title">
+                      <span
+                        aria-hidden="true"
+                        className="mr-3 text-sm tabular-nums text-muted-foreground"
+                      >
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      {section.title}
+                    </h2>
+                    {section.body}
+                  </section>
+                ))}
+              </div>
 
-            <aside
-              aria-labelledby="legal-questions"
-              className="mt-12 max-w-[68ch] border-t-2 border-rule-strong py-6"
-            >
-              <h2 id="legal-questions" className="type-section-title">
-                Questions about this page?
-              </h2>
-              <p className="mt-3 leading-relaxed">
-                Write to the Akomapa team about anything in this notice.
-              </p>
-              <a
-                href={CONTACT_HREF}
-                className="mt-4 inline-flex min-h-11 items-center rounded-sm font-semibold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <aside
+                aria-labelledby="legal-questions"
+                className="mt-12 max-w-[68ch] border-t-2 border-rule-strong py-6"
               >
-                {CONTACT_EMAIL}
-              </a>
-            </aside>
+                <h2 id="legal-questions" className="type-section-title">
+                  Questions about this page?
+                </h2>
+                <p className="mt-3 leading-relaxed">
+                  Write to the Akomapa team about anything in this notice.
+                </p>
+                <a
+                  href={CONTACT_HREF}
+                  className="mt-4 inline-flex min-h-11 items-center rounded-sm font-semibold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {CONTACT_EMAIL}
+                </a>
+              </aside>
+            </div>
           </div>
         </div>
       </main>

@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import { LANDING_BLUR } from '@/lib/landing-blur';
-import { DesktopFrame, PhoneFrame } from './ProductFrames';
+import { DOCTOR_RECORD_ALT, DesktopFrame, PhoneFrame } from './ProductFrames';
 import { SectionRule } from './SectionRule';
 
 const PHOTO_CLASS = 'h-full w-full object-cover';
@@ -59,7 +59,13 @@ const STEPS = [
     text: 'A doctor reviews the draft, adds the plan and prescriptions, and finalizes it.',
     media: (
       <div className="flex h-full items-center justify-center bg-primary p-4 sm:p-8">
-        <DesktopFrame priority sizes="(min-width: 1024px) 50vw, 92vw" className="w-full" />
+        <DesktopFrame
+          priority
+          sizes="(min-width: 1024px) 50vw, 92vw"
+          className="w-full"
+          src="/product/doctor-record.png"
+          alt={DOCTOR_RECORD_ALT}
+        />
       </div>
     ),
   },
@@ -70,6 +76,9 @@ const STEPS = [
       <div className="flex h-full items-center justify-center bg-secondary py-6">
         <PhoneFrame
           priority
+          src="/product/portal-phone.png"
+          height={1320}
+          alt="The patient portal on a phone: a welcome back, then buttons to log a reading from home, request an appointment and review trends."
           sizes="(min-width: 1024px) 200px, 50vw"
           className="h-full max-h-[30rem] w-auto [&_img]:h-full [&_img]:w-auto"
         />

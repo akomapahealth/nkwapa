@@ -2,9 +2,11 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 export const DESKTOP_ALT =
-  "Nkwapa clinic dashboard on a laptop: the care delivery menu on the left, and today's patients, draft visits, visits waiting for review and measurement coverage for one clinic.";
+  "Nkwapa's station line on a laptop: what needs the manager now, such as two patients waiting over 20 minutes and two stations with no staff, then every waiting patient drawn as a bar by minutes waited at each station, with who is staffing it.";
+export const DOCTOR_RECORD_ALT =
+  "A patient's record as a doctor opens it: what still needs attention on the chart, the latest blood pressure of 148/94 mmHg from today's station, and sections for screening, allergies and medications.";
 export const PHONE_ALT =
-  "A volunteer's Nkwapa dashboard on a phone: what needs them now, with buttons to open their station and their draft visits, above today's clinic totals in one column.";
+  "A volunteer's Stations screen on a phone: on duty at blood pressure, with the next patient in line, how long they have waited and a Take patient button.";
 
 interface FrameProps {
   className?: string;
@@ -25,26 +27,32 @@ interface DesktopFrameProps extends FrameProps {
 const priorityProps = (priority?: boolean) =>
   priority ? ({ loading: 'eager', fetchPriority: 'high' } as const) : {};
 
-/** The real desktop screenshot in a plain browser frame. Children are overlaid on the image. */
+/**
+ * A real desktop screenshot in a plain browser frame. Children are overlaid on the image. The
+ * screenshots are the light workspace, so the frame keeps the light canvas in both themes.
+ */
 export function DesktopFrame({
   className,
   sizes,
   priority,
   children,
-  src = '/desktop.png',
+  src = '/product/station-line.png',
   alt = DESKTOP_ALT,
 }: DesktopFrameProps) {
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-xl border border-foreground/15 bg-[hsl(195_23.1%_10.2%)] shadow-[0_40px_80px_-40px_hsl(192_29.4%_8%/0.55)]',
+        'overflow-hidden rounded-xl border border-foreground/15 bg-[hsl(180_23.8%_95.9%)] shadow-[0_40px_80px_-40px_hsl(192_29.4%_8%/0.55)]',
         className,
       )}
     >
-      <div aria-hidden className="flex h-7 items-center gap-1.5 border-b border-white/10 px-3">
-        <span className="h-2 w-2 rounded-full bg-white/25" />
-        <span className="h-2 w-2 rounded-full bg-white/25" />
-        <span className="h-2 w-2 rounded-full bg-white/25" />
+      <div
+        aria-hidden
+        className="flex h-7 items-center gap-1.5 border-b border-[hsl(190.9_18%_88%)] px-3"
+      >
+        <span className="h-2 w-2 rounded-full bg-[hsl(190.9_18%_80%)]" />
+        <span className="h-2 w-2 rounded-full bg-[hsl(190.9_18%_80%)]" />
+        <span className="h-2 w-2 rounded-full bg-[hsl(190.9_18%_80%)]" />
       </div>
       <div className="relative">
         <Image
@@ -62,8 +70,22 @@ export function DesktopFrame({
   );
 }
 
-/** The real phone screenshot in a restrained device frame. */
-export function PhoneFrame({ className, sizes, priority }: Omit<FrameProps, 'children'>) {
+interface PhoneFrameProps extends Omit<FrameProps, 'children'> {
+  /** Another phone screenshot in place of the volunteer's Stations screen, at 2x. */
+  src?: string;
+  alt?: string;
+  height?: number;
+}
+
+/** A real phone screenshot (808px wide) in a restrained device frame. */
+export function PhoneFrame({
+  className,
+  sizes,
+  priority,
+  src = '/product/stations-phone.png',
+  alt = PHONE_ALT,
+  height = 1744,
+}: PhoneFrameProps) {
   return (
     <div
       className={cn(
@@ -72,10 +94,10 @@ export function PhoneFrame({ className, sizes, priority }: Omit<FrameProps, 'chi
       )}
     >
       <Image
-        src="/mobile.png"
-        alt={PHONE_ALT}
+        src={src}
+        alt={alt}
         width={808}
-        height={1744}
+        height={height}
         sizes={sizes}
         {...priorityProps(priority)}
         className="block h-auto w-full rounded-[1.35rem]"
