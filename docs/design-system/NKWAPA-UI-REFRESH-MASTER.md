@@ -956,6 +956,24 @@ Avoid device sniffing, duplicate request effects, parallel state machines, dupli
 
 Do not use remote font, motion, or UI dependencies in critical clinical workflows unless explicitly justified.
 
+## 11.1 Performance rules (R7.7, applies to all future sessions)
+
+Measured on a phone viewport (390), CPU slowed 4×, Lighthouse "slow 4G", cold cache. Method and
+numbers in `ui-refresh/R7.7-REVIEW.md`.
+
+- **Never import the `@nkwapa/db` root from the web.** It re-exports `PrismaClient`; one such
+  import shipped the 235 KB (gzipped) Prisma runtime on every page. Import the module's subpath
+  (`@nkwapa/db/measurement-units`); add a subpath to `packages/db/package.json` when one is
+  missing. ESLint (`no-restricted-imports`) enforces it.
+- **Under `space-y-*`, a visually hidden label goes last.** A leading `sr-only` span still counts as
+  a sibling, so the next element gets the stack's top margin, which collapses through the shell and
+  moves the whole page when the real content replaces the loading state (patient record CLS 0.14).
+- **No `priority` on `BrandWordmark`.** It preloads both theme files; left lazy, the browser skips the
+  hidden one.
+- **Link-preview images:** 1200 × 630 JPEG under a new file name whenever the picture changes
+  (crawlers cache by URL), and keep the metadata, JSON-LD and the file in step.
+- Recharts arrives on non-chart routes only as a `<Link>` prefetch after load; that is intended.
+
 # 12. Implementation Phases
 
 This is a new visual refinement program, not a reopening of the previous GitHub epic.

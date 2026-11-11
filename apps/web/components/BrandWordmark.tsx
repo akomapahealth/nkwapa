@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils';
  * reads dim, so dark gets the same art with only the teal lifted to the dark `--brand`
  * (188 80% 47%, 7.66:1). Both render and globals.css hides the other theme's, so the right one is
  * there on first paint. The app-icon mark (`nkwapa-mark.png`) is a filled tile and stays as is.
+ *
+ * Never pass `priority`: it preloads both files, one of them hidden. Left lazy, the browser skips
+ * the `display: none` twin, so each theme downloads only its own file (R7.7).
  */
 export function BrandWordmark({ alt, className, ...props }: Omit<ImageProps, 'src'>) {
   return (

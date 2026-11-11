@@ -1,0 +1,88 @@
+/*
+  The 404 drawing: the station line (globals.css .station-route) with the route running out.
+  Three visited stops on the mint line, then a dashed gap to a stop the line never reaches. A gold
+  "you" dot rides the line once and settles on the last real stop.
+
+  The base styles are the resting frame, so reduced motion (and any browser that skips the
+  animation) shows the finished picture. Transform and opacity only (MASTER 9.1 rule 10); it plays
+  once on a page people rarely see, so it may move (rule 10 forbids motion on repeated actions).
+*/
+.route {
+  position: relative;
+  width: 13.75rem;
+  height: 1rem;
+}
+
+.line {
+  position: absolute;
+  top: 0.4375rem;
+  left: 0.375rem;
+  width: 9rem;
+  height: 2px;
+  background: hsl(var(--mint-line));
+}
+
+.gap {
+  position: absolute;
+  top: 0.4375rem;
+  left: 9.75rem;
+  /* Stops short of the missing stop: the route never reaches it. */
+  width: 2.25rem;
+  border-top: 2px dashed hsl(var(--input));
+}
+
+.stop,
+.missing,
+.you {
+  position: absolute;
+  top: 0.125rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+}
+
+.stop {
+  border: 2px solid hsl(var(--primary));
+  background: hsl(var(--card));
+}
+
+.missing {
+  top: 0;
+  right: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 2px dashed hsl(var(--muted-foreground));
+  background: hsl(var(--card));
+}
+
+.you {
+  left: 9rem;
+  background: hsl(var(--secondary));
+  box-shadow: 0 0 0 2px hsl(var(--card));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* On-screen travel: ease-in-out (rule 1), from the first stop to the last. */
+  .you {
+    animation: route-ride 700ms var(--ease-in-out) 200ms backwards;
+  }
+
+  /* The break is revealed only once the rider arrives, so the eye lands on it. */
+  .gap,
+  .missing {
+    animation: route-reveal 320ms var(--ease-out) 860ms backwards;
+  }
+}
+
+@keyframes route-ride {
+  from {
+    transform: translateX(-9rem);
+  }
+}
+
+@keyframes route-reveal {
+  from {
+    opacity: 0;
+    transform: translateX(-0.25rem);
+  }
+}

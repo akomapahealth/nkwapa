@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Cigarette, HeartPulse, Ruler, Thermometer } from 'lucide-react';
-import { classifyBloodPressure } from '@nkwapa/db';
+import { classifyBloodPressure } from '@nkwapa/db/bp-classification';
 import { Button } from '@/components/ui/button';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';

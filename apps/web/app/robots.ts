@@ -21,7 +21,7 @@ const AI_TRAINING_CRAWLERS = [
 ];
 
 // Workspace routes redirect to sign-in, so there is nothing private to fence off here. Blocking
-// paths would also hide /og-image.jpg and /_next assets from link-preview crawlers.
+// paths would also hide /og-card.jpg and /_next assets from link-preview crawlers.
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [

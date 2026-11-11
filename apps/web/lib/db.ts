@@ -90,7 +90,7 @@ export interface DiabetesScreeningRecord {
   glucoseMgDl?: number;
   glucoseType?: string;
   hba1cPercent?: number;
-  symptoms?: import('@nkwapa/db').DiabetesSymptom[];
+  symptoms?: import('@nkwapa/db/diabetes-screening').DiabetesSymptom[];
   symptomsJson?: string;
   legacySymptomsUnmapped?: boolean;
   notes?: string;

@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { BrandWordmark } from '@/components/BrandWordmark';
-import { AlertTriangle, Building2, Inbox, Lock, MapPinOff, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Building2, Inbox, Lock, RefreshCw } from 'lucide-react';
 import { isValidElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import routeBreak from './route-break.module.css';
 
 /**
  * A whole-page wait: session start, access checks, route changes before the shell exists.
@@ -170,6 +171,7 @@ export function FullscreenStatus({
   description,
   tone = 'neutral',
   icon,
+  art,
   detail,
   primaryAction,
   secondaryAction,
@@ -179,6 +181,8 @@ export function FullscreenStatus({
   tone?: 'neutral' | 'danger';
   /** Defaults to a warning sign for danger and none for neutral. */
   icon?: LucideIcon;
+  /** A drawing in place of the icon (the 404's route). Decorative: the title says it all. */
+  art?: React.ReactNode;
   /** Something true about this device, such as changes waiting to sync. */
   detail?: React.ReactNode;
   primaryAction?: React.ReactNode;
@@ -187,9 +191,13 @@ export function FullscreenStatus({
   const Icon = icon ?? (tone === 'danger' ? AlertTriangle : null);
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
-      <BrandWordmark alt="Nkwapa" width={112} height={32} priority className="mb-6 h-8 w-auto" />
+      <BrandWordmark alt="Nkwapa" width={112} height={32} className="mb-6 h-8 w-auto" />
       <section className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
-        {Icon ? (
+        {art ? (
+          <div aria-hidden="true" className="mb-6">
+            {art}
+          </div>
+        ) : Icon ? (
           <span
             className={cn(
               'mb-4 flex h-11 w-11 items-center justify-center rounded-full',
@@ -217,10 +225,25 @@ export function FullscreenStatus({
   );
 }
 
+/** The station line running out before the stop that was asked for. See route-break.module.css. */
+function RouteBreak() {
+  return (
+    <div className={routeBreak.route}>
+      <span className={routeBreak.line} />
+      <span className={routeBreak.gap} />
+      <span className={routeBreak.stop} style={{ left: 0 }} />
+      <span className={routeBreak.stop} style={{ left: '4.5rem' }} />
+      <span className={routeBreak.stop} style={{ left: '9rem' }} />
+      <span className={routeBreak.you} />
+      <span className={routeBreak.missing} />
+    </div>
+  );
+}
+
 export function NotFoundState() {
   return (
     <FullscreenStatus
-      icon={MapPinOff}
+      art={<RouteBreak />}
       title="This page couldn't be found"
       description="The link may be out of date, or the page may have moved. Nothing you have saved is affected."
       primaryAction={

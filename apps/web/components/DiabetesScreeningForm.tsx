@@ -7,7 +7,7 @@ import {
   parseLegacyDiabetesSymptoms,
   type DiabetesGlucoseType,
   type DiabetesSymptom,
-} from '@nkwapa/db';
+} from '@nkwapa/db/diabetes-screening';
 import { AlertTriangle, CalendarClock, CheckCircle2, CloudOff, Droplets } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormActions } from '@/components/ui/form-actions';

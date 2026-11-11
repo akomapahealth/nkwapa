@@ -1,6 +1,6 @@
 'use client';
 
-import { DUPLICATE_MATCH_REASONS } from '@nkwapa/db';
+import { DUPLICATE_MATCH_REASONS } from '@nkwapa/db/patient-duplicates';
 import {
   DUPLICATE_CONFIDENCE_LABELS,
   DUPLICATE_MATCH_REASON_LABELS,

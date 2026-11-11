@@ -7,7 +7,7 @@ import {
   FOLLOW_UP_OWNER_LABELS,
   FOLLOW_UP_WINDOWS,
   FOLLOW_UP_WINDOW_LABELS,
-} from '@nkwapa/db';
+} from '@nkwapa/db/clinical-vocabulary';
 import { Button } from '@/components/ui/button';
 import { FormActions } from '@/components/ui/form-actions';
 import { Textarea } from '@/components/ui/textarea';

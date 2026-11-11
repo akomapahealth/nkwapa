@@ -5,7 +5,7 @@ import {
   BP_SYSTOLIC_MIN,
   classifyBloodPressure,
   isHypotensive,
-} from '@nkwapa/db';
+} from '@nkwapa/db/bp-classification';
 
 type InputReading = number | string | null | undefined;
 

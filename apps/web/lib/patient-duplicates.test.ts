@@ -1,4 +1,4 @@
-import { mergeFinding } from '@nkwapa/db';
+import { mergeFinding } from '@nkwapa/db/patient-merge';
 import {
   buildComparisonRows,
   buildDuplicateQuery,

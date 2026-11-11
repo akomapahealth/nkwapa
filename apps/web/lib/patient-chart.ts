@@ -4,7 +4,7 @@ import {
   type PatientChartFeatureFlag,
   type PatientChartSection,
   type PatientChartSectionId,
-} from '@nkwapa/db';
+} from '@nkwapa/db/patient-chart-sections';
 import { apiFetch, readApiError, type GetToken } from './api';
 import { isWebFeatureEnabled } from './feature-flags';
 
@@ -12,7 +12,7 @@ export type {
   PatientChartSection,
   PatientChartSectionId,
   PatientChartFeatureFlag,
-} from '@nkwapa/db';
+} from '@nkwapa/db/patient-chart-sections';
 
 export type EncounterStatus = 'DRAFT' | 'IN_REVIEW' | 'FINALIZED';
 

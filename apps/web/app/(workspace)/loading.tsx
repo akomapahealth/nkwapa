@@ -11,9 +11,11 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 export default function WorkspaceLoading() {
   return (
     <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
-      <span className="sr-only">Loading page</span>
       <SectionSkeleton lines={2} />
       <SectionSkeleton lines={4} />
+      {/* Last, not first: under space-y a leading sr-only span gives the skeleton a 24px top
+          margin that collapses through the shell, so the page jumped when content replaced it. */}
+      <span className="sr-only">Loading page</span>
     </div>
   );
 }

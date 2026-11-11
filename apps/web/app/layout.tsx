@@ -142,10 +142,10 @@ export const metadata: Metadata = {
       'Patient records and clinic workflows for hypertension and diabetes care, in one place.',
     images: [
       {
-        url: '/og-image.jpg',
+        url: '/og-card.jpg',
         width: 1200,
         height: 630,
-        alt: 'The Nkwapa home page: "Patient records and clinic workflows, in one place," beside the clinic dashboard on a laptop and a phone.',
+        alt: 'The Nkwapa home page: "One record for every visit, even offline," over a photograph of a screening day.',
       },
     ],
   },
@@ -154,7 +154,7 @@ export const metadata: Metadata = {
     title: 'Nkwapa EMR',
     description:
       'Patient records and clinic workflows for hypertension and diabetes care, in one place.',
-    images: ['/og-image.jpg'],
+    images: ['/og-card.jpg'],
   },
 };
 

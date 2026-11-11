@@ -15,11 +15,13 @@ import {
   BP_DIASTOLIC_MIN,
   BP_SYSTOLIC_MAX,
   BP_SYSTOLIC_MIN,
+} from '@nkwapa/db/bp-classification';
+import {
   emptyHypertensionLifestyle,
   parseHypertensionLifestyle,
   serializeHypertensionLifestyle,
   type HypertensionLifestylePayload,
-} from '@nkwapa/db';
+} from '@nkwapa/db/hypertension-interview';
 
 export type ClinicalFieldErrors = Record<string, string>;
 

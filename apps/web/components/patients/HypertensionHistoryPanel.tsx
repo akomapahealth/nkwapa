@@ -6,7 +6,7 @@ import {
   HYPERTENSION_REVIEW_REASON_LABELS,
   HYPERTENSION_STATUS_LABELS,
   HYPERTENSION_SYMPTOM_LABELS,
-} from '@nkwapa/db';
+} from '@nkwapa/db/hypertension-interview';
 import { db, type HypertensionAssessmentRecord } from '@/lib/db';
 import {
   HYPERTENSION_BADGE_VARIANTS,

@@ -533,8 +533,9 @@ function PatientChartWorkspace() {
   if (loading && !data) {
     return (
       <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
-        <span className="sr-only">Loading patient chart</span>
         <SectionSkeleton lines={6} />
+        {/* After the skeleton: see app/(workspace)/loading.tsx. */}
+        <span className="sr-only">Loading patient chart</span>
       </div>
     );
   }

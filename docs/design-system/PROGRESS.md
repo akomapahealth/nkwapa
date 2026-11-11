@@ -1368,3 +1368,24 @@ every surface's brightness in one frame; load and the OS following stay instant.
 palette check, design hook clean. Scratch dark spec over the R7.5 states and the switch (deleted).
 Focused Chromium over 10 specs 76/76. Six-role audit **228 rows, 0 violations, 0 overflow**. Local
 commit only; no push. Next is `ui-refresh/HANDOFF-R7.7.md`.
+
+## R7.7 Performance checks (2026-11-11)
+
+Measured twelve workspace, portal and public routes at 390 px with the CPU slowed 4× and "slow 4G",
+cold cache. Every page shipped the Prisma client runtime (235 KB gzipped) because 24 web files
+imported the `@nkwapa/db` root, which re-exports `PrismaClient`; they now import subpaths (three
+added) and ESLint refuses the root in `apps/web`. JS fell by 228 KB on every route and the
+workspace's first heading arrives 1 to 2 s sooner. The patient record's CLS fell from 0.141 to 0.012:
+a leading `sr-only` label under `space-y-6` collapsed a 24 px margin through the shell. The wordmark
+no longer preloads both theme files. The 7 MB `og-image.png` (old header, and unreferenced: the
+metadata pointed at a deleted `.jpg`, so link previews were broken) became a 149 KB 1200 × 630
+`og-card.jpg` of the current landing. Owner request: a custom 404 drawn in the station-line language,
+a gold dot riding the line once to where the route runs out (CSS only, reduced motion at rest).
+Theme switch and dialogs never delayed input (40 to 160 ms at 4× CPU). Rules in MASTER 11.1; detail
+in `ui-refresh/R7.7-REVIEW.md`. Phase R7 is complete.
+
+**Validation:** three audit-flag builds, TypeScript, changed-file lint/format, Jest 1034/1034,
+detector clean. Scratch measurement and 404 specs (deleted): 404 axe clean in both themes at 1440
+and 390. Focused Chromium over 16 specs 105/108; the three failures are the known stale
+`patient-chart` date format (twice) and the pre-existing `vitals` BMI check. Six-role audit **228
+rows, 0 violations, 0 overflow**. Local commit only; no push. Next is `ui-refresh/HANDOFF-R8.1.md`.

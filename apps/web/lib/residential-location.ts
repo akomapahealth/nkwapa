@@ -3,7 +3,7 @@ import {
   GHANA_REGION_LABELS,
   GHANA_REGIONS,
   PATIENT_LOCATION_STATUS_LABELS,
-} from '@nkwapa/db';
+} from '@nkwapa/db/ghana-locations';
 import type { GhanaRegion, PatientLocationStatus } from '@prisma/client';
 
 export {

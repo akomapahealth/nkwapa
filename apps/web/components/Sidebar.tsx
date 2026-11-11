@@ -55,7 +55,6 @@ export function Sidebar({
               alt={collapsed || rail ? '' : 'Nkwapa EMR'}
               fill
               sizes="144px"
-              priority
               className="object-contain object-left"
             />
           </div>

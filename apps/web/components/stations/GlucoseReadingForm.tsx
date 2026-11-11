@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Droplet } from 'lucide-react';
-import { evaluateGlucoseSuspicion, isHypoglycemic } from '@nkwapa/db';
+import { evaluateGlucoseSuspicion, isHypoglycemic } from '@nkwapa/db/diabetes-thresholds';
 import type { GlucoseUnit } from '@nkwapa/db/measurement-units';
 import { useClinicUnits } from '@/lib/bootstrap-context';
 import {

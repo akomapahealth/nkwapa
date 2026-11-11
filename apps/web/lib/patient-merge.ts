@@ -1,10 +1,9 @@
 import {
   MERGE_FINDING_LABELS,
   MERGE_FINDING_RECOVERY,
-  type DuplicateConfidence,
-  type DuplicateMatchReason,
   type MergeFindingCode,
-} from '@nkwapa/db';
+} from '@nkwapa/db/patient-merge';
+import { type DuplicateConfidence, type DuplicateMatchReason } from '@nkwapa/db/patient-duplicates';
 import { apiFetch, readApiError, type GetToken } from '@/lib/api';
 import type { DuplicateCandidatePatient } from '@/lib/patient-duplicates';
 

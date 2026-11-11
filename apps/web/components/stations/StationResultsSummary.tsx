@@ -3,7 +3,8 @@
 import { useClinicUnits } from '@/lib/bootstrap-context';
 import { formatGlucose, formatHeight, formatWeight } from '@nkwapa/db/measurement-units';
 
-import { classifyBloodPressure, isHypoglycemic } from '@nkwapa/db';
+import { classifyBloodPressure } from '@nkwapa/db/bp-classification';
+import { isHypoglycemic } from '@nkwapa/db/diabetes-thresholds';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { summarizeEyeScreening, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StatusLabel } from '@/components/ui/status-label';
