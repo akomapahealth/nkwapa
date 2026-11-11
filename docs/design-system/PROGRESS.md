@@ -1144,3 +1144,27 @@ dark, 1440, 390); it caught one real defect, fixed before the runs above.
 Details and limits in `ui-refresh/R4.1-REVIEW.md`; synthetic evidence in ignored
 `ui-refresh/evidence/r4-1/` (before, after, routes). Next is
 `ui-refresh/HANDOFF-R4.2.md`. Local commit only; no push.
+
+## R4.2 Preceptor and manager oversight (2026-11-10)
+
+A visit waiting on the reviewer leads with a "Ready for your review" band (teal rule,
+`ClipboardCheck`, primary Mark Reviewed) where sign-off appears next. Focus moves to the
+sign-off heading after the press, and Mark Reviewed left the header. There is no preceptor
+role: review is a doctor permission. The flag-off Today Board is rebuilt work first: one
+ruled patient-flow list grouped by Waiting for a pair, Assigned and In intake (Completed and
+Cancelled are closed disclosures), with rows laid out by container width, and a 20rem
+shift-and-roster column whose role filter is a `SegmentedControl` carrying the counts.
+Staff activity uses Accra date formatting, a sticky name column and focus handoff in and
+out of a person. The manager dashboard's staff table names roles and visits and links to
+Staff activity; Station flow's longest-wait note is a ruled warning band. Volunteer
+Deactivate is plain outline. Rules are in MASTER under "Queues and encounters".
+
+**Validation:** flag-off and audit-flag builds, TypeScript, changed-file lint/format pass;
+detector `[]`; no related Jest suites. Flag-off focused Chromium 37/38 first pass (the
+failure was an ambiguous scratch-spec locator; fixed re-runs 9/9 and 8/8). It covers
+today-offline, `/today` and `/volunteers*` responsive-offline, staff activity, the
+volunteer roster, and the three Mark Reviewed → Finalize flows. Audit-flag focused
+Chromium **58/58**. Six-role audit **12/12, 228 rows, 0 violations, 0 overflow, 0
+errors**. Details and limits in `ui-refresh/R4.2-REVIEW.md`; synthetic evidence in
+ignored `ui-refresh/evidence/r4-2/`. Next is `ui-refresh/HANDOFF-R4.3.md`. Local commit
+only; no push.

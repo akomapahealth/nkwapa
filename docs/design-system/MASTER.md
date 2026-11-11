@@ -1201,8 +1201,8 @@ Validation and limits are recorded in `ui-refresh/R3.4-REVIEW.md`.
 The encounter workspace drops the three metric cards and the second patient
 heading. A ruled progress line names the stage in words (Draft, Pending review,
 Awaiting sign-off, Finalized) with `aria-current="step"`, derived from the
-existing status and preceptor review. Submit for Review and Mark Reviewed stay
-routine header actions. Sign-off actions (encounter Finalize, HAP Sign note and
+existing status and preceptor review. Submit for Review stays a routine header
+action; Mark Reviewed moved to its own band in R4.2 (below). Sign-off actions (encounter Finalize, HAP Sign note and
 Cosign note) use the consent precedent: outlined warning ink with `ShieldCheck`.
 Finalize sits in its own "Ready for your sign-off" row saying it locks every
 tab. A finalized care plan reads back as a ruled `<dl>`.
@@ -1221,6 +1221,30 @@ and dashboard times use `formatOpsDateTime` (Africa/Accra). The doctor and revie
 tables share `recent-visit-columns.tsx`: Patient (a link to the visit), Code, Status, Visit
 started. Do not give the note wrapper an accessible name containing "History": tests and
 assistive technology find the History field by that label.
+
+R4.2 (preceptor and manager oversight): Mark Reviewed leaves the header. A visit waiting on the
+reviewer opens with a "Ready for your review" band in the place sign-off takes next: the sign-off
+band's shape with a teal rule, `ClipboardCheck` and a primary Mark Reviewed, because review locks
+nothing. Warning ink and `ShieldCheck` stay reserved for Finalize, Sign and Cosign. After Mark
+Reviewed, focus moves to the "Ready for your sign-off" heading that replaces the band. There is no
+preceptor role: only doctors (and system administrators) hold `ENCOUNTER.REVIEW`, and the API sends
+the review dashboard block only beside the doctor block.
+
+The flag-off Today Board puts patient flow first: one ruled list grouped by what the manager does
+next (Waiting for a pair, Assigned, In intake, then Completed and Cancelled as closed disclosures),
+one hairline `article` per check-in with the pair as a `<dl>` and actions right-aligned. Row columns
+follow the list's own width (container query at 44rem), not the window. The shift control and
+Staff on duty sit in a 20rem column from 1200px; the role filter is a `SegmentedControl` whose
+labels carry the counts, replacing pill buttons and three count tiles. "Needs you now" appears only
+when someone is waiting and the viewer can assign. With the station flag on, `/today` is the
+station line board and is unchanged.
+
+Staff activity shows ranges and days through `formatOpsDate` and record times through
+`formatOpsDateTime`; the name column stays in view while the counts scroll sideways; opening a
+person moves focus to their name and All staff returns it to the row they left. The manager
+dashboard's staff table says Visits started and Visits finalized, shows role names, and links to
+Staff activity. Station flow's longest-wait note is a ruled warning band, not a tinted box.
+Volunteer Deactivate is a plain outline button: Reactivate undoes it.
 
 The Station session route uses `RecordSection` rows. A cancelled stop's station
 name is struck through beside "Cancelled by", the name, the time and the reason;

@@ -15,7 +15,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Clock, DoorOpen, Hourglass, LogOut, UserCheck, Users } from 'lucide-react';
+import { AlertTriangle, Clock, DoorOpen, Hourglass, LogOut, UserCheck, Users } from 'lucide-react';
+import { formatOpsDate } from '@/lib/ops';
 import { useAuth } from '@/lib/auth-context';
 import { fetchStationMetrics, formatMinutes, type StationMetrics } from '@/lib/stations';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
@@ -99,7 +100,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
             title="Station flow"
             subtitle={
               metrics
-                ? `${metrics.live ? 'Today so far' : metrics.date}, clinic time (${metrics.timezone}).${
+                ? `${metrics.live ? 'Today so far' : formatOpsDate(metrics.date, metrics.timezone)}, clinic time (${metrics.timezone}).${
                     metrics.lowVolume && metrics.checkIns.total > 0
                       ? ' Few patients that day, so read the times as examples, not trends.'
                       : ''
@@ -181,18 +182,26 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
           </AppMetricGroup>
 
           {bottleneck ? (
+            // A ruled warning band, like encounter sign-off: the one place a manager should look.
             <p
-              className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm"
+              className="flex items-start gap-3 border-y-2 border-warning py-3 text-sm"
               data-testid="station-flow-bottleneck"
             >
-              <span className="font-semibold">Longest wait: {bottleneck.name}.</span> Half of the{' '}
-              {bottleneck.wait.n} patients waited {formatMinutes(bottleneck.wait.medianMinutes)} or
-              more to be taken, and 1 in 10 waited over {formatMinutes(bottleneck.wait.p90Minutes)}.
-              {metrics.bottleneckConstraint === 'CAPACITY'
-                ? ` At its busiest every place there was in use (${bottleneck.peakInUse} of ${bottleneck.capacity}), so the wait was for space or equipment, not just staff.`
-                : metrics.bottleneckConstraint === 'STAFFING'
-                  ? ` It never filled (at most ${bottleneck.peakInUse} of ${bottleneck.capacity} places in use), so the wait was for someone to take them.`
-                  : ''}
+              <AlertTriangle
+                aria-hidden="true"
+                className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink"
+              />
+              <span className="max-w-[75ch]">
+                <span className="font-semibold">Longest wait: {bottleneck.name}.</span> Half of the{' '}
+                {bottleneck.wait.n} patients waited {formatMinutes(bottleneck.wait.medianMinutes)}{' '}
+                or more to be taken, and 1 in 10 waited over{' '}
+                {formatMinutes(bottleneck.wait.p90Minutes)}.
+                {metrics.bottleneckConstraint === 'CAPACITY'
+                  ? ` At its busiest every place there was in use (${bottleneck.peakInUse} of ${bottleneck.capacity}), so the wait was for space or equipment, not just staff.`
+                  : metrics.bottleneckConstraint === 'STAFFING'
+                    ? ` It never filled (at most ${bottleneck.peakInUse} of ${bottleneck.capacity} places in use), so the wait was for someone to take them.`
+                    : ''}
+              </span>
             </p>
           ) : null}
 
@@ -207,7 +216,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
               <table className="w-full min-w-[720px] text-sm" data-testid="station-flow-table">
                 <caption className="sr-only">Wait and service time at each station</caption>
                 <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
+                  <tr className="border-b border-rule text-left text-xs text-muted-foreground">
                     <th scope="col" className="py-2 pr-3 font-medium">
                       Station
                     </th>
@@ -245,7 +254,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
                   {metrics.stations.map((station) => {
                     const isBottleneck = station.stationId === metrics.bottleneckStationId;
                     return (
-                      <tr key={station.stationId} className="border-b last:border-0">
+                      <tr key={station.stationId} className="border-b border-rule last:border-0">
                         <th scope="row" className="py-2 pr-3 text-left font-medium">
                           <span className="flex flex-wrap items-center gap-2">
                             {station.name}

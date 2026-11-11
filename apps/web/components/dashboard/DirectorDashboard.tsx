@@ -5,6 +5,9 @@ import { DistributionChart } from './DistributionChart';
 import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { Activity } from 'lucide-react';
+import { formatRoleLabel } from '@/lib/ops';
+import { DashboardActionRow } from './DashboardActionRow';
 
 interface StaffActivityRow {
   userId: string;
@@ -26,17 +29,24 @@ interface DirectorDashboardProps {
 }
 
 const staffColumns: DataTableColumn<StaffActivityRow>[] = [
-  { id: 'displayName', accessorKey: 'displayName', header: 'Staff Name' },
-  { id: 'role', accessorKey: 'role', header: 'Role' },
+  { id: 'displayName', accessorKey: 'displayName', header: 'Name' },
+  {
+    id: 'role',
+    accessorKey: 'role',
+    header: 'Role',
+    cell: ({ row }) => formatRoleLabel(row.original.role),
+  },
   {
     id: 'encountersCreated',
     accessorKey: 'encountersCreated',
-    header: 'Created',
+    header: 'Visits started',
+    meta: { align: 'right' },
   },
   {
     id: 'encountersFinalized',
     accessorKey: 'encountersFinalized',
-    header: 'Finalized',
+    header: 'Visits finalized',
+    meta: { align: 'right' },
   },
 ];
 
@@ -101,6 +111,10 @@ export function DirectorDashboard({
       {/* Pending HAP cosigns lead the page as a "Needs you now" row when there are any. */}
       <section className="space-y-3 border-t-2 border-rule-strong pt-3">
         <h3 className="type-label pt-2.5 text-foreground">Staff activity summary</h3>
+        {/* Everyone shown this section holds AUDIT.READ (director, manager), so the page opens. */}
+        <DashboardActionRow
+          actions={[{ href: '/staff-activity', label: 'Open staff activity', icon: Activity }]}
+        />
         <div className="overflow-y-hidden">
           <DataTable
             caption="Staff activity"

@@ -238,10 +238,10 @@ function VolunteersContent() {
           Link account
         </Button>
       ) : null}
+      {/* Plain outline: Reactivate undoes it, and warning ink is kept for what cannot be undone. */}
       <Button
         size="sm"
         variant="outline"
-        className={contact.isActive ? 'border-warning text-warning-ink' : undefined}
         disabled={!writable || busyId === contact.id}
         onClick={() =>
           act(

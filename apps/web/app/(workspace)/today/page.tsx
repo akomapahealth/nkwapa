@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, RefreshCw, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, ChevronRight, RefreshCw, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
@@ -18,7 +18,6 @@ import {
   formatOpsDate,
   formatOpsDateTime,
   formatOpsTime,
-  formatRoleLabel,
   getEligibleShiftRoles,
   getTodayInTimeZone,
   hasPermission,
@@ -37,11 +36,17 @@ import { useShiftControls } from '@/lib/use-shift-controls';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppActionRow } from '@/components/app-shell/AppActionRow';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import {
+  EmptyState,
+  InlineErrorState,
+  SectionSkeleton,
+  SelectClinicState,
+} from '@/components/feedback/AppState';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import { cn } from '@/lib/utils';
+import styles from './today-board.module.css';
 import { RouteGuard } from '@/components/RouteGuard';
 import {
-  CheckInStatusBadge,
-  EmptyStateCard,
   InlineNotice,
   OfflineOpsBanner,
   OpsFeedbackNotice,
@@ -52,11 +57,11 @@ import {
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
 import {
-  RecordSection as Card,
-  RecordSectionContent as CardContent,
-  RecordSectionDescription as CardDescription,
-  RecordSectionHeader as CardHeader,
-  RecordSectionTitle as CardTitle,
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
 } from '@/components/patients/RecordSection';
 import {
   Dialog,
@@ -92,6 +97,27 @@ interface TodayBoard {
 }
 
 const SHIFT_FILTERS: Array<'ALL' | ShiftRole> = ['ALL', 'VOLUNTEER', 'DOCTOR', 'MANAGER'];
+const SHIFT_FILTER_LABELS: Record<ShiftRole, string> = {
+  VOLUNTEER: 'Volunteers',
+  DOCTOR: 'Doctors',
+  MANAGER: 'Managers',
+};
+
+/** Group headings say what the manager does next, not the enum. */
+const STATUS_HEADINGS: Record<CheckInStatus, string> = {
+  WAITING: 'Waiting for a pair',
+  ASSIGNED: 'Assigned',
+  IN_PROGRESS: 'In intake',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
+const STATUS_EMPTY: Record<CheckInStatus, string> = {
+  WAITING: 'Nobody is waiting for a pair.',
+  ASSIGNED: 'No one is assigned and waiting to start.',
+  IN_PROGRESS: 'No one is in intake.',
+  COMPLETED: 'No one has finished yet.',
+  CANCELLED: 'No cancellations.',
+};
 
 function countByRole(items: ActiveShift[], role: ShiftRole) {
   return items.filter((item) => item.roleAtShift === role).length;
@@ -300,10 +326,100 @@ function TodayBoardPage() {
   if (!clinicId) {
     return (
       <RouteGuard requiredPermission="OPS.CHECKIN.READ">
-        <div className="p-4">
-          <p className="text-muted-foreground">Select a clinic to load the Today Board.</p>
-        </div>
+        <SelectClinicState surface="The Today Board" />
       </RouteGuard>
+    );
+  }
+
+  const waiting = groupedCheckins.WAITING.length;
+  const dayLabel = formatOpsDate(selectedDate, timezone);
+
+  function renderCheckIn(checkIn: BoardCheckIn) {
+    const pair = checkIn.assignmentSummary;
+    return (
+      <li key={checkIn.id}>
+        <article
+          className={cn(styles.row, checkIn.pendingSync && styles.rowPending)}
+          data-pending-sync={checkIn.pendingSync}
+          aria-labelledby={`checkin-${checkIn.id}`}
+        >
+          <div className="min-w-0">
+            <p id={`checkin-${checkIn.id}`} className="type-label truncate text-foreground">
+              {checkIn.patient.displayName}
+            </p>
+            <p className="type-label mt-0.5 font-normal text-muted-foreground">
+              <span className="font-mono tabular-nums" translate="no">
+                {checkIn.patient.patientCode}
+              </span>
+              {' · '}
+              <span className="tabular-nums">
+                In at{' '}
+                <time dateTime={checkIn.checkedInAt}>
+                  {formatOpsTime(checkIn.checkedInAt, timezone)}
+                </time>
+              </span>
+            </p>
+            {checkIn.notes ? (
+              <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">{checkIn.notes}</p>
+            ) : null}
+          </div>
+
+          {pair ? (
+            <dl className={styles.pair}>
+              <dt>Volunteer</dt>
+              <dd>{pair.assignedVolunteer.displayName}</dd>
+              <dt>Doctor</dt>
+              <dd>{pair.assignedDoctor.displayName}</dd>
+            </dl>
+          ) : (
+            <span aria-hidden="true" className={styles.spacer} />
+          )}
+
+          <div className={styles.rowActions}>
+            {checkIn.pendingSync ? <PendingSyncBadge state={checkIn.pendingSync} /> : null}
+            {checkIn.status === 'WAITING' && canManageAssignments ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => openAssignmentDialog('assign', checkIn)}
+                disabled={!isOnline || Boolean(checkIn.pendingSync)}
+                title={
+                  checkIn.pendingSync
+                    ? 'This check-in can be assigned once it has synced.'
+                    : opsOfflineHint('assign', isOnline)
+                }
+              >
+                Assign
+              </Button>
+            ) : null}
+            {checkIn.status === 'ASSIGNED' && canManageAssignments && pair ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => openAssignmentDialog('reassign', checkIn)}
+                disabled={!isOnline}
+                title={opsOfflineHint('reassign', isOnline)}
+              >
+                Reassign
+              </Button>
+            ) : null}
+            <Button asChild size="sm" variant="ghost">
+              {checkIn.encounterId ? (
+                <Link href={`/encounters/${checkIn.encounterId}`}>
+                  View encounter
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              ) : (
+                <Link href={`/clinics/${clinicId}/patients/${checkIn.patient.id}`}>
+                  View patient
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              )}
+            </Button>
+          </div>
+        </article>
+      </li>
     );
   }
 
@@ -331,16 +447,15 @@ function TodayBoardPage() {
                     type="date"
                     value={selectedDate}
                     onChange={(event) => setSelectedDate(event.target.value)}
+                    aria-describedby="today-board-timezone"
                     className="w-[180px] pl-9"
                   />
                 </div>
               </div>
 
-              {/* The timezone is context for the date beside it, not a metric. It was a boxed
-                  tile the same size as the date picker, which made a read-only label look like
-                  a second control. */}
-              <p className="pb-3 text-sm text-muted-foreground">
-                Times shown in <span className="font-medium text-foreground">{timezone}</span>
+              {/* Context for the date beside it, not a metric or a second control. */}
+              <p id="today-board-timezone" className="text-sm text-muted-foreground sm:pb-2.5">
+                Times in <span className="font-medium text-foreground">{timezone}</span>
               </p>
 
               <Button
@@ -360,7 +475,8 @@ function TodayBoardPage() {
           }
         />
 
-        {!board.isInitialLoading ? (
+        {/* Only real waiting work earns this row; a zero is already in the counts below. */}
+        {!board.isInitialLoading && waiting > 0 && canManageAssignments ? (
           <section aria-labelledby="today-needs" className="border-t-2 border-rule-strong pt-4">
             <h2 id="today-needs" className="type-section-title">
               Needs you now
@@ -368,11 +484,12 @@ function TodayBoardPage() {
             <ul>
               <AppActionRow
                 icon={Users}
-                title={`${groupedCheckins.WAITING.length} patients waiting for assignment`}
-                detail="Review new arrivals and pair them with the available care team below."
+                tone="info"
+                title={`${waiting} ${waiting === 1 ? 'patient is' : 'patients are'} waiting for a pair`}
+                detail="Pair each new arrival with a volunteer and a doctor who are on shift."
                 action={
                   <Button asChild variant="outline">
-                    <a href="#today-work">View patients</a>
+                    <a href="#today-waiting">Go to waiting patients</a>
                   </Button>
                 }
               />
@@ -382,14 +499,14 @@ function TodayBoardPage() {
 
         <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
           <AppMetricCard
-            title="Patients waiting"
-            value={groupedCheckins.WAITING.length}
-            detail="New arrivals ready for assignment"
+            title="Waiting for a pair"
+            value={waiting}
+            detail="New arrivals not yet assigned"
           />
           <AppMetricCard
             title="Active assignments"
             value={groupedCheckins.ASSIGNED.length + groupedCheckins.IN_PROGRESS.length}
-            detail="Assigned or currently in intake"
+            detail="Assigned or in intake"
           />
           <AppMetricCard
             title="Staff on duty"
@@ -397,9 +514,9 @@ function TodayBoardPage() {
             detail={`${countByRole(onDuty, 'VOLUNTEER')} volunteers, ${countByRole(onDuty, 'DOCTOR')} doctors`}
           />
           <AppMetricCard
-            title="Completed today"
+            title="Completed"
             value={groupedCheckins.COMPLETED.length}
-            detail={formatOpsDate(selectedDate, timezone)}
+            detail={dayLabel}
           />
         </AppMetricGroup>
 
@@ -427,24 +544,86 @@ function TodayBoardPage() {
         <OpsFeedbackNotice feedback={shiftControls.feedback} />
 
         {board.isInitialLoading ? (
-          <div
-            className="grid gap-6 xl:grid-cols-[360px,minmax(0,1fr)]"
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-          >
+          <div className={styles.workGrid} role="status" aria-live="polite" aria-busy="true">
             <span className="sr-only">Loading the Today Board</span>
+            <SectionSkeleton lines={8} />
             <div className="space-y-6">
               <SectionSkeleton lines={2} />
-              <SectionSkeleton lines={3} />
+              <SectionSkeleton lines={4} />
             </div>
-            <SectionSkeleton lines={6} />
           </div>
         ) : (
-          <div
-            id="today-work"
-            className="grid scroll-mt-24 gap-6 xl:grid-cols-[360px,minmax(0,1fr)]"
-          >
+          <div id="today-work" className={cn(styles.workGrid, 'scroll-mt-24')}>
+            {/* The manager's work first: who has arrived and who still needs a pair. */}
+            <RecordSection aria-labelledby="today-flow">
+              <RecordSectionHeader>
+                <RecordSectionTitle id="today-flow">Patient flow</RecordSectionTitle>
+                <RecordSectionDescription>
+                  Arrival to intake on {dayLabel}.{' '}
+                  {checkins.length === 1
+                    ? '1 patient checked in.'
+                    : `${checkins.length} patients checked in.`}
+                </RecordSectionDescription>
+              </RecordSectionHeader>
+              <RecordSectionContent className={styles.flow}>
+                {checkins.length === 0 && !board.data ? null : checkins.length === 0 ? (
+                  <EmptyState
+                    titleAs="h3"
+                    icon={Users}
+                    title="No patient check-ins yet"
+                    description="Check a patient in from search or their record, and they appear here."
+                  />
+                ) : (
+                  <div className="space-y-6">
+                    {visibleStatuses.map((status) => {
+                      const items = groupedCheckins[status];
+                      const headingId = `today-${status.toLowerCase()}`;
+                      const list = (
+                        <ul className="border-t border-rule">{items.map(renderCheckIn)}</ul>
+                      );
+                      // Finished rows are history; on a long day they would push the live work away.
+                      if ((status === 'COMPLETED' || status === 'CANCELLED') && items.length > 0) {
+                        return (
+                          <details key={status} className={styles.group}>
+                            <summary className={cn('type-label', styles.summary)}>
+                              <ChevronRight aria-hidden="true" className={styles.chevron} />
+                              <span id={headingId}>{STATUS_HEADINGS[status]}</span>
+                              <span className="tabular-nums text-muted-foreground">
+                                {items.length}
+                              </span>
+                            </summary>
+                            {list}
+                          </details>
+                        );
+                      }
+                      return (
+                        <section
+                          key={status}
+                          id={status === 'WAITING' ? 'today-waiting' : undefined}
+                          aria-labelledby={headingId}
+                          className={cn(styles.group, 'scroll-mt-24')}
+                        >
+                          <h3 id={headingId} className={cn('type-label', styles.groupHeading)}>
+                            {STATUS_HEADINGS[status]}
+                            <span className="tabular-nums text-muted-foreground">
+                              {items.length}
+                            </span>
+                          </h3>
+                          {items.length === 0 ? (
+                            <p className="border-t border-rule py-3 text-sm text-muted-foreground">
+                              {STATUS_EMPTY[status]}
+                            </p>
+                          ) : (
+                            list
+                          )}
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
+              </RecordSectionContent>
+            </RecordSection>
+
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
                 ruled
@@ -460,78 +639,51 @@ function TodayBoardPage() {
                 onCheckOut={shiftControls.checkOut}
               />
 
-              <Card>
-                <CardHeader className="space-y-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-xl">
-                        <Users className="h-5 w-5 text-primary" />
-                        Staff On Duty
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        Active shifts for {formatOpsDate(selectedDate, timezone)}.
-                      </CardDescription>
-                    </div>
-                    <div className="rounded-lg border border-border bg-background px-3 py-2 text-right">
-                      <p className="text-eyebrow text-muted-foreground">Total</p>
-                      <p className="text-lg font-semibold">{onDuty.length}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-lg border border-border bg-background p-3">
-                      <p className="text-eyebrow text-muted-foreground">Volunteers</p>
-                      <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(onDuty, 'VOLUNTEER')}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-background p-3">
-                      <p className="text-eyebrow text-muted-foreground">Doctors</p>
-                      <p className="mt-2 text-2xl font-semibold">{countByRole(onDuty, 'DOCTOR')}</p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-background p-3">
-                      <p className="text-eyebrow text-muted-foreground">Managers</p>
-                      <p className="mt-2 text-2xl font-semibold">
-                        {countByRole(onDuty, 'MANAGER')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {SHIFT_FILTERS.map((value) => (
-                      <Button
-                        key={value}
-                        type="button"
-                        variant={shiftRoleFilter === value ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setShiftRoleFilter(value)}
-                        className="rounded-full"
-                      >
-                        {value === 'ALL' ? 'All roles' : formatRoleLabel(value)}
-                      </Button>
-                    ))}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
+              <RecordSection aria-labelledby="today-staff">
+                <RecordSectionHeader>
+                  <RecordSectionTitle id="today-staff">Staff on duty</RecordSectionTitle>
+                  <RecordSectionDescription>
+                    {onDuty.length === 1 ? '1 person' : `${onDuty.length} people`} on shift,{' '}
+                    {dayLabel}.
+                  </RecordSectionDescription>
+                </RecordSectionHeader>
+                <RecordSectionContent className="space-y-3">
+                  <SegmentedControl
+                    label="Show staff by role"
+                    value={shiftRoleFilter}
+                    onChange={setShiftRoleFilter}
+                    className="sm:grid-cols-2"
+                    options={SHIFT_FILTERS.map((value) => ({
+                      value,
+                      label:
+                        value === 'ALL'
+                          ? `All · ${onDuty.length}`
+                          : `${SHIFT_FILTER_LABELS[value]} · ${countByRole(onDuty, value)}`,
+                    }))}
+                  />
                   {filteredShifts.length === 0 && !board.data ? null : filteredShifts.length ===
                     0 ? (
-                    <EmptyStateCard
-                      title="No staff checked in"
-                      description="The roster will populate as staff start their shifts."
-                    />
+                    <p className="border-t border-rule py-3 text-sm text-muted-foreground">
+                      {shiftRoleFilter === 'ALL'
+                        ? 'No staff checked in. The list fills as people start their shifts.'
+                        : `No ${SHIFT_FILTER_LABELS[shiftRoleFilter].toLowerCase()} on shift.`}
+                    </p>
                   ) : (
-                    filteredShifts.map((shift) => (
-                      <div
-                        key={shift.shiftId}
-                        className="rounded-lg border border-border bg-background p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
+                    <ul className="border-t border-rule">
+                      {filteredShifts.map((shift) => (
+                        <li
+                          key={shift.shiftId}
+                          className="flex items-center justify-between gap-3 border-b border-rule py-2.5"
+                        >
                           <div className="min-w-0">
-                            <p className="truncate font-medium text-foreground">
+                            <p className="type-label truncate text-foreground">
                               {shift.displayName}
                             </p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              Checked in at {formatOpsTime(shift.checkedInAt, timezone)}
+                            <p className="type-label font-normal tabular-nums text-muted-foreground">
+                              Since{' '}
+                              <time dateTime={shift.checkedInAt}>
+                                {formatOpsTime(shift.checkedInAt, timezone)}
+                              </time>
                             </p>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -549,177 +701,13 @@ function TodayBoardPage() {
                               />
                             ) : null}
                           </div>
-                        </div>
-                      </div>
-                    ))
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                </CardContent>
-              </Card>
+                </RecordSectionContent>
+              </RecordSection>
             </div>
-
-            <section className="min-w-0 space-y-4">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <h2 className="font-heading text-2xl font-semibold tracking-tight">
-                    Patient Flow
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Arrival-to-intake movement for the clinic day.
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border bg-card px-4 py-3 text-right">
-                  <p className="text-eyebrow text-muted-foreground">Queue Total</p>
-                  <p className="mt-1 text-xl font-semibold">{checkins.length}</p>
-                </div>
-              </div>
-
-              {checkins.length === 0 && !board.data ? null : checkins.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="flex min-h-[260px] items-center justify-center p-10">
-                    <EmptyStateCard
-                      title="No patient check-ins yet"
-                      description="Once patients are checked in from search or patient detail, they will appear here in real time."
-                    />
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid auto-cols-[minmax(280px,1fr)] grid-flow-col gap-4 overflow-x-auto pb-2">
-                  {visibleStatuses.map((status) => (
-                    <Card key={status} className="max-h-[72vh] min-h-[420px]">
-                      <CardHeader className="sticky top-0 z-10 rounded-t-lg bg-card">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <CardTitle className="text-lg">
-                              {status === 'IN_PROGRESS' ? 'In Progress' : formatRoleLabel(status)}
-                            </CardTitle>
-                            <CardDescription className="mt-1">
-                              {groupedCheckins[status].length} patient
-                              {groupedCheckins[status].length === 1 ? '' : 's'}
-                            </CardDescription>
-                          </div>
-                          <CheckInStatusBadge status={status} />
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3 overflow-y-auto pb-6">
-                        {groupedCheckins[status].length === 0 &&
-                        !board.data ? null : groupedCheckins[status].length === 0 ? (
-                          <EmptyStateCard
-                            title="Nothing here"
-                            description={`No ${formatRoleLabel(status).toLowerCase()} check-ins at the moment.`}
-                          />
-                        ) : (
-                          groupedCheckins[status].map((checkIn) => (
-                            <article
-                              key={checkIn.id}
-                              className={
-                                checkIn.pendingSync
-                                  ? 'rounded-lg border border-dashed border-info/40 bg-info/5 p-4'
-                                  : 'rounded-lg border border-border bg-background p-4'
-                              }
-                              data-pending-sync={checkIn.pendingSync}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="text-eyebrow font-mono text-primary">
-                                    {checkIn.patient.patientCode}
-                                  </p>
-                                  <h3 className="mt-2 text-base font-semibold text-foreground">
-                                    {checkIn.patient.displayName}
-                                  </h3>
-                                  <p className="mt-1 text-sm text-muted-foreground">
-                                    Checked in at {formatOpsDateTime(checkIn.checkedInAt, timezone)}
-                                  </p>
-                                </div>
-                                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                                  <CheckInStatusBadge status={checkIn.status} />
-                                  {checkIn.pendingSync ? (
-                                    <PendingSyncBadge state={checkIn.pendingSync} />
-                                  ) : null}
-                                </div>
-                              </div>
-
-                              {checkIn.assignmentSummary ? (
-                                <div className="mt-4 grid gap-2 rounded-lg border border-border bg-card p-3">
-                                  <div>
-                                    <p className="text-eyebrow text-muted-foreground">Volunteer</p>
-                                    <p className="mt-1 text-sm font-medium">
-                                      {checkIn.assignmentSummary.assignedVolunteer.displayName}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-eyebrow text-muted-foreground">Doctor</p>
-                                    <p className="mt-1 text-sm font-medium">
-                                      {checkIn.assignmentSummary.assignedDoctor.displayName}
-                                    </p>
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              {checkIn.notes ? (
-                                <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                                  {checkIn.notes}
-                                </p>
-                              ) : null}
-
-                              <div className="mt-5 flex flex-wrap gap-2">
-                                {checkIn.status === 'WAITING' && canManageAssignments ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={() => openAssignmentDialog('assign', checkIn)}
-                                    disabled={!isOnline || Boolean(checkIn.pendingSync)}
-                                    title={
-                                      checkIn.pendingSync
-                                        ? 'This check-in can be assigned once it has synced.'
-                                        : opsOfflineHint('assign', isOnline)
-                                    }
-                                  >
-                                    Assign
-                                  </Button>
-                                ) : null}
-
-                                {checkIn.status === 'ASSIGNED' &&
-                                canManageAssignments &&
-                                checkIn.assignmentSummary ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openAssignmentDialog('reassign', checkIn)}
-                                    disabled={!isOnline}
-                                    title={opsOfflineHint('reassign', isOnline)}
-                                  >
-                                    Reassign
-                                  </Button>
-                                ) : null}
-
-                                {checkIn.encounterId ? (
-                                  <Button asChild size="sm" variant="outline">
-                                    <Link href={`/encounters/${checkIn.encounterId}`}>
-                                      View encounter
-                                      <ArrowRight className="h-4 w-4" />
-                                    </Link>
-                                  </Button>
-                                ) : (
-                                  <Button asChild size="sm" variant="ghost">
-                                    <Link
-                                      href={`/clinics/${clinicId}/patients/${checkIn.patient.id}`}
-                                    >
-                                      View patient
-                                      <ArrowRight className="h-4 w-4" />
-                                    </Link>
-                                  </Button>
-                                )}
-                              </div>
-                            </article>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </section>
           </div>
         )}
 

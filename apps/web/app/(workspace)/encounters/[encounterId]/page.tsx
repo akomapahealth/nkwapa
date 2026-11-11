@@ -32,7 +32,7 @@ import {
   type TobaccoScreeningRecord,
   type VitalsRecord,
 } from '@/lib/db';
-import { ArrowLeft, Check, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
@@ -223,6 +223,10 @@ export default function EncounterDetailPage() {
       const updated = (await res.json()) as EncounterDetail;
       setEncounter(updated);
       await fetchData();
+      if (endpoint === 'review') {
+        // The review band's button is gone; hand focus to what replaced it, the sign-off band.
+        requestAnimationFrame(() => document.getElementById('encounter-signoff')?.focus());
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -323,18 +327,11 @@ export default function EncounterDetailPage() {
                 </span>
               </div>
             </div>
-            {canSubmit || canReview ? (
+            {canSubmit ? (
               <div role="group" aria-label="Encounter actions" className={styles.actions}>
-                {canSubmit ? (
-                  <Button onClick={() => doTransition('submit')} disabled={transitioning}>
-                    Submit for Review
-                  </Button>
-                ) : null}
-                {canReview ? (
-                  <Button onClick={() => doTransition('review')} disabled={transitioning}>
-                    Mark Reviewed
-                  </Button>
-                ) : null}
+                <Button onClick={() => doTransition('submit')} disabled={transitioning}>
+                  Submit for Review
+                </Button>
               </div>
             ) : null}
           </div>
@@ -350,6 +347,27 @@ export default function EncounterDetailPage() {
           />
         ) : null}
 
+        {/* The preceptor's decision leads, in the place sign-off takes once it is made. Routine, so
+            teal and one press: unlike Finalize it locks nothing. */}
+        {canReview ? (
+          <section aria-labelledby="encounter-review" className={styles.review}>
+            <div className={styles.signoffText}>
+              <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <div>
+                <h2 id="encounter-review" className="font-sans text-base font-semibold">
+                  Ready for your review
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Read each tab, then mark it reviewed. The visit moves on to sign-off.
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => doTransition('review')} disabled={transitioning}>
+              Mark Reviewed
+            </Button>
+          </section>
+        ) : null}
+
         {canFinalize ? (
           <section aria-labelledby="encounter-signoff" className={styles.signoff}>
             <div className={styles.signoffText}>
@@ -358,7 +376,11 @@ export default function EncounterDetailPage() {
                 aria-hidden="true"
               />
               <div>
-                <h2 id="encounter-signoff" className="font-sans text-base font-semibold">
+                <h2
+                  id="encounter-signoff"
+                  tabIndex={-1}
+                  className="font-sans text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   Ready for your sign-off
                 </h2>
                 <p className="text-sm text-muted-foreground">
