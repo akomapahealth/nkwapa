@@ -106,6 +106,18 @@ const DIABETES_SECTIONS: InterviewSectionMeta[] = [
   { id: 'plan', title: 'Actions and referral' },
 ];
 
+const DIABETES_STATUS_MEANINGS: Record<string, string> = {
+  KNOWN_DIABETES: 'A health worker has told them before',
+  NEWLY_ELEVATED_GLUCOSE: "Never told, but today's glucose is high",
+  NO_KNOWN_DIABETES: "Never told, and today's glucose is not high",
+  UNSURE: 'The patient does not know',
+};
+const HBA1C_STATUS_MEANINGS: Record<string, string> = {
+  VALUE_KNOWN: 'Had the test and knows the result',
+  UNKNOWN: 'Had the test but does not know the result',
+  NEVER_CHECKED: 'Has never had the test',
+};
+
 // What each sample timing means, so the volunteer can match the patient's answer to it.
 const GLUCOSE_CONTEXT_MEANINGS: Record<string, string> = {
   FASTING: 'Nothing but water for 8 hours or more',
@@ -366,6 +378,7 @@ export function DiabetesInterviewForm({
               onChange={(value) => update('diabetesStatus', value)}
               options={DIABETES_STATUSES}
               labels={DIABETES_STATUS_LABELS}
+              descriptions={DIABETES_STATUS_MEANINGS}
             />
             <ChoiceQuestion
               {...q('dm-type')}
@@ -470,6 +483,7 @@ export function DiabetesInterviewForm({
               onChange={(value) => update('hba1cStatus', value)}
               options={HBA1C_STATUSES}
               labels={HBA1C_STATUS_LABELS}
+              descriptions={HBA1C_STATUS_MEANINGS}
             />
             {values.hba1cStatus === 'VALUE_KNOWN' ? (
               <>

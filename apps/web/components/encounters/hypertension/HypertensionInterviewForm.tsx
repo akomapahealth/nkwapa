@@ -60,6 +60,8 @@ import {
   HYPERTENSION_CLASSIFICATIONS,
   classifyBloodPressure,
   shouldPromptRepeat,
+  BP_REPEAT_PROMPT_DIASTOLIC,
+  BP_REPEAT_PROMPT_SYSTOLIC,
 } from '@nkwapa/db/bp-classification';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -126,6 +128,19 @@ interface HypertensionInterviewFormProps {
 }
 
 // Spoken wording drafted 2026-11-12 for owner review (BRIEF-INTERVIEW.md section 7).
+// What each answer means, where the volunteer has to match the patient's words to a category.
+const HYPERTENSION_STATUS_MEANINGS: Record<string, string> = {
+  KNOWN_HYPERTENSION: 'A health worker has told them before',
+  NEWLY_ELEVATED_BP: "Never told, but today's reading is high",
+  NO_KNOWN_HYPERTENSION: "Never told, and today's reading is not high",
+  UNSURE: 'The patient does not know',
+};
+const BP_REPEAT_MEANINGS: Record<string, string> = {
+  YES: 'A second reading was taken after rest',
+  NO: 'A repeat was needed but not taken',
+  NOT_REQUIRED: `Today's reading was below ${BP_REPEAT_PROMPT_SYSTOLIC}/${BP_REPEAT_PROMPT_DIASTOLIC}`,
+};
+
 const HYPERTENSION_SECTIONS = [
   { id: 'history', title: 'Hypertension history', short: 'History' },
   { id: 'bp-control', title: 'Blood pressure control', short: 'BP control' },
@@ -468,6 +483,7 @@ export function HypertensionInterviewForm({
             onChange={(value) => update('hypertensionStatus', value)}
             options={HYPERTENSION_STATUSES}
             labels={HYPERTENSION_STATUS_LABELS}
+            descriptions={HYPERTENSION_STATUS_MEANINGS}
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <NumberQuestion
@@ -578,6 +594,7 @@ export function HypertensionInterviewForm({
             onChange={(value) => update('repeatPerformed', value)}
             options={BP_REPEAT_STATUSES}
             labels={BP_REPEAT_STATUS_LABELS}
+            descriptions={BP_REPEAT_MEANINGS}
           />
           {showRepeat ? (
             <div className="grid gap-4 sm:grid-cols-2">

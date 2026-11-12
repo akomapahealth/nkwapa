@@ -90,5 +90,9 @@ for keyboard advance (MASTER 9.1).
 - Spoken wording: hypertension's 33 questions drafted from the current labels and approved by the
   owner 2026-11-12 (`ask` props in HypertensionInterviewForm). Diabetes wording is still to be
   drafted and reviewed before merge.
+- Answer meanings (`descriptions` on ChoiceQuestion): only where the volunteer maps the patient's
+  words to a clinical category (HTN and DM status, HbA1c status, BP repeat, glucose sample timing).
+  Never on validated scales (PHQ-2, DDS-2), whose wording must stay as published. Drafted
+  2026-11-12 for owner review.
 - Skip logic as built: a follow-up group is hidden only while it is empty, so validation never
   points at a field the volunteer cannot see (`showsRepeatReadings`, `showsHomeReadings`).
