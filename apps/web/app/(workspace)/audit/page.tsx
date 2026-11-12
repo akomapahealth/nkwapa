@@ -10,6 +10,9 @@ import { apiFetch } from '@/lib/api';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { zoneLabel } from '@/lib/clinic-zones';
 import { formatOpsDateTime, formatOpsTimestamp } from '@/lib/ops';
+import { useCopyToClipboard } from '@/lib/use-copy-to-clipboard';
+import { cn } from '@/lib/utils';
+import { Check, Copy } from 'lucide-react';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import {
   InlineErrorState,
@@ -158,13 +161,13 @@ export default function AuditPage() {
       id: 'entityId',
       accessorKey: 'entityId',
       header: 'Entity ID',
-      cell: ({ getValue }) => <Token value={getValue() as string} />,
+      cell: ({ getValue }) => <Token value={getValue() as string} label="entity ID" />,
     },
     {
       id: 'requestId',
       accessorKey: 'requestId',
       header: 'Request ID',
-      cell: ({ getValue }) => <Token value={getValue() as string} />,
+      cell: ({ getValue }) => <Token value={getValue() as string} label="request ID" />,
     },
   ];
 
@@ -356,13 +359,36 @@ export default function AuditPage() {
   );
 }
 
-/** A long id: mono, quiet, the first 8 characters with the rest on hover and for copy. */
-function Token({ value }: { value: string | null | undefined }) {
+/**
+ * A long id: mono and quiet, the first 8 characters shown. Investigators paste these into
+ * tickets and log searches, so a press copies the whole value and says so.
+ */
+function Token({ value, label }: { value: string | null | undefined; label: string }) {
+  const { state, copy } = useCopyToClipboard();
   if (!value) return null;
+  const Icon = state === 'copied' ? Check : Copy;
   return (
-    <span title={value} className="font-mono text-xs text-muted-foreground">
+    <button
+      type="button"
+      onClick={() => void copy(value)}
+      title={value}
+      aria-label={`Copy ${label} ${value}`}
+      className="group -mx-1.5 inline-flex min-h-9 items-center gap-1.5 rounded-md px-1.5 font-mono text-xs text-muted-foreground motion-safe:transition-colors motion-safe:duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
+    >
       {value.length > 12 ? `${value.slice(0, 8)}…` : value}
-    </span>
+      <Icon
+        aria-hidden="true"
+        className={cn(
+          'size-3.5 shrink-0',
+          state === 'copied'
+            ? 'text-success-ink'
+            : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-60',
+        )}
+      />
+      <span aria-live="polite" className="sr-only">
+        {state === 'copied' ? `${label} copied` : state === 'failed' ? 'Could not copy' : ''}
+      </span>
+    </button>
   );
 }
 
