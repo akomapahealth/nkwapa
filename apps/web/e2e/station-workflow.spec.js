@@ -149,6 +149,12 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   await volunteerPage.getByRole('option', { name: /left arm/i }).click();
   // The station shows only its own groups.
   await expect(volunteerPage.getByLabel('Weight (kg)')).toHaveCount(0);
+  // Handing on before saving used to drop the typed reading; now it asks first.
+  await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
+  const unsaved = volunteerPage.getByRole('alertdialog').or(volunteerPage.getByRole('dialog'));
+  await expect(unsaved.getByText('Blood pressure is not saved')).toBeVisible();
+  await unsaved.getByRole('button', { name: 'Go back and save' }).click();
+  await expect(volunteerPage).toHaveURL(/\/stations\/visits\//);
   await volunteerPage.getByRole('button', { name: 'Save measurements' }).click();
   await expect(volunteerPage.getByText('Measurements saved and synced.')).toBeVisible({
     timeout: 20_000,

@@ -37,6 +37,7 @@ import {
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { VitalsForm } from '@/components/VitalsForm';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
@@ -110,6 +111,8 @@ export default function StationVisitPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Edits typed into this station's form since its last save; hand-off asks before dropping them.
+  const [unsavedForm, setUnsavedForm] = useState(false);
   /** The caller's own shift, for who is really screening on this account (#227). */
   const [myShift, setMyShift] = useState<OnShiftStaff | null>(null);
   const [changingScreener, setChangingScreener] = useState(false);
@@ -345,15 +348,37 @@ export default function StationVisitPage() {
             />
 
             {mine && visit.encounterId ? (
-              <StationForm
-                visit={visit}
-                clinicId={clinicId}
-                userId={userId}
-                isDoctor={isDoctor}
-                readings={readings}
-                timezone={timezone}
-                onSaved={() => void loadReadings(visit.encounterId!)}
-              />
+              /*
+                shortcut: edits are seen as native input/change events and checkbox or radio
+                clicks, so a dropdown pick (rendered in a portal) is missed, and only stations
+                whose form reports onSaved are guarded (not intake history or the review note).
+                Give each form a dirty flag if those need guarding too.
+              */
+              <div
+                onInput={() => setUnsavedForm(true)}
+                onChange={() => setUnsavedForm(true)}
+                onClick={(event) => {
+                  if (
+                    (event.target as Element).closest(
+                      '[role="checkbox"],[role="radio"],[role="switch"]',
+                    )
+                  )
+                    setUnsavedForm(true);
+                }}
+              >
+                <StationForm
+                  visit={visit}
+                  clinicId={clinicId}
+                  userId={userId}
+                  isDoctor={isDoctor}
+                  readings={readings}
+                  timezone={timezone}
+                  onSaved={() => {
+                    setUnsavedForm(false);
+                    void loadReadings(visit.encounterId!);
+                  }}
+                />
+              </div>
             ) : visit.status === 'IN_PROGRESS' && !mine ? (
               <InlineNotice tone="info" live={false}>
                 {visit.claimedBy?.displayName ?? 'Someone'} is seeing this patient at{' '}
@@ -367,7 +392,20 @@ export default function StationVisitPage() {
                 stations={stations}
                 busy={busy}
                 isOnline={isOnline}
-                onComplete={(body) =>
+                onComplete={async (body) => {
+                  if (
+                    unsavedForm &&
+                    GUARDED_STATION_KINDS.has(visit.station.kind) &&
+                    !(await confirmAction({
+                      title: `${visit.station.name} is not saved`,
+                      description:
+                        'This station has answers that were typed but not saved. Handing the patient on now leaves them out of the record.',
+                      confirmLabel: 'Hand on without saving',
+                      cancelLabel: 'Go back and save',
+                      destructive: true,
+                    }))
+                  )
+                    return;
                   void run(
                     async () => {
                       // The next station reads what this one recorded, so it must reach the
@@ -389,8 +427,8 @@ export default function StationVisitPage() {
                       );
                     },
                     () => router.push('/stations'),
-                  )
-                }
+                  );
+                }}
                 onRelease={(reason) =>
                   void run(
                     () => releaseStationVisit(clinicId, visit.id, reason, getToken!),
@@ -489,6 +527,9 @@ function Timeline({
     </Card>
   );
 }
+
+/** Stations whose form calls onSaved, so a cleared flag means the readings were saved. */
+const GUARDED_STATION_KINDS = new Set(['BLOOD_PRESSURE', 'ANTHROPOMETRY', 'GLUCOSE', 'EYE']);
 
 function StationForm({
   visit,
