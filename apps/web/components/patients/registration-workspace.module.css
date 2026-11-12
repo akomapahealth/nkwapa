@@ -29,6 +29,8 @@
 .actions {
   display: flex;
   flex-wrap: wrap;
+  /* MASTER R3.8: right-aligned, primary last. */
+  justify-content: flex-end;
   gap: 0.75rem;
   border-top: 2px solid hsl(var(--rule-strong));
   background: hsl(var(--card));
@@ -70,7 +72,7 @@
   }
   /* The chat launcher occupies the right-hand clearance. Both actions wrap at
      enlarged text rather than forcing horizontal scrolling or clipping copy. */
-  .actions > :first-child {
+  .actions > :last-child {
     flex: 1 1 auto;
   }
   .actions > * {

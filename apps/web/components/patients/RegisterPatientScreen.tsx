@@ -461,11 +461,11 @@ export function RegisterPatientScreen({
             role="group"
             data-sticky-actions
           >
-            <Button type="submit" disabled={loading} aria-busy={loading || undefined}>
-              {loading ? 'Creating...' : 'Create patient'}
-            </Button>
             <Button variant="outline" asChild>
               <Link href={registryHref}>Cancel</Link>
+            </Button>
+            <Button type="submit" disabled={loading} aria-busy={loading || undefined}>
+              {loading ? 'Creating...' : 'Create patient'}
             </Button>
           </div>
         </form>
