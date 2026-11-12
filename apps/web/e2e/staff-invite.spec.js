@@ -113,6 +113,8 @@ async function expectMenuName(page, displayName) {
   await page.getByRole('button', { name: 'User menu' }).click();
   await expect(page.getByRole('menu').getByText(displayName, { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
+  // A closing Radix menu still owns the page; typing before it unmounts is dropped.
+  await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
 test('a director-level admin invites a volunteer, and an account is created', async ({ page }) => {

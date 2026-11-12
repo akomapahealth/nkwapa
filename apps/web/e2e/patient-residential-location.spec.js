@@ -8,6 +8,8 @@ test.use({ storageState: storageStateFor('staff') });
 async function chooseSelect(page, label, option) {
   await page.getByLabel(label, { exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
+  // A closing Radix select still owns the page; typing before it unmounts is dropped.
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
 test('records a residential location, distinguishes it from the clinic, and filters the registry', async ({
