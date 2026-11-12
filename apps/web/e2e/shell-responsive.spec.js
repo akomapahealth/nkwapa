@@ -23,9 +23,7 @@ async function capture(page, name) {
 }
 test.use({ storageState: storageStateFor('staff') });
 for (const theme of ['light', 'dark']) {
-  test(`shell boundaries, visible labels and short-height navigation: ${theme}`, async ({
-    page,
-  }) => {
+  test(`shell boundaries, icon rail and short-height navigation: ${theme}`, async ({ page }) => {
     test.setTimeout(120_000);
     await page.addInitScript(
       ({ theme, key }) => {
@@ -38,7 +36,7 @@ for (const theme of ['light', 'dark']) {
     await page.goto('/dashboard');
     const rail = page.locator('#workspace-sidebar');
     await expect.poll(() => widthOf(rail)).toBe(232);
-    await expect(page.getByRole('heading', { name: /today at a glance/i })).toBeVisible();
+    await expect(page.getByTestId('figure-strip')).toBeVisible();
     await capture(page, `desktop-expanded-${theme}`);
     for (const width of [390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440]) {
       await page.setViewportSize({ width, height: 640 });
@@ -76,10 +74,12 @@ for (const theme of ['light', 'dark']) {
               wordsFit,
               w: box.width,
               h: box.height,
+              hiddenLabel: getComputedStyle(label).position === 'absolute',
               fits:
-                text.left >= box.left - 1 &&
-                text.right <= box.right + 1 &&
-                text.height <= box.height,
+                innerWidth < 1200 ||
+                (text.left >= box.left - 1 &&
+                  text.right <= box.right + 1 &&
+                  text.height <= box.height),
             };
           }),
         );
@@ -87,7 +87,9 @@ for (const theme of ['light', 'dark']) {
           expect(row.w, row.name).toBeGreaterThanOrEqual(44);
           expect(row.h, row.name).toBeGreaterThanOrEqual(44);
           expect(row.fits, row.name).toBe(true);
-          expect(row.wordsFit, `${row.name}: avoid isolated word fragments`).toBe(true);
+          if (width >= 1200)
+            expect(row.wordsFit, `${row.name}: avoid isolated word fragments`).toBe(true);
+          expect(row.hiddenLabel).toBe(width < 1200);
         }
         const last = rail.getByRole('link', { name: 'Cross-clinic duplicates', exact: true });
         await last.focus();
@@ -266,3 +268,59 @@ test('phone sheet retains utilities and closes when the persistent rail becomes 
   await page.getByRole('button', { name: 'User menu' }).click();
   await expect(page.getByRole('menuitem', { name: 'Clinic settings', exact: true })).toBeVisible();
 });
+
+for (const theme of ['light', 'dark']) {
+  test(`tablet drawer dismissal, focus and route changes: ${theme}`, async ({ page }) => {
+    await page.addInitScript(
+      ({ theme, key }) => {
+        localStorage.setItem('nkwapa-theme', theme);
+        localStorage.setItem(key, 'true');
+      },
+      { theme, key: KEY },
+    );
+    await page.setViewportSize({ width: 744, height: 900 });
+    await page.goto('/patients');
+    const trigger = page.getByRole('button', { name: 'Open navigation', exact: true });
+    const drawer = page.getByRole('dialog', { name: 'Workspace menu', exact: true });
+    await trigger.click();
+    await expect(drawer.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
+    await settle(page);
+    await capture(page, `tablet-drawer-open-${theme}`);
+    for (let i = 0; i < 24; i++) {
+      await page.keyboard.press('Tab');
+      expect(await drawer.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await settle(page);
+    await page.mouse.click(730, 450);
+    await expect(drawer).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await settle(page);
+    const handle = drawer.getByRole('button', {
+      name: 'Close sheet (or drag left to dismiss)',
+      exact: true,
+    });
+    const box = await handle.boundingBox();
+    const x = box.x + box.width / 2,
+      y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x - 150, y, { steps: 8 });
+    await page.mouse.up();
+    await expect(drawer).toBeHidden();
+    await trigger.click();
+    await drawer.getByRole('link', { name: 'Queues', exact: true }).click();
+    await expect(page).toHaveURL(/\/queues$/);
+    await expect(drawer).toBeHidden();
+    await trigger.click();
+    await page.setViewportSize({ width: 599, height: 900 });
+    await expect(drawer).toBeHidden();
+    await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect.poll(() => widthOf(page.locator('#workspace-sidebar'))).toBe(64);
+  });
+}

@@ -174,9 +174,7 @@ test('current route, overflow route, history and sync handoff', async ({ page })
   await expect(headerSync).toBeFocused();
 });
 
-test('collapsed desktop labels are visually hidden, tablet labels remain visible', async ({
-  page,
-}) => {
+test('desktop collapse and tablet rail keep icon labels visually hidden', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/dashboard');
   await page.getByRole('button', { name: 'Collapse navigation' }).click();
@@ -193,6 +191,6 @@ test('collapsed desktop labels are visually hidden, tablet labels remain visible
   await capture(page, 'collapsed-desktop-icons-only');
   await page.setViewportSize({ width: 744, height: 900 });
   for (const label of await sidebar.locator('nav a > span').all()) {
-    expect(await label.evaluate((el) => getComputedStyle(el).position)).not.toBe('absolute');
+    expect(await label.evaluate((el) => getComputedStyle(el).position)).toBe('absolute');
   }
 });

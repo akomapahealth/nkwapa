@@ -22,7 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { avatarToneProps } from '@/lib/avatar-tone';
@@ -221,13 +228,15 @@ export function Header({
             className="shrink-0 compact:hidden"
           />
         )}
-        {!onToggleSidebar && !portal && (
+        {!portal && (
           <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
             <SheetTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className={onToggleSidebar ? 'compact:hidden' : 'md:hidden'}
+                className={
+                  onToggleSidebar ? 'hidden compact:inline-flex desktop:hidden' : 'md:hidden'
+                }
               >
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Open navigation</span>
@@ -241,21 +250,27 @@ export function Header({
             <SheetContent
               side="left"
               className="flex w-[88vw] max-w-[320px] flex-col border-border bg-background p-0"
+              onCloseAutoFocus={(event) => {
+                if (
+                  onToggleSidebar &&
+                  !window.matchMedia('(min-width: 600px) and (max-width: 1199px)').matches
+                ) {
+                  event.preventDefault();
+                  document.getElementById('main-content')?.focus();
+                }
+              }}
             >
-              <SheetHeader className="border-b border-border p-5 text-left">
-                <SheetTitle className="text-left">
-                  <div className="space-y-3">
-                    <div className="relative h-11 w-40">
-                      <BrandWordmark
-                        alt="Nkwapa EMR"
-                        fill
-                        sizes="160px"
-                        className="object-contain object-left"
-                      />
-                    </div>
-                    <p className="text-xs font-medium text-muted-foreground">Workspace menu</p>
-                  </div>
-                </SheetTitle>
+              <SheetHeader className="border-b border-border p-5 pr-16 text-left">
+                <div className="relative h-11 w-40">
+                  <BrandWordmark
+                    alt="Nkwapa EMR"
+                    fill
+                    sizes="160px"
+                    className="object-contain object-left"
+                  />
+                </div>
+                <SheetTitle className="text-left">Workspace menu</SheetTitle>
+                <SheetDescription>Choose where to work in {clinicName}.</SheetDescription>
               </SheetHeader>
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
                 {roleText ? (

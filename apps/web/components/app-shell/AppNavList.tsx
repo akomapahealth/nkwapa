@@ -25,7 +25,7 @@ export function AppNavList({
   bootstrap: WhoAmIResponse | null;
   collapsed?: boolean;
   mobile?: boolean;
-  /** Touch rail: icon above a visible, wrapping label. */
+  /** Tablet rail uses the same icon-only presentation as desktop collapse. */
   rail?: boolean;
   onNavigate?: () => void;
   /** The landmark's name; a second list in the same sheet needs its own. */
@@ -37,16 +37,12 @@ export function AppNavList({
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const sections = sectionsOverride ?? getAccessibleNavSections(bootstrap);
 
-  const showLabels = !collapsed || mobile || rail;
+  const showLabels = mobile || (!collapsed && !rail);
 
   return (
     <nav aria-label={label} className="flex flex-col gap-4">
-      {sections.map((section, index) => (
-        <div
-          key={section.id}
-          // Collapsed, a hairline stands in for the group name between icon groups.
-          className={cn((!showLabels || rail) && index > 0 && 'border-t border-border pt-4')}
-        >
+      {sections.map((section) => (
+        <div key={section.id}>
           {showLabels && (
             <p
               className={cn(
@@ -73,8 +69,7 @@ export function AppNavList({
                 'group flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-foreground transition-colors duration-fast',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 !showLabels && 'justify-center px-0',
-                rail &&
-                  'flex-col justify-center gap-1 px-0 py-2 text-center text-[0.71875rem] leading-tight focus-visible:ring-inset',
+                rail && 'focus-visible:ring-inset',
                 active
                   ? 'bg-selected font-semibold text-primary'
                   : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
@@ -111,6 +106,7 @@ export function AppNavList({
               const control = enabled ? (
                 <Link
                   href={href}
+                  aria-label={item.label}
                   onClick={onNavigate}
                   aria-current={active ? 'page' : undefined}
                   className={itemClassName}
@@ -122,6 +118,7 @@ export function AppNavList({
                   type="button"
                   disabled
                   aria-disabled="true"
+                  aria-label={item.label}
                   title={`${item.label}: select a clinic first`}
                   className={cn(itemClassName, 'w-full cursor-not-allowed', !rail && 'text-left')}
                 >

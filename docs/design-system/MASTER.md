@@ -715,7 +715,7 @@ for Playwright and creates no public route or production dependency.
 ### Staff shell (#266)
 
 R2.1 uses the approved pilot's shipped geometry: 232px expanded and 64px
-icon-only from 1200px; a distinct 76px labelled rail from 600 to 1199px.
+icon-only from 1200px; a distinct 76px icon-only rail from 600 to 1199px.
 The earlier R0 prose says 248/88px and elsewhere 76px desktop collapse. These
 conflict with the pilot and round-3 feedback; 232/76/64 is the implementation
 baseline, not a new owner approval. Under 600px R2.2 supplies the phone BottomNav
@@ -731,10 +731,10 @@ fixed chat launcher and phone navigation. Chat sits above the phone bar; its pan
 height accounts for that space without changing chat behavior.
 
 `AppNavList` keeps `app-nav.ts` as its sole permissions/flag/placement filter.
-Desktop groups retain their names; compact modes separate groups with quiet
-hairlines, with tablet group names retained for assistive technology. Tablet icons
-sit over visible 11.5px wrapping labels, including long administration names. Desktop
-labels also wrap instead of clipping. Controls keep a 44px floor. Current links use
+Expanded desktop groups retain their names; compact modes separate groups with space.
+Tablet and collapsed desktop links show icons only, with full accessible names and Radix
+tooltips (300ms first delay and instant neighbour scanning). Expanded desktop labels wrap
+instead of clipping. Controls keep a 44px floor. Current links use
 `--selected`, semibold `--primary`, and `aria-current="page"`; unselected labels use
 muted ink with `--surface-2` hover and a visible 2px focus ring. Disabled clinic
 controls remain native disabled buttons, without a contrast-reducing opacity.
@@ -746,8 +746,15 @@ toggle and `[` work only from 1200px; typing, editable content and modifier guar
 remain. Keyboard toggles, including keyboard activation of the header button, are
 instant. Pointer toggles transition width for 200ms with the shared drawer curve,
 reverse from the current frame, and crossfade the logo; reduced motion removes
-movement. The shared R1.5 Tooltip provides desktop collapsed labels with a 300ms
+movement. The shared R1.5 Tooltip provides compact navigation labels with a 300ms
 first hover delay, instant keyboard access and the shared 300ms scanning window.
+
+At 600–1199px the header's Open navigation button opens a separate left overlay Sheet
+with full labelled destinations over a dimming scrim. It uses the existing Radix focus trap,
+240ms drawer entrance, reduced-motion fade, Escape/outside dismissal and leftward drag handle.
+It closes on route changes and when crossing 600/1200px. Focus returns to the trigger, or to
+main when that trigger is hidden by resizing. Phones retain BottomNav/More and desktop retains
+the docked sidebar. Tablet presentation never writes the desktop collapse preference.
 
 The header retains the clinic picker, sync and account controls at every width.
 Message delivery becomes visible from 600px in the staff shell so hiding the phone

@@ -231,8 +231,15 @@ for (const role of Object.keys(EXPECTED)) {
       await expect.poll(() => rail.evaluate((el) => el.getBoundingClientRect().width)).toBe(76);
       for (const link of await rail.locator('nav a').all()) {
         const label = link.locator('span');
-        expect(await label.evaluate((el) => getComputedStyle(el).position)).not.toBe('absolute');
+        expect(await label.evaluate((el) => getComputedStyle(el).position)).toBe('absolute');
       }
+      const trigger = page.getByRole('button', { name: 'Open navigation', exact: true });
+      await trigger.click();
+      const drawer = page.getByRole('dialog', { name: 'Workspace menu' });
+      await expectNav(drawer, role);
+      await page.keyboard.press('Escape');
+      await expect(drawer).toBeHidden();
+      await expect(trigger).toBeFocused();
       await page.setViewportSize({ width: 390, height: 844 });
       const primaryLabels = PHONE_PRIMARY[role];
       const primary = page.getByRole('navigation', { name: 'Primary', exact: true });

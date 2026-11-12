@@ -46,7 +46,7 @@ create synthetic records, so row-content changes can affect counts independently
 
 ## Remaining units
 
-5, 3, 4/8, 2/7 and 9 remain pending, in the owner's requested order.
+3, 4/8, 2/7 and 9 remain pending, in the owner's requested order.
 
 ## Unit 1: phone labels
 
@@ -71,3 +71,30 @@ Route/capture run: 12/12, 228 rows, 0 violations, 0 minor, 0 overflow, 0 errors,
 throughout; 570 screenshots. This also rechecks unit 6's final code on all normal routes.
 Inspected staff 320px and portal 320px, both themes and larger matrix samples. Evidence:
 `/private/tmp/nkwapa-w3-polish/unit1`.
+
+## Unit 5: rail and tablet drawer
+
+| Before                                              | After                                                          | Why                                                   |
+| --------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------- |
+| Tablet icons over wrapping labels and section rules | Icons, full accessible names, tooltips; space between groups   | A quiet rail leaves room for work.                    |
+| No full tablet navigation overlay                   | Header menu opens the existing left Sheet with full labels     | Discoverability without permanent text in the rail.   |
+| Desktop collapse and `[` preference                 | Preserved, including 232/64px geometry and guarded persistence | Resizing must not overwrite someone's desktop choice. |
+
+Jakob: rail plus modal navigation drawer, following the distinction in
+[Material navigation](https://m3.material.io/components/navigation-drawer/overview) and
+[shadcn's icon sidebar](https://ui.shadcn.com/docs/components/radix/sidebar).
+[Radix Dialog](https://www.radix-ui.com/primitives/docs/components/dialog) supplies focus
+containment, Escape and outside dismissal. The existing Sheet's leftward drag handle provides
+swipe dismissal without intercepting scrolling or navigation-link gestures. Fitts: 44px rail
+and menu controls. Hick: full labels appear on request. The drawer is tablet-only; phones keep
+More. Route changes and crossing either tablet boundary close it.
+
+Validation: TypeScript, changed-file lint/format and build passed; Jest 98 suites / 1,060 tests
+passed. Focused Chromium: 61/62 passed initially. The desktop width-interruption sample returned
+null once (no active transition available to pause); unchanged isolated rerun passed 1/1.
+All distinct targeted checks passed, including both drawer themes, 24 successive trapped Tabs,
+Escape/focus return, scrim, leftward handle drag, route changes and resize/persistence. The
+boundary spec's stale dashboard heading assertion was updated to the existing role-home figures.
+Route/capture: 12/12, 228 rows, 0 violations, 0 minor, 0 overflow, 0 errors, one h1 throughout;
+570 screenshots, plus drawer-open and shell-state captures. Inspected the 744px rail and both
+open-drawer themes. Evidence: `/private/tmp/nkwapa-w3-polish/unit5`.

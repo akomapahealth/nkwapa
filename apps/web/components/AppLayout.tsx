@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/app-shell/BottomNav';
 import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
@@ -37,17 +38,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1200px)').matches,
   );
   const [animateSidebar, setAnimateSidebar] = useState(false);
+  const [tabletOpen, setTabletOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => setTabletOpen(false), [pathname]);
 
   useEffect(() => {
     const desktopQuery = window.matchMedia('(min-width: 1200px)');
+    const compactQuery = window.matchMedia('(min-width: 600px)');
     const update = () => {
       setDesktop(desktopQuery.matches);
       setAnimateSidebar(false);
+      if (desktopQuery.matches || !compactQuery.matches) setTabletOpen(false);
     };
     update();
     desktopQuery.addEventListener('change', update);
+    compactQuery.addEventListener('change', update);
     return () => {
       desktopQuery.removeEventListener('change', update);
+      compactQuery.removeEventListener('change', update);
     };
   }, []);
 
@@ -109,6 +118,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col bg-card compact:my-2 compact:mr-2 compact:rounded-xl compact:border compact:border-border">
           <Header
             sidebarCollapsed={sidebarCollapsed}
+            mobileOpen={tabletOpen}
+            onMobileOpenChange={setTabletOpen}
             onToggleSidebar={(event) => {
               if (!window.matchMedia('(min-width: 1200px)').matches) return;
               setAnimateSidebar(event.detail > 0);
