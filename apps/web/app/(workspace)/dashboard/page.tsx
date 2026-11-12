@@ -14,116 +14,18 @@ import {
 import { RouteGuard } from '@/components/RouteGuard';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
-import { DoctorDashboard } from '@/components/dashboard/DoctorDashboard';
-import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard';
-import { DirectorDashboard } from '@/components/dashboard/DirectorDashboard';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
 import { VolunteerWelcome } from '@/components/dashboard/VolunteerWelcome';
-import { SystemAdminDashboard } from '@/components/dashboard/SystemAdminDashboard';
-import { StationFlowDashboard } from '@/components/dashboard/StationFlowDashboard';
 import { NeedsYouNow } from '@/components/dashboard/NeedsYouNow';
+import { RoleHome, type DashboardData } from '@/components/dashboard/RoleHome';
 import { getOpsDestination } from '@/lib/ops';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import {
-  ClinicalMeasurementsDashboard,
-  type ClinicalMeasurementMetrics,
-} from '@/components/dashboard/ClinicalMeasurementsDashboard';
+import { pickMainRole } from '@/lib/main-role';
+import { ClinicalMeasurementsDashboard } from '@/components/dashboard/ClinicalMeasurementsDashboard';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { pickDashboardTab, readDashboardTab, writeDashboardTab } from '@/lib/dashboard-tab-storage';
 import { useToast } from '@/components/ui/toast';
 import { RefreshCw } from 'lucide-react';
-import { zoneQueryString, type ZoneFilter, type ZoneSummary } from '@/lib/clinic-zones';
-import type { DashboardWorkItem } from '@/lib/dashboard-work-items';
-
-interface DashboardData {
-  summary: {
-    totalPatients: number;
-    encountersToday: number;
-    pendingDrafts: number;
-    pendingReview: number;
-    readyToFinalize: number;
-  };
-  doctor?: {
-    clinicalMeasurements: ClinicalMeasurementMetrics;
-    awaitingFinalization: number;
-    awaitingFinalizationItems?: DashboardWorkItem[];
-    patientsSeen: { today: number; week: number; month: number };
-    followUpComplianceRate: number;
-    hypertensionDistribution: Record<string, number>;
-    diabetesStats: { flagged: number; total: number };
-    recentEncounters: {
-      id: string;
-      patientCode: string;
-      patientName: string;
-      status: string;
-      createdAt: string;
-    }[];
-    finalizationsTrend: { date: string; count: number }[];
-    pendingClinicalNoteCosigns?: number;
-  };
-  review?: {
-    clinicalMeasurements: ClinicalMeasurementMetrics;
-    awaitingReview: number;
-    reviewsCompleted: { today: number; week: number };
-    reviewsTrend: { date: string; count: number }[];
-    bpDistribution: Record<string, number>;
-    recentReviews: {
-      id: string;
-      patientCode: string;
-      patientName: string;
-      status: string;
-      createdAt: string;
-    }[];
-  };
-  director?: {
-    clinicalMeasurements: ClinicalMeasurementMetrics;
-    patientRegistrationTrend: { date: string; count: number }[];
-    encounterVolumeTrend: { date: string; count: number }[];
-    screeningRates: { hypertension: number; diabetes: number };
-    bpDistribution: Record<string, number>;
-    followUpComplianceRate: number;
-    staffActivity: {
-      userId: string;
-      displayName: string;
-      role: string;
-      encountersCreated: number;
-      encountersFinalized: number;
-    }[];
-    encounterStatusDistribution: Record<string, number>;
-    pendingClinicalNoteCosigns?: number;
-  };
-  volunteer?: {
-    clinicalMeasurements: ClinicalMeasurementMetrics;
-    patientsRegisteredToday: number;
-    encountersCreatedToday: number;
-    pendingSubmissions: number;
-    pendingSubmissionItems?: DashboardWorkItem[];
-    patientsRegisteredTrend: { date: string; count: number }[];
-    encountersCreatedTrend: { date: string; count: number }[];
-    statusBreakdown: Record<string, number>;
-    bpDistribution: Record<string, number>;
-    diabetesStats: { flagged: number; total: number };
-    clinicalNotes?: { drafts: number; pendingCosign: number };
-  };
-  systemAdmin?: {
-    totalClinics: number;
-    totalUsers: number;
-    systemWidePatients: number;
-    systemWideEncounters: number;
-    systemEncountersTrend: { date: string; count: number }[];
-    clinicComparison: {
-      clinicId: string;
-      clinicName: string;
-      zoneCode: string | null;
-      totalPatients: number;
-      totalEncounters: number;
-      totalFinalized: number;
-    }[];
-    zones: ZoneSummary[];
-    appliedZoneCode: string | null;
-  };
-}
+import { zoneQueryString, type ZoneFilter } from '@/lib/clinic-zones';
 
 export default function DashboardPage() {
   const bootstrapCtx = useBootstrap();
@@ -133,19 +35,7 @@ export default function DashboardPage() {
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const activeClinic = getActiveBootstrapClinic(bootstrap, clinicId);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
-  // The people who run the station line: managers, directors and system administrators (#24).
-  const showStationFlow =
-    isWebFeatureEnabled('stationWorkflow') &&
-    Boolean(clinicId) &&
-    (perms.includes('*') || perms.includes('OPS.STATION.MANAGE'));
-
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>(null);
-  const userId = bootstrap?.userId ?? null;
-  // Read after mount, not during render, so the server and first client render agree (#315).
-  const [storedTab, setStoredTab] = useState<string | null>(null);
-  useEffect(() => {
-    setStoredTab(userId && clinicId ? readDashboardTab(userId, clinicId) : null);
-  }, [userId, clinicId]);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -208,13 +98,13 @@ export default function DashboardPage() {
   }, [fetchDashboard]);
 
   const isInitialLoading = loading && !data;
-  const volunteerOnly = Boolean(
-    data?.volunteer && !data.doctor && !data.review && !data.director && !data.systemAdmin,
-  );
+  const roles = bootstrap?.effectiveRolesForActiveClinic ?? [];
+  const mainRole = pickMainRole(roles, data);
+
   const refreshAction = clinicId ? (
     <Button
       type="button"
-      variant="outline"
+      variant={mainRole === 'VOLUNTEER' ? 'outline' : 'ghost'}
       onClick={() => void fetchDashboard(true)}
       disabled={loading}
     >
@@ -222,6 +112,11 @@ export default function DashboardPage() {
         aria-hidden="true"
         className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
       />
+      {/*
+        The label stays put. Swapping it for "Refreshing" grew the button by 19px, measured, which
+        moved everything beside it every time someone refreshed (MASTER 11). The spinner carries
+        the state visually and the live region carries it for assistive technology.
+      */}
       Refresh
       <span aria-live="polite" className="sr-only">
         {loading ? 'Refreshing the dashboard' : ''}
@@ -229,191 +124,80 @@ export default function DashboardPage() {
     </Button>
   ) : null;
 
-  // Oversight first (director, then network), then a person's own queues (MASTER.md section 12).
-  const roleSections = data
-    ? [
-        data.director && {
-          id: 'clinic',
-          label: 'Clinic trends',
-          node: <DirectorDashboard {...data.director} />,
-        },
-        data.systemAdmin && {
-          id: 'network',
-          label: 'Network overview',
-          node: (
-            <SystemAdminDashboard
-              {...data.systemAdmin}
-              zoneFilter={zoneFilter}
-              onZoneFilterChange={setZoneFilter}
-              isRefreshing={loading}
-            />
-          ),
-        },
-        // A doctor's review queue is part of the same job, so the two stay one view.
-        (data.doctor || data.review) && {
-          id: 'doctor',
-          label: data.doctor ? 'Doctor queue' : 'Review queue',
-          node: (
-            <div className="space-y-8">
-              {data.doctor && <DoctorDashboard {...data.doctor} />}
-              {data.review && <ReviewDashboard {...data.review} />}
-            </div>
-          ),
-        },
-        data.volunteer && {
-          id: 'volunteer',
-          label: 'Your work today',
-          node: (
-            <div className="space-y-6">
-              {!volunteerOnly ? <VolunteerWelcome titleLevel={2} /> : null}
-              <VolunteerDashboard {...data.volunteer} clinicId={clinicId ?? undefined} />
-            </div>
-          ),
-        },
-      ].filter((section): section is { id: string; label: string; node: JSX.Element } =>
-        Boolean(section),
-      )
-    : [];
+  const status = (
+    <>
+      {isInitialLoading ? <DashboardLoadingState clinicName={activeClinic?.clinicName} /> : null}
+      {error ? (
+        <InlineErrorState
+          title={data ? 'Dashboard refresh is affected' : "We couldn't load dashboard metrics"}
+          description={error}
+          onRetry={() => void fetchDashboard()}
+          retryLabel="Reload dashboard"
+        />
+      ) : null}
+    </>
+  );
 
+  if (!clinicId) {
+    return (
+      <RouteGuard requiredPermission="DASHBOARD.READ">
+        <div className="space-y-6">
+          <AppPageHeader title="Dashboard" description="Current clinic totals and next work." />
+          <SelectClinicState surface="The dashboard" />
+        </div>
+      </RouteGuard>
+    );
+  }
+
+  // One home for the person's main role here (W2); other roles' work is "Also on your plate".
+  if (mainRole && mainRole !== 'VOLUNTEER') {
+    return (
+      <RouteGuard requiredPermission="DASHBOARD.READ">
+        <RoleHome
+          role={mainRole}
+          roles={roles}
+          data={data}
+          perms={perms}
+          clinicId={clinicId}
+          clinicName={activeClinic?.clinicName}
+          refresh={refreshAction}
+          status={status}
+          zoneFilter={zoneFilter}
+          onZoneFilterChange={setZoneFilter}
+          isRefreshing={loading}
+        />
+      </RouteGuard>
+    );
+  }
+
+  // A volunteer's home (recomposed in W4), and the fallback for a role with no home of its own.
   return (
     <RouteGuard requiredPermission="DASHBOARD.READ">
       <div className="space-y-6">
-        {volunteerOnly && clinicId ? (
-          <VolunteerWelcome actions={refreshAction} />
-        ) : (
-          <AppPageHeader
-            title={activeClinic?.clinicName ?? 'Dashboard'}
-            description="Current clinic totals and next work."
-            // Was a persistent ProgressiveHelp card under the page title. It is generic orientation
-            // copy with no safety or consent significance, which is exactly what #63 says belongs in
-            // a bubble; the disclosure was costing a block of vertical space above the metrics on
-            // every visit, to every user, forever.
-            hint="The dashboard always reflects the clinic selected in the header. Start with the clinic snapshot, then use the role sections below to clear intake work, reviews, finalizations, and oversight tasks."
-            // No clinic-name badge: the title and the header's switcher already say which clinic,
-            // and on a phone the chip pushed the volunteer's own work below the first screen.
-            actions={
-              clinicId ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-border"
-                  onClick={() => void fetchDashboard(true)}
-                  disabled={loading}
-                >
-                  <RefreshCw
-                    aria-hidden="true"
-                    className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
-                  />
-                  {/*
-                  The label stays put. Swapping it for "Refreshing" grew the button by 19px,
-                  measured, which moved everything beside it in the header every time someone
-                  refreshed. The spinner carries the state visually and the live region carries it
-                  for assistive technology, so nothing is lost by keeping the word still.
-                */}
-                  Refresh
-                  <span aria-live="polite" className="sr-only">
-                    {loading ? 'Refreshing the dashboard' : ''}
-                  </span>
-                </Button>
-              ) : null
-            }
-          />
-        )}
-
-        {!clinicId ? <SelectClinicState surface="The dashboard" /> : null}
-
-        {isInitialLoading ? <DashboardLoadingState clinicName={activeClinic?.clinicName} /> : null}
-
-        {error ? (
-          <InlineErrorState
-            title={data ? 'Dashboard refresh is affected' : "We couldn't load dashboard metrics"}
-            description={error}
-            onRetry={() => void fetchDashboard()}
-            retryLabel="Reload dashboard"
-          />
-        ) : null}
-
-        {data && clinicId && (
+        <VolunteerWelcome
+          actions={refreshAction}
+          {...(mainRole ? {} : { solo: true, summary: 'Current clinic totals and next work.' })}
+        />
+        {status}
+        {data && (
           <>
             {/* Work first (MASTER.md section 12), then today's counts, then trends. */}
             <NeedsYouNow
-              steps={volunteerOnly}
+              steps
               volunteer={data.volunteer}
-              doctor={data.doctor}
-              review={data.review}
-              clinic={
-                data.director || data.systemAdmin
-                  ? {
-                      ...data.summary,
-                      pendingClinicalNoteCosigns: data.director?.pendingClinicalNoteCosigns,
-                    }
-                  : undefined
-              }
               worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
             />
-
             <DashboardSectionHeader
               title="Today at a glance"
-              hint="These totals help you see what is active now before you move into the role-specific sections below."
+              hint="These totals help you see what is active now before you move into your own work below."
             />
-            <SummaryCards
-              totalPatients={data.summary.totalPatients}
-              encountersToday={data.summary.encountersToday}
-              pendingDrafts={data.summary.pendingDrafts}
-              pendingReview={data.summary.pendingReview}
-              readyToFinalize={data.summary.readyToFinalize}
-            />
-
-            <div className="space-y-8 border-t border-border/70 pt-6">
-              {/* What is happening right now on the line, before any role's trends. */}
-              {showStationFlow && clinicId ? <StationFlowDashboard clinicId={clinicId} /> : null}
-
-              {roleSections.length > 1 ? (
-                /*
-                  One role's section at a time for someone who holds several. Stacked, an account
-                  with every role ran past 8,000px at 1440; each section is still one press away,
-                  and its numbers are unchanged.
-                */
-                <Tabs
-                  value={pickDashboardTab(
-                    storedTab,
-                    roleSections.map((section) => section.id),
-                  )}
-                  onValueChange={(tab) => {
-                    setStoredTab(tab);
-                    if (userId && clinicId) writeDashboardTab(userId, clinicId, tab);
-                  }}
-                  className="space-y-6"
-                >
-                  <TabsList aria-label="Dashboard view">
-                    {roleSections.map((section) => (
-                      <TabsTrigger key={section.id} value={section.id}>
-                        {section.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  {roleSections.map((section) => (
-                    <TabsContent key={section.id} value={section.id} className="mt-0">
-                      {section.node}
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              ) : (
-                roleSections[0]?.node
-              )}
-
-              {(data.director?.clinicalMeasurements ??
-                data.doctor?.clinicalMeasurements ??
-                data.volunteer?.clinicalMeasurements) && (
-                <ClinicalMeasurementsDashboard
-                  metrics={
-                    data.director?.clinicalMeasurements ??
-                    data.doctor?.clinicalMeasurements ??
-                    data.volunteer!.clinicalMeasurements
-                  }
-                />
-              )}
-            </div>
+            <SummaryCards {...data.summary} />
+            {data.volunteer ? (
+              <div className="space-y-8 border-t border-border/70 pt-6">
+                <VolunteerDashboard {...data.volunteer} clinicId={clinicId} />
+                <ClinicalMeasurementsDashboard metrics={data.volunteer.clinicalMeasurements} />
+              </div>
+            ) : null}
           </>
         )}
       </div>

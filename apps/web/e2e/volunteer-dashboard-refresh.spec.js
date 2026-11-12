@@ -222,7 +222,7 @@ test.describe('volunteer refresh', () => {
       panel(page).getByRole('button', { name: 'Start shift', exact: true }),
     ).toBeEnabled();
   });
-  test('the greeting follows all four device-clock phases and uses existing theme tokens', async ({
+  test('the greeting follows all four clinic-clock (Accra) phases and uses existing theme tokens', async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -233,9 +233,8 @@ test.describe('volunteer refresh', () => {
       [19, 'evening', 'Good evening'],
       [23, 'night', 'Good evening'],
     ]) {
-      await page.clock.setFixedTime(
-        await page.evaluate((hour) => new Date(2026, 10, 10, hour).getTime(), hour),
-      );
+      // W2: the greeting reads clinic time, Africa/Accra (UTC, no daylight saving), not the device's.
+      await page.clock.setFixedTime(Date.UTC(2026, 10, 10, hour));
       await page.goto('/dashboard');
       const band = page.getByTestId('volunteer-welcome');
       await expect(band).toHaveAttribute('data-phase', phase);
@@ -392,26 +391,22 @@ test.describe('volunteer refresh', () => {
 
 test.describe('mixed role refresh', () => {
   test.use({ storageState: storageStateFor('staff') });
-  test('retains role selection at every width, other views and persisted dashboard tab', async ({
+  // W2: a person holding every role gets their main role's home; the volunteer shift panel (and
+  // its role picker) is a volunteer's home only, and starting a shift with a role is on Stations.
+  test('gets one main-role home at every width, with no role tabs and no shift panel', async ({
     page,
   }) => {
     const state = await mockRoster(page);
     await page.goto('/dashboard');
-    const tab = page.getByRole('tab', { name: 'Your work today', exact: true });
-    await tab.click();
-    const role = panel(page).getByRole('combobox', { name: 'Role for this shift' });
-    await role.click();
-    await page.getByRole('option', { name: 'Doctor', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Clinic comparison' })).toBeVisible({
+      timeout: 30_000,
+    });
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 900 });
-      await expect(role).toHaveText('Doctor');
+      await expect(page.getByRole('tab')).toHaveCount(0);
+      await expect(panel(page)).toHaveCount(0);
+      await expect(page.getByTestId('volunteer-welcome')).toHaveCount(1);
     }
-    await page.reload();
-    await expect(tab).toHaveAttribute('aria-selected', 'true');
-    await page.getByRole('tab', { name: 'Clinic trends', exact: true }).click();
-    await expect(panel(page)).toHaveCount(0);
-    await page.getByRole('tab', { name: 'Doctor queue', exact: true }).click();
-    await expect(page.getByTestId('volunteer-welcome')).toHaveCount(0);
     expect(state.posts).toBe(0);
   });
 });

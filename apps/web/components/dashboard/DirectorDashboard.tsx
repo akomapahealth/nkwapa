@@ -1,9 +1,9 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
-import { AppMetricCard } from '@/components/app-shell/AppMetricCard';
-import { DashboardSectionHeader } from './DashboardSectionHeader';
+import { HYPERTENSION_ORDER, HYPERTENSION_TONES, toLabelledDistribution } from '@/lib/hypertension';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { Activity } from 'lucide-react';
 import { formatRoleLabel } from '@/lib/ops';
@@ -26,6 +26,10 @@ interface DirectorDashboardProps {
   staffActivity: StaffActivityRow[];
   encounterStatusDistribution: Record<string, number>;
   pendingClinicalNoteCosigns?: number;
+  /** Where the clinic's queues are held up, first in the wide column. */
+  needs?: ReactNode;
+  /** Further oversight between the charts and the staff table, e.g. station flow. */
+  children?: ReactNode;
 }
 
 const staffColumns: DataTableColumn<StaffActivityRow>[] = [
@@ -56,67 +60,76 @@ const staffColumns: DataTableColumn<StaffActivityRow>[] = [
   },
 ];
 
+/**
+ * A director's own work under their greeting and figure strip (W2): the clinic's 30-day trends
+ * beside how its queue, screening and readings stand, then staff activity. Registered patients,
+ * visit volume, BP screening and follow-up share are the strip above.
+ */
 export function DirectorDashboard({
   patientRegistrationTrend,
   encounterVolumeTrend,
   screeningRates,
   bpDistribution,
-  followUpComplianceRate,
   staffActivity,
   encounterStatusDistribution,
+  needs,
+  children,
 }: DirectorDashboardProps) {
   return (
-    <section className="space-y-6">
-      <DashboardSectionHeader
-        title="Clinic trends"
-        hint="Use this section to watch how the clinic is performing across patient flow and follow-up."
-      />
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <TrendChart
-          title="Patient registrations in the last 30 days"
-          data={patientRegistrationTrend}
-          color="hsl(var(--chart-1))"
-          hint="Daily count of new patient registrations in this clinic."
-        />
-        <TrendChart
-          title="Visit volume in the last 30 days"
-          data={encounterVolumeTrend}
-          color="hsl(var(--chart-2))"
-          hint="Daily count of visits created in this clinic."
-        />
+    <div className="space-y-10">
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-8">
+          {needs}
+          <TrendChart
+            title="Patient registrations in the last 30 days"
+            titleAs="h2"
+            data={patientRegistrationTrend}
+            color="hsl(var(--chart-1))"
+            hint="Daily count of new patient registrations in this clinic."
+          />
+          <TrendChart
+            title="Visit volume in the last 30 days"
+            titleAs="h2"
+            data={encounterVolumeTrend}
+            color="hsl(var(--chart-1))"
+            hint="Daily count of visits created in this clinic."
+          />
+        </div>
+        <div className="min-w-0 space-y-8">
+          <DistributionChart
+            title="Queue status"
+            titleAs="h2"
+            layout="horizontal"
+            data={encounterStatusDistribution}
+            hint="How visits are distributed across draft, review, and finalized stages."
+          />
+          <DistributionChart
+            title="Screening coverage (% of visits)"
+            titleAs="h2"
+            layout="horizontal"
+            data={{
+              Hypertension: screeningRates.hypertension,
+              Diabetes: screeningRates.diabetes,
+            }}
+            hint="Share of visits that recorded a hypertension or a diabetes screening."
+          />
+          <DistributionChart
+            title="Blood pressure levels"
+            titleAs="h2"
+            layout="horizontal"
+            data={toLabelledDistribution(bpDistribution)}
+            order={HYPERTENSION_ORDER}
+            tones={HYPERTENSION_TONES}
+            hint="How recent hypertension assessments are classified in this clinic, from normal to crisis."
+          />
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        <DistributionChart
-          title="Queue status"
-          data={encounterStatusDistribution}
-          hint="How visits are distributed across draft, review, and finalized stages."
-        />
-        <DistributionChart
-          title="Blood pressure levels"
-          data={bpDistribution}
-          hint="How recent hypertension assessments are classified in this clinic."
-        />
-        <DistributionChart
-          title="Screening coverage"
-          data={{
-            Hypertension: screeningRates.hypertension,
-            Diabetes: screeningRates.diabetes,
-          }}
-          hint="How often hypertension and diabetes screenings are being completed."
-        />
-        <AppMetricCard
-          className="lg:col-span-1"
-          title="Follow-up compliance"
-          value={`${followUpComplianceRate}%`}
-          detail="Care plans with a follow-up date"
-        />
-      </div>
+      {children}
 
       {/* Pending HAP cosigns lead the page as a "Needs you now" row when there are any. */}
       <section className="space-y-3 border-t-2 border-rule-strong pt-3">
-        <h3 className="type-label pt-2.5 text-foreground">Staff activity summary</h3>
+        <h2 className="type-section-title pt-2.5 text-foreground">Staff activity summary</h2>
         {/* Everyone shown this section holds AUDIT.READ (director, manager), so the page opens. */}
         <DashboardActionRow
           actions={[{ href: '/staff-activity', label: 'Open staff activity', icon: Activity }]}
@@ -132,6 +145,6 @@ export function DirectorDashboard({
           />
         </div>
       </section>
-    </section>
+    </div>
   );
 }

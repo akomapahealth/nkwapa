@@ -1,9 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Building2, Users, Activity, Map, UserRound } from 'lucide-react';
-import { DashboardSectionHeader } from './DashboardSectionHeader';
-import { DashboardKpiCard } from './DashboardKpiCard';
+import { Building2 } from 'lucide-react';
 import { TrendChart } from './TrendChart';
 import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { Button } from '@/components/ui/button';
@@ -26,7 +24,6 @@ import {
   type ZoneSummary,
 } from '@/lib/clinic-zones';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
-import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 
 interface ClinicComparisonRow {
   clinicId: string;
@@ -37,11 +34,8 @@ interface ClinicComparisonRow {
   totalFinalized: number;
 }
 
+/** The network totals are the admin home's figure strip and greeting (W2), not repeated here. */
 interface SystemAdminDashboardProps {
-  totalClinics: number;
-  totalUsers: number;
-  systemWidePatients: number;
-  systemWideEncounters: number;
   systemEncountersTrend: { date: string; count: number }[];
   clinicComparison: ClinicComparisonRow[];
   zones: ZoneSummary[];
@@ -100,10 +94,6 @@ const columns: DataTableColumn<ClinicComparisonRow>[] = [
 ];
 
 export function SystemAdminDashboard({
-  totalClinics,
-  totalUsers,
-  systemWidePatients,
-  systemWideEncounters,
   systemEncountersTrend,
   clinicComparison,
   zones,
@@ -113,7 +103,6 @@ export function SystemAdminDashboard({
   isRefreshing = false,
 }: SystemAdminDashboardProps) {
   const zoneOptions = useMemo(() => zoneFilterOptions(zones), [zones]);
-  const zonedCount = zones.filter((zone) => zone.zoneCode !== null).length;
 
   /*
     The control is driven by local state, but everything that *describes* the table reads the
@@ -122,55 +111,18 @@ export function SystemAdminDashboard({
   */
   const shownZone = appliedZoneCode;
 
-  // Totals for what is on screen, not for the network. With a zone applied the network KPIs
-  // above still describe the whole network, so without these the table and the cards would be
+  // Totals for what is on screen, not for the network. With a zone applied the network figures
+  // in the strip above still describe the whole network, so without these the table and the cards would be
   // answering different questions side by side.
   const shownPatients = clinicComparison.reduce((sum, row) => sum + row.totalPatients, 0);
   const shownEncounters = clinicComparison.reduce((sum, row) => sum + row.totalEncounters, 0);
   const isFiltered = shownZone !== null;
 
   return (
-    <section className="space-y-6">
-      <DashboardSectionHeader
-        title="Network overview"
-        hint="Use this section to compare activity across clinics and zones, and spot where support is needed."
-      />
-
-      <AppMetricGroup className="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <DashboardKpiCard
-          title="Clinics"
-          value={totalClinics}
-          icon={Building2}
-          hint="Clinics currently active in the platform."
-        />
-        <DashboardKpiCard
-          title="Zones"
-          value={zonedCount}
-          icon={Map}
-          hint="Reporting zones in use across the network."
-        />
-        <DashboardKpiCard
-          title="Staff accounts"
-          value={totalUsers}
-          icon={Users}
-          hint="Active users across all clinics."
-        />
-        <DashboardKpiCard
-          title="Patients across clinics"
-          value={systemWidePatients}
-          icon={UserRound}
-          hint="Patients recorded across the full network."
-        />
-        <DashboardKpiCard
-          title="Visits across clinics"
-          value={systemWideEncounters}
-          icon={Activity}
-          hint="Visits recorded across the full network."
-        />
-      </AppMetricGroup>
-
+    <section className="space-y-10" aria-label="Network">
       <TrendChart
         title="Visits across clinics in the last 30 days"
+        titleAs="h2"
         data={systemEncountersTrend}
         color="hsl(var(--chart-1))"
         hint="Daily visit count across every clinic."
@@ -179,7 +131,7 @@ export function SystemAdminDashboard({
       <section className="space-y-3 border-t-2 border-rule-strong pt-3">
         <div className="space-y-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <h3 className="type-label pt-2.5 text-foreground">Clinic comparison</h3>
+            <h2 className="type-section-title pt-2.5 text-foreground">Clinic comparison</h2>
             <div className="space-y-2 lg:w-64">
               <Label htmlFor="network-zone-filter">Zone</Label>
               <Select

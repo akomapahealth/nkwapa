@@ -8,7 +8,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  LabelList,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -56,9 +55,14 @@ const TOOLTIP_STYLE = {
  * and service time (being taken to being handed on) is measured, not estimated. Everything shown is
  * an aggregate; no patient is named. Clinic-local day boundaries come from the API.
  */
-export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
+export type StationFlow = ReturnType<typeof useStationFlow>;
+
+/**
+ * The station metrics for one clinic day, lifted out of the section so a manager's home can set
+ * its figure strip and greeting from the same request (W2). Pass `null` to skip the request.
+ */
+export function useStationFlow(clinicId: string | null) {
   const getToken = useAuth();
-  const { isOnline } = useSync();
   // Null until chosen: the server then answers for today in the clinic's own timezone.
   const [date, setDate] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<StationMetrics | null>(null);
@@ -67,7 +71,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    if (!getToken) return;
+    if (!getToken || !clinicId) return;
     const controller = new AbortController();
     setLoading(true);
     fetchStationMetrics(clinicId, date, getToken, controller.signal)
@@ -85,12 +89,50 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
     return () => controller.abort();
   }, [clinicId, date, getToken, reload]);
 
+  return {
+    date,
+    setDate,
+    metrics,
+    error,
+    loading,
+    retry: () => setReload((count) => count + 1),
+  };
+}
+
+/** A manager's four figures (pilot `#s-dash-manager`); "still in clinic" goes in the greeting. */
+export function stationFlowFigures(metrics: StationMetrics) {
+  return [
+    { value: metrics.checkIns.total, label: 'checked in' },
+    { value: metrics.checkIns.completed, label: 'sessions completed' },
+    { value: metrics.checkIns.leftEarly, label: 'left before finishing' },
+    {
+      value: metrics.timeInClinic.medianMinutes ?? '–',
+      unit: metrics.timeInClinic.medianMinutes === null ? undefined : 'min',
+      label: 'median time in clinic',
+    },
+  ];
+}
+
+export function StationFlowDashboard({
+  flow,
+  showFigures = true,
+}: {
+  flow: StationFlow;
+  /** False on a manager's home, where the figure strip under the greeting already has them. */
+  showFigures?: boolean;
+}) {
+  const { isOnline } = useSync();
+  const { date, setDate, metrics, error, loading, retry } = flow;
+
   const bottleneck = metrics?.stations.find(
     (station) => station.stationId === metrics.bottleneckStationId,
   );
-  const waitChart = (metrics?.stations ?? [])
-    .filter((station) => station.wait.medianMinutes !== null)
-    .map((station) => ({ name: station.name, median: station.wait.medianMinutes ?? 0 }));
+  // Stations someone has been taken at; the scale is the longest wait + service among them.
+  const timed = (metrics?.stations ?? []).filter((station) => station.wait.medianMinutes !== null);
+  const scale = Math.max(
+    1,
+    ...timed.map((s) => (s.wait.medianMinutes ?? 0) + (s.service.medianMinutes ?? 0)),
+  );
 
   return (
     <section className="space-y-6" aria-labelledby="station-flow-heading">
@@ -132,7 +174,7 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
         <InlineErrorState
           title="Station flow could not be loaded"
           description={error}
-          onRetry={() => setReload((count) => count + 1)}
+          onRetry={retry}
         />
       ) : loading && !metrics ? (
         <SectionSkeleton lines={4} />
@@ -145,41 +187,43 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
         />
       ) : metrics ? (
         <>
-          <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-5">
-            <AppMetricCard title="Checked in" value={metrics.checkIns.total} icon={UserCheck} />
-            <AppMetricCard
-              title="Sessions completed"
-              value={metrics.checkIns.completed}
-              icon={DoorOpen}
-            />
-            <AppMetricCard
-              title={metrics.live ? 'Still in clinic' : 'Never closed'}
-              value={metrics.checkIns.inClinicNow}
-              hint={
-                metrics.live
-                  ? 'Checked in and not yet through review.'
-                  : 'Checked in that day and never completed or marked as left.'
-              }
-              icon={Hourglass}
-            />
-            <AppMetricCard
-              title="Left before finishing"
-              value={metrics.checkIns.leftEarly}
-              icon={LogOut}
-            />
-            <AppMetricCard
-              title="Median time in clinic"
-              value={formatMinutes(metrics.timeInClinic.medianMinutes)}
-              detail={
-                metrics.timeInClinic.n
-                  ? `From check-in to the end of review, across ${metrics.timeInClinic.n} completed session${
-                      metrics.timeInClinic.n === 1 ? '' : 's'
-                    }.`
-                  : 'No session has finished yet.'
-              }
-              icon={Clock}
-            />
-          </AppMetricGroup>
+          {showFigures ? (
+            <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-5">
+              <AppMetricCard title="Checked in" value={metrics.checkIns.total} icon={UserCheck} />
+              <AppMetricCard
+                title="Sessions completed"
+                value={metrics.checkIns.completed}
+                icon={DoorOpen}
+              />
+              <AppMetricCard
+                title={metrics.live ? 'Still in clinic' : 'Never closed'}
+                value={metrics.checkIns.inClinicNow}
+                hint={
+                  metrics.live
+                    ? 'Checked in and not yet through review.'
+                    : 'Checked in that day and never completed or marked as left.'
+                }
+                icon={Hourglass}
+              />
+              <AppMetricCard
+                title="Left before finishing"
+                value={metrics.checkIns.leftEarly}
+                icon={LogOut}
+              />
+              <AppMetricCard
+                title="Median time in clinic"
+                value={formatMinutes(metrics.timeInClinic.medianMinutes)}
+                detail={
+                  metrics.timeInClinic.n
+                    ? `From check-in to the end of review, across ${metrics.timeInClinic.n} completed session${
+                        metrics.timeInClinic.n === 1 ? '' : 's'
+                      }.`
+                    : 'No session has finished yet.'
+                }
+                icon={Clock}
+              />
+            </AppMetricGroup>
+          ) : null}
 
           {bottleneck ? (
             // A ruled warning band, like encounter sign-off: the one place a manager should look.
@@ -205,11 +249,115 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
             </p>
           ) : null}
 
+          <div className="grid gap-x-10 gap-y-8 lg:grid-cols-2">
+            {/*
+              Time as length (MASTER 12): wait then service, side by side on one scale, values
+              written beside each name so neither colour carries the reading alone (pilot).
+            */}
+            <section aria-labelledby="station-times-heading" className="min-w-0">
+              <h3 id="station-times-heading" className="type-section-title text-foreground">
+                Wait and service time at each station
+              </h3>
+              <p className="type-meta mt-2 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full bg-chart-2" />
+                  Median wait
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full bg-chart-1" />
+                  Median time with patient
+                </span>
+              </p>
+              {timed.length === 0 ? (
+                <p className="type-body mt-3 border-t border-rule pt-3 text-muted-foreground">
+                  Nobody has been taken yet.
+                </p>
+              ) : (
+                <ul className="mt-3 border-t border-rule" data-testid="station-times">
+                  {timed.map((station) => {
+                    const wait = station.wait.medianMinutes ?? 0;
+                    const service = station.service.medianMinutes ?? 0;
+                    return (
+                      <li
+                        key={station.stationId}
+                        className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-rule py-3"
+                      >
+                        <span className="type-label flex min-w-0 flex-wrap items-center gap-2 text-foreground">
+                          {station.name}
+                          {station.stationId === metrics.bottleneckStationId ? (
+                            <Badge variant="warning">Longest wait</Badge>
+                          ) : null}
+                        </span>
+                        <span className="type-meta text-right tabular-nums text-muted-foreground">
+                          {formatMinutes(station.wait.medianMinutes)} ·{' '}
+                          {formatMinutes(station.service.medianMinutes)}
+                        </span>
+                        <span aria-hidden="true" className="col-span-2 flex h-2 gap-0.5">
+                          <span
+                            className="station-time-bar rounded-sm bg-chart-2"
+                            style={{ width: `${(wait / scale) * 100}%` }}
+                          />
+                          <span
+                            className="station-time-bar rounded-sm bg-chart-1"
+                            style={{ width: `${(service / scale) * 100}%` }}
+                          />
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <ChartFrame
+              title="Arrivals and completions by hour"
+              columns={['Hour', 'Checked in', 'Completed']}
+              rows={metrics.hourly.map((row) => ({
+                label: row.hour,
+                values: [row.checkedIn, row.completed],
+              }))}
+              hasData={metrics.hourly.length > 0}
+              empty={null}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={metrics.hourly}
+                  barGap={2}
+                  margin={{ top: 4, right: 8, bottom: 4, left: -16 }}
+                >
+                  <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="hour" tick={TICK} />
+                  <YAxis tick={TICK} allowDecimals={false} />
+                  <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} contentStyle={TOOLTIP_STYLE} />
+                  <Legend
+                    wrapperStyle={{ fontSize: 12 }}
+                    // Text wears text ink; the swatch beside it carries the series colour.
+                    formatter={(value) => (
+                      <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+                    )}
+                  />
+                  <Bar
+                    dataKey="checkedIn"
+                    name="Checked in"
+                    fill={ARRIVALS}
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="completed"
+                    name="Completed"
+                    fill={COMPLETIONS}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartFrame>
+          </div>
+
           <section className="border-t-2 border-rule-strong pt-3">
             <h3 className="type-label pt-2.5 text-foreground">By station</h3>
             <div
               role="region"
-              aria-label="Wait and service time at each station"
+              aria-label="By station"
               tabIndex={0}
               className="scroll-region mt-2 overflow-x-auto"
             >
@@ -301,94 +449,6 @@ export function StationFlowDashboard({ clinicId }: { clinicId: string }) {
               </table>
             </div>
           </section>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ChartFrame
-              title="Median wait by station"
-              columns={['Station', 'Median wait']}
-              rows={waitChart.map((row) => ({
-                label: row.name,
-                values: [formatMinutes(row.median)],
-              }))}
-              hasData={waitChart.length > 0 && !waitChart.every((row) => row.median === 0)}
-              height={Math.max(160, waitChart.length * 44)}
-              empty={
-                <p className="pt-3 text-sm text-muted-foreground">
-                  {waitChart.length === 0
-                    ? 'Nobody has been taken yet.'
-                    : 'Every station took its patients within a minute, so there is nothing to compare.'}
-                </p>
-              }
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={waitChart}
-                  layout="vertical"
-                  margin={{ top: 4, right: 56, bottom: 4, left: 8 }}
-                >
-                  <CartesianGrid horizontal={false} stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={TICK} unit=" min" allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={TICK} width={140} />
-                  <Tooltip
-                    cursor={{ fill: 'hsl(var(--muted))' }}
-                    contentStyle={TOOLTIP_STYLE}
-                    formatter={(value) => [formatMinutes(Number(value)), 'Median wait']}
-                  />
-                  <Bar dataKey="median" fill={ARRIVALS} radius={[0, 4, 4, 0]} barSize={18}>
-                    <LabelList
-                      dataKey="median"
-                      position="right"
-                      formatter={(value: unknown) => formatMinutes(Number(value))}
-                      style={{ ...TICK, fill: 'hsl(var(--foreground))' }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartFrame>
-
-            <ChartFrame
-              title="Arrivals and completions by hour"
-              columns={['Hour', 'Checked in', 'Completed']}
-              rows={metrics.hourly.map((row) => ({
-                label: row.hour,
-                values: [row.checkedIn, row.completed],
-              }))}
-              hasData={metrics.hourly.length > 0}
-              empty={null}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={metrics.hourly}
-                  barGap={2}
-                  margin={{ top: 4, right: 8, bottom: 4, left: -16 }}
-                >
-                  <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="hour" tick={TICK} />
-                  <YAxis tick={TICK} allowDecimals={false} />
-                  <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} contentStyle={TOOLTIP_STYLE} />
-                  <Legend
-                    wrapperStyle={{ fontSize: 12 }}
-                    // Text wears text ink; the swatch beside it carries the series colour.
-                    formatter={(value) => (
-                      <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
-                    )}
-                  />
-                  <Bar
-                    dataKey="checkedIn"
-                    name="Checked in"
-                    fill={ARRIVALS}
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="completed"
-                    name="Completed"
-                    fill={COMPLETIONS}
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartFrame>
-          </div>
         </>
       ) : null}
     </section>

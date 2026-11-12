@@ -6,16 +6,26 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { hasPermission } from '@/lib/ops';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { OPS_DEFAULT_TIMEZONE } from '@/lib/ops';
 import { DashboardShiftControls } from './DashboardShiftControls';
 import { DashboardIllustration } from './DashboardIllustration';
 import styles from './volunteer-welcome.module.css';
 
+/**
+ * The greeting band every staff home opens with (W2). A volunteer's carries the illustration and
+ * shift controls; the other roles' homes pass `solo`, a sentence of what is waiting and their
+ * primary and secondary actions, as in the pilot's role dashboards.
+ */
 export function VolunteerWelcome({
   titleLevel = 1,
   actions,
+  summary = 'Your work today. Continue intake work and move patients to the next step.',
+  solo = false,
 }: {
   titleLevel?: 1 | 2;
   actions?: ReactNode;
+  summary?: ReactNode;
+  solo?: boolean;
 }) {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getBootstrapActiveClinicId(bootstrap);
@@ -23,7 +33,16 @@ export function VolunteerWelcome({
   useEffect(() => {
     setNow(new Date());
   }, []);
-  const hour = now?.getHours();
+  // Clinic time, not the browser's (PRODUCT.md: times are shown in Africa/Accra).
+  const hour = now
+    ? Number(
+        new Intl.DateTimeFormat('en-GB', {
+          hour: 'numeric',
+          hourCycle: 'h23',
+          timeZone: OPS_DEFAULT_TIMEZONE,
+        }).format(now),
+      )
+    : undefined;
   const phase =
     hour === undefined
       ? null
@@ -58,7 +77,12 @@ export function VolunteerWelcome({
   const stationWorkflow = isWebFeatureEnabled('stationWorkflow');
 
   return (
-    <div className={styles.band} data-phase={phase ?? undefined} data-testid="volunteer-welcome">
+    <div
+      className={styles.band}
+      data-phase={phase ?? undefined}
+      data-solo={solo || undefined}
+      data-testid="volunteer-welcome"
+    >
       <svg
         className={styles.contours}
         viewBox="0 0 1200 400"
@@ -96,17 +120,18 @@ export function VolunteerWelcome({
                 weekday: 'long',
                 day: 'numeric',
                 month: 'long',
+                timeZone: OPS_DEFAULT_TIMEZONE,
               }).format(now)}
             </p>
           ) : null}
-          <p className="mb-4 mt-2 max-w-prose text-sm text-muted-foreground">
-            Your work today. Continue intake work and move patients to the next step.
-          </p>
+          <p className="mb-4 mt-2 max-w-prose text-sm text-muted-foreground">{summary}</p>
         </div>
-        <div className={styles.illustration}>
-          <DashboardIllustration kind="hello" />
-        </div>
-        {stationWorkflow && canReadShift ? (
+        {solo ? null : (
+          <div className={styles.illustration}>
+            <DashboardIllustration kind="hello" />
+          </div>
+        )}
+        {!solo && stationWorkflow && canReadShift ? (
           <div className={styles.controls}>
             <DashboardShiftControls key={`${clinicId}:${bootstrap?.userId}`} />
           </div>

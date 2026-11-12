@@ -54,7 +54,8 @@ test.describe('manager', () => {
     await settle(page, 'Station line');
     await shot(page, 'station-line');
     await page.goto('/dashboard');
-    await settle(page, /Nkwapa Clinic - Demo/);
+    // The manager's home (W2) opens on the greeting band, not the clinic name.
+    await settle(page, /^(Good (morning|afternoon|evening)|Welcome)/);
     await shot(page, 'manager-dashboard');
   });
 });

@@ -31,6 +31,22 @@
 .station-route-stop-busy {
   background: hsl(var(--primary));
 }
+/*
+  Role homes (W2): measured bars grow from their start once, on first paint, so the eye reads them
+  as lengths. Transform only; the global reduced-motion rule flattens it.
+*/
+.station-time-bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  transform-origin: left;
+  animation: station-time-grow 600ms var(--ease-out) backwards;
+}
+@keyframes station-time-grow {
+  from {
+    transform: scaleX(0.02);
+  }
+}
 .station-route-stop-mine {
   border-color: hsl(var(--secondary));
   background: hsl(var(--secondary));

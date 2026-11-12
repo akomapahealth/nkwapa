@@ -905,6 +905,40 @@ only.
   network, doctor and volunteer sections sees them as a "Dashboard view" tab set,
   oversight first (Clinic trends, Network overview, then the person's own queues).
   A single-role account sees no tabs. Doctor and review stay one view.
+  **Superseded by W2 below**: the tab set and its stored tab are gone.
+
+### Role homes (W2)
+
+**One home for the person's main role in the active clinic** (owner decision, `ui-refresh/W2-REVIEW.md`).
+`pickMainRole` (`lib/main-role.ts`) takes `effectiveRolesForActiveClinic` in the order
+`SYSTEM_ADMIN` > `DIRECTOR` > `MANAGER` > `DOCTOR` > `VOLUNTEER`, falling back to the dashboard's
+data keys. `RoleHome` draws every role but the volunteer (W4 owns that home):
+
+- **Greeting band**: `VolunteerWelcome` with `solo` (no illustration, no shift panel). Time-of-day
+  greeting and date in Africa/Accra, one sentence of what is waiting, the role's primary (filled) and
+  secondary (outline) action, each shown only with its route's permission, then a ghost Refresh.
+  The greeting is the page's only `h1`.
+- **Four-figure strip** (`FigureStrip`): one ruled `ul` named for the role, number first, label
+  second, units shown; two columns below `sm`, four from `sm`. Never icon tiles. Doctor: in your
+  queue, finalized today, finalized this week, HAP notes to cosign (follow-up share when the notes
+  flag is off). Manager: checked in, sessions completed, left before finishing, median time in
+  clinic (station line), or the clinic's counts as "Today in this clinic" when the line is off or
+  unreachable. Director: registered patients, visits in 30 days, visits with a BP screen, care plans
+  with a follow-up. Admin: clinics, zones, staff accounts, patients across clinics. Labels say what
+  the API measures: `followUpComplianceRate` is care plans _with a follow-up date_, not follow-ups
+  kept.
+- **Own work**: doctor = Needs you now and finalizations beside BP levels and diabetes, then recent
+  finalized visits and reviews; manager = **Needs attention** (the clinic's held-up queues), then
+  station flow; director = Needs attention and trends beside queue status, screening coverage and BP
+  levels, then station flow and staff activity; admin = network trend and clinic comparison, then the
+  active clinic's station flow. Wide column 1.7fr, narrow 1fr from `lg`.
+- **Also on your plate**: other roles' waiting work as one line each, a count sentence and one link
+  (`workRows` shared with Needs you now), never their sections, directly under the strip (waiting
+  work before trends). Nothing waiting, no section.
+- **"Today at a glance" no longer leads** any staff home; it stays on the volunteer's until W4.
+- **Wait and service per station**: a ruled list, wait (`--chart-2`) then service (`--chart-1`) as
+  bars on one scale, both minutes written beside the name, "Longest wait" tag. Bars grow once from
+  their start (`.station-time-bar`, 600 ms ease-out, transform only; reduced motion at rest).
 
 ### Patient registry and records (#270)
 

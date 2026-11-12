@@ -24,6 +24,10 @@
 .controls {
   grid-column: 1 / -1;
 }
+/* Role homes: no artwork column, the greeting and actions take the measure (pilot `band-in solo`). */
+.band[data-solo] .content {
+  grid-template-columns: minmax(0, 1fr);
+}
 .name {
   display: inline-block;
   max-width: 100%;

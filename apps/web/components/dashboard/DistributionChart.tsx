@@ -54,6 +54,7 @@ interface DistributionChartProps {
   tones?: Readonly<Record<string, DistributionTone>>;
   /** Horizontal bars keep long category names readable instead of truncating them to 12 chars. */
   layout?: 'vertical' | 'horizontal';
+  titleAs?: 'h2' | 'h3';
 }
 
 export function DistributionChart({
@@ -64,6 +65,7 @@ export function DistributionChart({
   order,
   tones,
   layout = 'vertical',
+  titleAs,
 }: DistributionChartProps) {
   const unordered = toDistributionChartData(data);
   const chartData = order
@@ -96,6 +98,7 @@ export function DistributionChart({
   return (
     <ChartFrame
       title={title}
+      titleAs={titleAs}
       hint={hint}
       columns={['Category', 'Count']}
       rows={displayData.map((entry) => ({ label: entry.label, values: [entry.value] }))}

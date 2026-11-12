@@ -30,7 +30,7 @@ test('a transient identity failure recovers on its own instead of denying access
   await page.goto('/dashboard');
 
   await expect(page.getByText("You don't have access to this page")).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Today at a glance' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Clinic comparison' })).toBeVisible({
     timeout: 30_000,
   });
   expect(failures).toBe(1);
@@ -65,7 +65,7 @@ test('a sustained identity failure explains itself and offers a retry, never a f
   // Recovering does not require a hard refresh.
   failing = false;
   await page.getByRole('button', { name: /try again/i }).click();
-  await expect(page.getByRole('heading', { name: 'Today at a glance' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Clinic comparison' })).toBeVisible({
     timeout: 30_000,
   });
 });

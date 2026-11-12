@@ -7,17 +7,17 @@
 
 ## Phase Status
 
-| Phase | Workstream                             | Status      |
-| ----- | -------------------------------------- | ----------- |
-| R0    | Current UI audit and design pilot      | Completed   |
-| R1    | Design tokens and shared components    | In review   |
-| R2    | Desktop, tablet, and mobile app shells | In review   |
-| R3    | Volunteer and clinical workflows       | In progress |
-| R4    | Clinical review and oversight          | Not started |
-| R5    | Patient portal and authentication      | In progress |
-| R6    | Supporting public experience           | In review   |
-| R7    | Motion and visual polish               | Completed   |
-| W     | Role workspaces (pilot layout parity)  | In progress |
+| Phase | Workstream                             | Status                |
+| ----- | -------------------------------------- | --------------------- |
+| R0    | Current UI audit and design pilot      | Completed             |
+| R1    | Design tokens and shared components    | In review             |
+| R2    | Desktop, tablet, and mobile app shells | In review             |
+| R3    | Volunteer and clinical workflows       | In progress           |
+| R4    | Clinical review and oversight          | Not started           |
+| R5    | Patient portal and authentication      | In progress           |
+| R6    | Supporting public experience           | In review             |
+| R7    | Motion and visual polish               | Completed             |
+| W     | Role workspaces (pilot layout parity)  | In progress           |
 | R8    | Final QA and release readiness         | Not started (after W) |
 
 Allowed statuses: `Not started`, `In progress`, `Blocked`, `In review`, `Completed`.
@@ -1369,6 +1369,30 @@ every surface's brightness in one frame; load and the OS following stay instant.
 palette check, design hook clean. Scratch dark spec over the R7.5 states and the switch (deleted).
 Focused Chromium over 10 specs 76/76. Six-role audit **228 rows, 0 violations, 0 overflow**. Local
 commit only; no push. Next is `ui-refresh/HANDOFF-R7.7.md`.
+
+## W2 One home per main role (2026-11-12)
+
+Phase W unit 2 (`ui-refresh/PHASE-W.md`). `/dashboard` is now one home for the person's main role in
+the active clinic (`pickMainRole`: admin > director > manager > doctor > volunteer), replacing the
+stacked role sections and the "Dashboard view" tabs (and their stored tab). Each staff home: a
+greeting band (Accra time, one sentence of what is waiting, the role's two actions, Refresh), a
+four-figure strip from existing data, then the role's own work in the pilot's two columns; other
+roles' waiting work is an "Also on your plate" line each. "Today at a glance" no longer leads any
+staff home. Station flow's median-wait chart became the pilot's wait-and-service list. Labels follow
+what the API measures ("care plans with a follow-up", "visits with a BP screen"). Rules in MASTER
+("Role homes (W2)"), detail and dropped figures in `ui-refresh/W2-REVIEW.md`.
+
+**Validation:** audit-flag builds, TypeScript, changed-file lint/format, Jest 1059/1059 (new
+`pickMainRole` cases; tab-storage tests deleted with it). Focused Chromium (dashboard-work-first,
+workspace-smoke, bootstrap-resilience, volunteer-dashboard-refresh, responsive-offline,
+station-workflow without #197, stale-refresh) **119/119** after fixing the greeting-phase test to
+Accra time; dashboard specs re-run on the final build 33/33. Six-role route audit **12/12, 228 rows,
+0 violations, 0 overflow, one h1 everywhere**; it caught 12 minor `landmark-unique` on the oversight
+homes (two regions named "Wait and service time at each station"), fixed, re-audit of staff /
+manager / director 160 rows, 0 minor. Synthetic evidence (`nkwapa_shots`, dropped) at
+1440/1024/744/390/320 in both themes for all five homes, 0 overflow (not committed). Landing
+`manager-dashboard` re-capture deferred to a daytime run (see review). Local commit only; no push.
+Next: `ui-refresh/HANDOFF-W3.md`.
 
 ## W1 Stations to the pilot layout (2026-11-11)
 
