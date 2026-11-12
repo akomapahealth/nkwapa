@@ -48,10 +48,10 @@ test.describe('staff schedule', () => {
     await expect(page.getByText('Next visit', { exact: true })).toBeVisible();
 
     // A patient search that matches nothing must reach the empty state, not a blank panel.
-    await page.getByLabel('Patient').fill('zzz-no-such-patient');
+    await page.getByRole('searchbox', { name: 'Patient', exact: true }).fill('zzz-no-such-patient');
     await expect(page.getByText('No appointments found')).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel('Patient').fill('');
+    await page.getByRole('searchbox', { name: 'Patient', exact: true }).fill('');
     await expect(page.getByText('No appointments found')).toBeHidden({ timeout: 15_000 });
   });
 

@@ -285,7 +285,20 @@ export function CrossClinicInvestigationScreen() {
         under All clinics.
       </InlineNotice>
 
-      <AppMetricGroup variant="strip" className="sm:grid-cols-4">
+      <AppMetricGroup variant="strip">
+        <AppMetricCard
+          title="Very likely"
+          tone="attention"
+          onActivate={() => {
+            setFilters({ ...filters, confidence: 'HIGH' });
+            setPage(0);
+          }}
+          actionLabel="Show very likely cross-clinic pairs"
+          value={burden?.highConfidencePairs ?? '—'}
+          icon={AlertTriangle}
+          detail="Pairs with the strongest signals."
+        />
+
         <AppMetricCard
           title="Pairs across clinics"
           value={burden?.totalPairs ?? '—'}
@@ -294,12 +307,7 @@ export function CrossClinicInvestigationScreen() {
             burden ? `${burden.openPairs} not yet reviewed.` : 'Likely duplicates spanning clinics.'
           }
         />
-        <AppMetricCard
-          title="Very likely"
-          value={burden?.highConfidencePairs ?? '—'}
-          icon={AlertTriangle}
-          detail="Pairs with the strongest signals."
-        />
+
         <AppMetricCard
           title="Clinics affected"
           value={burden?.clinicsAffected ?? '—'}

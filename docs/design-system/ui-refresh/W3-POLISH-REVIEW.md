@@ -46,7 +46,7 @@ create synthetic records, so row-content changes can affect counts independently
 
 ## Remaining units
 
-3, 4/8, 2/7 and 9 remain pending, in the owner's requested order.
+4/8, 2/7 and 9 remain pending, in the owner's requested order.
 
 ## Unit 1: phone labels
 
@@ -98,3 +98,35 @@ boundary spec's stale dashboard heading assertion was updated to the existing ro
 Route/capture: 12/12, 228 rows, 0 violations, 0 minor, 0 overflow, 0 errors, one h1 throughout;
 570 screenshots, plus drawer-open and shell-state captures. Inspected the 744px rail and both
 open-drawer themes. Evidence: `/private/tmp/nkwapa-w3-polish/unit5`.
+
+## Unit 3: separate summary figures
+
+| Before                                                    | After                                                                     | Why                                                           |
+| --------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Panel/strip cells share hairlines; phones show 2×N blocks | Separate stat chips, 12px gaps, a horizontal scroll-snap row on phones    | Values read as breathing elements rather than a second table. |
+| Every zero has the same emphasis as an action count       | Zeroes are smaller and muted without tint                                 | Zero work should recede.                                      |
+| Attention figures buried among totals                     | Very likely, Failed, Needs attention, Ready for intake and Open work lead | The first figure answers what needs attention.                |
+| Counts explain themselves in repeated paragraphs          | Definitions/detail stay in help beside each figure                        | Facts remain reachable without crowding the list.             |
+| Loading summary counts can look like zero                 | Known-resource guards show an ellipsis until data arrives                 | Unknown is not an empty queue.                                |
+
+Chosen over a sentence system because these pages mix counts, rates, durations and time-of-day
+values. The same chip system handles them without long grammatical sentences. Role-home figures
+also adopt it; their richer greeting/work sections remain. Gold is attention, destructive tint
+is failed delivery, mint is the next visit, and neutral figures use surface-2. Existing tint/ink
+pairs remain unchanged. Raised depth uses a soft shadow in light and a lighter inner edge in dark.
+Counts retain accessible descriptions on filter shortcuts. No API, permission, URL or mutation
+handler changed. My Assigned and Appointments shortcuts use their existing status filters;
+research keeps its existing decision list. Hick, chunking and proximity guide this choice.
+Validation: TypeScript, changed-file ESLint/Prettier and build passed; Jest 98 suites / 1,060
+tests passed. The design-token checker passed 40 pair checks. Initial focused Chromium: 92
+passed, 3 failed, 5 not run (100 total, including six auth setups). The appointments Patient
+locator also matched the explicit navigation aria-labels added in unit 5; scoped it to the
+Patient searchbox and reran the entire appointments file: 19/19 passed. The time-zone Escape
+failure reproduces with the actual Dialog/Combobox sources from `e453a18b` in a controlled
+browser fixture (1/1 reproduction passed); it remains for unit 9. The owner-listed staff-profile
+failure also reproduced and is not chased here. No validation assertion was removed.
+
+Route/capture: 12/12, 228 rows, 0 violations, 0 minor, 0 overflow, 0 errors, one h1 throughout;
+570 screenshots. Inspected 1440px figures, 320px horizontal figures and dark delivery history.
+Evidence: `/private/tmp/nkwapa-w3-polish/unit3`; scheduling rerun under `unit3-appointments-rerun`;
+baseline reproduction in `/private/tmp/nkwapa-w3-polish/baseline-escape.log`.

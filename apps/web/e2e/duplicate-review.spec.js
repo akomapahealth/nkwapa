@@ -60,6 +60,15 @@ test.describe('a system admin working the queue', () => {
     ).toBeVisible();
   });
 
+  test('the attention figure opens the existing strongest-match filter', async ({ page }) => {
+    const grid = await openQueue(page);
+    await page
+      .getByRole('button', { name: 'Show very likely pairs needing review', exact: true })
+      .click();
+    await expect(grid.getByText('Very likely', { exact: true }).first()).toBeVisible();
+    await expect(grid.getByText('Possible', { exact: true })).toHaveCount(0);
+  });
+
   test('says plainly that it never merges anything', async ({ page }) => {
     await openQueue(page);
 

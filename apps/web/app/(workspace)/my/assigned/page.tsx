@@ -341,38 +341,56 @@ export default function MyAssignedPage() {
           </section>
         ) : null}
 
-        <AppMetricGroup variant="strip" className="sm:grid-cols-4">
-          <AppMetricCard
-            title="Assigned today"
-            value={assignments.length}
-            detail={formatOpsDate(selectedDate, timezone)}
-          />
+        <AppMetricGroup variant="strip">
           <AppMetricCard
             title="Ready for intake"
+            onActivate={() => setStatusFilter('ASSIGNED')}
+            actionLabel="Open the Assigned filter"
+            tone="attention"
             value={
-              assignments.filter(
-                (assignment) =>
-                  assignment.assignedRole === 'VOLUNTEER' &&
-                  assignment.checkInStatus === 'ASSIGNED' &&
-                  !assignment.encounterId,
-              ).length
+              view.data
+                ? assignments.filter(
+                    (assignment) =>
+                      assignment.assignedRole === 'VOLUNTEER' &&
+                      assignment.checkInStatus === 'ASSIGNED' &&
+                      !assignment.encounterId,
+                  ).length
+                : '…'
             }
-            detail="Volunteer-owned intake starts"
+            detail="Volunteer-owned intake starts. Opens the Assigned filter."
           />
+
+          <AppMetricCard
+            title="Assigned today"
+            onActivate={() => setStatusFilter('ALL')}
+            actionLabel="Show assigned today patients"
+            value={view.data ? assignments.length : '…'}
+            detail={formatOpsDate(selectedDate, timezone)}
+          />
+
           <AppMetricCard
             title="In progress"
+            onActivate={() => setStatusFilter('IN_PROGRESS')}
+            actionLabel="Show in progress patients"
             value={
-              assignments.filter(
-                (assignment) =>
-                  assignment.checkInStatus === 'IN_PROGRESS' && Boolean(assignment.encounterId),
-              ).length
+              view.data
+                ? assignments.filter(
+                    (assignment) =>
+                      assignment.checkInStatus === 'IN_PROGRESS' && Boolean(assignment.encounterId),
+                  ).length
+                : '…'
             }
             detail="Cases with active encounters"
           />
           <AppMetricCard
             title="Completed"
+            onActivate={() => setStatusFilter('COMPLETED')}
+            actionLabel="Show completed patients"
             value={
-              assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED').length
+              view.data
+                ? assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED')
+                    .length
+                : '…'
             }
             detail="Finished clinic flow"
           />

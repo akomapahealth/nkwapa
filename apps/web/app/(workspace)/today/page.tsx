@@ -497,7 +497,7 @@ function TodayBoardPage() {
           </section>
         ) : null}
 
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup>
           <AppMetricCard
             title="Waiting for a pair"
             value={waiting}

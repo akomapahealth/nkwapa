@@ -239,7 +239,11 @@ export function RoleHome({
         : 'Nothing is waiting for your sign-off right now.';
     if (doctor) {
       figures = [
-        { value: count.format(doctor.awaitingFinalization), label: 'in your queue' },
+        {
+          value: count.format(doctor.awaitingFinalization),
+          tone: 'attention',
+          label: 'in your queue',
+        },
         { value: count.format(doctor.patientsSeen.today), label: 'finalized today' },
         { value: count.format(doctor.patientsSeen.week), label: 'finalized this week' },
         doctor.pendingClinicalNoteCosigns === undefined
@@ -250,6 +254,7 @@ export function RoleHome({
             }
           : {
               value: count.format(doctor.pendingClinicalNoteCosigns),
+              tone: 'attention',
               label: 'HAP notes to cosign',
             },
       ];
@@ -290,8 +295,16 @@ export function RoleHome({
       // Station line off or unreachable: the clinic's own counts, so the strip never invents.
       figures = [
         { value: count.format(data.summary.encountersToday), label: 'visits today' },
-        { value: count.format(data.summary.pendingReview), label: 'waiting for review' },
-        { value: count.format(data.summary.readyToFinalize), label: 'waiting for sign-off' },
+        {
+          value: count.format(data.summary.pendingReview),
+          tone: 'attention',
+          label: 'waiting for review',
+        },
+        {
+          value: count.format(data.summary.readyToFinalize),
+          tone: 'attention',
+          label: 'waiting for sign-off',
+        },
         { value: count.format(data.summary.totalPatients), label: 'registered patients' },
       ];
     }

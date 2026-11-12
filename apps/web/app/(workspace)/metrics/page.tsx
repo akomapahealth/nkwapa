@@ -81,7 +81,16 @@ function MetricsContent() {
           );
           return (
             <div className="space-y-6">
-              <AppMetricGroup label="Headline figures" className="sm:grid-cols-2 xl:grid-cols-3">
+              <AppMetricGroup label="Headline figures">
+                <AppMetricCard
+                  title="Offline changes refused"
+                  tone="attention"
+                  value={formatRatio(headlines.syncConflictRate)}
+                  detail={`${summary.sync.mutations} changes in ${summary.sync.pushes} syncs`}
+                  icon={RefreshCw}
+                  hint="Conflicts and errors over every offline change devices sent."
+                />
+
                 <AppMetricCard
                   title="Request conversion"
                   value={formatRatio(headlines.requestConversion)}
@@ -96,13 +105,7 @@ function MetricsContent() {
                   icon={KeyRound}
                   hint="Successful record claims over all claim attempts."
                 />
-                <AppMetricCard
-                  title="Offline changes refused"
-                  value={formatRatio(headlines.syncConflictRate)}
-                  detail={`${summary.sync.mutations} changes in ${summary.sync.pushes} syncs`}
-                  icon={RefreshCw}
-                  hint="Conflicts and errors over every offline change devices sent."
-                />
+
                 <AppMetricCard
                   title="Requests throttled"
                   value={headlines.throttled}

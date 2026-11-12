@@ -1,44 +1,36 @@
 import type { ReactNode } from 'react';
+import { AppMetricCard, METRIC_ROW, type MetricTone } from '@/components/app-shell/AppMetricCard';
 
 export interface Figure {
   value: ReactNode;
-  /** Shown smaller after the value, e.g. "min" or "%". Units always shown (MASTER 12). */
   unit?: string;
   label: string;
+  tone?: MetricTone;
 }
 
-/**
- * The four figures that matter to a role, right under the greeting band (pilot `.pulse`). Number
- * first and large, label second and quiet; hairlines between cells, two columns on a phone.
- * Not a grid of KPI cards: one ruled strip, no icons, no tiles.
- */
+/** The role's own figures share the same separate, breathing treatment as list summaries. */
 export function FigureStrip({ label, figures }: { label: string; figures: Figure[] }) {
+  const needsAction = (figure: Figure) =>
+    figure.tone === 'attention' && figure.value !== 0 && figure.value !== '0';
+  const ordered = [
+    ...figures.filter(needsAction),
+    ...figures.filter((figure) => !needsAction(figure)),
+  ];
   return (
     <ul
       aria-label={label}
       data-testid="figure-strip"
-      className="grid grid-cols-2 border-y border-rule sm:grid-cols-4"
+      tabIndex={0}
+      className={`${METRIC_ROW} rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring`}
     >
-      {figures.map((figure, index) => (
-        <li
-          key={figure.label}
-          className={[
-            'min-w-0 px-4 py-4 sm:px-6 sm:py-5 xl:px-8',
-            // Right hairline on every cell but the row's last; bottom hairline on the phone's top row.
-            index % 2 === 0 ? 'border-r border-rule' : 'sm:border-r sm:border-rule',
-            index === figures.length - 1 ? 'sm:border-r-0' : '',
-            index < 2 ? 'border-b border-rule sm:border-b-0' : '',
-          ].join(' ')}
-        >
-          <p className="type-metric leading-none text-foreground">
-            {figure.value}
-            {figure.unit ? (
-              <span className="ml-0.5 text-[0.5em] font-medium tracking-normal">
-                {figure.unit === '%' ? '%' : ` ${figure.unit}`}
-              </span>
-            ) : null}
-          </p>
-          <p className="type-meta mt-1.5 text-muted-foreground">{figure.label}</p>
+      {ordered.map((figure) => (
+        <li key={figure.label} className="min-w-0 max-w-full shrink-0">
+          <AppMetricCard
+            title={figure.label}
+            value={figure.value}
+            unit={figure.unit}
+            tone={figure.tone}
+          />
         </li>
       ))}
     </ul>

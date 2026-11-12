@@ -338,37 +338,41 @@ export function ClinicRegistryScreen() {
     <div className="space-y-6">
       <AppPageHeader
         title="Clinics"
-        count={rows.length}
+        count={clinics.data ? rows.length : undefined}
         description="Manage clinic records, location metadata, and availability."
         helpTitle="What you manage here"
         helpText="Create clinics, review their location and zone metadata, and adjust operational details without losing historical records."
         actions={<Button onClick={openCreate}>Create clinic</Button>}
       />
 
-      <AppMetricGroup variant="strip" label="Clinic metadata summary" className="sm:grid-cols-4">
+      <AppMetricGroup variant="strip" label="Clinic metadata summary">
+        <AppMetricCard
+          title="Needs attention"
+          tone="attention"
+          onActivate={() => setFilter('needs-attention')}
+          actionLabel="Show clinics needing attention"
+          value={clinics.data ? attentionCount : '…'}
+          icon={ShieldAlert}
+          detail="Clinics whose location metadata organization reporting cannot rely on."
+        />
+
         <AppMetricCard
           title="Total clinics"
-          value={rows.length}
+          value={clinics.data ? rows.length : '…'}
           icon={Building2}
           detail="Every clinic environment in the platform."
         />
         <AppMetricCard
           title="Active clinics"
-          value={activeCount}
+          value={clinics.data ? activeCount : '…'}
           icon={MapPinned}
           detail="Clinics currently available for staff and patient workflows."
         />
         <AppMetricCard
           title="Zones"
-          value={zonedClinicCount}
+          value={zones.data ? zonedClinicCount : '…'}
           icon={Map}
           detail="Reporting zones in use across the clinics you administer."
-        />
-        <AppMetricCard
-          title="Needs attention"
-          value={attentionCount}
-          icon={ShieldAlert}
-          detail="Clinics whose location metadata organization reporting cannot rely on."
         />
       </AppMetricGroup>
 

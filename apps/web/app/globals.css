@@ -125,6 +125,7 @@
     --gold-surface: 46.7 100% 92.9%;
     --gold-ink: 37.8 89.5% 26.1%;
     --deep: 190.2 74.7% 17.1%;
+    --elevation-raised: 0 2px 8px hsl(var(--deep) / 0.06), inset 0 1px 0 hsl(var(--card) / 0.85);
     /* #8A9BA1: placeholder and disabled text only; below 4.5:1 by design. */
     --faint: 195.7 10.9% 58.6%;
     /* Success and warning are new. Warning is orange at hue 32 rather than amber, because
@@ -303,6 +304,8 @@
     --gold-ink: 47.1 84.6% 72%;
     /* Dark has no deeper teal to step down to; the band uses the selected tint instead. */
     --deep: 188.1 42.5% 17.1%;
+    --elevation-raised:
+      0 1px 0 hsl(var(--border) / 0.5), inset 0 1px 0 hsl(var(--foreground) / 0.07);
     --faint: 192.5 9.8% 48.2%;
     /* Dark ink measures 7.89:1 on success and 8.43:1 on warning. Warning stays clear of the
        gold secondary in dark as well. */

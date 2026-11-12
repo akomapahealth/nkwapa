@@ -238,7 +238,15 @@ export function OrganizationReportScreen() {
             >
               {(data) => (
                 <div className="space-y-6">
-                  <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+                  <AppMetricGroup>
+                    <DashboardKpiCard
+                      title="Open work"
+                      tone="attention"
+                      value={openWork(data.totals).toLocaleString()}
+                      hint={`${data.totals.openDrafts} drafts, ${data.totals.awaitingReview} awaiting review, ${data.totals.readyToFinalize} ready to finalize`}
+                      icon={ClipboardList}
+                    />
+
                     <DashboardKpiCard
                       title="Clinics"
                       value={data.totals.clinics}
@@ -256,12 +264,6 @@ export function OrganizationReportScreen() {
                       value={data.totals.encounters.toLocaleString()}
                       hint={`Last ${data.windowDays} days, ${data.totals.finalized.toLocaleString()} finalized`}
                       icon={Activity}
-                    />
-                    <DashboardKpiCard
-                      title="Open work"
-                      value={openWork(data.totals).toLocaleString()}
-                      hint={`${data.totals.openDrafts} drafts, ${data.totals.awaitingReview} awaiting review, ${data.totals.readyToFinalize} ready to finalize`}
-                      icon={ClipboardList}
                     />
                   </AppMetricGroup>
 

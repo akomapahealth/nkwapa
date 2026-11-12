@@ -68,6 +68,16 @@ test.describe('portal invite email', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('the failed figure applies the existing message status filter', async ({ page }) => {
+    await page.goto('/notifications');
+    const failed = page.getByRole('button', { name: 'Show failed messages', exact: true });
+    await expect(failed).toHaveAccessibleDescription(/^\d+$/);
+    await failed.click();
+    await expect(
+      page.getByRole('button', { name: 'Remove Status filter', exact: true }),
+    ).toContainText('Failed');
+  });
+
   test('the old reminders path still lands somewhere useful', async ({ page }) => {
     // The route was renamed; bookmarks and older documentation still point here.
     await page.goto('/reminders');

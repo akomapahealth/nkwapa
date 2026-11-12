@@ -1045,35 +1045,35 @@ export default function AdminUsersPage() {
           amber so a "portal mismatches" count was the only metric in the product that did not use
           the status tokens.
         */}
-        <AppMetricGroup
-          variant="strip"
-          className={showPortalFilter ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}
-        >
+        <AppMetricGroup variant="strip">
+          {showPortalFilter ? (
+            <AppMetricCard
+              title="Portal mismatches"
+              tone="attention"
+              onActivate={() => setPortalFilter('MISMATCH')}
+              actionLabel="Show portal mismatches"
+              value={loading || (error && rows.length === 0) ? '…' : portalMismatchCount}
+              icon={AlertTriangle}
+              detail={`${roleOnlyCount} role-only accounts need linking from the patient chart`}
+            />
+          ) : null}
+
           {/* Counts only. The scope is the roster's own title and the view switch above. */}
           <AppMetricCard
             title="Active accounts"
-            value={activeCount}
+            value={loading || (error && rows.length === 0) ? '…' : activeCount}
             detail={viewMode === 'clinic' ? 'Can sign in to this clinic' : 'Can sign in'}
           />
           <AppMetricCard
             title="Deactivated"
-            value={inactiveCount}
+            value={loading || (error && rows.length === 0) ? '…' : inactiveCount}
             detail="Kept for history; Reactivate restores access"
           />
           <AppMetricCard
             title="Broader access"
-            value={sharedAccessCount}
+            value={loading || (error && rows.length === 0) ? '…' : sharedAccessCount}
             detail="Users with global roles or other-clinic access"
           />
-          {showPortalFilter ? (
-            <AppMetricCard
-              title="Portal mismatches"
-              value={portalMismatchCount}
-              icon={AlertTriangle}
-              detail={`${roleOnlyCount} role-only accounts need linking from the patient chart`}
-              className="border-warning/40"
-            />
-          ) : null}
         </AppMetricGroup>
 
         {!isOnline ? <StaleDataNotice isOnline={false} /> : null}

@@ -370,28 +370,36 @@ export function DuplicateReviewScreen() {
         </div>
       </ProgressiveHelp>
 
-      <AppMetricGroup variant="strip" className="sm:grid-cols-4">
-        <AppMetricCard
-          title="Needs review"
-          value={summary.open}
-          icon={CopyCheck}
-          detail="Pairs nobody has decided on yet."
-        />
+      <AppMetricGroup variant="strip">
         <AppMetricCard
           title="Very likely"
-          value={summary.high}
+          tone="attention"
+          onActivate={() => {
+            setFilters({ ...filters, status: 'OPEN', confidence: 'HIGH' });
+            setPage(0);
+          }}
+          actionLabel="Show very likely pairs needing review"
+          value={queue.data ? summary.high : '…'}
           icon={AlertTriangle}
           detail="Open pairs with the strongest signals."
         />
+
+        <AppMetricCard
+          title="Needs review"
+          value={queue.data ? summary.open : '…'}
+          icon={CopyCheck}
+          detail="Pairs nobody has decided on yet."
+        />
+
         <AppMetricCard
           title="Across clinics"
-          value={summary.crossClinic}
+          value={queue.data ? summary.crossClinic : '…'}
           icon={Building2}
           detail="Cannot be merged until a clinic owns the chart."
         />
         <AppMetricCard
           title="Ruled out"
-          value={summary.dismissed}
+          value={queue.data ? summary.dismissed : '…'}
           icon={ShieldCheck}
           detail="Already checked and marked as different people."
         />

@@ -869,28 +869,17 @@ export default function StaffAppointmentsPage() {
             emptyLabel="Showing every appointment in this range"
           />
 
-          <AppMetricGroup className="mt-4 sm:grid-cols-2 xl:grid-cols-4">
-            <AppMetricCard
-              title="Scheduled"
-              value={summary.total}
-              icon={CalendarDays}
-              detail={`Appointments in ${viewMode === 'day' ? 'this day' : 'this week'}.`}
-            />
-            <AppMetricCard
-              title="Confirmed"
-              value={summary.confirmed}
-              icon={CalendarClock}
-              detail="Upcoming or active confirmed visits."
-            />
-            <AppMetricCard
-              title="Completed"
-              value={summary.completed}
-              icon={UserRound}
-              detail={`${summary.cancelled} cancelled, ${summary.noShow} no-show in this range.`}
-            />
+          <AppMetricGroup className="mt-4">
             <AppMetricCard
               title="Next visit"
-              value={nextAppointment ? formatOpsTime(nextAppointment.startsAt, timezone) : 'None'}
+              tone="calm"
+              value={
+                appointmentsData
+                  ? nextAppointment
+                    ? formatOpsTime(nextAppointment.startsAt, timezone)
+                    : 'None'
+                  : '…'
+              }
               icon={Clock3}
               detail={
                 nextAppointment
@@ -900,6 +889,31 @@ export default function StaffAppointmentsPage() {
                     )}`
                   : 'No confirmed visit in the current filters.'
               }
+            />
+
+            <AppMetricCard
+              title="Scheduled"
+              onActivate={() => setStatusFilter('ALL')}
+              actionLabel="Show scheduled appointments"
+              value={appointmentsData ? summary.total : '…'}
+              icon={CalendarDays}
+              detail={`Appointments in ${viewMode === 'day' ? 'this day' : 'this week'}.`}
+            />
+            <AppMetricCard
+              title="Confirmed"
+              onActivate={() => setStatusFilter('CONFIRMED')}
+              actionLabel="Show confirmed appointments"
+              value={appointmentsData ? summary.confirmed : '…'}
+              icon={CalendarClock}
+              detail="Upcoming or active confirmed visits."
+            />
+            <AppMetricCard
+              title="Completed"
+              onActivate={() => setStatusFilter('COMPLETED')}
+              actionLabel="Show completed appointments"
+              value={appointmentsData ? summary.completed : '…'}
+              icon={UserRound}
+              detail={`${summary.cancelled} cancelled, ${summary.noShow} no-show in this range.`}
             />
           </AppMetricGroup>
         </RecordSection>

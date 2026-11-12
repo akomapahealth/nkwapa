@@ -175,7 +175,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
               for the clinic. The unsaved state is announced next to the Save button instead,
               which is where the user can act on it.
             */}
-            <AppMetricGroup className="md:grid-cols-3">
+            <AppMetricGroup>
               <AppMetricCard
                 title="Research mode"
                 value={data.researchEnabled ? 'Enabled' : 'Disabled'}

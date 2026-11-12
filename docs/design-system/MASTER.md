@@ -625,15 +625,22 @@ Shared primitives live in `apps/web/components/app-shell/` and `apps/web/compone
 
 ### Metrics and page headers
 
-Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric is a quiet label with a 16px icon, then the figure. A grid of separately bordered cards, each with a 48px tinted icon tile, made the tiles the loudest thing on a dashboard and every page read as a template. A phrase standing in for a figure ("No reading yet") uses `type-section-title` so an empty state is not the largest text on screen.
+Related metrics use separate `AppMetricCard` figures inside `AppMetricGroup`, with generous gaps,
+soft token tints and `--elevation-raised`. There are no shared borders or icon tiles. Both `panel`
+and `strip` use the same system. A phone has a focusable, horizontal scroll-snap row; 600px+
+wraps the figures. Numeric zeroes use muted ink without a tinted surface. Details and count
+definitions remain in InfoHint. Action figures lead and use gold attention or the appropriate
+status surface; their buttons apply existing filters. The visible value is also their accessible
+description. Unknown resources show an ellipsis until a real result is available. This W3 polish
+contract supersedes the earlier divided-panel/ledger layout.
 
 `AppPageHeader` sits on the canvas with a hairline under it, not inside a card: the title is the page's heading, not one more panel among the panels below it. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
 
 ### Shared foundations (#265)
 
 `AppPageHeader` uses `type-page-title` and `type-body`, with an optional `breadcrumbs`
-slot above the title. `AppMetricGroup` is an unfilled ledger with a strong top rule,
-hairlines between cells, `type-label` labels and tabular `type-metric` figures.
+slot above the title. `AppMetricGroup` uses the separate-figure contract above, with tabular
+numbers and units retained.
 `FormSectionCard` keeps its existing API while drawing a ruled section on the canvas;
 its default heading is `h2`, with `titleAs="h3"` for nested sections.
 `DashboardSectionHeader` uses the Plex section role.
@@ -867,7 +874,7 @@ only in the volunteer-only presentation. Worklist destinations remain derived by
 invented. Personal intake counts live once in the existing sentence. HAP totals
 and draft/cosign breakdown remain in the volunteer section, alongside the existing
 HAP draft links, quick actions, two trend charts and three distribution charts.
-Clinic-wide summary totals remain separate in their existing divided metric group.
+Clinic-wide summary totals use the shared separate-figure system.
 Existing patient descriptions supplied by authorized work-item reads are preserved.
 
 Mixed-role dashboards keep Needs you now, clinic summaries, station-flow access,
@@ -931,8 +938,9 @@ data keys. `RoleHome` draws every role but the volunteer (W4 owns that home):
   greeting and date in Africa/Accra, one sentence of what is waiting, the role's primary (filled) and
   secondary (outline) action, each shown only with its route's permission, then a ghost Refresh.
   The greeting is the page's only `h1`.
-- **Four-figure strip** (`FigureStrip`): one ruled `ul` named for the role, number first, label
-  second, units shown; two columns below `sm`, four from `sm`. Never icon tiles. Doctor: in your
+- **Four-figure strip** (`FigureStrip`): a named `ul` of the shared separate figures, number
+  first, label second, units shown. One horizontal row on phones, wrapping from 600px. Action
+  figures lead, nonzero attention figures use gold, zeroes recede. Never icon tiles. Doctor: in your
   queue, finalized today, finalized this week, HAP notes to cosign (follow-up share when the notes
   flag is off). Manager: checked in, sessions completed, left before finishing, median time in
   clinic (station line), or the clinic's counts as "Today in this clinic" when the line is off or
@@ -997,9 +1005,9 @@ page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-
   slot) and `TOOLBAR_SELECT` (a small select with a quiet inline label, for a list whose two to
   five filters fit one row: Clinics, Duplicate review, Cross-clinic, Staff). Filters apply as they
   change; no Apply button, no "Filters" section, no summary line repeating what the controls show.
-- **Context figures on a list** (`AppMetricGroup variant="strip"`): one row of label + figure
-  between hairlines, what each counts in its help. Never the 2px-ruled tile panel above a list;
-  the panel stays for dashboards.
+- **Context figures on a list** (`AppMetricGroup variant="strip"`): separate stat chips with
+  breathing room, no shared lines, what each counts in its help. The same system serves
+  dashboards, reports and research; dashboards retain their richer greeting and work panels.
 - **List tabs** (Audit, Message delivery, Staff, Clinics, Duplicate review, Cross-clinic): page
   header, strip, toolbar, one muted "Showing / loaded" line, bled table, then any "how to read
   this" help below the list. No `RecordSection` frames, no two-column filter rail. Long ids are

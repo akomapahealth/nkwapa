@@ -238,7 +238,7 @@ export function OverviewPortalScreen() {
                 </PortalPanel>
 
                 <h2 className="type-section-title text-foreground">Latest readings</h2>
-                <AppMetricGroup className="md:grid-cols-3">
+                <AppMetricGroup>
                   <AppMetricCard
                     icon={HeartPulse}
                     title="Blood pressure"

@@ -224,7 +224,7 @@ export function HealthPortalScreen() {
 
             return (
               <div className="space-y-6">
-                <AppMetricGroup className="md:grid-cols-3">
+                <AppMetricGroup>
                   <AppMetricCard
                     icon={HeartPulse}
                     title="Blood pressure"

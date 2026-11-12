@@ -155,6 +155,14 @@ test.describe('clinic metadata visibility', () => {
     ).toBeVisible();
   });
 
+  test('the attention figure applies the existing registry filter', async ({ page }) => {
+    await openRegistry(page);
+    await page.getByRole('button', { name: 'Show clinics needing attention', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Needs attention', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test('narrows the registry to clinics that need attention', async ({ page }) => {
     await openRegistry(page);
 

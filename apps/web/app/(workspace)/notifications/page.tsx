@@ -99,6 +99,7 @@ export default function RemindersPage() {
   const [to, setTo] = useState('');
   const [emailStatus, setEmailStatus] = useState<EmailAvailability | null>(null);
   const [rows, setRows] = useState<ReminderRow[]>([]);
+  const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -137,6 +138,7 @@ export default function RemindersPage() {
           setRows(data.items);
         }
         setNextCursor(data.nextCursor);
+        setHasLoadedMessages(true);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         if (!append) setRows([]);
@@ -388,40 +390,49 @@ export default function RemindersPage() {
           </InlineNotice>
         ) : null}
 
-        <AppMetricGroup variant="strip" className="sm:grid-cols-3 xl:grid-cols-6">
+        <AppMetricGroup variant="strip">
+          <AppMetricCard
+            title="Failed"
+            tone="danger"
+            onActivate={() => setStatus('FAILED')}
+            actionLabel="Show failed messages"
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : failedCount}
+            icon={AlertTriangle}
+            detail="Not delivered. Open a row to see why and what to do."
+          />
+
           <AppMetricCard
             title="Visible messages"
-            value={rows.length}
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : rows.length}
             icon={Bell}
             detail="Rows currently loaded into the active view."
           />
           <AppMetricCard
             title="Queued"
-            value={queuedCount}
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : queuedCount}
             icon={Clock3}
             detail="Waiting to be processed or delivered."
           />
           <AppMetricCard
             title="Sent"
-            value={sentCount}
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : sentCount}
             icon={SendHorizontal}
             detail="Accepted by the configured provider."
           />
           <AppMetricCard
             title="Delivered"
-            value={deliveredCount}
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : deliveredCount}
             icon={CheckCheck}
             detail="Confirmed delivered by a provider callback. Only SMS reports this."
           />
-          <AppMetricCard
-            title="Failed"
-            value={failedCount}
-            icon={AlertTriangle}
-            detail="Not delivered. Open a row to see why and what to do."
-          />
+
           <AppMetricCard
             title="Typical time to send"
-            value={formatDeliveryLatency(medianLatencyMs)}
+            value={
+              !hasLoadedMessages || (error && rows.length === 0)
+                ? '…'
+                : formatDeliveryLatency(medianLatencyMs)
+            }
             icon={Timer}
             detail="Median wait between a message becoming due and the provider accepting it, across the rows loaded here."
           />

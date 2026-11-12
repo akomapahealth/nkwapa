@@ -354,7 +354,7 @@ export function OrganizationAnalyticsPanel({
                 {analytics.isRefreshing ? ' · Updating…' : ''}
               </p>
 
-              <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+              <AppMetricGroup>
                 <DashboardKpiCard
                   title="Encounters"
                   value={data.totals.encounters.toLocaleString()}

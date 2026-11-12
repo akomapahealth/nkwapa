@@ -188,7 +188,7 @@ export function StationFlowDashboard({
       ) : metrics ? (
         <>
           {showFigures ? (
-            <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-5">
+            <AppMetricGroup>
               <AppMetricCard title="Checked in" value={metrics.checkIns.total} icon={UserCheck} />
               <AppMetricCard
                 title="Sessions completed"
