@@ -214,6 +214,55 @@ test('an urgent symptom raises the escalation notice and offers the review reaso
 });
 
 /**
+ * Leaving a tab whose answers fail validation used to switch anyway, and the tab's panel unmounts
+ * on switch, so the draft vanished without a word. Now the volunteer stays unless they choose to
+ * leave.
+ */
+test('an unsaved interview is kept when switching tabs fails to save it', async ({ page }) => {
+  test.setTimeout(120_000);
+
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  await page.goto('/patients/new');
+  await page.getByLabel('First name', { exact: true }).fill('Draft');
+  await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-DRAFT-${suffix}`);
+  await page.getByRole('button', { name: 'Create patient' }).click();
+  await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
+  const patientId = page.url().split('/').at(-1);
+
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/clinics\/[^/]+\/encounters$/.test(new URL(response.url()).pathname),
+  );
+  await page.goto(`/patients/${patientId}/encounters/new`);
+  const encounterId = (await (await created).json()).id;
+
+  await page.goto(`/encounters/${encounterId}`);
+  await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await page.getByLabel('Main concern today').click();
+  await page.getByRole('option', { name: 'Other', exact: true }).click();
+  // "Other" needs a description, so this draft cannot save.
+
+  await page.getByRole('tab', { name: 'Vitals' }).click();
+  const dialog = page.getByRole('alertdialog').or(page.getByRole('dialog'));
+  await expect(dialog.getByText('These answers are not saved yet')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Stay and fix' }).click();
+
+  await expect(page.getByRole('tab', { name: 'Hypertension' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByLabel('Main concern today')).toHaveText(/Other/);
+  await expect(page.getByLabel('Describe the concern')).toBeFocused();
+
+  // Leaving is still possible, as a stated choice.
+  await page.getByRole('tab', { name: 'Vitals' }).click();
+  await dialog.getByRole('button', { name: 'Leave without saving' }).click();
+  await expect(page.getByRole('tab', { name: 'Vitals' })).toHaveAttribute('aria-selected', 'true');
+});
+
+/**
  * What a volunteer records on the encounter's Hypertension tab can be read back from the chart.
  *
  * Found in a demo: Vitals, Diabetes and Hypertension all saved, but the chart had no Hypertension

@@ -193,12 +193,43 @@ export default function EncounterDetailPage() {
       const saveCurrent = saveFns[activeTab];
       if (saveCurrent) {
         setSavingBeforeSwitch(true);
+        let failure: string | null = null;
         try {
           await saveCurrent();
-        } catch {
-          // Save failed; still allow tab switch
+        } catch (e) {
+          failure = e instanceof Error ? e.message : 'This tab could not be saved.';
         } finally {
           setSavingBeforeSwitch(false);
+        }
+        /*
+          The tab's panel unmounts on switch, so leaving after a failed save throws the draft
+          away. Leaving stays possible, but only as a stated choice.
+        */
+        if (failure) {
+          const leave = await confirmAction({
+            title: 'These answers are not saved yet',
+            description: `${failure} If you leave this tab now, the unsaved answers are lost.`,
+            confirmLabel: 'Leave without saving',
+            cancelLabel: 'Stay and fix',
+            destructive: true,
+          });
+          if (!leave) {
+            // The dialog hands focus back to the tab when it unmounts; wait for that, then take
+            // the volunteer to the first answer that needs fixing.
+            const focusInvalid = (frames: number) => {
+              if (document.querySelector('[role="dialog"],[role="alertdialog"]') && frames > 0) {
+                requestAnimationFrame(() => focusInvalid(frames - 1));
+                return;
+              }
+              document
+                .querySelector<HTMLElement>(
+                  '[role="tabpanel"][data-state="active"] [aria-invalid="true"]',
+                )
+                ?.focus();
+            };
+            requestAnimationFrame(() => focusInvalid(60));
+            return;
+          }
         }
       }
       setActiveTab(newValue);
