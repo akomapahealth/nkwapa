@@ -101,9 +101,8 @@ test.describe('production header', () => {
         64,
       );
       expect((await role.boundingBox()).width).toBeGreaterThanOrEqual(64);
-      const shortStatus = header.getByTestId('sync-status').getByText('Synced', { exact: true });
-      await expect(shortStatus).toBeVisible();
-      expect(await shortStatus.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      await expect(header.getByTestId('sync-status')).toHaveText('');
+      await expect(header.getByTestId('sync-status')).toHaveAccessibleName(/All synced/);
       await capture(page, `header-scaled-${theme}`);
       await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
       await clinic.focus();
@@ -224,6 +223,8 @@ test.describe('production sync pill with controlled queue inputs', () => {
           await expect(pill).toHaveAttribute('data-state', state);
           await expect(pill.locator(`[data-sync-icon="${state}"]`)).toHaveCSS('opacity', '1');
           await expect(pill).toHaveAccessibleName(`Offline changes: ${label}. Open sync center.`);
+          if (state === 'synced') await expect(pill).toHaveText('');
+          else await expect(pill).toContainText(/offline|syncing|attention|failed|queued|review/i);
           await inBounds(pill, width);
           const after = await adjacent.boundingBox();
           expect(after.x).toBe(initial.x);
@@ -290,6 +291,8 @@ test.describe('production sync pill with controlled queue inputs', () => {
         if (state === 'syncing')
           await expect(icon.locator('svg')).toHaveCSS('animation-name', 'none');
       }
+      await pill.focus();
+      await expect(page.getByRole('tooltip')).toHaveText('All synced');
       await pill.press('Enter');
       const sheet = page.getByRole('dialog', { name: 'Offline changes' });
       await expect(sheet).toBeVisible();

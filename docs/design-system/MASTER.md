@@ -767,7 +767,10 @@ The sync control precedes Message delivery and the account menu. Its quiet inner
 status surface is at least 32px tall inside a target of at least 44px. It reserves
 6.75rem on phones (108px at default text, capped at 180px for enlarged text) and
 192px from 600px, so state changes do not shift adjacent
-controls. Phones show short state labels and the active-clinic count (visually
+controls. The synced state shows only its success check in a compact tinted pill, with the full status in
+its accessible name and a Radix tooltip on hover or keyboard focus. Other states retain words.
+The outer control keeps its reserved footprint when the inner success pill shrinks.
+Phones show short attention-state labels and the active-clinic count (visually
 capped at 99+); the accessible name retains the full status and other-clinic
 count. Full labels and the existing Sync now action appear from 600px. Offline,
 syncing, attention, failed, queued, held and synced retain their existing priority,
