@@ -602,7 +602,9 @@ function PatientChartWorkspace() {
       <PatientProfileHeader
         name={`${patient.firstName} ${patient.lastName}`}
         patientCode={patient.patientCode}
-        sex={statusLabel(patient.sex)}
+        sex={
+          patient.sex && patient.sex !== 'UNKNOWN' ? statusLabel(patient.sex) : 'Sex not recorded'
+        }
         clinicId={clinicId}
         badges={
           <>
@@ -715,7 +717,7 @@ function PatientChartWorkspace() {
                               <p className="mt-1 type-data text-foreground">
                                 {patient.nationalIdType === 'NONE'
                                   ? 'No ID document'
-                                  : `...${patient.nationalIdLast4}`}
+                                  : `…${patient.nationalIdLast4}`}
                               </p>
                             </div>
                           ) : null}
@@ -768,24 +770,6 @@ function PatientChartWorkspace() {
                           </CardContent>
                         </Card>
                       ) : null}
-
-                      <Card>
-                        <CardHeader>
-                          <h2 className="type-section-title">Next steps</h2>
-                        </CardHeader>
-                        <CardContent className="space-y-3 text-sm text-muted-foreground">
-                          <p>
-                            Open Vitals to review longitudinal readings and measurement changes.
-                          </p>
-                          <p>Use Visits to continue from prior visits or start chart review.</p>
-                          {canCreateOpsCheckIn ? (
-                            <p>
-                              Use Check In Patient to move this chart straight into today’s clinic
-                              workflow.
-                            </p>
-                          ) : null}
-                        </CardContent>
-                      </Card>
                     </div>
 
                     <Dialog open={portalLinkOpen} onOpenChange={setPortalLinkOpen}>

@@ -54,8 +54,7 @@ function identityRows(patient: WizardPatient): Array<[string, string]> {
     ['Phone', patient.phoneE164 || 'No phone on file'],
   ];
   if (patient.nationalIdType === 'NONE') rows.push(['National ID', 'No ID document']);
-  else if (patient.nationalIdLast4)
-    rows.push(['National ID', `Ends in ${patient.nationalIdLast4}`]);
+  else if (patient.nationalIdLast4) rows.push(['National ID', `…${patient.nationalIdLast4}`]);
   return rows;
 }
 
