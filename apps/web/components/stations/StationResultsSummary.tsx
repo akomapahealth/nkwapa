@@ -136,7 +136,12 @@ export function StationResultsSummary({
       }
     >
       <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
-        <CardTitle className="text-xl">Results from today’s stations</CardTitle>
+        <CardTitle
+          as={ruled ? 'h2' : undefined}
+          className={ruled ? 'type-section-title leading-7 tracking-normal' : 'text-xl'}
+        >
+          Results from today’s stations
+        </CardTitle>
         <CardDescription>
           Medical history recorded at intake: {recordedAt('INTAKE')}. Open the patient’s chart for
           the full history and allergies.

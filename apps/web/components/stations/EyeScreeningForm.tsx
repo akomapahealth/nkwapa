@@ -280,7 +280,13 @@ export function EyeScreeningForm({
       }
     >
       <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
-        <CardTitle className="flex items-center gap-2 text-xl">
+        <CardTitle
+          as={ruled ? 'h2' : undefined}
+          className={cn(
+            'flex items-center gap-2',
+            ruled ? 'type-section-title leading-7 tracking-normal' : 'text-xl',
+          )}
+        >
           <EyeIcon className="h-5 w-5 text-primary" aria-hidden="true" />
           Eye examination
         </CardTitle>

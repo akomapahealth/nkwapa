@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api';
 import { readApiError } from '@/lib/ops';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -214,7 +215,13 @@ export function CounsellingForm({
       }
     >
       <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
-        <CardTitle className="flex items-center gap-2 text-xl">
+        <CardTitle
+          as={ruled ? 'h2' : undefined}
+          className={cn(
+            'flex items-center gap-2',
+            ruled ? 'type-section-title leading-7 tracking-normal' : 'text-xl',
+          )}
+        >
           <MessageSquareHeart className="h-5 w-5 text-primary" aria-hidden="true" />
           Counselling and advice
         </CardTitle>
