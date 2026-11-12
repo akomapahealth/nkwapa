@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { act, createElement as h } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { InterviewFlow, InterviewSection, useInterviewQuestion } from './InterviewFlow';
@@ -11,7 +11,7 @@ import { InterviewFlow, InterviewSection, useInterviewQuestion } from './Intervi
 
 function Question({ id, label, value = '' }: { id: string; label: string; value?: string }) {
   useInterviewQuestion({ id, label, answered: value !== '', display: value, invalid: false });
-  return h('input', { id, 'aria-label': label, value, readOnly: true });
+  return <input id={id} aria-label={label} value={value} readOnly />;
 }
 
 const SECTIONS = [
@@ -35,28 +35,22 @@ beforeEach(async () => {
   root = createRoot(container);
   await act(async () => {
     root.render(
-      h(
-        InterviewFlow,
-        {
-          label: 'Test interview',
-          sections: SECTIONS,
-          canEdit: true,
-          onSave,
-          saveLabel: 'Save test',
-          save: { saving: false, message: null, error: null },
-        },
-        h(
-          InterviewSection,
-          { id: 'a', title: 'First section' },
-          h(Question, { id: 'q1', label: 'Asked one', value: 'Yes' }),
-          h(Question, { id: 'q2', label: 'Unasked one' }),
-        ),
-        h(
-          InterviewSection,
-          { id: 'b', title: 'Second section' },
-          h(Question, { id: 'q3', label: 'Later one' }),
-        ),
-      ),
+      <InterviewFlow
+        label="Test interview"
+        sections={SECTIONS}
+        canEdit
+        onSave={onSave}
+        saveLabel="Save test"
+        save={{ saving: false, message: null, error: null }}
+      >
+        <InterviewSection id="a" title="First section">
+          <Question id="q1" label="Asked one" value="Yes" />
+          <Question id="q2" label="Unasked one" />
+        </InterviewSection>
+        <InterviewSection id="b" title="Second section">
+          <Question id="q3" label="Later one" />
+        </InterviewSection>
+      </InterviewFlow>,
     );
   });
 });

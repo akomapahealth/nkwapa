@@ -77,6 +77,8 @@ import {
   HYPERTENSION_FIELD_ORDER,
   fromHypertensionRecord,
   toHypertensionPayload,
+  showsHomeReadings,
+  showsRepeatReadings,
   validateHypertensionInterview,
   type ClinicalFieldErrors,
   type HypertensionInterviewValues,
@@ -270,6 +272,8 @@ export function HypertensionInterviewForm({
     todaysVitals?.systolicBp ?? null,
     todaysVitals?.diastolicBp ?? null,
   );
+  const showRepeat = showsRepeatReadings(values);
+  const showHomeReadings = showsHomeReadings(values);
   const escalation = deriveHypertensionEscalation({
     symptoms: values.currentSymptoms as never,
     systolicBp: todaysVitals?.systolicBp ?? null,
@@ -575,20 +579,22 @@ export function HypertensionInterviewForm({
             options={BP_REPEAT_STATUSES}
             labels={BP_REPEAT_STATUS_LABELS}
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <NumberQuestion
-              {...q('htn-repeat-systolic')}
-              label="Repeat systolic (mmHg)"
-              value={values.repeatSystolicBp}
-              onChange={(value) => update('repeatSystolicBp', value)}
-            />
-            <NumberQuestion
-              {...q('htn-repeat-diastolic')}
-              label="Repeat diastolic (mmHg)"
-              value={values.repeatDiastolicBp}
-              onChange={(value) => update('repeatDiastolicBp', value)}
-            />
-          </div>
+          {showRepeat ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <NumberQuestion
+                {...q('htn-repeat-systolic')}
+                label="Repeat systolic (mmHg)"
+                value={values.repeatSystolicBp}
+                onChange={(value) => update('repeatSystolicBp', value)}
+              />
+              <NumberQuestion
+                {...q('htn-repeat-diastolic')}
+                label="Repeat diastolic (mmHg)"
+                value={values.repeatDiastolicBp}
+                onChange={(value) => update('repeatDiastolicBp', value)}
+              />
+            </div>
+          ) : null}
           <ChoiceQuestion
             {...q('htn-home-monitor')}
             ask="Do you have a blood pressure machine at home?"
@@ -607,38 +613,42 @@ export function HypertensionInterviewForm({
             options={HOME_BP_CHECK_FREQUENCIES}
             labels={HOME_BP_CHECK_FREQUENCY_LABELS}
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <NumberQuestion
-              {...q('htn-home-systolic')}
-              ask="What does your reading at home usually say? The top number first."
-              label="Usual home systolic (mmHg)"
-              value={values.homeSystolicAvg}
-              onChange={(value) => update('homeSystolicAvg', value)}
-              disabled={shared.disabled || values.homeReadingsUnknown}
-            />
-            <NumberQuestion
-              {...q('htn-home-diastolic')}
-              label="Usual home diastolic (mmHg)"
-              value={values.homeDiastolicAvg}
-              onChange={(value) => update('homeDiastolicAvg', value)}
-              disabled={shared.disabled || values.homeReadingsUnknown}
-            />
-          </div>
-          <CheckboxQuestion
-            id="htn-home-unknown"
-            label="Readings unknown"
-            checked={values.homeReadingsUnknown}
-            onChange={(checked) => update('homeReadingsUnknown', checked)}
-            disabled={shared.disabled}
-          />
-          <ChoiceQuestion
-            {...q('htn-home-source')}
-            label="Source of home readings"
-            value={values.homeReadingSource}
-            onChange={(value) => update('homeReadingSource', value)}
-            options={HOME_BP_SOURCES}
-            labels={HOME_BP_SOURCE_LABELS}
-          />
+          {showHomeReadings ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <NumberQuestion
+                  {...q('htn-home-systolic')}
+                  ask="What does your reading at home usually say? The top number first."
+                  label="Usual home systolic (mmHg)"
+                  value={values.homeSystolicAvg}
+                  onChange={(value) => update('homeSystolicAvg', value)}
+                  disabled={shared.disabled || values.homeReadingsUnknown}
+                />
+                <NumberQuestion
+                  {...q('htn-home-diastolic')}
+                  label="Usual home diastolic (mmHg)"
+                  value={values.homeDiastolicAvg}
+                  onChange={(value) => update('homeDiastolicAvg', value)}
+                  disabled={shared.disabled || values.homeReadingsUnknown}
+                />
+              </div>
+              <CheckboxQuestion
+                id="htn-home-unknown"
+                label="Readings unknown"
+                checked={values.homeReadingsUnknown}
+                onChange={(checked) => update('homeReadingsUnknown', checked)}
+                disabled={shared.disabled}
+              />
+              <ChoiceQuestion
+                {...q('htn-home-source')}
+                label="Source of home readings"
+                value={values.homeReadingSource}
+                onChange={(value) => update('homeReadingSource', value)}
+                options={HOME_BP_SOURCES}
+                labels={HOME_BP_SOURCE_LABELS}
+              />
+            </>
+          ) : null}
         </InterviewSection>
 
         <InterviewSection id="symptoms" title="Current symptoms">

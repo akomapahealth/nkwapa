@@ -1,6 +1,6 @@
 # Brief: the read-aloud interview (hypertension and diabetes)
 
-Status: proposed 2026-11-12, awaiting owner confirmation. Source: impeccable critique of the data-entry
+Status: approved 2026-11-12; hypertension built (31fb02c5 and after), diabetes next. Source: impeccable critique of the data-entry
 flows (20/40, snapshot `.impeccable/critique/2026-11-12T16-22-26Z__apps-web-components-encounters.md`)
 and the owner interview recorded in `apps/web/PRODUCT.md`.
 
@@ -87,5 +87,8 @@ for keyboard advance (MASTER 9.1).
 - WCAG 2.2 AA; 44px targets on touch, 36/40px on mouse; radios are real `role=radiogroup`.
 - Decided by owner 2026-11-12: one section per screen; interviews in both places; intake station;
   volunteer chooses which interviews to run; unanswered saves NOT_ASKED.
-- Open for the builder to confirm, not invent: the spoken wording for each question (drafted from
-  the current labels and reviewed with the owner before merge).
+- Spoken wording: hypertension's 33 questions drafted from the current labels and approved by the
+  owner 2026-11-12 (`ask` props in HypertensionInterviewForm). Diabetes wording is still to be
+  drafted and reviewed before merge.
+- Skip logic as built: a follow-up group is hidden only while it is empty, so validation never
+  points at a field the volunteer cannot see (`showsRepeatReadings`, `showsHomeReadings`).
