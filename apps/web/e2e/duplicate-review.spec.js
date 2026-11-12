@@ -32,8 +32,12 @@ async function openQueue(page) {
 
 /** Switches the Decision filter and returns the grid it reloads into. */
 async function filterByDecision(page, option) {
-  await page.getByLabel('Decision').click();
+  await page.getByRole('button', { name: 'Filter duplicates', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Filter duplicates', exact: true });
+  await sheet.getByLabel('Decision', { exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
+  await sheet.getByRole('button', { name: 'Show results', exact: true }).click();
+  await expect(sheet).toBeHidden();
   return page.getByRole('table');
 }
 
@@ -96,14 +100,20 @@ test.describe('a system admin working the queue', () => {
     const grid = await openQueue(page);
     await expect(grid.getByText(/Akua Boateng/).first()).toBeVisible({ timeout: 20_000 });
 
-    await page.getByLabel('Why it matched').click();
+    await page.getByRole('button', { name: 'Filter duplicates', exact: true }).click();
+    const sheet = page.getByRole('dialog', { name: 'Filter duplicates', exact: true });
+    await sheet.getByLabel('Why it matched', { exact: true }).click();
     await page.getByRole('option', { name: 'Same national ID' }).click();
+    await sheet.getByRole('button', { name: 'Show results', exact: true }).click();
+    await expect(sheet).toBeHidden();
 
     // Empty is a state, not a failure: a heading rather than an error, and a way back.
     await expect(
       page.getByRole('heading', { name: /no candidates match these filters/i }),
     ).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole('button', { name: /reset filters/i })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Clear all filters', exact: true }),
+    ).toBeEnabled();
   });
 
   test('records a dismissal, hides the pair, and can put it back', async ({ page }) => {

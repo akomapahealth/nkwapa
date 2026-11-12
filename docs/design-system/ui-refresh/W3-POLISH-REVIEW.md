@@ -130,3 +130,19 @@ Route/capture: 12/12, 228 rows, 0 violations, 0 minor, 0 overflow, 0 errors, one
 570 screenshots. Inspected 1440px figures, 320px horizontal figures and dark delivery history.
 Evidence: `/private/tmp/nkwapa-w3-polish/unit3`; scheduling rerun under `unit3-appointments-rerun`;
 baseline reproduction in `/private/tmp/nkwapa-w3-polish/baseline-escape.log`.
+
+## Units 4 and 8: tablet toolbars
+
+| Before                                                               | After                                                            | Why                                                                                   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Three duplicate label/select pairs wrap raggedly at 744px            | One Filter chip, one Sheet form, removable selections            | Consistent disclosure at every width; no duplicate ids or breakpoint-dependent focus. |
+| Staff status segments squeeze beside a 256px search                  | Status choices own a scrollable row; search fills the next row   | The controls remain usable at 600/744/840/1024px.                                     |
+| Staff invitations repeats an access paragraph above boxed phone rows | Invitations with nearby help; bled table and hairline phone rows | Group by proximity, keep the access fact reachable.                                   |
+
+The all-width duplicate Sheet is a deliberate choice: the Patients pattern is familiar and keeps
+one control tree, even where three inline selects could fit. Below 840px it opens from the
+bottom; larger widths use the existing right Sheet. Decision / Match strength / Why it matched
+and their ids stay unchanged. Specs open the Sheet before using those fields. Hick and Tesler:
+keep sensible defaults and reveal the rest on request. Fitts: full-width phone invite action.
+The invitation password/acceptance fact moved into help; the dialog's safety wording remains.
+Validation: TypeScript, build, Prettier and Jest (98 suites / 1,060 tests) passed; changed-file ESLint passed after fixing a stale `openStaff` helper in the new spec. Focused Chromium: 98 passed, 3 failed, 5 not run of 106. Two duplicate-review failures were the specs selecting in the Sheet before it closed; after `toBeHidden` waits, duplicate-review reran 8/8. The third is the owner-listed staff-profile failure. Route/capture: 12/12, 228 rows, 0 violations, 0 minor, 0 overflow, one h1 throughout. Evidence: `/private/tmp/nkwapa-w3-polish/unit48`, `unit48-duplicate-rerun`, `unit48-tablets`.

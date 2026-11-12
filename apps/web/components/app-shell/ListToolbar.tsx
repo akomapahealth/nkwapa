@@ -106,15 +106,15 @@ export interface ListFilterChip {
 }
 
 /** Right on a wide screen, a bottom sheet on a phone. */
-function useWideSheet() {
+function useWideSheet(minWidth = 600) {
   const [wide, setWide] = useState(false);
   useEffect(() => {
-    const query = window.matchMedia('(min-width: 600px)');
+    const query = window.matchMedia(`(min-width: ${minWidth}px)`);
     const update = () => setWide(query.matches);
     update();
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
-  }, []);
+  }, [minWidth]);
   return wide;
 }
 
@@ -128,6 +128,7 @@ export function ListFilters({
   groupLabel,
   sheetTitle,
   sheetDescription = 'Filters update results immediately.',
+  sheetBreakpoint = 600,
   chips,
   onClearAll,
   open,
@@ -141,6 +142,8 @@ export function ListFilters({
   /** Also the Filter chip's accessible name, e.g. "Filter patients". */
   sheetTitle: string;
   sheetDescription?: string;
+  /** Below this width, use a bottom sheet. */
+  sheetBreakpoint?: number;
   chips: ListFilterChip[];
   onClearAll?: () => void;
   open?: boolean;
@@ -150,7 +153,7 @@ export function ListFilters({
   trailing?: ReactNode;
   className?: string;
 }) {
-  const wideSheet = useWideSheet();
+  const wideSheet = useWideSheet(sheetBreakpoint);
   const [ownOpen, setOwnOpen] = useState(false);
   const isOpen = open ?? ownOpen;
   const setOpen = onOpenChange ?? setOwnOpen;

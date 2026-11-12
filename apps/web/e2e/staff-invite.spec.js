@@ -54,7 +54,7 @@ test.afterAll(async () => {
 
 async function openInvitations(page) {
   await page.goto('/admin/users');
-  const card = page.getByRole('heading', { name: 'Staff invitations' });
+  const card = page.getByRole('heading', { name: 'Invitations', exact: true });
   await expect(card).toBeVisible({ timeout: 30_000 });
   return page.getByRole('table', { name: 'Staff invitations' });
 }
@@ -211,6 +211,27 @@ test('the name step holds them until they save, then lets them in', async () => 
   await expectMenuName(inviteePage, 'Ama K. Mensah');
 });
 
+test('invitations keep status and search on separate tablet rows', async ({ page }) => {
+  await openInvitations(page);
+  for (const width of [600, 744, 840, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    const status = page.getByRole('group', { name: 'Show invitations', exact: true });
+    const search = page.getByRole('searchbox', {
+      name: 'Search invitations by name or email',
+      exact: true,
+    });
+    const groupBox = await status.boundingBox();
+    const searchBox = await search.boundingBox();
+    expect(searchBox.y).toBeGreaterThanOrEqual(groupBox.y + groupBox.height);
+    expect(Math.abs(groupBox.width - searchBox.width)).toBeLessThanOrEqual(2);
+    const tops = await status
+      .getByRole('button')
+      .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  }
+});
+
 test('the profile page edits the name and phone, and the header follows without signing in again', async () => {
   await inviteePage.getByRole('button', { name: 'User menu' }).click();
   await inviteePage.getByRole('menuitem', { name: 'Manage profile' }).click();
@@ -310,7 +331,7 @@ test('a cancelled invitation stays visible and stops granting anything', async (
   await expect(row).toHaveCount(0);
   await removed;
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Staff invitations' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Invitations', exact: true })).toBeVisible({
     timeout: 30_000,
   });
   await expect(list.getByRole('row').filter({ hasText: CANCELLED_EMAIL })).toHaveCount(0);

@@ -10,7 +10,6 @@ import {
   Mail,
   MailPlus,
   RotateCw,
-  Search,
   Trash2,
   UserPlus,
   X,
@@ -50,14 +49,19 @@ import {
   type StaffInviteFilter,
   type StaffInviteRole,
 } from '@/lib/staff-invite';
+import { ListSearch } from '@/components/app-shell/ListToolbar';
+import { InfoHint } from '@/components/ui/info-hint';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import {
-  RecordSection,
+  DataTable,
+  DataTableActions,
+  SHEET_GUTTER,
+  type DataTableColumn,
+} from '@/components/ui/data-table';
+import {
   RecordSectionContent,
-  RecordSectionDescription,
   RecordSectionHeader,
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
@@ -328,19 +332,23 @@ export function StaffInvitesCard({
   };
 
   return (
-    <RecordSection className="min-w-0">
+    <section className="min-w-0">
       <RecordSectionHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+        <div className="flex items-center gap-2">
           <RecordSectionTitle className="flex items-center gap-2 text-xl">
-            <MailPlus className="h-5 w-5 text-primary" aria-hidden="true" />
-            Staff invitations
+            <MailPlus className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            Invitations
           </RecordSectionTitle>
-          <RecordSectionDescription>
+          <InfoHint label="How invitations grant access">
             Invite a colleague to {clinicName ?? 'this clinic'} by email. They set their own
             password and get the role only once they accept.
-          </RecordSectionDescription>
+          </InfoHint>
         </div>
-        <Button onClick={openDialog} disabled={!getToken || invitableRoles.length === 0}>
+        <Button
+          className="w-full compact:w-auto"
+          onClick={openDialog}
+          disabled={!getToken || invitableRoles.length === 0}
+        >
           <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
           Invite a colleague
         </Button>
@@ -365,15 +373,17 @@ export function StaffInvitesCard({
           </p>
         ) : (
           <DataTable
+            bleed
             caption="Staff invitations"
             columns={inviteColumns(busy, (invite, action) => void act(invite, action))}
             data={visible}
             getRowId={(invite) => invite.id}
             initialPageSize={10}
             toolbar={
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex w-full min-w-0 flex-col gap-3">
                 <SegmentedControl
                   label="Show invitations"
+                  scrollable
                   value={filter}
                   options={FILTERS.map((option) => ({
                     value: option.value,
@@ -381,23 +391,15 @@ export function StaffInvitesCard({
                     description: option.description,
                   }))}
                   onChange={setFilter}
-                  className="sm:flex-1"
                 />
                 {invites.length > SEARCH_THRESHOLD ? (
-                  <div className="relative sm:w-64">
-                    <Search
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    <Input
-                      type="search"
-                      aria-label="Search invitations by name or email"
-                      placeholder="Search name or email"
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
+                  <ListSearch
+                    id="staff-invites-search"
+                    label="Search invitations by name or email"
+                    placeholder="Name or email…"
+                    value={query}
+                    onChange={setQuery}
+                  />
                 ) : null}
               </div>
             }
@@ -528,7 +530,7 @@ export function StaffInvitesCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </RecordSection>
+    </section>
   );
 }
 
@@ -726,7 +728,8 @@ function InviteRow({
     <article
       aria-label={invite.inviteeName ?? invite.email}
       className={cn(
-        'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-lg border border-border bg-background px-4 py-3',
+        'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-rule py-3',
+        SHEET_GUTTER,
         !isOpen && 'bg-muted/20',
       )}
     >

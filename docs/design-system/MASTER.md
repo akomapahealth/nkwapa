@@ -1003,8 +1003,14 @@ page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-
   Filter chip opening a right / bottom Sheet of the page's own fields, removable chips per set
   filter, non-removable context chips such as an audit log's zone, Clear all, a pinned `trailing`
   slot) and `TOOLBAR_SELECT` (a small select with a quiet inline label, for a list whose two to
-  five filters fit one row: Clinics, Duplicate review, Cross-clinic, Staff). Filters apply as they
+  five filters fit one row: Clinics and Staff). Duplicate review and Cross-clinic use the shared
+  Filter Sheet at every width, preserving one set of ids; below 840px it opens from the bottom. Filters apply as they
   change; no Apply button, no "Filters" section, no summary line repeating what the controls show.
+- **Invitations**: a compact Invitations heading and Invite a colleague action; the status
+  `SegmentedControl scrollable` owns one horizontal row, and `ListSearch` owns the full row below
+  it. The invitations section is not a nested panel; its `DataTable bleed` reaches the workspace
+  gutters like the roster. Labels and select ids are unchanged. The scrollable segmented variant
+  keeps the same toggle-button semantics, shared knob and keyboard/reduced-motion behavior.
 - **Context figures on a list** (`AppMetricGroup variant="strip"`): separate stat chips with
   breathing room, no shared lines, what each counts in its help. The same system serves
   dashboards, reports and research; dashboards retain their richer greeting and work panels.

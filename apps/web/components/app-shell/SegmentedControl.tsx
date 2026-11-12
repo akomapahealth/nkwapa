@@ -38,6 +38,8 @@ interface SegmentedControlProps<TValue extends string> {
   options: ReadonlyArray<SegmentedOption<TValue>>;
   onChange: (value: TValue) => void;
   className?: string;
+  /** Keep choices on one horizontally scrollable row. */
+  scrollable?: boolean;
 }
 
 /** `--ease-in-out` from globals.css; Motion needs the curve as numbers. */
@@ -50,6 +52,7 @@ export function SegmentedControl<TValue extends string>({
   options,
   onChange,
   className,
+  scrollable = false,
 }: SegmentedControlProps<TValue>) {
   const groupId = useId();
   // Only a pointer press animates. A keyboard press (click `detail` 0), the first render and a
@@ -67,20 +70,22 @@ export function SegmentedControl<TValue extends string>({
   return (
     // Reduced motion: Motion drops the transform animations; globals.css drops the mask transition.
     <MotionConfig reducedMotion="user">
-      <div
+      <motion.div
+        layoutScroll={scrollable}
         role="group"
         aria-label={label}
         className={cn(
-          'grid h-auto w-full gap-0.5 rounded-md bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]',
+          'h-auto w-full gap-0.5 rounded-md bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]',
           // Four options go 2x2 on a phone rather than 3 + 1, which left one option alone on a row.
-          options.length === 4 && 'grid-cols-2 sm:grid-cols-4',
+          scrollable ? 'flex min-w-0 overflow-x-auto [scrollbar-width:thin]' : 'grid',
+          !scrollable && options.length === 4 && 'grid-cols-2 sm:grid-cols-4',
           className,
         )}
         // auto-fit rather than a fixed column per option. A four-option control on a 375px phone
         // was dividing ~343px into four, which is not enough for a word like "Cancelled"; it now
         // wraps onto a second row instead of crushing or truncating the labels.
         style={
-          options.length === 4
+          scrollable || options.length === 4
             ? undefined
             : { gridTemplateColumns: 'repeat(auto-fit, minmax(7rem, 1fr))' }
         }
@@ -103,7 +108,7 @@ export function SegmentedControl<TValue extends string>({
                 aria-pressed={selected}
                 aria-describedby={describedBy}
                 onClick={(event) => choose(event, option.value)}
-                className="relative inline-flex min-h-[42px] min-w-11 cursor-pointer touch-manipulation items-center justify-center whitespace-nowrap rounded-[4px] px-3 text-sm font-semibold text-muted-foreground transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-foreground [@media(pointer:coarse)]:min-h-12"
+                className="relative inline-flex shrink-0 min-h-[42px] min-w-11 cursor-pointer touch-manipulation items-center justify-center whitespace-nowrap rounded-[4px] px-3 text-sm font-semibold text-muted-foreground transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-foreground [@media(pointer:coarse)]:min-h-12"
               >
                 {selected ? (
                   <motion.span
@@ -149,7 +154,7 @@ export function SegmentedControl<TValue extends string>({
             </div>
           );
         })}
-      </div>
+      </motion.div>
     </MotionConfig>
   );
 }

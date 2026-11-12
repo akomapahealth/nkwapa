@@ -35,6 +35,26 @@ function clinicPairs(page) {
 test.describe('a system admin investigating', () => {
   test.use({ storageState: storageStateFor('staff') });
 
+  for (const width of [390, 744]) {
+    test(`filter sheet preserves fields and removable selections at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openInvestigation(page);
+      await page.getByRole('button', { name: 'Filter duplicates', exact: true }).click();
+      const sheet = page.getByRole('dialog', { name: 'Filter duplicates', exact: true });
+      for (const label of ['Decision', 'Match strength', 'Why it matched'])
+        await expect(sheet.getByLabel(label, { exact: true })).toBeVisible();
+      await sheet.getByLabel('Match strength', { exact: true }).click();
+      await page.getByRole('option', { name: 'Very likely', exact: true }).click();
+      await sheet.getByRole('button', { name: 'Show results', exact: true }).click();
+      const chip = page.getByRole('button', { name: 'Remove Match strength filter', exact: true });
+      await expect(chip).toContainText('Very likely');
+      await chip.click();
+      await expect(chip).toHaveCount(0);
+    });
+  }
+
   test('sizes the burden per clinic pair, active clinics only', async ({ page }) => {
     await openInvestigation(page);
 

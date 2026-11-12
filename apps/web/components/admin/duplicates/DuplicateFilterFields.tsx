@@ -6,17 +6,18 @@ import {
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_REVIEW_STATUS_LABELS,
   duplicateFiltersAreDefault,
+  DEFAULT_DUPLICATE_FILTERS,
   type DuplicateConfidenceFilter,
   type DuplicateFilters,
   type DuplicateReasonFilter,
   type DuplicateStatusFilter,
 } from '@/lib/patient-duplicates';
-import { ListSearch, TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
-import { Button } from '@/components/ui/button';
+import { ListSearch, ListFilters } from '@/components/app-shell/ListToolbar';
 import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -38,8 +39,8 @@ const CONFIDENCE_OPTIONS: { value: DuplicateConfidenceFilter; label: string }[] 
 
 /**
  * The search, decision, strength and reason controls both duplicate screens filter by, as a list
- * toolbar (MASTER "Lists (W3)"): the search leads, the three selects sit in one row with quiet
- * labels and show their own value, so no summary line repeats them.
+ * toolbar: search, a Filter chip and removable selections. One shared Sheet owns the selects,
+ * preserving ids and labels across sizes without duplicate hidden controls.
  *
  * `idPrefix` keeps label associations unique if two of these ever share a page.
  */
@@ -59,21 +60,21 @@ export function DuplicateFilterFields({
   const update = (patch: Partial<DuplicateFilters>) => onChange({ ...filters, ...patch });
   const selects = [
     {
-      key: 'status',
+      key: 'status' as const,
       label: 'Decision',
       value: filters.status,
       onChange: (value: string) => update({ status: value as DuplicateStatusFilter }),
       options: DUPLICATE_STATUS_OPTIONS,
     },
     {
-      key: 'confidence',
+      key: 'confidence' as const,
       label: 'Match strength',
       value: filters.confidence,
       onChange: (value: string) => update({ confidence: value as DuplicateConfidenceFilter }),
       options: CONFIDENCE_OPTIONS,
     },
     {
-      key: 'reason',
+      key: 'reason' as const,
       label: 'Why it matched',
       value: filters.reason,
       onChange: (value: string) => update({ reason: value as DuplicateReasonFilter }),
@@ -96,35 +97,41 @@ export function DuplicateFilterFields({
         placeholder="Name, chart code or clinic…"
         onChange={(q) => update({ q })}
       />
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <ListFilters
+        groupLabel="Duplicate filters"
+        sheetTitle="Filter duplicates"
+        sheetBreakpoint={840}
+        chips={selects.map((select) => ({
+          label: select.label,
+          value:
+            select.value !== DEFAULT_DUPLICATE_FILTERS[select.key]
+              ? (select.options.find((option) => option.value === select.value)?.label ??
+                select.value)
+              : null,
+          onRemove: () => update({ [select.key]: DEFAULT_DUPLICATE_FILTERS[select.key] }),
+        }))}
+        onClearAll={(resetDisabled ?? duplicateFiltersAreDefault(filters)) ? undefined : onReset}
+      >
         {selects.map((select) => (
-          <div key={select.key} className="flex items-center gap-2">
-            <Label
-              htmlFor={`${idPrefix}-${select.key}`}
-              className="text-sm font-normal text-muted-foreground"
-            >
-              {select.label}
-            </Label>
+          <div key={select.key} className="flex flex-col gap-2">
+            <Label htmlFor={`${idPrefix}-${select.key}`}>{select.label}</Label>
             <Select value={select.value} onValueChange={select.onChange}>
-              <SelectTrigger id={`${idPrefix}-${select.key}`} className={TOOLBAR_SELECT}>
+              <SelectTrigger id={`${idPrefix}-${select.key}`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {select.options.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {select.options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
         ))}
-        {(resetDisabled ?? duplicateFiltersAreDefault(filters)) ? null : (
-          <Button variant="link" size="sm" onClick={onReset}>
-            Reset filters
-          </Button>
-        )}
-      </div>
+      </ListFilters>
     </div>
   );
 }
