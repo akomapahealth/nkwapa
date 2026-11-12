@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, Clock, RefreshCw } from 'lucide-react';
+import { ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -22,6 +22,7 @@ import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
 import {
   StationRequestError,
+  ageInYears,
   claimStationVisit,
   fetchStationBoard,
   isStationBoard,
@@ -274,31 +275,109 @@ export default function StationsPage() {
     );
   }
 
+  const stationPicker = (
+    <Sheet open={stationSheetOpen} onOpenChange={setStationSheetOpen}>
+      <SheetTrigger asChild>
+        <Button
+          ref={stationTrigger}
+          variant="ghost"
+          disabled={!canUseStation}
+          className="h-auto max-w-full gap-2 whitespace-normal px-2 text-left"
+        >
+          {myStation ? (
+            <>
+              <span className="text-sm font-normal text-muted-foreground">Station</span>
+              <span className="min-w-0 break-words font-semibold">{myStation.name}</span>
+            </>
+          ) : (
+            <span className="min-w-0 break-words font-semibold">Choose station</span>
+          )}
+          <ChevronDown aria-hidden="true" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent
+        side={wideSheet ? 'right' : 'bottom'}
+        onCloseAutoFocus={(event) => {
+          // The selected station is reconciling, so its trigger may still be disabled.
+          if (stationTrigger.current?.disabled) {
+            event.preventDefault();
+            document.getElementById('main-content')?.focus();
+          }
+        }}
+        className={cn(
+          'flex flex-col bg-card p-0 pb-[env(safe-area-inset-bottom)]',
+          wideSheet ? 'w-full sm:max-w-md' : 'max-h-[85dvh] rounded-t-xl',
+        )}
+      >
+        <SheetHeader className="px-5 pb-4 pr-20 text-left">
+          <SheetTitle className="font-body">Choose your station</SheetTitle>
+          <SheetDescription>
+            Choose where you are working today. Changes need a connection.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-5 pb-6">
+          {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
+          {!stations.length ? (
+            <p className="text-sm text-muted-foreground">No stations are open.</p>
+          ) : null}
+          {stations.map((station) => (
+            <Button
+              key={station.id}
+              variant="outline"
+              aria-pressed={myStation?.id === station.id}
+              disabled={!canUseStation}
+              className={cn(
+                'h-auto min-h-11 justify-between gap-4 whitespace-normal py-3 text-left',
+                myStation?.id === station.id && 'border-primary bg-selected',
+              )}
+              onClick={() => void chooseStation(myStation?.id === station.id ? null : station.id)}
+            >
+              <span className="min-w-0 break-words">
+                {station.name}
+                {myStation?.id === station.id ? ' · you' : ''}
+              </span>
+              <span className="shrink-0 text-xs">
+                {station.visits.filter((visit) => visit.status === 'QUEUED').length} waiting
+              </span>
+            </Button>
+          ))}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+
+  const refreshButton = (
+    <Button
+      type="button"
+      variant="outline"
+      className="bg-card"
+      onClick={refresh}
+      disabled={!isOnline || view.isRefreshing || view.isInitialLoading}
+      title={isOnline ? undefined : 'Refreshing needs a connection.'}
+    >
+      <RefreshCw
+        aria-hidden="true"
+        className={view.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+      />
+      <span className="sr-only compact:not-sr-only">Refresh</span>
+    </Button>
+  );
+
+  // Queue positions count only the patients still waiting; someone being seen has no place in line.
+  let position = nextPatient ? 1 : 0;
+
   return (
     <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
       <div
-        className="flex min-w-0 flex-col gap-6 [&_h1]:font-body [&_h2]:font-body [&_h3]:font-body"
+        className={cn(
+          'flex min-w-0 flex-col gap-6 [&_h1]:font-body [&_h2]:font-body [&_h3]:font-body',
+          // Room for the phone's fixed Take button, so the last row is never under it.
+          currentShift && myStation && nextPatient && 'pb-24 compact:pb-0',
+        )}
         data-testid="station-workspace"
       >
-        <AppPageHeader
-          title="Stations"
-          description="Take the next patient at your station, record what the station measures, and hand them on."
-          actions={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={refresh}
-              disabled={!isOnline || view.isRefreshing || view.isInitialLoading}
-              title={isOnline ? undefined : 'Refreshing needs a connection.'}
-            >
-              <RefreshCw
-                aria-hidden="true"
-                className={view.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
-              />
-              Refresh
-            </Button>
-          }
-        />
+        {/* The duty strip and the "Next at" eyebrow carry the page visually, as in the pilot. */}
+        <h1 className="sr-only">Stations</h1>
         {!isOnline ? (
           <OfflineOpsBanner
             dataAsOf={view.dataAsOf}
@@ -339,6 +418,9 @@ export default function StationsPage() {
             roles={eligibleShiftRoles}
             timezone={timezone}
             disabled={shiftDisabled}
+            station={stationPicker}
+            refresh={refreshButton}
+            screener={myScreener}
             onStart={() => {
               setAwaitingShift('start');
               shiftControls.checkIn();
@@ -352,96 +434,19 @@ export default function StationsPage() {
         {knownShift && !canWriteShift ? (
           <p className="text-sm text-muted-foreground">This account cannot start or end shifts.</p>
         ) : null}
-        {currentShift ? (
-          <>
-            <div className="flex flex-col gap-3 compact:flex-row compact:items-center compact:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-xl font-semibold">My station</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {myStation
-                    ? `You are working at ${myStation.name}.`
-                    : 'Choose where you are working today.'}
-                </p>
-              </div>
-              <Sheet open={stationSheetOpen} onOpenChange={setStationSheetOpen}>
-                <SheetTrigger asChild>
-                  <Button
-                    ref={stationTrigger}
-                    variant="outline"
-                    disabled={!canUseStation}
-                    className="h-auto max-w-full whitespace-normal text-left"
-                  >
-                    <span className="min-w-0 break-words">
-                      {myStation ? `Change station: ${myStation.name}` : 'Choose station'}
-                    </span>
-                    <ChevronDown aria-hidden="true" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent
-                  side={wideSheet ? 'right' : 'bottom'}
-                  onCloseAutoFocus={(event) => {
-                    // The selected station is reconciling, so its trigger may still be disabled.
-                    if (stationTrigger.current?.disabled) {
-                      event.preventDefault();
-                      document.getElementById('main-content')?.focus();
-                    }
-                  }}
-                  className={cn(
-                    'flex flex-col bg-card p-0 pb-[env(safe-area-inset-bottom)]',
-                    wideSheet ? 'w-full sm:max-w-md' : 'max-h-[85dvh] rounded-t-xl',
-                  )}
-                >
-                  <SheetHeader className="px-5 pb-4 pr-20 text-left">
-                    <SheetTitle className="font-body">Choose your station</SheetTitle>
-                    <SheetDescription>
-                      Choose where you are working today. Changes need a connection.
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-5 pb-6">
-                    {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
-                    {!stations.length ? (
-                      <p className="text-sm text-muted-foreground">No stations are open.</p>
-                    ) : null}
-                    {stations.map((station) => (
-                      <Button
-                        key={station.id}
-                        variant="outline"
-                        aria-pressed={myStation?.id === station.id}
-                        disabled={!canUseStation}
-                        className={cn(
-                          'h-auto min-h-11 justify-between gap-4 whitespace-normal py-3 text-left',
-                          myStation?.id === station.id && 'border-primary bg-selected',
-                        )}
-                        onClick={() =>
-                          void chooseStation(myStation?.id === station.id ? null : station.id)
-                        }
-                      >
-                        <span className="min-w-0 break-words">
-                          {station.name}
-                          {myStation?.id === station.id ? ' · you' : ''}
-                        </span>
-                        <span className="shrink-0 text-xs">
-                          {station.visits.filter((visit) => visit.status === 'QUEUED').length}{' '}
-                          waiting
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </div>
-            {closedNotice ? <InlineNotice tone="warning">{closedNotice}</InlineNotice> : null}
-            {currentShift.pendingSync || currentShift.pendingCheckOut ? (
-              <InlineNotice tone="info" live={false}>
-                Your shift change still needs to sync. Station choices and taking patients need a
-                server-confirmed active shift.
-              </InlineNotice>
-            ) : null}
-          </>
+        {closedNotice ? <InlineNotice tone="warning">{closedNotice}</InlineNotice> : null}
+        {currentShift && (currentShift.pendingSync || currentShift.pendingCheckOut) ? (
+          <InlineNotice tone="info" live={false}>
+            Your shift change still needs to sync. Station choices and taking patients need a
+            server-confirmed active shift.
+          </InlineNotice>
         ) : null}
         {myPatients.length ? (
-          <section aria-labelledby="station-with-you" className="flex flex-col gap-3">
-            <h2 id="station-with-you" className="text-xl font-semibold">
+          <section aria-labelledby="station-with-you" className="flex flex-col gap-1">
+            <h2
+              id="station-with-you"
+              className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+            >
               With you now
             </h2>
             {myPatients.map((visit) => (
@@ -452,7 +457,8 @@ export default function StationsPage() {
                 <div className="min-w-0">
                   <p className="break-words font-semibold">{patientName(visit.patient)}</p>
                   <p className="break-words text-sm text-muted-foreground">
-                    {visit.patient.patientCode} · {visit.station.name}
+                    <span className="font-mono">{visit.patient.patientCode}</span> ·{' '}
+                    {visit.station.name}
                   </p>
                 </div>
                 <Button asChild>
@@ -465,71 +471,39 @@ export default function StationsPage() {
             ))}
           </section>
         ) : null}
+        {currentShift && !myStation && view.data ? (
+          <section
+            aria-labelledby="station-none"
+            className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border p-5"
+          >
+            <h2 id="station-none" className="text-lg font-semibold">
+              No station yet
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Choose where you are working today. The patients waiting there will show here.
+            </p>
+            <Button disabled={!canUseStation} onClick={() => setStationSheetOpen(true)}>
+              Choose your station
+            </Button>
+          </section>
+        ) : null}
         {currentShift && myStation ? (
           <>
-            <div className="grid min-w-0 gap-8 tablet:grid-cols-2">
+            <div className="grid min-w-0 gap-8 tablet:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
               <section aria-labelledby="station-next" className="min-w-0">
-                <h2 id="station-next" className="mb-3 text-xl font-semibold">
+                <h2
+                  id="station-next"
+                  className="mb-3 break-words text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+                >
                   Next at {myStation.name}
                 </h2>
                 {nextPatient ? (
-                  <article
-                    aria-label="Next patient"
-                    className="flex min-w-0 overflow-hidden rounded-lg border border-border"
-                  >
-                    <div className="flex w-14 shrink-0 flex-col items-center gap-2 border-r border-dashed border-mint-line bg-deep py-5 text-white compact:w-20">
-                      <span className="text-xs">Queue</span>
-                      <span className="font-mono text-2xl">01</span>
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 compact:p-5">
-                      <div>
-                        <h3 className="break-words text-2xl font-semibold">
-                          {patientName(nextPatient.patient)}
-                        </h3>
-                        <p className="mt-1 break-words font-mono text-sm text-muted-foreground">
-                          {nextPatient.patient.patientCode}
-                        </p>
-                      </div>
-                      <p
-                        className={cn(
-                          'text-sm',
-                          minutesSince(nextPatient.queuedAt) > LONG_WAIT_MINUTES
-                            ? 'text-warning-ink'
-                            : 'text-muted-foreground',
-                        )}
-                      >
-                        Waiting {minutesSince(nextPatient.queuedAt)} min
-                        {minutesSince(nextPatient.queuedAt) > LONG_WAIT_MINUTES
-                          ? ' · Waiting over 20 min'
-                          : ''}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Checked in {formatOpsDateTime(nextPatient.checkedInAt, timezone)}
-                      </p>
-                      {nextPatient.previous ? (
-                        <p className="break-words text-sm">
-                          From {nextPatient.previous.station.name}
-                          {nextPatient.previous.completedBy
-                            ? ` (${performerLabel(nextPatient.previous.completedBy.displayName, nextPatient.previous.performedByName)})`
-                            : ''}
-                          : {nextPatient.previous.handoffNote ?? 'no hand-off note'}
-                        </p>
-                      ) : null}
-                      {nextPatient.endReason ? (
-                        <p className="text-sm text-muted-foreground">
-                          Returned to the queue: {nextPatient.endReason}
-                        </p>
-                      ) : null}
-                      <Button
-                        disabled={!canClaim}
-                        onClick={() => void claim(nextPatient)}
-                        className="hidden compact:inline-flex"
-                      >
-                        {busyId === nextPatient.id ? 'Taking…' : 'Take patient'}
-                        <ArrowRight aria-hidden="true" />
-                      </Button>
-                    </div>
-                  </article>
+                  <NextPatientTicket
+                    visit={nextPatient}
+                    canClaim={canClaim}
+                    busy={busyId === nextPatient.id}
+                    onClaim={() => void claim(nextPatient)}
+                  />
                 ) : (
                   <EmptyStateCard
                     title="Nobody is waiting"
@@ -544,27 +518,31 @@ export default function StationsPage() {
                 ) : null}
               </section>
               <section aria-labelledby="station-queue" className="min-w-0">
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 id="station-queue" className="text-xl font-semibold">
-                    {myStation.name} queue
+                <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
+                  <h2 id="station-queue" className="text-lg font-semibold">
+                    Also waiting here
                   </h2>
-                  <span className="text-sm text-muted-foreground">Oldest first</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    Oldest first
+                  </span>
                 </div>
                 {otherPatients.length ? (
-                  otherPatients.map((visit) => (
-                    <QueueRow
-                      key={visit.id}
-                      visit={visit}
-                      userId={userId}
-                      holderScreener={
-                        visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
-                      }
-                      timezone={timezone}
-                      canClaim={canClaim}
-                      busy={busyId === visit.id}
-                      onClaim={() => void claim(visit)}
-                    />
-                  ))
+                  <ol>
+                    {otherPatients.map((visit) => (
+                      <QueueRow
+                        key={visit.id}
+                        visit={visit}
+                        position={visit.status === 'QUEUED' ? ++position : null}
+                        userId={userId}
+                        holderScreener={
+                          visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
+                        }
+                        canClaim={canClaim}
+                        busy={busyId === visit.id}
+                        onClaim={() => void claim(visit)}
+                      />
+                    ))}
+                  </ol>
                 ) : (
                   <p className="py-3 text-sm text-muted-foreground">
                     {nextPatient
@@ -581,23 +559,94 @@ export default function StationsPage() {
               >
                 <Button
                   disabled={!canClaim}
-                  aria-label={`Take patient: ${patientName(nextPatient.patient)}`}
                   onClick={() => void claim(nextPatient)}
-                  className="h-auto min-h-12 w-full whitespace-normal py-3 text-left"
+                  aria-label={
+                    busyId === nextPatient.id
+                      ? undefined
+                      : `Take ${patientName(nextPatient.patient)}`
+                  }
+                  className="h-auto min-h-12 w-full py-3 shadow-md"
                 >
-                  <span className="min-w-0 break-words">
-                    {busyId === nextPatient.id ? 'Taking…' : 'Take patient'}
+                  {/* One line, ellipsed: a long name must not grow the button over the page. */}
+                  <span className="min-w-0 truncate">
+                    {busyId === nextPatient.id
+                      ? 'Taking…'
+                      : `Take ${patientName(nextPatient.patient)}`}
                   </span>
+                  <ArrowRight aria-hidden="true" />
                 </Button>
               </div>
             ) : null}
           </>
         ) : null}
+        {view.data && currentShift ? (
+          <section aria-labelledby="station-line" className="station-line">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
+              <h2 id="station-line" className="text-lg font-semibold">
+                The whole line
+              </h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Refreshes while open
+              </p>
+            </div>
+            <ol className="station-route">
+              {stations.map((station) => {
+                const waiting = station.visits.filter((v) => v.status === 'QUEUED').length;
+                const seen = station.visits.filter((v) => v.status === 'IN_PROGRESS').length;
+                const mine = myStation?.id === station.id;
+                return (
+                  <li key={station.id} aria-current={mine ? 'location' : undefined}>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'station-route-stop',
+                        waiting + seen > 0 && 'station-route-stop-busy',
+                        mine && 'station-route-stop-mine',
+                      )}
+                    />
+                    <div className="min-w-0">
+                      <p className="flex items-baseline gap-1.5">
+                        <span
+                          className={cn(
+                            'font-mono text-2xl font-semibold tabular-nums leading-none',
+                            waiting === 0 && 'text-muted-foreground',
+                          )}
+                        >
+                          {waiting}
+                        </span>{' '}
+                        <span className="text-sm text-muted-foreground">waiting</span>
+                      </p>
+                      <p className="mt-2 break-words text-sm font-semibold">
+                        {station.name}
+                        {mine ? ' · you' : ''}
+                      </p>
+                      {seen ? (
+                        <p className="mt-1 text-sm text-muted-foreground">{seen} being seen</p>
+                      ) : null}
+                      <p className="mt-1 break-words text-sm text-muted-foreground">
+                        {station.staff.length
+                          ? station.staff
+                              .map((member) =>
+                                withScreener(member.displayName, member.screenerName),
+                              )
+                              .join(', ')
+                          : 'Nobody at this station'}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        ) : null}
         {currentShift && clinicId && getToken && canWork ? (
           <section aria-labelledby="screener-heading" className="border-t border-border pt-5">
-            <h2 id="screener-heading" className="mb-3 text-lg font-semibold">
+            <h2 id="screener-heading" className="mb-1 text-lg font-semibold">
               Who is working on this account?
             </h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Change this when someone without an account screens on yours.
+            </p>
             <fieldset disabled={!canUseStation} className="min-w-0">
               <legend className="sr-only">Screener details</legend>
               <ScreenerControl
@@ -611,134 +660,175 @@ export default function StationsPage() {
             </fieldset>
           </section>
         ) : null}
-        {view.data && currentShift ? (
-          <section
-            aria-labelledby="station-line"
-            className="station-line border-t border-border pt-5"
-          >
-            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="station-line" className="text-xl font-semibold">
-                The whole line
-              </h2>
-              <p className="text-sm text-muted-foreground">Refreshes while open</p>
-            </div>
-            <ol className="station-route">
-              {stations.map((station) => (
-                <li
-                  key={station.id}
-                  aria-current={myStation?.id === station.id ? 'location' : undefined}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'station-route-stop',
-                      myStation?.id === station.id && 'station-route-stop-mine',
-                    )}
-                  />
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-semibold">
-                      {station.name}
-                      {myStation?.id === station.id ? ' · you' : ''}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {station.visits.filter((v) => v.status === 'QUEUED').length} waiting ·{' '}
-                      {station.visits.filter((v) => v.status === 'IN_PROGRESS').length} being seen
-                    </p>
-                    <p className="mt-1 break-words text-sm text-muted-foreground">
-                      {station.staff.length
-                        ? station.staff
-                            .map((member) => withScreener(member.displayName, member.screenerName))
-                            .join(', ')
-                        : 'Nobody at this station'}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ) : null}
       </div>
     </RouteGuard>
   );
 }
 
-function QueueRow({
+/** Minutes on the meter: the same 40-minute scale and 20-minute warning as the station line. */
+const METER_SCALE = 40;
+
+function WaitMeter({ minutes }: { minutes: number }) {
+  const long = minutes > LONG_WAIT_MINUTES;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-muted-foreground">Waiting</span>
+        <span className={cn('font-semibold tabular-nums', long && 'text-warning-ink')}>
+          {minutes} min{long ? ' · Waiting over 20 min' : ''}
+        </span>
+      </div>
+      <div aria-hidden="true" className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn('h-full rounded-full', long ? 'bg-warning' : 'bg-primary')}
+          style={{ width: `${Math.min(100, (minutes / METER_SCALE) * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function NextPatientTicket({
   visit,
-  userId,
-  holderScreener,
-  timezone,
   canClaim,
   busy,
   onClaim,
 }: {
   visit: StationVisit;
+  canClaim: boolean;
+  busy: boolean;
+  onClaim: () => void;
+}) {
+  const age = ageInYears(visit.patient.dob);
+  const previous = visit.previous;
+  return (
+    <article
+      aria-label="Next patient"
+      className="flex min-w-0 overflow-hidden rounded-lg border border-border bg-card"
+    >
+      <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-1 border-r-2 border-dashed border-mint-line bg-deep py-5 text-white compact:w-24">
+        <span className="text-[0.6875rem] uppercase tracking-[0.12em] text-white/80">Queue</span>
+        <span className="font-mono text-3xl text-secondary">01</span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 compact:p-5">
+        {previous ? (
+          <p>
+            <span className="inline-block break-words rounded bg-info-surface px-2 py-1 text-xs font-semibold text-info-ink">
+              {previous.station.name} done
+            </span>
+          </p>
+        ) : null}
+        <div className="min-w-0">
+          <h3 className="break-words text-2xl font-semibold">{patientName(visit.patient)}</h3>
+          <p className="mt-1 break-words text-sm text-muted-foreground">
+            <span className="font-mono">{visit.patient.patientCode}</span>
+            {age !== null ? ` · ${age} yrs` : ''}
+          </p>
+        </div>
+        <WaitMeter minutes={minutesSince(visit.queuedAt)} />
+        {previous?.completedBy || previous?.handoffNote ? (
+          <div className="space-y-1 text-sm">
+            {previous.completedBy ? (
+              <p className="break-words text-muted-foreground">
+                Handed on by{' '}
+                {performerLabel(previous.completedBy.displayName, previous.performedByName)}
+              </p>
+            ) : null}
+            {previous.handoffNote ? (
+              <p className="break-words border-l-2 border-primary pl-3">{previous.handoffNote}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {visit.endReason ? (
+          <p className="text-sm text-muted-foreground">Returned to the queue: {visit.endReason}</p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={!canClaim} onClick={onClaim} className="hidden compact:inline-flex">
+            {busy ? 'Taking…' : 'Take patient'}
+            <ArrowRight aria-hidden="true" />
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/patients/${visit.patient.id}`}>Open chart</Link>
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function QueueRow({
+  visit,
+  position,
+  userId,
+  holderScreener,
+  canClaim,
+  busy,
+  onClaim,
+}: {
+  visit: StationVisit;
+  /** Place in line, counting the next patient as 1; null while someone is seeing them. */
+  position: number | null;
   userId: string;
   /** Who is really screening on the holder's account, if not them (#227). */
   holderScreener: string | null;
-  timezone: string;
   canClaim: boolean;
   busy: boolean;
   onClaim: () => void;
 }) {
   const taken = visit.status === 'IN_PROGRESS';
   const mine = taken && visit.claimedBy?.id === userId;
+  const minutes = minutesSince(visit.queuedAt);
+  const long = !taken && minutes > LONG_WAIT_MINUTES;
   return (
-    <div
+    <li
       className={cn(
-        'flex flex-col gap-3 border-b border-border py-4 sm:flex-row sm:items-start sm:justify-between',
-        !taken && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES && 'bg-warning-surface',
+        'grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 border-b border-border px-2 py-3',
+        long && 'bg-warning-surface',
         taken && !mine && 'bg-muted/40',
       )}
     >
-      <div className="min-w-0 space-y-1">
-        <p className="break-words font-medium">
-          {patientName(visit.patient)}{' '}
-          <span className="text-sm font-normal text-muted-foreground">
-            {visit.patient.patientCode}
-          </span>
+      <span className="pt-0.5 font-mono text-sm text-muted-foreground">
+        {position !== null ? String(position).padStart(2, '0') : ''}
+      </span>
+      <div className="min-w-0 space-y-0.5">
+        <p className="break-words font-semibold">{patientName(visit.patient)}</p>
+        <p className="break-words font-mono text-xs text-muted-foreground">
+          {visit.patient.patientCode}
         </p>
-        <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-          <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-          {!taken && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES
-            ? 'Waiting over 20 min'
-            : 'Waiting'}{' '}
-          {minutesSince(visit.queuedAt)} min · checked in{' '}
-          {formatOpsDateTime(visit.checkedInAt, timezone)}
-        </p>
-        {visit.previous ? (
-          <p className="text-sm">
-            <span className="text-muted-foreground">
-              From {visit.previous.station.name}
-              {visit.previous.completedBy
-                ? ` (${performerLabel(visit.previous.completedBy.displayName, visit.previous.performedByName)})`
-                : ''}
-              :
-            </span>{' '}
-            {visit.previous.handoffNote ?? 'no hand-off note'}
+        {visit.previous?.handoffNote ? (
+          <p className="break-words pt-1 text-sm">
+            <span className="text-muted-foreground">Note: </span>
+            {visit.previous.handoffNote}
           </p>
         ) : null}
         {visit.endReason && visit.status === 'QUEUED' ? (
           <p className="text-xs text-muted-foreground">Returned to the queue: {visit.endReason}</p>
         ) : null}
       </div>
-      {taken ? (
-        mine ? (
-          <Button asChild size="sm">
-            <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
-          </Button>
+      <div className="flex flex-col items-end gap-2">
+        <span className={cn('text-sm tabular-nums', long && 'font-semibold text-warning-ink')}>
+          {long ? 'Waiting over 20 min · ' : ''}
+          {minutes} min
+        </span>
+        {taken ? (
+          mine ? (
+            <Button asChild size="sm">
+              <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
+            </Button>
+          ) : (
+            <Badge variant="secondary">
+              With{' '}
+              {visit.claimedBy
+                ? withScreener(visit.claimedBy.displayName, holderScreener)
+                : 'someone'}
+            </Badge>
+          )
         ) : (
-          <Badge variant="secondary">
-            With{' '}
-            {visit.claimedBy
-              ? withScreener(visit.claimedBy.displayName, holderScreener)
-              : 'someone'}
-          </Badge>
-        )
-      ) : (
-        <Button size="sm" onClick={onClaim} disabled={!canClaim}>
-          {busy ? 'Taking…' : 'Take patient'}
-        </Button>
-      )}
-    </div>
+          <Button size="sm" variant="outline" onClick={onClaim} disabled={!canClaim}>
+            {busy ? 'Taking…' : 'Take patient'}
+          </Button>
+        )}
+      </div>
+    </li>
   );
 }

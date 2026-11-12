@@ -561,6 +561,17 @@ export function minutesSince(iso: string, now: Date = new Date()): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000));
 }
 
+/** Whole years from a date of birth (YYYY-MM-DD or ISO), or null without one. */
+export function ageInYears(dob: string | null, now: Date = new Date()): number | null {
+  if (!dob) return null;
+  const [y, m, d] = dob.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const age = now.getUTCFullYear() - y;
+  const birthdayPassed =
+    now.getUTCMonth() + 1 > m || (now.getUTCMonth() + 1 === m && now.getUTCDate() >= d);
+  return birthdayPassed ? age : age - 1;
+}
+
 export function patientName(patient: StationVisit['patient']): string {
   return `${patient.firstName} ${patient.lastName}`.trim();
 }

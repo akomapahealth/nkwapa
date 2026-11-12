@@ -1076,6 +1076,17 @@ Keep this phase independent of critical staff workflows.
 - Dark-mode pass.
 - Performance checks.
 
+## Phase W — Role workspaces (added 2026-11-11, before R8)
+
+Pilot layout parity for the screens R1 to R7 restyled without recomposing. Plan, findings and owner
+decisions in `ui-refresh/PHASE-W.md`.
+
+- W1 Stations: duty strip, ticket first, compact queue, counted line.
+- W2 Dashboard: one home for the person's main role (SYSTEM_ADMIN > DIRECTOR > MANAGER > DOCTOR >
+  VOLUNTEER), other roles as "Also on your plate" links.
+- W3 Patients and Queues: pilot table density.
+- W4 Volunteer home: greeting, line, clinic-day checklist first.
+
 ## Phase R8 — Final QA and Release Preparation
 
 - Full route audit.

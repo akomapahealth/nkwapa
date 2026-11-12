@@ -3,7 +3,7 @@
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
-**Status:** R0 completed 2026-11-07. R1.1 through R1.6, R2.1 through R2.5 and R3.1 through R3.7 are built on `ui-refresh/r1-1-tokens` and in review. Prior open-overlay accessibility findings remain separate. Next: R3.8 Encounters.
+**Status (2026-11-11):** R7 complete. **Phase W (role workspaces) runs before R8: read `ui-refresh/PHASE-W.md`.** Older status: R0 completed 2026-11-07. R1.1 through R1.6, R2.1 through R2.5 and R3.1 through R3.7 are built on `ui-refresh/r1-1-tokens` and in review. Prior open-overlay accessibility findings remain separate. Next: R3.8 Encounters.
 
 ## Phase Status
 
@@ -16,8 +16,9 @@
 | R4    | Clinical review and oversight          | Not started |
 | R5    | Patient portal and authentication      | In progress |
 | R6    | Supporting public experience           | In review   |
-| R7    | Motion and visual polish               | Not started |
-| R8    | Final QA and release readiness         | Not started |
+| R7    | Motion and visual polish               | Completed   |
+| W     | Role workspaces (pilot layout parity)  | In progress |
+| R8    | Final QA and release readiness         | Not started (after W) |
 
 Allowed statuses: `Not started`, `In progress`, `Blocked`, `In review`, `Completed`.
 
@@ -1368,6 +1369,27 @@ every surface's brightness in one frame; load and the OS following stay instant.
 palette check, design hook clean. Scratch dark spec over the R7.5 states and the switch (deleted).
 Focused Chromium over 10 specs 76/76. Six-role audit **228 rows, 0 violations, 0 overflow**. Local
 commit only; no push. Next is `ui-refresh/HANDOFF-R7.7.md`.
+
+## W1 Stations to the pilot layout (2026-11-11)
+
+Phase W inserted before R8 (`ui-refresh/PHASE-W.md`): R1 to R7 restyled screens without
+recomposing them, and no unit owned the role dashboards. W1 rebuilds `/stations` to the pilot: one
+duty strip (state, since, station picker, Refresh, End shift; two rows on a phone), the next-patient
+ticket first (gold queue number, previous station done, code · age, wait meter with the 20-minute
+amber rule, hand-off only when written, Take patient + Open chart), "Also waiting here" as compact
+rows, a line led by waiting counts with busy stops filled, and the screener control last. On a 390
+phone the next patient is now on the first screen. The phone action reads "Take <name>". Landing
+Stations screenshots re-captured as `-20261112`. Rules in MASTER ("Stations workspace refresh"),
+detail in `ui-refresh/W1-REVIEW.md`.
+
+**Validation:** audit-flag build, TypeScript, changed-file lint/format, Jest 1053/1053 (new
+`ageInYears` cases). Focused Chromium (stations-workspace-refresh, station-workflow,
+station-redesign, volunteer-dashboard-refresh, workspace-smoke) **62/62** after fixing three defects
+the first runs caught (a 200%-text phone action that grew to 1528 px, "2waiting" text content, and
+specs naming removed copy or `div` rows). `today-offline` still fails its three flag-incompatible
+"Today Board" cases, as on baseline (R3.2). Six-role route audit **12/12, 228 rows, 0 violations,
+0 minor, 0 overflow, one h1 everywhere**. Synthetic evidence at 1440/1024/744/390/320 in both
+themes (not committed). Next: `ui-refresh/HANDOFF-W2.md`. Local commit only; no push.
 
 ## R7.7 follow-up: current product screenshots and a generated link preview (2026-11-11)
 

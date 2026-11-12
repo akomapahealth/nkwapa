@@ -1,5 +1,8 @@
 # Handoff: R8.1 Full route audit
 
+> **Blocked until Phase W is done.** The owner inserted Phase W (role workspaces) before R8 on
+> 2026-11-11. Finish W1 to W4 from `PHASE-W.md` first; then this handoff applies unchanged.
+
 Continue the frontend-only Layered Clinical Workspace refresh on `ui-refresh/r1-1-tokens`. Learning
 guardrails stay suspended (direct mode, no teach-back). Implement **R8.1 only**, validate, review,
 update docs and commit locally. Do not push.

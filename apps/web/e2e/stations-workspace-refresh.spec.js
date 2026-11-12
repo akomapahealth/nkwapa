@@ -6,7 +6,7 @@ const { storageStateFor } = require('../playwright/roles');
 
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
 const shiftPanel = (page) => page.getByTestId('station-shift');
-const picker = (page) => page.getByRole('button', { name: /^(Choose station|Change station:)/ });
+const picker = (page) => page.getByRole('button', { name: /^(Choose station|Station )/ });
 const sheet = (page) => page.getByRole('dialog', { name: 'Choose your station' });
 async function capture(page, name) {
   if (!process.env.DESIGN_STATIONS_DIR) return;
@@ -276,7 +276,7 @@ test.describe('Stations workspace refresh', () => {
       );
       await expect(field).toHaveValue('Synthetic Screener');
       const line = page.getByRole('region', { name: 'The whole line' });
-      await expect(line).toContainText('2 waiting · 0 being seen');
+      await expect(line).toContainText('2 waiting');
       await expect(line).toContainText('Synthetic Volunteer (Synthetic Screener screening)');
       await line.scrollIntoViewIfNeeded();
       await capture(page, `${theme}-line`);
@@ -410,7 +410,7 @@ test.describe('Stations workspace refresh', () => {
         el.click();
       });
     await expect(sheet(page)).toHaveCount(0);
-    await expect(page.getByText('You are working at Blood pressure.')).toBeVisible();
+    await expect(picker(page)).toHaveAccessibleName('Station Blood pressure');
     expect(state.choices).toBe(1);
     state.closed = true;
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();

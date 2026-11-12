@@ -28,6 +28,9 @@
   border-radius: 50%;
   background: hsl(var(--card));
 }
+.station-route-stop-busy {
+  background: hsl(var(--primary));
+}
 .station-route-stop-mine {
   border-color: hsl(var(--secondary));
   background: hsl(var(--secondary));

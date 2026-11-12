@@ -990,6 +990,20 @@ The whole line uses one route stop per actual station, gold for the user's stop,
 with actual waiting/being-seen counts and staffing. It reflows by available width.
 No workflow completion badges, new APIs or undo behavior are inferred from the pilot.
 
+**W1 (2026-11-11) supersedes the layout above** (`ui-refresh/W1-REVIEW.md`). One duty strip on a
+mint band holds duty state, role · since (role hidden below `compact`, the header shows it), the
+station picker (`Station <name> ⌄`, ghost; "Choose station" with none), Refresh and End shift; on a
+phone it is two rows, the picker second. The page `h1` "Stations" is screen-reader only; the
+"Next at <station>" eyebrow leads. The ticket shows a gold queue number, "<previous station> done",
+name, code · age (from `dob`; sex is not on the station read, so it is not shown), a wait meter on
+the station line's 40-minute scale (amber past 20), "Handed on by …", the hand-off note only when
+written, Take patient and Open chart. Check-in time and "no hand-off note" are gone. "Also waiting
+here" rows: place in line (queued only), name, code, minutes, outline Take patient. The phone's
+fixed action reads "Take <name>" on one ellipsed line, full name in its label. The line leads each
+stop with its waiting count, fills busy stops and leaves empty ones hollow; "being seen" shows only
+when non-zero. "Who is working on this account?" comes last; the strip says "recording as <name>"
+when it is not the holder.
+
 Station setup, the station visit workbench, visit history/hand-off and My Assigned
 use `RecordSection` rules. Shared history, eye, counselling, results and shift panels
 opt into that treatment only on these routes; VitalsForm uses its existing

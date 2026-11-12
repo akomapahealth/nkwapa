@@ -82,7 +82,7 @@ export function PhoneFrame({
   className,
   sizes,
   priority,
-  src = '/product/stations-phone-20261111.png',
+  src = '/product/stations-phone-20261112.png',
   alt = PHONE_ALT,
   height = 1744,
 }: PhoneFrameProps) {

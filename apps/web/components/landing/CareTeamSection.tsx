@@ -9,7 +9,7 @@ const DECK = [
   {
     role: 'Volunteers',
     text: 'Register, check in and measure at their station.',
-    src: '/product/volunteer-stations-20261111.png',
+    src: '/product/volunteer-stations-20261112.png',
     alt: "A volunteer's Stations screen: the next patient at blood pressure and how long they have waited, the rest of that station's queue, and the whole line from registration to review with who is at each station.",
   },
   {
