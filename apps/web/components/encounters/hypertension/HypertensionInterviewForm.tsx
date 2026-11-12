@@ -748,7 +748,7 @@ export function HypertensionInterviewForm({
         </InterviewSection>
 
         <InterviewSection id="lifestyle" title="Nutrition and lifestyle">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-6">
             <ChoiceQuestion
               {...q('htn-lifestyle-salt-cooking')}
               ask="Do you add salt when you cook?"
@@ -879,7 +879,7 @@ export function HypertensionInterviewForm({
             labels={CARDIOMETABOLIC_CONDITION_LABELS}
             exclusive={['NONE_KNOWN', 'UNSURE']}
           />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-6">
             <ChoiceQuestion
               {...q('htn-pregnant-now')}
               ask="Are you pregnant now?"
@@ -906,7 +906,7 @@ export function HypertensionInterviewForm({
           title="Essential screening status"
           description="Record what has been done. Do not decide what is indicated."
         >
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-6">
             <ChoiceQuestion
               {...q('htn-kidney-testing')}
               ask="In the past year, have you had a blood test for your kidneys?"

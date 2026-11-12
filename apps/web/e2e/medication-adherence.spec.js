@@ -180,6 +180,7 @@ test('each condition keeps its own adherence answers for the same encounter', as
 
   // Diabetes asks about the pattern over time, not about today.
   await page.getByRole('tab', { name: 'Diabetes' }).click();
+  await openSection(page, 'Diabetes interview', /Medications/);
   const diabetesCard = page.getByRole('region', { name: /Metformin/ });
   await expect(diabetesCard).toBeVisible();
   await expect(diabetesCard.getByLabel('Took it today?', { exact: true })).toHaveCount(0);
