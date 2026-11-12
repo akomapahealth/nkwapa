@@ -77,9 +77,11 @@ test('record navigation and ID validation preserve the chart and consent contrac
   await expect(page.getByRole('heading', { name: 'Needs you now', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Vitals', exact: true }).click();
   await expect(page).toHaveURL(/tab=vitals/);
+  // MASTER R3.8: 40px on a mouse, 44px on touch.
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
   await expect(page.getByRole('tab', { name: 'Vitals', exact: true })).toHaveCSS(
     'min-height',
-    '44px',
+    coarse ? '44px' : '40px',
   );
   await page.goto(`${chart}/edit`);
   await page.getByRole('button', { name: 'Change ID', exact: true }).click();
