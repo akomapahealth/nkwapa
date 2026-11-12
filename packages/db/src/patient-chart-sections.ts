@@ -14,8 +14,8 @@ export const PATIENT_CHART_SECTION_IDS = [
   'overview',
   'vitals',
   'medications',
-  'diabetes',
   'hypertension',
+  'diabetes',
   'medical-history',
   'notes',
   'visits',
@@ -66,12 +66,6 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
     requiredPermission: 'MEDICATION_RECONCILIATION.READ',
     featureFlag: 'medicationReconciliation',
   },
-  {
-    id: 'diabetes',
-    label: 'Diabetes',
-    description: 'Glucose and HbA1c screening history with suspicion status.',
-    requiredPermission: 'SCREENING.READ',
-  },
   /*
     Hypertension was recorded at every encounter and never shown on the chart: the section list
     simply had no entry for it, so a clinician could read a patient's diabetes history but had to
@@ -83,6 +77,12 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
     id: 'hypertension',
     label: 'Hypertension',
     description: 'Blood-pressure assessment history with classification and follow-up signals.',
+    requiredPermission: 'SCREENING.READ',
+  },
+  {
+    id: 'diabetes',
+    label: 'Diabetes',
+    description: 'Glucose and HbA1c screening history with suspicion status.',
     requiredPermission: 'SCREENING.READ',
   },
   {

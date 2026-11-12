@@ -459,11 +459,11 @@ export default function EncounterDetailPage() {
               <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
                 Vitals
               </TabsTrigger>
-              <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
-                Diabetes
-              </TabsTrigger>
               <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
                 Hypertension
+              </TabsTrigger>
+              <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
+                Diabetes
               </TabsTrigger>
               {canFinalize && (
                 <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>

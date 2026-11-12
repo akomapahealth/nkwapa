@@ -276,42 +276,6 @@ export function PatientChartOverview({
           </SummaryCard>
         ) : null}
 
-        {summary?.diabetes ? (
-          <SummaryCard
-            icon={Activity}
-            title="Latest diabetes screening"
-            action={
-              <SectionLink
-                clinicId={clinicId}
-                patientId={patientId}
-                section="diabetes"
-                onNavigate={onNavigate}
-              >
-                View
-              </SectionLink>
-            }
-          >
-            {latestDiabetes ? (
-              <div className="space-y-1">
-                <p className="type-data">
-                  {latestDiabetes.glucoseMgDl !== null
-                    ? `Glucose ${formatGlucose(latestDiabetes.glucoseMgDl, units.glucoseUnit)}`
-                    : 'Glucose not recorded'}
-                  {latestDiabetes.hba1cPercent !== null
-                    ? ` · HbA1c ${formatHba1c(latestDiabetes.hba1cPercent, units.hba1cUnit)}`
-                    : ''}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatOpsDateTime(latestDiabetes.collectedAt)}
-                  {latestDiabetes.recordedBy ? ` · ${latestDiabetes.recordedBy.displayName}` : ''}
-                </p>
-              </div>
-            ) : (
-              <NotRecorded>No screening recorded yet.</NotRecorded>
-            )}
-          </SummaryCard>
-        ) : null}
-
         {summary?.hypertension ? (
           <SummaryCard
             icon={Gauge}
@@ -349,6 +313,42 @@ export function PatientChartOverview({
               </div>
             ) : (
               <NotRecorded>No assessment recorded yet.</NotRecorded>
+            )}
+          </SummaryCard>
+        ) : null}
+
+        {summary?.diabetes ? (
+          <SummaryCard
+            icon={Activity}
+            title="Latest diabetes screening"
+            action={
+              <SectionLink
+                clinicId={clinicId}
+                patientId={patientId}
+                section="diabetes"
+                onNavigate={onNavigate}
+              >
+                View
+              </SectionLink>
+            }
+          >
+            {latestDiabetes ? (
+              <div className="space-y-1">
+                <p className="type-data">
+                  {latestDiabetes.glucoseMgDl !== null
+                    ? `Glucose ${formatGlucose(latestDiabetes.glucoseMgDl, units.glucoseUnit)}`
+                    : 'Glucose not recorded'}
+                  {latestDiabetes.hba1cPercent !== null
+                    ? ` · HbA1c ${formatHba1c(latestDiabetes.hba1cPercent, units.hba1cUnit)}`
+                    : ''}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatOpsDateTime(latestDiabetes.collectedAt)}
+                  {latestDiabetes.recordedBy ? ` · ${latestDiabetes.recordedBy.displayName}` : ''}
+                </p>
+              </div>
+            ) : (
+              <NotRecorded>No screening recorded yet.</NotRecorded>
             )}
           </SummaryCard>
         ) : null}
