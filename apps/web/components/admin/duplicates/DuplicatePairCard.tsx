@@ -10,7 +10,7 @@ import {
 } from '@/lib/patient-duplicates';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatOpsDateTime } from '@/lib/ops';
+import { RelativeTime } from '@/components/app-shell/RelativeTime';
 import { MergeUnavailableBadge } from './MergeAvailability';
 
 /**
@@ -63,7 +63,7 @@ export function DuplicatePairCard({
       {/* An approximate name match reads like any other reason in that list. */}
       {precision ? <p className="mt-1 text-sm leading-5 text-warning-ink">{precision}</p> : null}
       <p className="mt-2 text-sm tabular-nums text-muted-foreground">
-        Last updated {formatOpsDateTime(candidate.lastUpdatedAt)}
+        Last updated <RelativeTime value={candidate.lastUpdatedAt} />
       </p>
       <Button variant="outline" className="mt-4 w-full" onClick={() => onCompare(candidate)}>
         Compare charts

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { StatusLabel } from '@/components/ui/status-label';
 import type { DataTableColumn } from '@/components/ui/data-table';
-import { formatOpsDateTime } from '@/lib/ops';
+import { RelativeTime } from '@/components/app-shell/RelativeTime';
 
 export interface RecentVisit {
   /** The encounter's id. */
@@ -49,11 +49,7 @@ export const recentVisitColumns: DataTableColumn<RecentVisit>[] = [
     header: 'Visit started',
     cell: ({ getValue }) => {
       const value = getValue() as string | null | undefined;
-      return value ? (
-        <time dateTime={value} className="tabular-nums">
-          {formatOpsDateTime(value)}
-        </time>
-      ) : null;
+      return value ? <RelativeTime value={value} /> : null;
     },
   },
 ];

@@ -10,6 +10,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { formatOpsDateTime, readApiError } from '@/lib/ops';
+import { RelativeTime } from '@/components/app-shell/RelativeTime';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -228,7 +229,7 @@ export default function RemindersPage() {
       header: 'Created',
       cell: ({ getValue }) => {
         const v = getValue() as string | number | null | undefined;
-        return v ? formatOpsDateTime(v as string) : '';
+        return v ? <RelativeTime value={v as string} /> : '';
       },
     },
     {
@@ -246,7 +247,7 @@ export default function RemindersPage() {
       header: 'Sent',
       cell: ({ getValue }) => {
         const v = getValue() as string | number | null | undefined;
-        return v ? formatOpsDateTime(v as string) : '';
+        return v ? <RelativeTime value={v as string} /> : '';
       },
     },
     {
@@ -327,7 +328,7 @@ export default function RemindersPage() {
       header: 'Updated',
       cell: ({ getValue }) => {
         const v = getValue() as string | number | null | undefined;
-        return v ? formatOpsDateTime(v as string) : '';
+        return v ? <RelativeTime value={v as string} /> : '';
       },
     },
     {

@@ -15,7 +15,8 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { formatOpsDateTime, readApiError } from '@/lib/ops';
+import { RelativeTime } from '@/components/app-shell/RelativeTime';
+import { readApiError } from '@/lib/ops';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import {
   buildDuplicateQuery,
@@ -280,9 +281,7 @@ export function DuplicateReviewScreen() {
         header: 'Updated',
         enableSorting: false,
         cell: ({ row: params }) => (
-          <span className="tabular-nums text-muted-foreground">
-            {formatOpsDateTime(params.original.lastUpdatedAt)}
-          </span>
+          <RelativeTime value={params.original.lastUpdatedAt} className="text-muted-foreground" />
         ),
       },
       {

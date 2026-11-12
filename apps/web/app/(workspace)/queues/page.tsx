@@ -26,7 +26,7 @@ import {
   type DataTableColumn,
 } from '@/components/ui/data-table';
 import { PatientIdentity } from '@/components/patients/PatientRegistryCard';
-import { formatOpsDateTime } from '@/lib/ops';
+import { RelativeTime } from '@/components/app-shell/RelativeTime';
 import { cn } from '@/lib/utils';
 import {
   encounterQueueQuery,
@@ -452,11 +452,7 @@ function OpenEncounter({ row, className }: { row: QueueRow; className?: string }
   );
 }
 function QueueTime({ row }: { row: QueueRow }) {
-  return (
-    <time dateTime={row.createdAt} className="tabular-nums">
-      {formatOpsDateTime(row.createdAt)}
-    </time>
-  );
+  return <RelativeTime value={row.createdAt} />;
 }
 /** BP stage and the glucose flag together. Nothing raised is "Nothing flagged", never "normal". */
 function QueueFlags({ row }: { row: QueueRow }) {
