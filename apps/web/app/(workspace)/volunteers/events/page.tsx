@@ -11,12 +11,13 @@ import { apiFetch, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { eventsPath, formatEventWhen, type ScreeningEvent } from '@/lib/volunteers';
 import { RouteGuard } from '@/components/RouteGuard';
+import { cn } from '@/lib/utils';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Button } from '@/components/ui/button';
-import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { DataTable, type DataTableColumn, SHEET_GUTTER } from '@/components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -82,6 +83,7 @@ function EventsContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
+        className="border-b-0 pb-0 md:pb-0"
         title="Screening days"
         description={`Plan screening days and who volunteers at each. Times are in clinic time (${timezone}).`}
         actions={
@@ -118,6 +120,7 @@ function EventsContent() {
       >
         {(data) => (
           <DataTable
+            bleed
             caption="Screening days"
             columns={columns}
             data={data.items}
@@ -126,7 +129,7 @@ function EventsContent() {
             onRowClick={open}
             keyboardScroll
             renderMobileRow={(event) => (
-              <div className="space-y-2 border-t border-rule py-4">
+              <div className={cn('space-y-2 border-t border-rule py-4', SHEET_GUTTER)}>
                 <div className="flex items-center justify-between gap-2">
                   <Link
                     href={`/volunteers/events/${event.id}`}

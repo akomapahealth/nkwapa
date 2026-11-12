@@ -54,5 +54,5 @@ After W4: update `PROGRESS.md` screen matrix rows for every screen W touched, th
 
 - W1: complete (2026-11-11), `W1-REVIEW.md`. Next: `HANDOFF-W2.md`
 - W2: complete (2026-11-12), `W2-REVIEW.md`. Next: `HANDOFF-W3.md`
-- W3: not started
+- W3: complete (2026-11-12), `W3-REVIEW.md`. Next: `HANDOFF-W4.md`
 - W4: not started

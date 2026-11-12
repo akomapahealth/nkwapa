@@ -7,6 +7,7 @@ export function AppPageHeader({
   context,
   breadcrumbs,
   title,
+  count,
   description,
   hint,
   helpTitle,
@@ -22,6 +23,11 @@ export function AppPageHeader({
   context?: string;
   breadcrumbs?: React.ReactNode;
   title: string;
+  /**
+   * How many records the page lists, beside the title as in the R0 pilot ("Patients 38"). Leave
+   * it out until the total is known: a guessed or loading count is worse than none.
+   */
+  count?: number;
   description?: string;
   /** One sentence of help, shown in a bubble beside the title. */
   hint?: string;
@@ -58,6 +64,13 @@ export function AppPageHeader({
           */}
           <div className={cn('type-page-title', context && 'mt-1')}>
             <h1 className="inline align-middle text-foreground">{title}</h1>
+            {count !== undefined ? (
+              // Beside the h1, not in it: the page's name stays "Patients", the total is read after.
+              <span className="ml-2 align-middle font-mono text-sm font-normal tabular-nums tracking-normal text-muted-foreground">
+                <span className="sr-only">Total </span>
+                {count.toLocaleString('en-GB')}
+              </span>
+            ) : null}
             {helpText ? (
               <InfoHint label={helpTitle ?? 'How this page works'} className="ml-2">
                 <div className="space-y-2">

@@ -1370,6 +1370,34 @@ palette check, design hook clean. Scratch dark spec over the R7.5 states and the
 Focused Chromium over 10 specs 76/76. Six-role audit **228 rows, 0 violations, 0 overflow**. Local
 commit only; no push. Next is `ui-refresh/HANDOFF-R7.7.md`.
 
+## W3 Patients and Queues to the pilot tables (2026-11-12)
+
+Phase W unit 3 (`ui-refresh/PHASE-W.md`). The pilot's list language now lives in the shared
+`DataTable` (mono capital column labels on `--surface-2`, ghost pager, opt-in `bleed` edge-to-edge
+on the sheet gutter), `AppPageHeader` (`count` beside the title when the API gives a true total) and
+`Button` (`primaryOutline`, pilot `.btn-teal`), so every role's list tabs read the same. Patients:
+total beside the serif title, full-width search with a `/` hint, dashed Filter chip with removable
+chips, columns Patient (name over code), Phone (masked), ID last 4, quiet View + teal-outline Check
+in; phone rows name-link, meta line and Check in, swipe kept, phone now masked on phones too.
+Queues: tabs Drafts / Review / Sign-off / Cosign, Patient, Created in Accra time, Flags ("Nothing
+flagged"), quiet Open; ghost Refresh. Volunteers and Screening days bleed too; My Assigned headers to
+sentence case. "Last visit" and "Location" need API fields (not added). Rules in MASTER "Lists
+(W3)", detail in `ui-refresh/W3-REVIEW.md`.
+
+**Validation:** audit-flag builds, TypeScript, changed-file lint/format, Jest 1052/1052 (97
+suites). Focused Chromium (assigned-redesign, dark-mode, data-table-surfaces, keyboard-focus,
+patient-identity, patient-merge-preview, patient-registry-screened, patient-registry-workspace,
+patient-residential-location, queue-workspace, route-audit-findings, shell-consumers,
+stale-refresh, volunteer-roster, workspace-smoke): first run 113/121; six registry failures fixed
+(card link name, chip text, a duplicate screened alert while the sheet is open, the swipe helper
+measuring before touch emulation revealed the swipe hint); re-run of the five affected files 39/41.
+Remaining two are on untouched screens (residential record line, portal self-report focus at 390),
+noted in the review as pre-existing, not compared against HEAD. Six-role route audit **12/12, 228
+rows, 0 violations, 0 minor, 0 overflow, one h1 everywhere** (same as W2). Captures at
+1440/1024/744/390/320 in both themes for Patients, Queues and Volunteers plus the phone filter sheet,
+0 overflow (audit DB, not committed). Local commit only; no push.
+Next: `ui-refresh/HANDOFF-W4.md`.
+
 ## W2 One home per main role (2026-11-12)
 
 Phase W unit 2 (`ui-refresh/PHASE-W.md`). `/dashboard` is now one home for the person's main role in

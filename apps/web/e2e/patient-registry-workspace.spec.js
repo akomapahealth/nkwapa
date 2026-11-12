@@ -232,18 +232,20 @@ test('read-only registry hides create and check-in actions, including swipe', as
   await expect(page.getByRole('article', { name: 'Synthetic Registry' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'New Patient', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Check in', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'View record', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Synthetic Registry', exact: true })).toBeVisible();
 });
 
 async function swipe(page, { cancel = false, vertical = false, distance = 130 } = {}) {
   const heading = page.getByRole('article', { name: 'Synthetic Registry' }).getByRole('heading');
-  await heading.scrollIntoViewIfNeeded();
-  const box = await heading.boundingBox();
-  const x = box.x + Math.min(box.width - 16, 220);
-  const y = box.y + box.height / 2;
   const session = await page.context().newCDPSession(page);
   try {
     await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    // Measure under touch: a coarse pointer shows the swipe hint, which moves the rows down.
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await heading.scrollIntoViewIfNeeded();
+    const box = await heading.boundingBox();
+    const x = box.x + Math.min(box.width - 16, 220);
+    const y = box.y + box.height / 2;
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
     await session.send('Input.dispatchTouchEvent', {
       type: 'touchMove',

@@ -52,7 +52,7 @@ for (const theme of ['light', 'dark']) {
     const beforeURL = page.url();
     const beforeRequests = requests;
     const href = await cards
-      .getByRole('link', { name: 'View record', exact: true })
+      .getByRole('link', { name: 'Synthetic Shell', exact: true })
       .getAttribute('href');
     for (const collapsed of [true, false, true]) {
       await page
@@ -66,7 +66,10 @@ for (const theme of ['light', 'dark']) {
       expect(requests).toBe(beforeRequests);
       const active = collapsed ? table : cards;
       await expect(
-        active.getByRole('link', { name: collapsed ? 'View' : 'View record', exact: true }),
+        active.getByRole('link', {
+          name: collapsed ? 'View' : 'Synthetic Shell',
+          exact: true,
+        }),
       ).toHaveAttribute('href', href);
       await shot(page, `patient-${collapsed ? 'table' : 'cards'}-${theme}`);
     }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, SlidersHorizontal, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Search, SlidersHorizontal, UserPlus, Users, X } from 'lucide-react';
 import { apiFetch, readApiError as readApiErrorDetail } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -31,7 +31,11 @@ import {
   ResidentialLocationFilters,
 } from '@/components/patients/ResidentialLocationFilters';
 import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
-import { PatientRegistryCard } from '@/components/patients/PatientRegistryCard';
+import {
+  PatientIdentity,
+  PatientRegistryCard,
+  maskPhone,
+} from '@/components/patients/PatientRegistryCard';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -124,9 +128,11 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     lead can share "patients screened 10 Oct" as a link. Any filter change goes back to page 1.
   */
   const searchParams = useSearchParams();
-  const [view, setView] = useState<RegistryView>(() =>
-    parseRegistryView(new URLSearchParams(searchParams.toString())),
-  );
+  const [view, setView] = useState<RegistryView>(() => {
+    const parsed = parseRegistryView(new URLSearchParams(searchParams.toString()));
+    // W3 folded the code into the Patient column, so an old "sort by code" link sorts nothing.
+    return parsed.sorting[0]?.id === 'patientCode' ? { ...parsed, sorting: [] } : parsed;
+  });
   const { q, location: locationFilter, page, pageSize, sorting } = view;
   const updateView = (patch: Partial<RegistryView>) =>
     setView((current) => ({ ...current, page: 0, ...patch }));
@@ -245,18 +251,17 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
 
   const columns: DataTableColumn<PatientSummary>[] = [
     {
-      id: 'patientCode',
-      accessorKey: 'patientCode',
-      header: 'Patient code',
-      meta: { className: 'whitespace-nowrap font-mono text-xs' },
-    },
-    {
+      // Name over code, as in the pilot: one identity per row, read in one glance.
       id: 'name',
       accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
-      header: 'Name',
-      meta: {
-        className: 'whitespace-normal break-words font-body text-base font-semibold max-w-64',
-      },
+      header: 'Patient',
+      meta: { className: 'min-w-56 max-w-80 whitespace-normal' },
+      cell: ({ row }) => (
+        <PatientIdentity
+          name={`${row.original.firstName} ${row.original.lastName}`.trim()}
+          code={row.original.patientCode}
+        />
+      ),
     },
     ...(screenedActive
       ? [
@@ -279,40 +284,42 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       accessorKey: 'phoneE164',
       header: 'Phone',
       enableSorting: false,
-      meta: { className: 'w-40 text-muted-foreground' },
-      cell: ({ getValue }) => {
-        const value = getValue<string | null>();
-        return value ? value.replace(/(.{4}).*(.{4})/, '$1***$2') : '—';
-      },
+      meta: { className: 'w-44' },
+      cell: ({ getValue }) => <MaskedPhone value={getValue<string | null>()} />,
     },
     {
       id: 'nationalIdLast4',
       accessorKey: 'nationalIdLast4',
       header: 'ID last 4',
       enableSorting: false,
-      meta: { className: 'w-28 text-muted-foreground' },
+      meta: { className: 'w-32' },
       cell: ({ getValue }) => {
         const value = getValue<string | null>();
-        return value ? `…${value}` : '—';
+        return value ? (
+          <span className="tabular-nums">…{value}</span>
+        ) : (
+          <span className="text-muted-foreground">Not recorded</span>
+        );
       },
     },
     {
       id: 'actions',
       header: () => <span className="sr-only">Actions</span>,
       enableSorting: false,
-      meta: { align: 'right', className: 'w-[220px]' },
+      meta: { align: 'right', className: 'w-[11.5rem]' },
       /*
-        Real buttons, aligned down the column. They were two text links side by side whose widths
-        depended on the label, so "View" and "Check-in" wandered row to row. There is still no
-        row-click navigation: it fired for anything inside the row, including Check in.
+        One quiet View and one outlined Check in (pilot). A filled button on every row made the
+        list a wall of teal; the row's action still reads as the action, in the brand colour.
+        There is no row-click navigation: it fired for anything inside the row, including Check in.
       */
       cell: ({ row }) => (
         <DataTableActions>
-          <Button asChild variant="outline" size="sm" className="w-20">
+          <Button asChild variant="ghost" size="sm" className="w-16">
             <Link href={patientHref(row.original.id)}>View</Link>
           </Button>
           {canCreateOpsCheckIn ? (
             <Button
+              variant="primaryOutline"
               size="sm"
               className="w-24"
               loading={checkIn.busyPatientId === row.original.id}
@@ -421,11 +428,14 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     },
   ].filter((filter) => Boolean(filter.value));
 
+  const total = registry.data && !registry.data.rejected ? registry.data.total : undefined;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AppPageHeader
-        className="[&_h1]:font-body"
+        className="border-b-0 pb-0 md:pb-0"
         title="Patients"
+        count={total}
         description="Search this clinic's records and move patients into care."
         helpTitle="How patient search works"
         helpText="Search by name, patient code, phone number, or the last four digits of the stored ID. Results update as you type and stay scoped to this clinic. Open the chart from any result, or check the patient into OPS when your role allows it."
@@ -442,49 +452,71 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       />
 
       <section aria-label="Search patients" className="space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-0 flex-1 basis-72 space-y-2">
-            <Label htmlFor="patient-search">Name, patient code, phone or ID last 4</Label>
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                id="patient-search"
-                type="search"
-                value={q}
-                onChange={(event) => updateView({ q: event.target.value })}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape' && q) updateView({ q: '' });
-                }}
-                placeholder="e.g. Ama Mensah or NKP-2026-000123"
-                autoComplete="off"
-                spellCheck={false}
-                aria-describedby="patient-search-help"
-                className="pl-9 pr-11 [&::-webkit-search-cancel-button]:hidden"
-              />
-              {q ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateView({ q: '' });
-                    document.getElementById('patient-search')?.focus();
-                  }}
-                  aria-label="Clear search"
-                  className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              ) : null}
-            </div>
-            <p id="patient-search-help" className="text-xs text-muted-foreground">
-              Results update as you type. Press / to search, Escape to clear.
-            </p>
-          </div>
+        <div className="relative">
+          <Label htmlFor="patient-search" className="sr-only">
+            Name, patient code, phone or ID last 4
+          </Label>
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            id="patient-search"
+            type="search"
+            value={q}
+            onChange={(event) => updateView({ q: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && q) updateView({ q: '' });
+            }}
+            placeholder="Name, code, phone or ID last 4…"
+            autoComplete="off"
+            spellCheck={false}
+            aria-describedby="patient-search-help"
+            className="bg-surface-2 pl-10 pr-12 focus-visible:bg-card [&::-webkit-search-cancel-button]:hidden"
+          />
+          {q ? (
+            <button
+              type="button"
+              onClick={() => {
+                updateView({ q: '' });
+                document.getElementById('patient-search')?.focus();
+              }}
+              aria-label="Clear search"
+              className="absolute right-0 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : (
+            // The shortcut is a mouse-and-keyboard affordance; touch screens never see it.
+            <kbd
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 hidden h-5 min-w-5 -translate-y-1/2 place-items-center rounded-sm bg-card px-1.5 font-mono text-xs font-medium text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border)),0_1px_0_hsl(var(--border))] [@media(hover:hover)]:sm:grid"
+            >
+              /
+            </kbd>
+          )}
+          <p id="patient-search-help" className="sr-only">
+            Results update as you type. Press / to search, Escape to clear.
+          </p>
+        </div>
+
+        {/*
+          Filter chips (pilot): the dashed chip opens the filters, each set filter is a chip that
+          removes itself. On a phone the row scrolls sideways instead of wrapping into a block.
+        */}
+        <div
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] compact:mx-0 compact:flex-wrap compact:overflow-visible compact:px-0"
+          aria-label="Patient filters"
+          role="group"
+        >
           <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" className="mb-5" aria-label="Filter patients">
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-dashed bg-transparent text-muted-foreground hover:text-foreground"
+                aria-label="Filter patients"
+              >
                 <SlidersHorizontal aria-hidden="true" /> Filter
               </Button>
             </SheetTrigger>
@@ -533,8 +565,37 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               </div>
             </SheetContent>
           </Sheet>
+          {activeFilters.map((filter) => (
+            <Button
+              key={filter.label}
+              variant="outline"
+              size="sm"
+              className="h-auto max-w-[min(20rem,80vw)] shrink-0 gap-1.5 whitespace-normal py-1.5 text-left font-medium"
+              aria-label={`Remove ${filter.label} filter`}
+              onClick={filter.onRemove}
+            >
+              <span className="min-w-0 break-words">
+                <span className="font-normal text-muted-foreground">{filter.label}</span>{' '}
+                {filter.value}
+              </span>
+              <X aria-hidden="true" className="!size-3.5 shrink-0" />
+            </Button>
+          ))}
+          {activeFilters.length ? (
+            <Button variant="link" size="sm" className="shrink-0" onClick={clearFilters}>
+              Clear all filters
+            </Button>
+          ) : null}
         </div>
-        {screenedError ? (
+        {canCreateOpsCheckIn ? (
+          // Only where the phone list is what shows, and only for a finger: the gesture's one hint.
+          <p className="hidden items-center gap-1.5 text-sm text-muted-foreground [@media(pointer:coarse)_and_(max-width:743px)]:flex">
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+            Swipe a patient left to check them in
+          </p>
+        ) : null}
+        {/* While the filters are open the sheet says it beside the dates; once is enough. */}
+        {screenedError && !filtersOpen ? (
           <p role="alert" className="text-sm text-destructive">
             {screenedError.message}{' '}
             <Button variant="link" onClick={() => setFiltersOpen(true)}>
@@ -542,109 +603,78 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             </Button>
           </p>
         ) : null}
-        <div className="flex flex-wrap items-center gap-2" aria-label="Active patient filters">
-          {activeFilters.map((filter) => (
-            <Button
-              key={filter.label}
-              variant="outline"
-              className="h-auto max-w-full gap-2 whitespace-normal py-2 text-left"
-              aria-label={`Remove ${filter.label} filter`}
-              onClick={filter.onRemove}
-            >
-              <span className="min-w-0 break-words">
-                <span className="text-muted-foreground">{filter.label}:</span> {filter.value}
-              </span>
-              <X aria-hidden="true" className="shrink-0" />
-            </Button>
-          ))}
-          {activeFilters.length ? (
-            <Button variant="link" onClick={clearFilters}>
-              Clear all filters
-            </Button>
-          ) : (
-            <p className="text-sm text-muted-foreground">Browsing the full clinic registry</p>
-          )}
-        </div>
+        {/* The empty state already says when nothing matched. */}
+        {screenedActive && total ? (
+          <p aria-live="polite" className="text-sm font-medium text-foreground">
+            {screenedCountLine(total, screenedFrom, screenedTo)}
+          </p>
+        ) : null}
       </section>
 
       <OpsFeedbackNotice feedback={checkIn.feedback} />
 
-      <section aria-labelledby="patient-results-title" className="border-t-2 border-rule-strong">
-        <header className="space-y-3 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1.5">
-              <h2 id="patient-results-title" className="type-section-title font-body">
-                Patient results
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Open a chart or hand the patient into OPS.
-              </p>
-              {/* The empty state already says when nothing matched. */}
-              {screenedActive &&
-              registry.data &&
-              !registry.data.rejected &&
-              registry.data.total > 0 ? (
-                <p aria-live="polite" className="text-sm font-medium text-foreground">
-                  {screenedCountLine(registry.data.total, screenedFrom, screenedTo)}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </header>
-        {/* Keep the final pagination controls above the fixed chat launcher at the page end. */}
-        <div className="space-y-4 pb-20">
-          <ResourceState
-            state={registry}
-            errorTitle="We couldn't load the patient registry"
-            skeleton={
-              <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-            }
-            isEmpty={(data) => data.items.length === 0}
-            empty={emptyState}
-          >
-            {(data) => (
-              <DataTable
-                caption="Patients in this clinic"
-                columns={columns}
-                data={data.items}
-                getRowId={(row) => row.id}
-                rowCount={data.total}
-                isRefreshing={registry.isRefreshing}
-                sorting={sorting}
-                onSortingChange={(next) => updateView({ sorting: next })}
-                pagination={{ pageIndex: page, pageSize }}
-                onPaginationChange={(next) =>
-                  setView((current) => ({
-                    ...current,
-                    page: next.pageIndex,
-                    pageSize: next.pageSize,
-                  }))
-                }
-                renderMobileRow={(row) => (
-                  <PatientRegistryCard
-                    patient={row}
-                    href={patientHref(row.id)}
-                    canCheckIn={canCreateOpsCheckIn}
-                    disabled={checkIn.isBusy || !checkIn.canSubmit}
-                    busy={checkIn.busyPatientId === row.id}
-                    onCheckIn={() => void submitCheckIn(row)}
-                  >
-                    {screenedActive ? (
-                      <div className="mt-3 text-sm">
-                        <p className="font-medium">Screened</p>
-                        <ScreenedDates
-                          screenings={row.matchingScreenings ?? []}
-                          timeZone={timeZone}
-                        />
-                      </div>
-                    ) : null}
-                  </PatientRegistryCard>
-                )}
-              />
-            )}
-          </ResourceState>
-        </div>
+      {/* Keep the final pagination controls above the fixed chat launcher at the page end. */}
+      <section aria-label="Patient results" className="pb-20">
+        <ResourceState
+          state={registry}
+          errorTitle="We couldn't load the patient registry"
+          skeleton={
+            <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
+          }
+          isEmpty={(data) => data.items.length === 0}
+          empty={emptyState}
+        >
+          {(data) => (
+            <DataTable
+              bleed
+              caption="Patients in this clinic"
+              columns={columns}
+              data={data.items}
+              getRowId={(row) => row.id}
+              rowCount={data.total}
+              isRefreshing={registry.isRefreshing}
+              sorting={sorting}
+              onSortingChange={(next) => updateView({ sorting: next })}
+              pagination={{ pageIndex: page, pageSize }}
+              onPaginationChange={(next) =>
+                setView((current) => ({
+                  ...current,
+                  page: next.pageIndex,
+                  pageSize: next.pageSize,
+                }))
+              }
+              renderMobileRow={(row) => (
+                <PatientRegistryCard
+                  patient={row}
+                  href={patientHref(row.id)}
+                  canCheckIn={canCreateOpsCheckIn}
+                  disabled={checkIn.isBusy || !checkIn.canSubmit}
+                  busy={checkIn.busyPatientId === row.id}
+                  onCheckIn={() => void submitCheckIn(row)}
+                >
+                  {screenedActive ? (
+                    <div className="mt-2 text-sm">
+                      <p className="font-medium">Screened</p>
+                      <ScreenedDates
+                        screenings={row.matchingScreenings ?? []}
+                        timeZone={timeZone}
+                      />
+                    </div>
+                  ) : null}
+                </PatientRegistryCard>
+              )}
+            />
+          )}
+        </ResourceState>
       </section>
     </div>
+  );
+}
+
+function MaskedPhone({ value }: { value: string | null }) {
+  return value ? (
+    <span className="tabular-nums">{maskPhone(value)}</span>
+  ) : (
+    <span className="text-muted-foreground">Not recorded</span>
   );
 }

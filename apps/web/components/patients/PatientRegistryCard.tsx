@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { animate, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SHEET_GUTTER } from '@/components/ui/data-table';
+import { cn } from '@/lib/utils';
 
 /** A registry result, never a queue ticket. A swipe invokes the same check-in as the button. */
 export function PatientRegistryCard({
@@ -87,11 +89,9 @@ export function PatientRegistryCard({
     if (submit) onCheckIn();
   };
 
+  const name = `${patient.firstName} ${patient.lastName}`.trim();
   return (
-    <article
-      className="relative overflow-hidden border-b border-border"
-      aria-label={`${patient.firstName} ${patient.lastName}`}
-    >
+    <article className="relative overflow-hidden border-b border-border" aria-label={name}>
       {canCheckIn ? (
         <div
           aria-hidden="true"
@@ -103,14 +103,16 @@ export function PatientRegistryCard({
       ) : null}
       <div
         ref={front}
-        className="relative touch-pan-y bg-card py-4"
+        className={cn('relative flex touch-pan-y items-center gap-3 bg-card py-3', SHEET_GUTTER)}
         onPointerDown={(event) => {
           suppressClick.current = false;
           if (
             !enabled ||
             event.pointerType === 'mouse' ||
             !event.isPrimary ||
-            (event.target as HTMLElement).closest('a, button, input, [role=button]')
+            // The name link is the row's own surface: a swipe may start on it, and the click that
+            // would follow a swipe is swallowed below. Buttons keep their own press.
+            (event.target as HTMLElement).closest('button, input, [role=button]')
           )
             return;
           animation.current?.stop();
@@ -157,36 +159,60 @@ export function PatientRegistryCard({
           }
         }}
       >
-        <h3 className="break-words font-body text-lg font-semibold text-foreground">
-          {patient.firstName} {patient.lastName}
-        </h3>
-        <p className="mt-1 break-all font-mono text-xs text-muted-foreground" translate="no">
-          {patient.patientCode}
-        </p>
-        <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-          <div>
-            <dt className="sr-only">Phone</dt>
-            <dd className="break-all tabular-nums">{patient.phoneE164 || 'No phone on file'}</dd>
-          </div>
-          <div>
-            <dt className="inline">ID last 4: </dt>
-            <dd className="inline tabular-nums">
-              {patient.nationalIdLast4 ? `…${patient.nationalIdLast4}` : '—'}
-            </dd>
-          </div>
-        </dl>
-        {children}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href={href}>View record</Link>
-          </Button>
-          {canCheckIn ? (
-            <Button loading={busy} disabled={disabled} onClick={onCheckIn}>
-              Check in
-            </Button>
-          ) : null}
+        <div className="min-w-0 flex-1">
+          {/* The name opens the record (pilot `a.who`); a separate View button doubled the row. */}
+          <h2 className="break-words font-body text-base font-semibold leading-6 text-foreground">
+            <Link
+              href={href}
+              className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {name}
+            </Link>
+          </h2>
+          <p className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+            <span className="break-all font-mono text-xs leading-5" translate="no">
+              {patient.patientCode}
+            </span>
+            {patient.phoneE164 ? (
+              <span className="tabular-nums">{maskPhone(patient.phoneE164)}</span>
+            ) : null}
+            {patient.nationalIdLast4 ? (
+              <span className="tabular-nums">
+                <span className="sr-only">ID last 4 </span>…{patient.nationalIdLast4}
+              </span>
+            ) : null}
+          </p>
+          {children}
         </div>
+        {canCheckIn ? (
+          <Button
+            variant="primaryOutline"
+            className="shrink-0"
+            loading={busy}
+            disabled={disabled}
+            onClick={onCheckIn}
+          >
+            Check in
+          </Button>
+        ) : null}
       </div>
     </article>
   );
+}
+
+/** Name over code, the pilot's patient cell. Shared with the queues so a patient reads the same. */
+export function PatientIdentity({ name, code }: { name: string; code: string }) {
+  return (
+    <span className="block min-w-0">
+      <span className="block break-words font-semibold text-foreground">{name}</span>
+      <span className="block font-mono text-xs text-muted-foreground" translate="no">
+        {code}
+      </span>
+    </span>
+  );
+}
+
+/** First four and last four digits only, as the registry has always shown a number. */
+export function maskPhone(value: string) {
+  return value.replace(/(.{4}).*(.{4})/, '$1 ••• $2');
 }

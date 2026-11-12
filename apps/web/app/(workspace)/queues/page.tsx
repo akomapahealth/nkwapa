@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ClipboardList, RefreshCw } from 'lucide-react';
+import { ChevronRight, RefreshCw } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch, getErrorMessage, type GetToken } from '@/lib/api';
@@ -19,7 +19,15 @@ import { Button } from '@/components/ui/button';
 import { StatusLabel } from '@/components/ui/status-label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableActions,
+  SHEET_GUTTER,
+  type DataTableColumn,
+} from '@/components/ui/data-table';
+import { PatientIdentity } from '@/components/patients/PatientRegistryCard';
+import { formatOpsDateTime } from '@/lib/ops';
+import { cn } from '@/lib/utils';
 import {
   encounterQueueQuery,
   laneTotal,
@@ -40,11 +48,12 @@ interface QueueRow {
 }
 type Lane = 'drafts' | 'review' | 'finalize' | 'cosign';
 const LANES: Lane[] = ['drafts', 'review', 'finalize', 'cosign'];
+// The pilot's tab names: the lane copy under the tabs says what each step holds.
 const LANE_LABEL: Record<Lane, string> = {
   drafts: 'Drafts',
-  review: 'Needs Review',
-  finalize: 'Ready to Finalize',
-  cosign: 'Pending HAP Cosign',
+  review: 'Review',
+  finalize: 'Sign-off',
+  cosign: 'Cosign',
 };
 const LANE_COPY: Record<Lane, string> = {
   drafts: 'Visits still being recorded. They move to review when submitted.',
@@ -265,13 +274,16 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
   return (
     <div className="space-y-5">
       <AppPageHeader
+        className="border-b-0 pb-0 md:pb-0"
         title="Queues"
-        description="See which visits are moving and which are waiting."
+        description="Visits moving from draft to review to sign-off."
         helpTitle="How the queues work"
         helpText="Each lane groups encounters by the step they are currently in so staff can jump straight to the right record without bouncing between screens."
         actions={
           <Button
-            variant="outline"
+            variant="ghost"
+            // A lone ghost button stretched across a phone reads as a bar; keep it a control.
+            className="-ml-4 self-start sm:ml-0"
             onClick={refresh}
             disabled={
               !state.isOnline ||
@@ -297,7 +309,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
           {lanes.map((lane) => (
             <TabsTrigger key={lane} value={lane}>
               {LANE_LABEL[lane]}
-              <span className="ml-2 font-mono text-xs tabular-nums">
+              <span className="ml-1.5 font-mono text-xs font-normal tabular-nums text-muted-foreground">
                 {state.data ? (
                   lane === 'cosign' ? (
                     state.data.lanes.cosign.rows.length
@@ -326,7 +338,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
             forceMount
             className="mt-0 data-[state=inactive]:hidden"
           >
-            <p className="py-4 text-sm leading-6 text-muted-foreground">{LANE_COPY[lane]}</p>
+            <p className="pb-3 pt-4 text-sm leading-6 text-muted-foreground">{LANE_COPY[lane]}</p>
             <ResourceState
               state={state}
               errorTitle="The queues could not be loaded"
@@ -428,12 +440,13 @@ function QueueEmpty({ lane, visible, active }: { lane: Lane; visible: boolean; a
   );
 }
 
-function OpenEncounter({ row }: { row: QueueRow }) {
+function OpenEncounter({ row, className }: { row: QueueRow; className?: string }) {
+  // Quiet, like the registry's View: the row is the work, the button only opens it.
   return (
-    <Button asChild variant="outline">
+    <Button asChild variant="ghost" size="sm" className={className}>
       <Link href={`/encounters/${encodeURIComponent(row.encounterId)}`}>
-        <ClipboardList aria-hidden="true" className="h-4 w-4" />
-        Open encounter<span className="sr-only"> for {row.patientName}</span>
+        Open<span className="sr-only"> encounter for {row.patientName}</span>
+        <ChevronRight aria-hidden="true" />
       </Link>
     </Button>
   );
@@ -441,8 +454,24 @@ function OpenEncounter({ row }: { row: QueueRow }) {
 function QueueTime({ row }: { row: QueueRow }) {
   return (
     <time dateTime={row.createdAt} className="tabular-nums">
-      {new Date(row.createdAt).toLocaleString()}
+      {formatOpsDateTime(row.createdAt)}
     </time>
+  );
+}
+/** BP stage and the glucose flag together. Nothing raised is "Nothing flagged", never "normal". */
+function QueueFlags({ row }: { row: QueueRow }) {
+  if (!row.bpStage && !row.glucoseFlag)
+    return <span className="text-muted-foreground">Nothing flagged</span>;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      {row.bpStage ? (
+        <span className="inline-flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">BP</span>
+          <StatusLabel value={row.bpStage} />
+        </span>
+      ) : null}
+      {row.glucoseFlag ? <GlucoseFlag /> : null}
+    </span>
   );
 }
 function QueueTable({
@@ -456,50 +485,52 @@ function QueueTable({
 }) {
   const columns: DataTableColumn<QueueRow>[] = [
     {
+      id: 'patientName',
       accessorKey: 'patientName',
       header: 'Patient',
-      cell: ({ row }) => <span className="font-sans font-medium">{row.original.patientName}</span>,
+      meta: { className: 'min-w-56 whitespace-normal' },
+      cell: ({ row }) => (
+        <PatientIdentity name={row.original.patientName} code={row.original.patientCode} />
+      ),
     },
     {
-      accessorKey: 'patientCode',
-      header: 'Code',
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.patientCode}</span>,
-    },
-    {
+      id: 'createdAt',
       accessorKey: 'createdAt',
       header: lane === 'cosign' ? 'Submitted' : 'Created',
+      meta: { className: 'w-44' },
       cell: ({ row }) => <QueueTime row={row.original} />,
     },
-    ...(lane === 'cosign'
-      ? [
-          {
-            accessorKey: 'status',
-            header: 'Note',
-            cell: ({ row }) => <span>{row.original.status}</span>,
-          } satisfies DataTableColumn<QueueRow>,
-        ]
-      : [
-          {
-            accessorKey: 'bpStage',
-            header: 'BP',
-            cell: ({ row }) =>
-              row.original.bpStage ? <StatusLabel value={row.original.bpStage} /> : null,
-          } satisfies DataTableColumn<QueueRow>,
-          {
-            accessorKey: 'glucoseFlag',
-            header: 'Glucose',
-            cell: ({ row }) => (row.original.glucoseFlag ? <GlucoseFlag /> : null),
-          } satisfies DataTableColumn<QueueRow>,
-        ]),
+    lane === 'cosign'
+      ? ({
+          id: 'status',
+          accessorKey: 'status',
+          header: 'Note',
+          meta: { className: 'whitespace-normal' },
+          cell: ({ row }) => <span>{row.original.status}</span>,
+        } satisfies DataTableColumn<QueueRow>)
+      : ({
+          id: 'flags',
+          // BP stage first; a raised glucose sorts after it within the same stage.
+          accessorFn: (row) => `${row.bpStage ?? ''}${row.glucoseFlag ? '~glucose' : ''}`,
+          header: 'Flags',
+          meta: { className: 'whitespace-normal' },
+          cell: ({ row }) => <QueueFlags row={row.original} />,
+        } satisfies DataTableColumn<QueueRow>),
     {
       id: 'actions',
-      header: 'Actions',
+      header: () => <span className="sr-only">Actions</span>,
       enableSorting: false,
-      cell: ({ row }) => <OpenEncounter row={row.original} />,
+      meta: { align: 'right', className: 'w-28' },
+      cell: ({ row }) => (
+        <DataTableActions>
+          <OpenEncounter row={row.original} />
+        </DataTableActions>
+      ),
     },
   ];
   return (
     <DataTable
+      bleed
       caption="Encounters in this lane"
       columns={columns}
       data={rows}
@@ -507,37 +538,35 @@ function QueueTable({
       isRefreshing={refreshing}
       pageSizeOptions={[10, 25]}
       renderMobileRow={(row) => (
-        <article className="min-w-0 border-b border-rule py-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="break-words font-sans text-base font-semibold text-foreground">
-                {row.patientName}
-              </h2>
-              <p className="mt-1 break-words font-mono text-xs text-muted-foreground">
+        <article
+          className={cn(
+            'flex min-w-0 items-center gap-3 border-b border-border py-3',
+            SHEET_GUTTER,
+          )}
+          aria-label={row.patientName}
+        >
+          <div className="min-w-0 flex-1">
+            <h2 className="break-words font-body text-base font-semibold leading-6 text-foreground">
+              {row.patientName}
+            </h2>
+            <p className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+              <span className="break-all font-mono text-xs leading-5" translate="no">
                 {row.patientCode}
-              </p>
-            </div>
-            {lane !== 'cosign' ? <StatusLabel variant="outline" value={row.status} /> : null}
+              </span>
+              <span>
+                <span className="sr-only">{lane === 'cosign' ? 'Submitted' : 'Created'} </span>
+                <QueueTime row={row} />
+              </span>
+            </p>
+            {lane === 'cosign' ? (
+              <p className="mt-1 text-sm text-muted-foreground">{row.status}</p>
+            ) : row.bpStage || row.glucoseFlag ? (
+              <div className="mt-1.5 text-sm">
+                <QueueFlags row={row} />
+              </div>
+            ) : null}
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {lane === 'cosign' ? 'Submitted' : 'Created'} <QueueTime row={row} />
-          </p>
-          {lane === 'cosign' ? (
-            <p className="mt-2 text-sm text-muted-foreground">{row.status}</p>
-          ) : null}
-          {row.bpStage || row.glucoseFlag ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {row.bpStage ? (
-                <span className="inline-flex flex-wrap items-center gap-1">
-                  BP <StatusLabel value={row.bpStage} />
-                </span>
-              ) : null}
-              {row.glucoseFlag ? <GlucoseFlag /> : null}
-            </div>
-          ) : null}
-          <div className="mt-3">
-            <OpenEncounter row={row} />
-          </div>
+          <OpenEncounter row={row} className="shrink-0" />
         </article>
       )}
     />

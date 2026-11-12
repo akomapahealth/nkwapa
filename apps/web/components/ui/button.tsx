@@ -20,6 +20,10 @@ const buttonVariants = cva(
         // keeps that fill for the few places that want it.
         secondary: 'border border-input bg-card text-foreground hover:bg-muted',
         gold: 'bg-secondary text-secondary-foreground hover:bg-secondary/90',
+        // Pilot `.btn-teal`: the row's action in a list where a filled button on every row
+        // would shout. Teal text carries the contrast; the 55% border only outlines it.
+        primaryOutline:
+          'border border-[hsl(var(--primary)/0.55)] bg-transparent text-primary hover:border-primary hover:bg-selected',
         ghost: 'hover:bg-muted',
         link: 'text-primary underline-offset-4 hover:underline',
       },

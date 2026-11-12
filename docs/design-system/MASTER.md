@@ -940,12 +940,45 @@ data keys. `RoleHome` draws every role but the volunteer (W4 owns that home):
   bars on one scale, both minutes written beside the name, "Longest wait" tag. Bars grow once from
   their start (`.station-time-bar`, 600 ms ease-out, transform only; reduced motion at rest).
 
+### Lists (W3)
+
+The pilot's list language (`r0-pilot/index.html` `#s-patients`, `#s-queues`), shared by every
+page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-REVIEW.md`).
+
+- **Column labels** (every `DataTable`): Plex Mono 11.5px capitals, 0.05em tracking, muted, on
+  `--surface-2`. The rows lead; the labels index them. Sort buttons inherit the label (Preflight
+  resets a button's font and case, so the grid mode sets `font`, `letter-spacing` and
+  `text-transform` to `inherit`); the phone "Sort by" list stays ordinary sans text.
+- **Pager**: count left, Rows select, ghost chevrons.
+- **Edge to edge** (`DataTable bleed`): a list sitting directly in `<main>` runs to the sheet's
+  edges; first and last cells take the sheet gutter (`SHEET_GUTTER`, mirrors `<main>`'s padding).
+  Phone rows carry `SHEET_GUTTER` themselves. Never inside a `RecordSection`, card, two-column
+  grid or dialog. Used by Patients, Queues, Volunteers, Screening days. A bled list drops the page
+  header's hairline (`className="border-b-0 pb-0 md:pb-0"`): the table's top rule is the line.
+- **Count beside the title** (`AppPageHeader count`): only when the API returns the true total
+  (Patients `total`, the full volunteer directory). Never a page length or a capped list. It sits
+  beside the `h1`, not in it, so the page's name stays "Patients".
+- **Patient cell** (`PatientIdentity`): name (semibold sans) over code (mono, muted), one column.
+  Used by Patients and Queues; a patient reads the same on both.
+- **Row actions**: one quiet ghost "View" / "Open", and at most one `primaryOutline` action (pilot
+  `.btn-teal`: teal text, 55% teal border). A filled button on every row is a wall of teal.
+- **Missing values** read "Not recorded" in muted text, not a dash.
+- **Phone rows**: name (as the record link where the row opens a record) and a meta line (code,
+  then masked phone or time), the row's one action on the right. Patient rows still swipe left to
+  check in; a swipe may start on the name link and swallows the click that follows.
+- **Queues**: tabs named Drafts, Review, Sign-off, Cosign (pipeline order), count beside each;
+  columns Patient, Created / Submitted (Accra, `formatOpsDateTime`), Flags (BP stage and High
+  glucose together, "Nothing flagged" when none, never "normal"), quiet Open. Refresh is ghost.
+- **Patients**: search with a `/` hint (hover pointers only) and a sr-only label; a dashed Filter
+  chip opening the existing Sheet, then one removable chip per set filter and Clear all filters.
+  The chip row scrolls sideways on phones. "Swipe a patient left" hint on touch phones only.
+
 ### Patient registry and records (#270)
 
 The registry starts with search and the existing location and completed-screening
 filters (#224), followed by one result count and the shared sortable, paginated
 DataTable. Patient identities use the serif record role on phones; row actions
-have 44px targets. URL state, clinic scope, masking and check-in behavior stay as
+have 44px targets. **Superseded by Lists (W3)**: phone names are sans, as in the pilot. URL state, clinic scope, masking and check-in behavior stay as
 implemented before this phase.
 
 Patient records use local `RecordSection` groups on the canvas, with plain
@@ -1212,7 +1245,7 @@ Review and evidence: `ui-refresh/R3.7-SIGNALS-REVIEW.md`.
 
 ### Queues and encounters (#272)
 
-`/queues` keeps one count on each permission-gated lane tab. R3.4 puts the
+**Labels and row layout superseded by Lists (W3).** `/queues` keeps one count on each permission-gated lane tab. R3.4 puts the
 tabs directly on the workspace sheet, with one sentence explaining the selected
 lane and an explicit Refresh queues action. Existing labels, doctor cosign /
 finalize / review / drafts default priority and clinic-role cosign gate remain.

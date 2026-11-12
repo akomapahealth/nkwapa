@@ -96,7 +96,7 @@ for (const theme of ['light', 'dark']) {
       const more = panel(page).getByRole('button', { name: 'Show more', exact: true });
       await more.scrollIntoViewIfNeeded();
       await expect(more).toBeInViewport({ ratio: 1 });
-      await expect(page.getByRole('tab', { name: /^Needs Review 55$/ })).toHaveAttribute(
+      await expect(page.getByRole('tab', { name: /^Review 55$/ })).toHaveAttribute(
         'aria-selected',
         'true',
       );
@@ -111,8 +111,8 @@ for (const theme of ['light', 'dark']) {
       'true',
     );
     await expect(page).toHaveURL(/tab=drafts/);
-    await page.getByRole('tab', { name: /^Needs Review/ }).click();
-    await expect(page.getByRole('tab', { name: /^Needs Review/ })).toHaveAttribute(
+    await page.getByRole('tab', { name: /^Review/ }).click();
+    await expect(page.getByRole('tab', { name: /^Review/ })).toHaveAttribute(
       'aria-selected',
       'true',
     );
@@ -127,7 +127,7 @@ for (const theme of ['light', 'dark']) {
       'true',
     );
     await page.goForward();
-    await expect(page.getByRole('tab', { name: /^Needs Review/ })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: /^Review/ })).toHaveAttribute(
       'aria-selected',
       'true',
     );
@@ -197,14 +197,14 @@ test('unknown totals still page; duplicate rows do not corrupt the next server o
     return route.fulfill({ json: rows });
   });
   await open(page);
-  await expect(page.getByRole('tab', { name: /^Needs Review 50 loaded$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Review 50 loaded$/ })).toBeVisible();
   await expect(
     panel(page).getByText('Queue totals are unavailable. Counts show loaded visits only.'),
   ).toBeVisible();
   await panel(page).getByRole('button', { name: 'Show more', exact: true }).click();
-  await expect(page.getByRole('tab', { name: /^Needs Review 99 loaded$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Review 99 loaded$/ })).toBeVisible();
   await panel(page).getByRole('button', { name: 'Show more', exact: true }).click();
-  await expect(page.getByRole('tab', { name: /^Needs Review 100 loaded$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Review 100 loaded$/ })).toBeVisible();
   expect(offsets).toContain(100);
   await expect(panel(page).getByRole('button', { name: 'Show more', exact: true })).toHaveCount(0);
 });
@@ -236,7 +236,7 @@ test('load-more refusal retains rows, offers retry and prevents duplicate submis
     (await activePresentation(page)).getByText('Synthetic Queue 000', { exact: true }),
   ).toBeVisible();
   await panel(page).getByRole('button', { name: 'Try again', exact: true }).click();
-  await expect(page.getByRole('tab', { name: /^Needs Review 55$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Review 55$/ })).toBeVisible();
   expect(calls).toBe(2);
 });
 test('a refused refresh preserves the loaded visits; cold refusal never claims emptiness', async ({
@@ -257,7 +257,7 @@ test('a refused refresh preserves the loaded visits; cold refusal never claims e
   ).toHaveCount(0);
   await page.reload();
   await expect(panel(page).getByText('Synthetic queue refusal', { exact: false })).toBeVisible();
-  await expect(page.getByRole('tab', { name: /Needs Review.*Count unavailable/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Review.*Count unavailable/ })).toBeVisible();
   await expect(
     panel(page).getByRole('heading', { name: 'All caught up', exact: true }),
   ).toHaveCount(0);
@@ -284,7 +284,7 @@ test('interrupted initial read has no zero counts or empty illustration', async 
       panel(page).getByText(/You are offline. Reconnect to load the queues/),
     ).toBeVisible();
     await expect(panel(page).getByTestId('illustration-checklist')).toHaveCount(0);
-    await expect(page.getByRole('tab', { name: /Needs Review.*Count unavailable/ })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /Review.*Count unavailable/ })).toBeVisible();
   } finally {
     release();
     await context.setOffline(false);
@@ -311,7 +311,7 @@ test('cosign totals count actual notes and links retain their encounter identity
   }));
   await mock(page, { notes });
   await open(page, '');
-  await expect(page.getByRole('tab', { name: /^Pending HAP Cosign 2$/ })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: /^Cosign 2$/ })).toHaveAttribute(
     'aria-selected',
     'true',
   );
@@ -328,7 +328,7 @@ test('cosign totals count actual notes and links retain their encounter identity
   await expect(links).toHaveCount(2);
   for (const link of await links.all())
     await expect(link).toHaveAttribute('href', '/encounters/synthetic-same-encounter');
-  await page.getByRole('tab', { name: /^Pending HAP Cosign/ }).focus();
+  await page.getByRole('tab', { name: /^Cosign/ }).focus();
   await page.keyboard.press('Home');
   await expect(page.getByRole('tab', { name: /^Drafts/ })).toBeFocused();
   await expect(page.getByRole('tab', { name: /^Drafts/ })).toHaveAttribute('aria-selected', 'true');
@@ -366,11 +366,7 @@ test('classification labels and glucose thresholds remain identical in cards and
   }
 });
 for (const [role, defaultLane, allowed] of [
-  [
-    'doctor',
-    'Pending HAP Cosign',
-    ['Drafts', 'Needs Review', 'Ready to Finalize', 'Pending HAP Cosign'],
-  ],
+  ['doctor', 'Cosign', ['Drafts', 'Review', 'Sign-off', 'Cosign']],
   ['volunteer', 'Drafts', ['Drafts']],
   ['manager', 'Drafts', ['Drafts']],
 ]) {
@@ -388,7 +384,7 @@ for (const [role, defaultLane, allowed] of [
       await open(page, role === 'doctor' ? 'finalize' : 'cosign');
       await expect(
         page.getByRole('tab', {
-          name: new RegExp(`^${role === 'doctor' ? 'Ready to Finalize' : defaultLane}`),
+          name: new RegExp(`^${role === 'doctor' ? 'Sign-off' : defaultLane}`),
         }),
       ).toHaveAttribute('aria-selected', 'true');
       await open(page, 'invalid');
@@ -415,7 +411,7 @@ test('an empty illustration plays once on first viewing and survives refreshes a
   await expect(illustration).toHaveAttribute('data-retained-player', 'yes');
   await expect(illustration.locator('[data-frame="98"]')).toHaveCount(1);
   await page.getByRole('tab', { name: /^Drafts/ }).click();
-  await page.getByRole('tab', { name: /^Needs Review/ }).click();
+  await page.getByRole('tab', { name: /^Review/ }).click();
   await expect(illustration).toHaveAttribute('data-retained-player', 'yes');
   await expect(illustration.locator('[data-frame="98"]')).toHaveCount(1);
 });
@@ -463,8 +459,8 @@ test('wildcard permission without a doctor clinic role does not expose cosign', 
     await route.fulfill({ response, json: bootstrap });
   });
   await open(page, 'cosign');
-  await expect(page.getByRole('tab', { name: /^Pending HAP Cosign/ })).toHaveCount(0);
-  await expect(page.getByRole('tab', { name: /^Ready to Finalize/ })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: /^Cosign/ })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: /^Sign-off/ })).toHaveAttribute(
     'aria-selected',
     'true',
   );

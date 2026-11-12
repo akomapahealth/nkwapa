@@ -53,6 +53,12 @@ declare module '@tanstack/table-core' {
     hideOnMobile?: boolean;
   }
 }
+
+/**
+ * The workspace's side padding, for content drawn edge to edge on the sheet (`bleed`). Mirrors
+ * `<main>` in AppLayout; change both together.
+ */
+export const SHEET_GUTTER = 'px-4 compact:px-6 desktop:px-8';
 /* eslint-enable @typescript-eslint/no-unused-vars */
 
 /*
@@ -112,6 +118,7 @@ export function DataTable<TData extends RowData>({
   maxHeight = 560,
   keyboardScroll = true,
   paginationClassName,
+  bleed = false,
   className,
 }: {
   columns: DataTableColumn<TData>[];
@@ -145,6 +152,11 @@ export function DataTable<TData extends RowData>({
   /** Make this view’s scroll area reachable even when its rows are read-only. */
   keyboardScroll?: boolean;
   paginationClassName?: string;
+  /**
+   * Draw the table edge to edge on the workspace sheet, as the R0 pilot lists do. Only for a
+   * page-level list sitting directly in `<main>`; never inside a card, panel or dialog.
+   */
+  bleed?: boolean;
   className?: string;
 }) {
   const serverMode = rowCount !== undefined;
@@ -200,7 +212,12 @@ export function DataTable<TData extends RowData>({
       {toolbar ? (
         <div className="flex flex-wrap items-end justify-between gap-3">{toolbar}</div>
       ) : null}
-      <div className="relative min-w-0 max-w-full">
+      <div
+        className={cn(
+          'relative min-w-0',
+          bleed ? '-mx-4 compact:-mx-6 desktop:-mx-8' : 'max-w-full',
+        )}
+      >
         {/* Out of flow, so a refresh cannot move the rows beneath it (MASTER.md section 11). */}
         <div
           aria-hidden="true"
@@ -216,7 +233,9 @@ export function DataTable<TData extends RowData>({
             {table
               .getHeaderGroups()
               .some((group) => group.headers.some((header) => header.column.getCanSort())) ? (
-              <fieldset className="min-w-0 border-b border-border pb-2">
+              <fieldset
+                className={cn('min-w-0 border-b border-border pb-2', bleed && SHEET_GUTTER)}
+              >
                 <legend className="type-label text-muted-foreground">Sort by</legend>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 px-2">
                   {table.getHeaderGroups().flatMap((group) =>
@@ -260,7 +279,15 @@ export function DataTable<TData extends RowData>({
                 ))}
           </section>
         ) : null}
-        <div className={cn('border-y border-border bg-card', renderMobileRow && 'data-table-grid')}>
+        <div
+          className={cn(
+            'border-y border-border bg-card',
+            renderMobileRow && 'data-table-grid',
+            // Edge to edge, the first and last cells take the sheet's gutter (pilot `thead th`).
+            bleed &&
+              '[&_:is(th,td):first-child]:pl-4 [&_:is(th,td):last-child]:pr-4 compact:[&_:is(th,td):first-child]:pl-6 compact:[&_:is(th,td):last-child]:pr-6 desktop:[&_:is(th,td):first-child]:pl-8 desktop:[&_:is(th,td):last-child]:pr-8',
+          )}
+        >
           <div
             className={cn(
               'overflow-auto',
@@ -294,7 +321,8 @@ export function DataTable<TData extends RowData>({
                                   : undefined
                           }
                           className={cn(
-                            'type-label h-11 whitespace-nowrap px-3 text-left align-middle text-foreground',
+                            // Pilot column label: small mono capitals, muted, so the rows lead.
+                            'h-10 whitespace-nowrap px-3 text-left align-middle font-mono text-[0.71875rem] font-medium uppercase tracking-[0.05em] text-muted-foreground',
                             meta?.align === 'right' && 'text-right',
                             meta?.hideOnMobile && 'hidden md:table-cell',
                             meta?.className,
@@ -339,7 +367,7 @@ export function DataTable<TData extends RowData>({
                           : undefined
                       }
                       className={cn(
-                        'border-b border-border transition-colors duration-fast last:border-b-0 hover:bg-surface-2 focus-within:bg-surface-2',
+                        'border-b border-border transition-colors duration-fast ease-out-strong last:border-b-0 focus-within:bg-surface-2 [@media(hover:hover)]:hover:bg-surface-2',
                         onRowClick &&
                           'cursor-pointer focus-visible:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                       )}
@@ -353,7 +381,7 @@ export function DataTable<TData extends RowData>({
                               // One line per cell by default: a date or a code broken over two lines is
                               // misread. Long prose opts back in with `whitespace-normal`; the
                               // table scrolls sideways inside its own container rather than wrap.
-                              'h-11 whitespace-nowrap px-3 py-1.5 align-middle text-foreground [@media(pointer:coarse)]:h-[52px]',
+                              'h-11 whitespace-nowrap px-3 py-2.5 align-middle text-foreground [@media(pointer:coarse)]:h-[52px]',
                               meta?.align === 'right' && 'text-right',
                               meta?.hideOnMobile && 'hidden md:table-cell',
                               meta?.className,
@@ -404,7 +432,7 @@ export function DataTable<TData extends RowData>({
               </Select>
             </div>
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label="Previous page"
               disabled={!table.getCanPreviousPage()}
@@ -413,7 +441,7 @@ export function DataTable<TData extends RowData>({
               <ChevronLeft aria-hidden="true" />
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               aria-label="Next page"
               disabled={!table.getCanNextPage()}
@@ -447,9 +475,13 @@ function SortButton<TData extends RowData>({
       onClick={column.getToggleSortingHandler()}
       className={cn(
         // The header cell is the target; the visible control stays compact.
-        '-mx-2 inline-flex h-11 min-w-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors duration-fast hover:bg-selected focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        '-mx-2 inline-flex h-10 min-w-11 items-center gap-1.5 rounded-sm px-2 transition-colors duration-fast hover:bg-selected focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'flex-row-reverse',
-        sorted ? 'text-primary' : 'text-foreground',
+        // The phone "Sort by" list is ordinary text; in the grid it inherits the column label.
+        announceDirection && 'h-11 text-sm font-medium',
+        // Preflight resets a button's font and case; in the grid it must read as the label.
+        !announceDirection && '[font:inherit] [letter-spacing:inherit] [text-transform:inherit]',
+        sorted ? 'text-primary' : announceDirection ? 'text-foreground' : 'text-inherit',
       )}
     >
       {children}

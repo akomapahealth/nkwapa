@@ -10,13 +10,19 @@ import { apiFetch, readApiError, ApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { volunteersPath, type VolunteerContact } from '@/lib/volunteers';
 import { RouteGuard } from '@/components/RouteGuard';
+import { cn } from '@/lib/utils';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableActions,
+  type DataTableColumn,
+  SHEET_GUTTER,
+} from '@/components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -299,7 +305,9 @@ function VolunteersContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
+        className="border-b-0 pb-0 md:pb-0"
         title="Volunteers"
+        count={directory.data?.items.length}
         description="Who volunteers at this clinic. They don't need a Nkwapa account to be scheduled and emailed."
         actions={
           <div className="flex flex-wrap gap-2">
@@ -341,6 +349,7 @@ function VolunteersContent() {
       >
         {(data) => (
           <DataTable
+            bleed
             caption="Volunteer directory"
             columns={columns}
             data={data.items}
@@ -349,7 +358,7 @@ function VolunteersContent() {
             initialPageSize={25}
             keyboardScroll
             renderMobileRow={(contact) => (
-              <div className="space-y-2 border-t border-rule py-4">
+              <div className={cn('space-y-2 border-t border-rule py-4', SHEET_GUTTER)}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{contact.displayName}</span>
                   {!contact.isActive ? <Badge variant="draft">Inactive</Badge> : null}

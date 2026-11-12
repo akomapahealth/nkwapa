@@ -183,13 +183,13 @@ export default function MyAssignedPage() {
     {
       id: 'checkedInAt',
       accessorKey: 'checkedInAt',
-      header: 'Checked In',
+      header: 'Checked in',
       accessorFn: (row) => formatOpsDateTime(row.checkedInAt, timezone),
     },
     {
       id: 'assignedRole',
       accessorKey: 'assignedRole',
-      header: 'My Role',
+      header: 'My role',
       enableSorting: false,
       cell: ({ row: params }) => (
         <AssignedRoleBadge role={params.original.assignedRole as 'VOLUNTEER' | 'DOCTOR'} />
@@ -209,7 +209,7 @@ export default function MyAssignedPage() {
     {
       id: 'team',
       accessorKey: 'team',
-      header: 'Care Team',
+      header: 'Care team',
       accessorFn: (row) =>
         `${row.assignedVolunteer.displayName} / ${row.assignedDoctor.displayName}`,
     },
