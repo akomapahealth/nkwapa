@@ -8,6 +8,8 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
+import { ageInYears } from '@/lib/stations';
+import { statusLabel } from '@/lib/status-presentation';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -26,6 +28,36 @@ import { HypertensionForm } from '@/components/HypertensionForm';
 import { DiabetesInterviewForm } from '@/components/encounters/diabetes/DiabetesInterviewForm';
 import { HypertensionInterviewForm } from '@/components/encounters/hypertension/HypertensionInterviewForm';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
+
+type WizardPatient = {
+  firstName: string;
+  lastName: string;
+  patientCode: string;
+  dob?: string | null;
+  sex?: string | null;
+  phoneE164?: string | null;
+  nationalIdType?: string | null;
+  nationalIdLast4?: string | null;
+};
+
+// The same identifiers the patient record shows, so a volunteer can tell two Ama Mensahs apart.
+function identityRows(patient: WizardPatient): Array<[string, string]> {
+  const age = ageInYears(patient.dob ?? null);
+  const rows: Array<[string, string]> = [
+    [
+      'Date of birth',
+      patient.dob
+        ? `${new Date(patient.dob).toLocaleDateString()}${age !== null ? ` (${age} yrs)` : ''}`
+        : 'Not recorded',
+    ],
+    ['Sex', statusLabel(patient.sex)],
+    ['Phone', patient.phoneE164 || 'No phone on file'],
+  ];
+  if (patient.nationalIdType === 'NONE') rows.push(['National ID', 'No ID document']);
+  else if (patient.nationalIdLast4)
+    rows.push(['National ID', `Ends in ${patient.nationalIdLast4}`]);
+  return rows;
+}
 
 const STEPS = ['confirm', 'vitals', 'htn', 'diabetes', 'review'] as const;
 const STEP_LABELS: Record<(typeof STEPS)[number], string> = {
@@ -51,11 +83,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
 
   const [step, setStep] = useState(0);
   const [encounterId, setEncounterId] = useState<string | null>(null);
-  const [patient, setPatient] = useState<{
-    firstName: string;
-    lastName: string;
-    patientCode: string;
-  } | null>(null);
+  const [patient, setPatient] = useState<WizardPatient | null>(null);
   /*
     This wizard rendered the pre-interview forms unconditionally while the encounter page rendered
     the guided ones behind the flag. With the flag on, a volunteer creating a visit here answered
@@ -123,7 +151,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         );
         if (!patientRes.ok) throw new Error(await patientRes.text());
         const data = (await patientRes.json()) as {
-          patient: { firstName: string; lastName: string; patientCode: string };
+          patient: WizardPatient;
         };
         if (cancelled) return;
         setPatient(data.patient);
@@ -227,9 +255,16 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
           </RecordSectionHeader>
           <RecordSectionContent>
             <p className="text-muted-foreground">
-              Check that the name and patient code above match the person in front of you before you
-              record anything.
+              Check these details with the person in front of you before you record anything.
             </p>
+            <dl className="mt-4 grid gap-x-6 compact:grid-cols-2">
+              {identityRows(patient).map(([term, detail]) => (
+                <div key={term} className="border-b border-rule py-3">
+                  <dt className="type-label font-normal text-muted-foreground">{term}</dt>
+                  <dd className="mt-1 type-data text-foreground">{detail}</dd>
+                </div>
+              ))}
+            </dl>
             <FormActions sticky className="mt-4">
               <Button onClick={() => setStep(1)}>Continue to Vitals</Button>
             </FormActions>

@@ -37,6 +37,13 @@ test('the wizard runs the guided interviews and carries vitals into them', async
   const patientId = await createPatient(page);
   await page.goto(`/patients/${patientId}/encounters/new`);
 
+  // The confirm step shows enough to tell two patients with the same name apart.
+  const identity = page.getByRole('region', { name: 'Confirm Patient' });
+  await expect(identity.getByRole('definition').first()).toBeVisible();
+  for (const term of ['Date of birth', 'Sex', 'Phone', 'National ID']) {
+    await expect(identity.getByRole('term').filter({ hasText: term })).toBeVisible();
+  }
+
   await page.getByRole('button', { name: 'Continue to Vitals' }).click();
 
   await page.getByLabel('Systolic BP (mmHg)').fill('152');
