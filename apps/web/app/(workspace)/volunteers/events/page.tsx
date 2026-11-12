@@ -85,7 +85,7 @@ function EventsContent() {
       <AppPageHeader
         className="border-b-0 pb-0 md:pb-0"
         title="Screening days"
-        description={`Plan screening days and who volunteers at each. Times are in clinic time (${timezone}).`}
+        description={`Screening days and who helps at each. Times in ${timezone}.`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" asChild>

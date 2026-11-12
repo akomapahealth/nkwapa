@@ -1002,13 +1002,13 @@ export default function AdminUsersPage() {
           helpTitle="How access changes work"
           helpText="Use Active clinic for day-to-day roster changes, switch to All users when you need cross-clinic or global account checks, and remember that deactivating an account blocks access without removing audit history."
           actions={
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <div className="flex w-full items-center gap-2 compact:w-auto compact:gap-3">
               {isSystemAdmin ? (
                 <SegmentedControl
                   label="Roster scope"
                   value={viewMode}
                   onChange={(next) => setViewMode(next)}
-                  className="sm:w-[280px]"
+                  className="min-w-0 flex-1 compact:w-[280px] compact:flex-none"
                   options={[
                     {
                       value: 'clinic',
@@ -1034,7 +1034,7 @@ export default function AdminUsersPage() {
                   aria-hidden="true"
                   className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
                 />
-                Refresh
+                <span className="sr-only compact:not-sr-only">Refresh</span>
               </Button>
             </div>
           }

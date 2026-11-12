@@ -687,7 +687,7 @@ export default function StaffAppointmentsPage() {
                 className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
                 aria-hidden="true"
               />
-              Refresh
+              <span className="sr-only compact:not-sr-only">Refresh</span>
             </Button>
           }
         />

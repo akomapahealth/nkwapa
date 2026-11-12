@@ -15,11 +15,21 @@ const TONES: Record<MetricTone, string> = {
   success: 'bg-success-surface text-success-ink',
 };
 
-/** Separate figures; a phone scrolls one row, wider screens wrap with generous gaps. */
+/**
+ * Separate figures; wider screens wrap with generous gaps. A phone scrolls one row that bleeds to
+ * the screen edge (the workspace gutter is 16px there), so a cut-off chip reads as "more this way".
+ */
 export const METRIC_ROW =
-  'flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto p-1 [scrollbar-width:thin] compact:flex-wrap';
+  'flex min-w-0 snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto -mx-4 px-4 py-1 [scrollbar-width:none] compact:mx-0 compact:flex-wrap compact:gap-3 compact:px-1';
 
-/** A figure and its meaning, with optional attention tint and existing-filter shortcut. */
+/** A bare count or rate reads number-first ("47 Needs review"); a reading reads label-first. */
+const isCount = (value: ReactNode) =>
+  typeof value === 'number' || (typeof value === 'string' && /^[\d.,]+%?$/.test(value.trim()));
+
+/**
+ * One line, one unit: icon, figure, label and help share a 16px optical size, so the figure is
+ * emphasised by weight rather than by a numeral that dwarfs its own icon.
+ */
 export function AppMetricCard({
   title,
   value,
@@ -47,36 +57,38 @@ export function AppMetricCard({
   const valueId = useId();
   const zero = value === 0 || (typeof value === 'string' && /^0(?:[.,]0+)?%?$/.test(value.trim()));
   const help = [hint, detail].filter(Boolean).join(' ');
+  const figure = (
+    <span id={valueId} className="whitespace-nowrap text-base font-semibold tabular-nums">
+      {value}
+      {unit ? <span className="ml-0.5 text-sm font-normal">{unit}</span> : null}
+    </span>
+  );
+  const label = <span className="min-w-0 text-sm leading-snug">{title}</span>;
   const content = (
     <>
-      {Icon ? <Icon aria-hidden="true" className="size-4 shrink-0" /> : null}
-      <span className="flex min-w-0 flex-col gap-1">
-        <span
-          id={valueId}
-          className={cn(
-            'font-semibold leading-tight tabular-nums',
-            zero
-              ? 'text-xl'
-              : typeof value === 'string' && value.length > 10
-                ? 'text-base'
-                : 'text-2xl',
-          )}
-        >
-          {value}
-          {unit ? <span className="ml-1 text-sm font-normal">{unit}</span> : null}
-        </span>
-        <span className="text-sm font-medium">{title}</span>
-      </span>
+      {Icon ? <Icon aria-hidden="true" className="size-4 shrink-0 opacity-80" /> : null}
+      {isCount(value) ? (
+        <>
+          {figure}
+          {label}
+        </>
+      ) : (
+        <>
+          {label}
+          {figure}
+        </>
+      )}
     </>
   );
   const bodyClass =
-    'flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-3 text-left';
+    'flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg py-2 pl-3 text-left [@media(pointer:coarse)]:min-h-11';
   return (
     <div
       className={cn(
-        'flex max-w-full shrink-0 snap-start items-center rounded-xl',
+        'flex max-w-full shrink-0 snap-start items-center rounded-lg',
+        help ? 'pr-1.5' : 'pr-3',
         zero
-          ? 'bg-transparent text-muted-foreground'
+          ? 'text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border))]'
           : ['shadow-[var(--elevation-raised)]', TONES[tone]],
         className,
       )}
@@ -89,19 +101,15 @@ export function AppMetricCard({
           onClick={onActivate}
           className={cn(
             bodyClass,
-            'transition-colors duration-fast hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.97] motion-reduce:transform-none',
+            'cursor-pointer pr-2 transition-[background-color,transform] duration-fast ease-out hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.97] motion-reduce:transform-none',
           )}
         >
           {content}
         </button>
       ) : (
-        <div className={bodyClass}>{content}</div>
+        <div className={cn(bodyClass, help && 'pr-1')}>{content}</div>
       )}
-      {help ? (
-        <span className="flex min-h-11 w-11 shrink-0 items-center justify-center">
-          <InfoHint label={help} size="sm" className="text-current" />
-        </span>
-      ) : null}
+      {help ? <InfoHint label={help} className="text-current" /> : null}
     </div>
   );
 }
@@ -126,7 +134,7 @@ export function AppMetricGroup({
         tabIndex={0}
         className={cn(
           METRIC_ROW,
-          'rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+          'rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           className,
         )}
       >

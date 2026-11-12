@@ -160,7 +160,7 @@ export function RecordConsentScreen({
 
       <AppPageHeader
         title="Record Research Consent"
-        description="Document informed consent for de-identified research participation with an auditable, clinic-scoped workflow."
+        description="Record informed consent for de-identified research."
       />
 
       {/* Required reading, not header help: #63 keeps it visible on the page. */}

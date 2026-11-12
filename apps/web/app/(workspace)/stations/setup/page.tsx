@@ -114,7 +114,7 @@ function StationSetupContent() {
     <div className="space-y-6">
       <AppPageHeader
         title="Station setup"
-        description="The order patients move through, and how many each station can see at once."
+        description="Station order, and how many each can see at once."
         helpTitle="What capacity means"
         helpText="How many patients a station can see at the same time: chairs, BP cuffs, consulting rooms. It is not how many staff are on it. When a station is full and patients still wait, the limit is equipment or space; when it has room and patients wait, the limit is staff."
         actions={

@@ -271,9 +271,9 @@ export default function MyAssignedPage() {
       <div className="space-y-6">
         <AppPageHeader
           title="My Assigned"
-          description="A focused worklist for volunteer intake and doctor follow-through."
+          description={`Your patients for the day. Times in ${timezone}.`}
           actions={
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex items-end gap-2 compact:gap-3">
               <div className="space-y-2">
                 <Label htmlFor="my-assigned-date" className="text-eyebrow text-muted-foreground">
                   Clinic day
@@ -293,10 +293,6 @@ export default function MyAssignedPage() {
                 </div>
               </div>
 
-              <p className="pb-3 text-sm text-muted-foreground">
-                Times shown in <span className="font-medium text-foreground">{timezone}</span>
-              </p>
-
               <Button
                 type="button"
                 variant="outline"
@@ -308,7 +304,7 @@ export default function MyAssignedPage() {
                   aria-hidden="true"
                   className={view.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
                 />
-                Refresh
+                <span className="sr-only compact:not-sr-only">Refresh</span>
               </Button>
             </div>
           }

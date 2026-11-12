@@ -66,7 +66,7 @@ export function StationShiftStrip({
               shift ? 'bg-success' : 'border-2 border-muted-foreground',
             )}
           />
-          {shift ? 'On Duty' : 'Off Duty'}
+          {shift ? 'On duty' : 'Off duty'}
         </p>
         <p className="text-sm text-muted-foreground">
           {shift ? (

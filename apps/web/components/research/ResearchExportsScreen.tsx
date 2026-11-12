@@ -387,7 +387,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         <AppPageHeader
           context={clinicName ?? undefined}
           title="Research exports"
-          description="Check readiness, decide on runs and schedules, and download de-identified packs."
+          description="Readiness, runs and de-identified packs."
           actions={
             <Button
               variant="outline"
@@ -403,7 +403,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                 aria-hidden="true"
                 className={`h-4 w-4 ${exportsResource.isRefreshing || overviewResource.isRefreshing ? 'animate-spin' : ''}`}
               />
-              Refresh
+              <span className="sr-only compact:not-sr-only">Refresh</span>
             </Button>
           }
         />

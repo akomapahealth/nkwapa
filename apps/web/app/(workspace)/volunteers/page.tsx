@@ -308,7 +308,8 @@ function VolunteersContent() {
         className="border-b-0 pb-0 md:pb-0"
         title="Volunteers"
         count={directory.data?.items.length}
-        description="Who volunteers at this clinic. They don't need a Nkwapa account to be scheduled and emailed."
+        description="Who volunteers at this clinic."
+        hint="Volunteers don't need a Nkwapa account to be scheduled and emailed."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" asChild>

@@ -339,7 +339,7 @@ export function ClinicRegistryScreen() {
       <AppPageHeader
         title="Clinics"
         count={clinics.data ? rows.length : undefined}
-        description="Manage clinic records, location metadata, and availability."
+        description="Clinic records, locations and availability."
         helpTitle="What you manage here"
         helpText="Create clinics, review their location and zone metadata, and adjust operational details without losing historical records."
         actions={<Button onClick={openCreate}>Create clinic</Button>}
@@ -356,12 +356,6 @@ export function ClinicRegistryScreen() {
           detail="Clinics whose location metadata organization reporting cannot rely on."
         />
 
-        <AppMetricCard
-          title="Total clinics"
-          value={clinics.data ? rows.length : '…'}
-          icon={Building2}
-          detail="Every clinic environment in the platform."
-        />
         <AppMetricCard
           title="Active clinics"
           value={clinics.data ? activeCount : '…'}
@@ -439,7 +433,9 @@ export function ClinicRegistryScreen() {
             ) : null}
           </div>
           <p aria-live="polite" className="text-sm tabular-nums text-muted-foreground lg:ml-auto">
-            Showing {visibleRows.length} of {rows.length}
+            {visibleRows.length === rows.length
+              ? null
+              : `Showing ${visibleRows.length} of ${rows.length}`}
           </p>
         </div>
         <ListFilters

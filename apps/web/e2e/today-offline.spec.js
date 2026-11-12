@@ -45,7 +45,7 @@ async function endShiftIfRunning(page) {
 async function openTodayBoard(page) {
   await page.goto('/today');
   await expect(page.getByRole('heading', { name: 'Today Board' })).toBeVisible();
-  await expect(page.getByText('Shift Status', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Shift status', { exact: true })).toBeVisible({ timeout: 20_000 });
 }
 
 test('a shift started offline is labelled pending, then syncs once', async ({ page, context }) => {
@@ -63,7 +63,7 @@ test('a shift started offline is labelled pending, then syncs once', async ({ pa
   await start.click();
 
   await expect(page.getByTestId('ops-feedback')).toContainText('Shift start saved on this device');
-  await expect(page.getByText('On Duty', { exact: true })).toBeVisible();
+  await expect(page.getByText('On duty', { exact: true })).toBeVisible();
   await expect(page.getByTestId('ops-pending-badge').first()).toHaveText('Pending sync');
 
   const queued = (await readOutbox(page)).filter((row) => row.entityType === 'shift_check_in');
@@ -73,11 +73,11 @@ test('a shift started offline is labelled pending, then syncs once', async ({ pa
   await waitForOutboxDrain(page, expect, { entityType: 'shift_check_in' });
 
   // The server's copy replaces the drawn one: still on duty, no longer pending.
-  await expect(page.getByText('On Duty', { exact: true })).toBeVisible();
+  await expect(page.getByText('On duty', { exact: true })).toBeVisible();
   await expect(page.getByTestId('ops-pending-badge')).toHaveCount(0, { timeout: 20_000 });
 
   await page.reload();
-  await expect(page.getByText('On Duty', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('On duty', { exact: true })).toBeVisible({ timeout: 20_000 });
   await endShiftIfRunning(page);
 });
 

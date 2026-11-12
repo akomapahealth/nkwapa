@@ -163,9 +163,9 @@
        previously both were 45 20% 87%, so every text input, select, and textarea in the product
        had an effectively invisible boundary. At 200 15% 52% it measures 3.47:1. */
     --border: 190.9 18% 88%;
-    /* Decorative hairlines stay soft; the 2px group rule uses ink. */
     --rule: var(--border);
-    --rule-strong: var(--foreground);
+    /* A calm teal-grey group rule: still >= 3:1 non-text, no longer the loudest thing on a page (W3 polish). */
+    --rule-strong: 192 16% 50%;
     /* Opaque status surfaces, derived from a 12% fill over --card and rounded to
        0.1 HSL units. Paired -ink contrast: success 5.20, warning 5.90, info 7.29,
        destructive 6.02. Explicit surfaces stay predictable on any parent. */
@@ -353,7 +353,7 @@
     --border: 198 20.8% 18.8%;
     /* Hairlines are decorative, never control boundaries. */
     --rule: var(--border);
-    --rule-strong: var(--foreground);
+    --rule-strong: 190 12% 42%;
     /* 22% fill over --card, rounded to 0.1 HSL units. Paired -ink contrast:
        success 6.83, warning 6.75, info 6.37, destructive 6.66. */
     --success-surface: 161.2 37.8% 19%;

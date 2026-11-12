@@ -192,7 +192,7 @@ test.describe('Stations workspace refresh', () => {
       await page.addInitScript((theme) => localStorage.setItem('nkwapa-theme', theme), theme);
       const state = await mockWorkspace(page);
       await page.goto('/stations');
-      await expect(shiftPanel(page).getByText('On Duty', { exact: true })).toBeVisible();
+      await expect(shiftPanel(page).getByText('On duty', { exact: true })).toBeVisible();
       const screener = page.getByTestId('screener-control');
       await expect(screener.getByLabel('Name of the person screening')).toHaveValue(
         'Synthetic Screener',
@@ -306,17 +306,17 @@ test.describe('Stations workspace refresh', () => {
     const { readOutbox, waitForOutboxDrain } = require('../playwright/outbox');
     await page.goto('/stations');
     const shift = shiftPanel(page);
-    await expect(shift.getByText(/^(On Duty|Off Duty)$/)).toBeVisible();
+    await expect(shift.getByText(/^(On duty|Off duty)$/)).toBeVisible();
     const end = shift.getByRole('button', { name: 'End shift', exact: true });
     if (await end.isVisible()) {
       await end.click();
-      await expect(shift).toContainText('Off Duty');
+      await expect(shift).toContainText('Off duty');
     }
     await shift.getByRole('button', { name: 'Start shift', exact: true }).click();
     await expect(page.getByTestId('ops-feedback')).toHaveText('Shift started as Volunteer.');
-    await expect(shift).toContainText('On Duty');
+    await expect(shift).toContainText('On duty');
     await end.click();
-    await expect(shift).toContainText('Off Duty');
+    await expect(shift).toContainText('Off duty');
     await context.setOffline(true);
     await shift.getByRole('button', { name: 'Start shift', exact: true }).click();
     await expect(page.getByTestId('ops-feedback')).toContainText(
@@ -335,10 +335,10 @@ test.describe('Stations workspace refresh', () => {
     await context.setOffline(false);
     await waitForOutboxDrain(page, expect, { entityType: 'shift_check_in' });
     await waitForOutboxDrain(page, expect, { entityType: 'shift_check_out' });
-    await expect(shift).toContainText('Off Duty');
+    await expect(shift).toContainText('Off duty');
     await expect(shift.getByTestId('ops-pending-badge')).toHaveCount(0);
   });
-  test('unknown first read never says Off Duty, and retry reveals shift', async ({ page }) => {
+  test('unknown first read never says Off duty, and retry reveals shift', async ({ page }) => {
     const state = await mockWorkspace(page);
     state.failure = true;
     state.delay = 1200;
@@ -347,11 +347,11 @@ test.describe('Stations workspace refresh', () => {
     await expect(
       page.getByText('The station line could not be loaded', { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText('Off Duty', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Off duty', { exact: true })).toHaveCount(0);
     state.failure = false;
     state.delay = 0;
     await page.getByRole('button', { name: 'Try again' }).click();
-    await expect(shiftPanel(page)).toContainText('On Duty');
+    await expect(shiftPanel(page)).toContainText('On duty');
   });
   test('failed refresh keeps patient and station with truthful retry', async ({ page }) => {
     const state = await mockWorkspace(page);
@@ -380,7 +380,7 @@ test.describe('Stations workspace refresh', () => {
       roles: ['VOLUNTEER', 'DOCTOR'],
     });
     await page.goto('/stations');
-    await expect(shiftPanel(page)).toContainText('Off Duty');
+    await expect(shiftPanel(page)).toContainText('Off duty');
     await expect(picker(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'The whole line' })).toHaveCount(0);
     await page.getByLabel('Role for this shift').click();
@@ -396,7 +396,7 @@ test.describe('Stations workspace refresh', () => {
     await expect(picker(page)).toBeVisible();
     expect(state.starts).toBe(1);
     await shiftPanel(page).getByRole('button', { name: 'End shift', exact: true }).click();
-    await expect(shiftPanel(page)).toContainText('Off Duty');
+    await expect(shiftPanel(page)).toContainText('Off duty');
     expect(state.ends).toBe(1);
   });
   test('station selection confirms once, and closure is disclosed', async ({ page }) => {
@@ -464,7 +464,7 @@ test.describe('Stations workspace refresh', () => {
     const start = shiftPanel(page).getByRole('button', { name: 'Start shift', exact: true });
     await start.click();
     await expect(page.getByTestId('ops-feedback')).toContainText('Synthetic shift write refused');
-    await expect(shiftPanel(page)).toContainText('Off Duty');
+    await expect(shiftPanel(page)).toContainText('Off duty');
     await expect(start).toBeEnabled();
     await page.unroute('**/shifts/check-in', refuse);
     await start.click();

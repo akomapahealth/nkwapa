@@ -313,7 +313,7 @@ export function StationLineBoard() {
         title="Station line"
         description="Where every checked-in patient is, and who is seeing them."
         actions={
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex w-full items-end gap-2 compact:w-auto compact:gap-3">
             {canManage ? (
               <Button asChild variant="outline">
                 <Link href="/stations/setup">Set up stations</Link>
@@ -324,7 +324,7 @@ export function StationLineBoard() {
               aria-label="Clinic day"
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              className="w-[180px]"
+              className="min-w-0 flex-1 compact:w-[180px] compact:flex-none"
             />
             <Button
               type="button"
@@ -336,7 +336,7 @@ export function StationLineBoard() {
                 aria-hidden="true"
                 className={view.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
               />
-              Refresh
+              <span className="sr-only compact:not-sr-only">Refresh</span>
             </Button>
           </div>
         }

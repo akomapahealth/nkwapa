@@ -187,8 +187,8 @@ Do not "fix" `--border` or `--sidebar-border` to reach 3:1. They are correctly e
 
 These are additive foundation tokens. Existing action, text, input-boundary and
 chart-series values stay unchanged. `--rule` aliases `--border` for decorative
-1px dividers; `--rule-strong` aliases `--foreground` for the direction's 2px group
-rule. Neither replaces `--input` on form controls.
+1px dividers; `--rule-strong` is the 2px group rule, a calm teal-grey (`192 16% 50%`,
+dark `190 12% 42%`) since W3 polish: ink rules were the loudest thing on most pages. Neither replaces `--input` on form controls.
 
 Opaque status surfaces have explicit light and dark values, so their measured
 contrast does not depend on which parent surface happens to sit behind them.
@@ -211,8 +211,8 @@ workflow or clinical states.
 
 | Rule token      | Background     | Light contrast | Dark contrast | Requirement        |
 | --------------- | -------------- | -------------: | ------------: | ------------------ |
-| `--rule-strong` | `--background` |        14.30:1 |       15.66:1 | >= 3:1 non-text    |
-| `--rule-strong` | `--card`       |        14.31:1 |       14.50:1 | >= 3:1 non-text    |
+| `--rule-strong` | `--background` |         3.36:1 |        3.75:1 | >= 3:1 non-text    |
+| `--rule-strong` | `--card`       |         3.63:1 |        3.45:1 | >= 3:1 non-text    |
 | `--rule`        | `--background` |         1.26:1 |        1.47:1 | Decorative, exempt |
 | `--rule`        | `--card`       |         1.26:1 |        1.36:1 | Decorative, exempt |
 
@@ -634,7 +634,18 @@ status surface; their buttons apply existing filters. The visible value is also 
 description. Unknown resources show an ellipsis until a real result is available. This W3 polish
 contract supersedes the earlier divided-panel/ledger layout.
 
-`AppPageHeader` sits on the canvas with a hairline under it, not inside a card: the title is the page's heading, not one more panel among the panels below it. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
+`AppPageHeader` sits on the canvas, not inside a card: the title is the page's heading, not one more panel among the panels below it. Since W3 polish there is no hairline under it either: it doubled up with the group rule of the first section, so space alone separates header from work.
+
+**Header voice (W3 polish).** The description is one line under ~70 characters that changes what
+the reader does next ("Charts that may be the same person, strongest match first."). Policy,
+reasons and lists of types go into `hint` / `helpText` beside the title. A data line ("12
+messages went out today") is used only where the page shows no figure chips; a header never
+repeats a number a chip or count already shows. Actions sit in one wrapping row on every width:
+a page's action wrapper is `flex w-full items-center gap-2 compact:w-auto compact:gap-3` when it
+holds a SegmentedControl (`min-w-0 flex-1 compact:w-72 compact:flex-none`), so the control and an
+icon button share a phone row. Refresh and Export buttons keep their full accessible name and
+hide the word below 600px (`sr-only compact:not-sr-only`). Timezone notes join the description
+("Times in Africa/Accra.") instead of a third control in the action row. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
 
 ### Shared foundations (#265)
 
@@ -778,12 +789,14 @@ its text out. The existing clinic-switch success/failure feedback remains.
 No new navigation counts or routes.
 
 The sync control precedes Message delivery and the account menu. Its quiet inner
-status surface is at least 32px tall inside a target of at least 44px. It reserves
-6.75rem on phones (108px at default text, capped at 180px for enlarged text) and
-192px from 600px, so state changes do not shift adjacent
-controls. The synced state shows only its success check in a compact tinted pill, with the full status in
-its accessible name and a Radix tooltip on hover or keyboard focus. Other states retain words.
-The outer control keeps its reserved footprint when the inner success pill shrinks.
+status surface is at least 32px tall inside a target of at least 44px. It reserves 6.75rem on
+phones (capped at 180px for enlarged text) and 192px from 600px, and the pill sits at the
+**right** edge of that slot, beside Sync now, the header icons and the account menu, so state
+changes do not shift adjacent controls and the quiet synced check is never stranded in the middle
+of the header (owner feedback, W3 polish). The button itself shrinks to the 44px check when
+synced, so the empty part of the slot is not an invisible target. The synced state shows only its success check in a compact tinted pill, with the full
+status in its accessible name and a Radix tooltip on hover or keyboard focus. Other states
+retain words.
 Phones show short attention-state labels and the active-clinic count (visually
 capped at 99+); the accessible name retains the full status and other-clinic
 count. Full labels and the existing Sync now action appear from 600px. Offline,
@@ -1014,6 +1027,14 @@ page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-
 - **Context figures on a list** (`AppMetricGroup variant="strip"`): separate stat chips with
   breathing room, no shared lines, what each counts in its help. The same system serves
   dashboards, reports and research; dashboards retain their richer greeting and work panels.
+  **One line per chip** (W3 polish): icon, figure, label and help share a 16px optical size, so
+  weight (600 vs 400) carries the emphasis instead of a numeral that dwarfs its own icon. A count
+  or rate reads number-first ("47 Needs review"); any other value reads label-first ("Blood
+  pressure 128/82 mmHg"). 40px tall on a mouse, 44px on touch, 8px radius. A zero has no tint
+  or shadow, only a hairline ring. On phones the row scrolls and bleeds to the screen edge, so a
+  cut chip reads as "more this way". Never repeat a figure the page already states: no "Total"
+  chip beside a header count, no "Visible" chip beside a "N loaded" line, and "Showing x of y"
+  only when a filter actually narrows the list.
 - **List tabs** (Audit, Message delivery, Staff, Clinics, Duplicate review, Cross-clinic): page
   header, strip, toolbar, one muted "Showing / loaded" line, bled table, then any "how to read
   this" help below the list. No `RecordSection` frames, no two-column filter rail. Long ids are

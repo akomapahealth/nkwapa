@@ -178,7 +178,7 @@ export function OrganizationReportScreen() {
     <div className="space-y-6">
       <AppPageHeader
         title="Organization report"
-        description="Every clinic in an organization at once, with a way back into any one of them."
+        description="Every clinic at once, with a way into each."
         helpTitle="How these numbers are counted"
         helpText={
           <div className="space-y-2">

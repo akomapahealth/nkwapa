@@ -28,7 +28,8 @@ export function AppPageHeader({
    * it out until the total is known: a guessed or loading count is worse than none.
    */
   count?: number;
-  description?: string;
+  /** One short line (under ~70 characters) that changes what the reader does next. */
+  description?: React.ReactNode;
   /** One sentence of help, shown in a bubble beside the title. */
   hint?: string;
   /** A short name for longer help; the bubble's heading when `helpText` is set. */
@@ -45,15 +46,14 @@ export function AppPageHeader({
   return (
     <section
       className={cn(
-        // On the canvas, not in a box. Every page opened with a bordered card around its own
-        // title, which made the title one more panel among the panels below it. Type and space
-        // carry the hierarchy now; a hairline separates the header from the work.
-        'border-b border-rule pb-5 pt-1 md:pb-6',
+        // On the canvas, not in a box. Type and space carry the hierarchy (W3 polish): a hairline
+        // under the header doubled up with the group rule of the first section below it.
+        'pb-1 pt-1',
         className,
       )}
     >
       {breadcrumbs ? <div className="mb-2">{breadcrumbs}</div> : null}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           {context ? <p className="text-sm text-muted-foreground">{context}</p> : null}
           {/*
@@ -83,12 +83,18 @@ export function AppPageHeader({
             ) : null}
           </div>
           {description ? (
-            <p className="type-body mt-2 max-w-2xl text-muted-foreground">{description}</p>
+            <p className="type-body mt-1.5 max-w-2xl text-pretty text-muted-foreground">
+              {description}
+            </p>
           ) : null}
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <div className="flex flex-wrap items-center gap-2 compact:gap-3 lg:justify-end">
           {/* Own row: in the phone column a bare tag stretched to the full width like a bar. */}
-          {badges ? <div className="flex flex-wrap items-center gap-2">{badges}</div> : null}
+          {badges ? (
+            <div className="flex basis-full flex-wrap items-center gap-2 lg:basis-auto">
+              {badges}
+            </div>
+          ) : null}
           {actions}
         </div>
       </div>

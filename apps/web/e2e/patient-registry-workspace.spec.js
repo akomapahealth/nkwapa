@@ -158,12 +158,15 @@ test('invalid and server-refused dates remain editable after dismissing the Shee
   await sheet(page);
   await choose(page, 'Screened', 'Custom range');
   await page.getByLabel('From', { exact: true }).fill('2026-10-15');
-  await page.getByLabel(/^To/).fill('2026-10-01');
-  await expect(page.getByLabel(/^To/)).toHaveAttribute('aria-invalid', 'true');
+  await page.getByLabel('To (optional)', { exact: true }).fill('2026-10-01');
+  await expect(page.getByLabel('To (optional)', { exact: true })).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
   await page.getByRole('button', { name: 'Show results', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Edit screened dates' })).toBeVisible();
   await page.getByRole('button', { name: 'Edit screened dates' }).click();
-  await page.getByLabel(/^To/).fill('2026-10-16');
+  await page.getByLabel('To (optional)', { exact: true }).fill('2026-10-16');
   await page.route(endpoint, (route) =>
     route.fulfill({
       status: 400,

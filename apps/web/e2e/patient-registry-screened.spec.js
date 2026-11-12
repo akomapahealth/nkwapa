@@ -189,13 +189,16 @@ test('filters the registry to patients screened today, then clears it', async ({
   await axe(page);
 
   // A reversed range is explained beside the dates and never sent.
-  await page.getByLabel(/^To/).fill('2020-01-01');
+  await page.getByLabel('To (optional)', { exact: true }).fill('2020-01-01');
   await expect(
     page.getByRole('alert').filter({ hasText: 'The end date must be on or after the start date.' }),
   ).toBeVisible();
-  await expect(page.getByLabel(/^To/)).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('To (optional)', { exact: true })).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
   await expect(page.getByText('Check the screened dates')).toBeVisible();
-  await page.getByLabel(/^To/).fill('');
+  await page.getByLabel('To (optional)', { exact: true }).fill('');
 
   // Clear just the screened filter from its chip.
   await page.getByRole('button', { name: 'Show results', exact: true }).click();

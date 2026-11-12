@@ -225,10 +225,9 @@ export function CrossClinicInvestigationScreen() {
     <div className="space-y-6">
       <AppPageHeader
         title="Cross-clinic duplicates"
-        description="Charts in different clinics that look like the same person, counted per clinic pair. For sizing the problem, not fixing it: nothing here changes or merges a record."
-        badges={<Badge variant="outline">Investigation only</Badge>}
+        description="The same person in two clinics, counted per clinic pair."
         actions={
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 compact:gap-3">
             <Button
               variant="outline"
               disabled={!burden || burden.totalPairs === 0}
@@ -240,8 +239,8 @@ export function CrossClinicInvestigationScreen() {
                 );
               }}
             >
-              <Download aria-hidden="true" className="mr-2 h-4 w-4" />
-              Export counts
+              <Download aria-hidden="true" className="h-4 w-4" />
+              <span className="sr-only compact:not-sr-only">Export counts</span>
             </Button>
             <Button
               variant="outline"
@@ -250,9 +249,9 @@ export function CrossClinicInvestigationScreen() {
             >
               <RefreshCw
                 aria-hidden="true"
-                className={cn('mr-2 h-4 w-4', investigation.isRefreshing && 'animate-spin')}
+                className={cn('h-4 w-4', investigation.isRefreshing && 'animate-spin')}
               />
-              Refresh
+              <span className="sr-only compact:not-sr-only">Refresh</span>
               <span aria-live="polite" className="sr-only">
                 {investigation.isRefreshing ? 'Refreshing the cross-clinic investigation' : ''}
               </span>

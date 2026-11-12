@@ -117,7 +117,7 @@ export default function DashboardPage() {
         moved everything beside it every time someone refreshed (MASTER 11). The spinner carries
         the state visually and the live region carries it for assistive technology.
       */}
-      Refresh
+      <span className="sr-only compact:not-sr-only">Refresh</span>
       <span aria-live="polite" className="sr-only">
         {loading ? 'Refreshing the dashboard' : ''}
       </span>

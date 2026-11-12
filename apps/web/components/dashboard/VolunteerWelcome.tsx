@@ -132,11 +132,16 @@ export function VolunteerWelcome({
           </div>
         )}
         {!solo && stationWorkflow && canReadShift ? (
-          <div className={styles.controls}>
-            <DashboardShiftControls key={`${clinicId}:${bootstrap?.userId}`} />
+          // Refresh shares the shift row, level with End shift, rather than sitting alone below it.
+          <div className={`${styles.controls} flex items-end gap-2`}>
+            <div className="min-w-0 flex-1">
+              <DashboardShiftControls key={`${clinicId}:${bootstrap?.userId}`} />
+            </div>
+            {actions ? <div className="relative flex shrink-0 gap-2">{actions}</div> : null}
           </div>
+        ) : actions ? (
+          <div className="relative flex flex-wrap gap-2">{actions}</div>
         ) : null}
-        {actions ? <div className="relative flex flex-wrap gap-2">{actions}</div> : null}
       </div>
       <svg
         className={styles.wave}

@@ -5,7 +5,7 @@ import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 
 import { StatusLabel } from '@/components/ui/status-label';
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal, Timer } from 'lucide-react';
+import { AlertTriangle, CheckCheck, Clock3, SendHorizontal, Timer } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
@@ -375,8 +375,13 @@ export default function RemindersPage() {
           title="Message delivery"
           description={
             seesStaffNotices
-              ? 'Review every message the clinic has sent: reminders, portal invites, appointment updates, and staff access notices.'
-              : 'Review the messages the clinic has sent to patients: reminders, portal invites and appointment updates.'
+              ? 'Every message the clinic has sent, and where each stands.'
+              : 'Messages the clinic has sent to patients, and where each stands.'
+          }
+          hint={
+            seesStaffNotices
+              ? 'Reminders, portal invites, appointment updates and staff access notices.'
+              : 'Reminders, portal invites and appointment updates.'
           }
           helpTitle="How message delivery works"
           helpText="Filter by status, channel, type, or date, then inspect queued, sent, delivered, or failed messages. Failed rows explain what went wrong and what to do about it."
@@ -401,12 +406,6 @@ export default function RemindersPage() {
             detail="Not delivered. Open a row to see why and what to do."
           />
 
-          <AppMetricCard
-            title="Visible messages"
-            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : rows.length}
-            icon={Bell}
-            detail="Rows currently loaded into the active view."
-          />
           <AppMetricCard
             title="Queued"
             value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : queuedCount}

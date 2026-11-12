@@ -307,9 +307,10 @@ export function DuplicateReviewScreen() {
     <div className="space-y-6">
       <AppPageHeader
         title="Duplicate review"
-        description="Charts that look like the same person, ranked by how strong the match is. Nothing here changes a record."
+        description="Charts that may be the same person, strongest match first."
+        hint="Nothing on this screen changes or merges a record."
         actions={
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex w-full items-center gap-2 compact:w-auto compact:gap-3">
             {isSystemAdmin ? (
               <SegmentedControl
                 label="Which clinics to search"
@@ -326,7 +327,7 @@ export function DuplicateReviewScreen() {
                     description: 'Includes pairs that span two clinics.',
                   },
                 ]}
-                className="sm:w-72"
+                className="min-w-0 flex-1 compact:w-72 compact:flex-none"
               />
             ) : null}
             {/*
@@ -341,9 +342,9 @@ export function DuplicateReviewScreen() {
             >
               <RefreshCw
                 aria-hidden="true"
-                className={`mr-2 h-4 w-4 ${queue.isRefreshing ? 'animate-spin' : ''}`}
+                className={`h-4 w-4 ${queue.isRefreshing ? 'animate-spin' : ''}`}
               />
-              Refresh
+              <span className="sr-only compact:not-sr-only">Refresh</span>
               <span aria-live="polite" className="sr-only">
                 {queue.isRefreshing ? 'Refreshing the duplicate queue' : ''}
               </span>
@@ -451,14 +452,9 @@ export function DuplicateReviewScreen() {
       />
 
       <section aria-label="Candidates" className="space-y-4 pb-20">
-        <p aria-live="polite" className="text-sm text-muted-foreground">
-          Open a pair to compare the two charts side by side.
-          {queue.data ? (
-            <span className="tabular-nums">
-              {' '}
-              Showing {queue.data.items.length} of {queue.data.total}.
-            </span>
-          ) : null}
+        {/* Every row carries its own Compare action, so only the count is said here. */}
+        <p aria-live="polite" className="text-sm tabular-nums text-muted-foreground">
+          {queue.data ? `Showing ${queue.data.items.length} of ${queue.data.total}` : null}
         </p>
         {!scopeReady ? (
           <SelectClinicState surface="The duplicate review queue" />

@@ -90,7 +90,8 @@ function StaffActivityContent() {
     <div className="space-y-6">
       <AppPageHeader
         title="Staff activity"
-        description="Who did what work at this clinic, and when. Listed by name, not ranked."
+        description="Who did what work here, and when."
+        hint="Listed by name, not ranked."
         helpTitle="What these numbers are"
         helpText="Each figure counts the records a person worked on, from the audit trail: a form saved several times counts once. It shows workload, not performance, and leaves out time spent with patients that does not produce a record. No patient is named here."
         actions={

@@ -428,11 +428,11 @@ function TodayBoardPage() {
       <div className="space-y-6">
         <AppPageHeader
           title="Today Board"
-          description="Live clinic flow for the selected day."
+          description={`Live clinic flow. Times in ${timezone}.`}
           helpTitle="How the board updates"
           helpText="Staff check-ins, patient arrivals, and volunteer assignments refresh here so OPS can see who is available and which patients still need a pair."
           actions={
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex items-end gap-2 compact:gap-3">
               <div className="space-y-2">
                 <Label htmlFor="today-board-date" className="text-eyebrow text-muted-foreground">
                   Clinic day
@@ -454,8 +454,8 @@ function TodayBoardPage() {
               </div>
 
               {/* Context for the date beside it, not a metric or a second control. */}
-              <p id="today-board-timezone" className="text-sm text-muted-foreground sm:pb-2.5">
-                Times in <span className="font-medium text-foreground">{timezone}</span>
+              <p id="today-board-timezone" className="sr-only">
+                Times in {timezone}
               </p>
 
               <Button
@@ -469,7 +469,7 @@ function TodayBoardPage() {
                   aria-hidden="true"
                   className={board.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
                 />
-                Refresh
+                <span className="sr-only compact:not-sr-only">Refresh</span>
               </Button>
             </div>
           }

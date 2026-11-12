@@ -230,8 +230,8 @@ export function AppointmentRequestsPanel({
 
   return (
     <RecordSection>
-      <RecordSectionHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1.5">
+      <RecordSectionHeader className="flex flex-row items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
           <RecordSectionTitle id="patient-requests-title" className="flex items-center gap-2">
             <Inbox className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             Patient requests
@@ -241,7 +241,7 @@ export function AppointmentRequestsPanel({
           </RecordSectionTitle>
           <RecordSectionDescription>
             {canManage
-              ? 'Confirm a request to book the visit and schedule the reminder, or decline it with a reason the patient can read.'
+              ? 'Confirm to book the visit and its reminder, or decline with a reason the patient sees.'
               : 'Requests patients have sent this clinic. Acting on them requires appointment write access.'}
           </RecordSectionDescription>
         </div>
@@ -256,7 +256,7 @@ export function AppointmentRequestsPanel({
             className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
             aria-hidden="true"
           />
-          Refresh requests
+          <span className="sr-only compact:not-sr-only">Refresh requests</span>
         </Button>
       </RecordSectionHeader>
       <div className="pb-2">

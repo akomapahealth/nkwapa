@@ -482,7 +482,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
           label="Name, patient code, phone or ID last 4"
           value={q}
           onChange={(value) => updateView({ q: value })}
-          placeholder="Name, code, phone or ID last 4…"
+          placeholder="Name, code, phone or ID…"
           help="Results update as you type. Press / to search, Escape to clear."
           shortcut
         />

@@ -488,7 +488,7 @@ export function AppointmentsPortalScreen() {
                 )}
                 aria-hidden="true"
               />
-              Refresh
+              <span className="sr-only compact:not-sr-only">Refresh</span>
             </Button>
           </PortalHero>
 

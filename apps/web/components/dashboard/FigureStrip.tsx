@@ -21,7 +21,7 @@ export function FigureStrip({ label, figures }: { label: string; figures: Figure
       aria-label={label}
       data-testid="figure-strip"
       tabIndex={0}
-      className={`${METRIC_ROW} rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring`}
+      className={`${METRIC_ROW} rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring`}
     >
       {ordered.map((figure) => (
         <li key={figure.label} className="min-w-0 max-w-full shrink-0">

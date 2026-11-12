@@ -92,7 +92,7 @@ test.describe('volunteer refresh', () => {
       await page.addInitScript((theme) => localStorage.setItem('nkwapa-theme', theme), theme);
       const state = await mockRoster(page, { longName: true });
       await page.goto('/dashboard');
-      await expect(panel(page).getByText('Off Duty', { exact: true })).toBeVisible();
+      await expect(panel(page).getByText('Off duty', { exact: true })).toBeVisible();
       const original = await panel(page).elementHandle();
       for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
@@ -164,7 +164,7 @@ test.describe('volunteer refresh', () => {
       await expect(panel(page).getByTestId('ops-feedback')).toHaveText(
         'Shift started as Volunteer.',
       );
-      await expect(panel(page).getByText('On Duty', { exact: true })).toBeVisible();
+      await expect(panel(page).getByText('On duty', { exact: true })).toBeVisible();
       await expect(
         page.getByTestId('illustration-checklist').locator('[data-frame="98"]'),
       ).toHaveCount(1, { timeout: 15000 });
@@ -175,7 +175,7 @@ test.describe('volunteer refresh', () => {
       await end.focus();
       await page.keyboard.press('Enter');
       await expect(panel(page).getByTestId('ops-feedback')).toHaveText('Shift ended.');
-      await expect(panel(page).getByText('Off Duty', { exact: true })).toBeVisible();
+      await expect(panel(page).getByText('Off duty', { exact: true })).toBeVisible();
       expect(state.posts).toBe(2);
     });
   }
@@ -200,7 +200,7 @@ test.describe('volunteer refresh', () => {
     await expect(page.getByTestId('illustration-checklist')).toHaveCount(0);
     refused = false;
     await start.click();
-    await expect(panel(page).getByText('On Duty', { exact: true })).toBeVisible();
+    await expect(panel(page).getByText('On duty', { exact: true })).toBeVisible();
     expect(state.posts).toBe(2);
     state.failure = true;
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
@@ -209,7 +209,7 @@ test.describe('volunteer refresh', () => {
     await expect(panel(page).getByText('Shift refresh is affected', { exact: true })).toBeVisible({
       timeout: 35000,
     });
-    await expect(panel(page).getByText('On Duty', { exact: true })).toBeVisible();
+    await expect(panel(page).getByText('On duty', { exact: true })).toBeVisible();
     state.failure = false;
     await panel(page).getByRole('button', { name: 'Try again' }).click();
     await expect(panel(page).getByText('Shift refresh is affected', { exact: true })).toHaveCount(
@@ -254,22 +254,22 @@ test.describe('volunteer refresh', () => {
   test('real online shift outcomes come from the existing server operation', async ({ page }) => {
     await page.goto('/dashboard');
     const shift = panel(page);
-    await expect(shift.getByText(/^(On Duty|Off Duty)$/)).toBeVisible();
+    await expect(shift.getByText(/^(On duty|Off duty)$/)).toBeVisible();
     let end = shift.getByRole('button', { name: 'End shift', exact: true });
     if (await end.isVisible()) {
       await end.click();
-      await expect(shift.getByText('Off Duty', { exact: true })).toBeVisible();
+      await expect(shift.getByText('Off duty', { exact: true })).toBeVisible();
     }
     try {
       await shift.getByRole('button', { name: 'Start shift', exact: true }).click();
       await expect(shift.getByTestId('ops-feedback')).toHaveText('Shift started as Volunteer.');
-      await expect(shift.getByText('On Duty', { exact: true })).toBeVisible();
+      await expect(shift.getByText('On duty', { exact: true })).toBeVisible();
       await expect(shift.getByTestId('ops-pending-badge')).toHaveCount(0);
     } finally {
       end = shift.getByRole('button', { name: 'End shift', exact: true });
       if (await end.isVisible()) {
         await end.click();
-        await expect(shift.getByText('Off Duty', { exact: true })).toBeVisible();
+        await expect(shift.getByText('Off duty', { exact: true })).toBeVisible();
       }
     }
   });
@@ -279,7 +279,7 @@ test.describe('volunteer refresh', () => {
     const state = await mockRoster(page, { delay: true, failure: true });
     await page.goto('/dashboard');
     await expect(panel(page).getByText('Loading your shift status…')).toBeVisible();
-    await expect(panel(page).getByText('Off Duty', { exact: true })).toHaveCount(0);
+    await expect(panel(page).getByText('Off duty', { exact: true })).toHaveCount(0);
     await expect(panel(page).getByRole('button', { name: 'Start shift', exact: true })).toHaveCount(
       0,
     );
@@ -293,7 +293,7 @@ test.describe('volunteer refresh', () => {
       el.click();
       el.click();
     });
-    await expect(panel(page).getByText('On Duty', { exact: true })).toBeVisible();
+    await expect(panel(page).getByText('On duty', { exact: true })).toBeVisible();
     expect(state.posts).toBe(1);
   });
   test('read permission is required without asking for station-board access', async ({ page }) => {
@@ -357,10 +357,10 @@ test.describe('volunteer refresh', () => {
     const shift = panel(page);
     await expect(shift).toBeVisible();
     const end = shift.getByRole('button', { name: 'End shift', exact: true });
-    await expect(shift.getByText(/^(On Duty|Off Duty)$/)).toBeVisible();
+    await expect(shift.getByText(/^(On duty|Off duty)$/)).toBeVisible();
     if (await end.isVisible()) {
       await end.click();
-      await expect(shift.getByText('Off Duty', { exact: true })).toBeVisible();
+      await expect(shift.getByText('Off duty', { exact: true })).toBeVisible();
     }
     await context.setOffline(true);
     const start = shift.getByRole('button', { name: 'Start shift', exact: true });
@@ -382,10 +382,10 @@ test.describe('volunteer refresh', () => {
     await context.setOffline(false);
     await waitForOutboxDrain(page, expect, { entityType: 'shift_check_in' });
     await waitForOutboxDrain(page, expect, { entityType: 'shift_check_out' });
-    await expect(shift.getByText('Off Duty', { exact: true })).toBeVisible({ timeout: 20000 });
+    await expect(shift.getByText('Off duty', { exact: true })).toBeVisible({ timeout: 20000 });
     await expect(shift.getByTestId('ops-pending-badge')).toHaveCount(0);
     await page.reload();
-    await expect(panel(page).getByText('Off Duty', { exact: true })).toBeVisible();
+    await expect(panel(page).getByText('Off duty', { exact: true })).toBeVisible();
   });
 });
 

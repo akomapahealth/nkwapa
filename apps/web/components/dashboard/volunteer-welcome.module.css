@@ -37,7 +37,8 @@
   vertical-align: bottom;
 }
 .heading {
-  font-size: clamp(1.5rem, calc(1rem + 8cqi), 2.75rem);
+  /* About 34px on a phone (three lines at 8cqi), the full 44px from a laptop. */
+  font-size: clamp(1.75rem, calc(1rem + 5cqi), 2.75rem);
   line-height: 1.1;
 }
 .contours {

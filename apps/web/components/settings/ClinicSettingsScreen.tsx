@@ -18,7 +18,6 @@ import { Label } from '@/components/ui/label';
 import {
   RecordSection,
   RecordSectionContent,
-  RecordSectionDescription,
   RecordSectionHeader,
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
@@ -203,10 +202,6 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
             <RecordSection className="max-w-3xl">
               <RecordSectionHeader>
                 <RecordSectionTitle>Research settings</RecordSectionTitle>
-                <RecordSectionDescription>
-                  Configure whether the active clinic participates in research workflows and how
-                  approvals are enforced.
-                </RecordSectionDescription>
               </RecordSectionHeader>
               <RecordSectionContent className="space-y-6">
                 <div className="rounded-lg border border-border bg-background p-4">

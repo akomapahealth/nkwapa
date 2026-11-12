@@ -125,7 +125,7 @@ export function DashboardShiftControls() {
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-            <span className="font-semibold">{shift ? 'On Duty' : 'Off Duty'}</span>
+            <span className="font-semibold">{shift ? 'On duty' : 'Off duty'}</span>
             {shift ? (
               <span>
                 {formatRoleLabel(shift.roleAtShift)} · Started{' '}
