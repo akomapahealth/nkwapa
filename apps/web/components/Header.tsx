@@ -167,6 +167,9 @@ export function Header({
           className={cn(
             'w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none',
             (onToggleSidebar || portal) && 'h-auto min-h-11 min-w-[44px] flex-1 py-1 text-left',
+            // Phones: 14px back from padding, gap and chevron is what lets a typical clinic name
+            // ("Nkwapa Clinic - Demo") fit whole at 390px beside the reserved sync slot.
+            'gap-1 px-1.5 [&>svg]:size-3.5 compact:gap-2 compact:px-2.5 compact:[&>svg]:size-4',
           )}
         >
           <span className="min-w-0 truncate text-left font-semibold text-foreground">
