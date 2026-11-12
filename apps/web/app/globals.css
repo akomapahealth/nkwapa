@@ -882,10 +882,10 @@ html:has([data-landing]) {
 }
 
 /* The workspace <main> is a scroll container (overflow: auto) that grows with its content, so a
-   sticky element inside it never pins to the screen. The read-aloud interview's rail and save
-   footer must (BRIEF-INTERVIEW.md), so on pages that hold one, <main> clips sideways instead of
-   scrolling. Every other page keeps the old behaviour. */
-#main-content:has([data-interview-flow]) {
+   sticky element inside it never pins to the screen. The read-aloud interview's rail and the
+   data-entry save rows must (BRIEF-INTERVIEW.md, STICKY_ACTIONS), so on pages that hold one,
+   <main> clips sideways instead of scrolling. Every other page keeps the old behaviour. */
+#main-content:has([data-interview-flow], [data-sticky-actions]) {
   overflow-x: clip;
   overflow-y: visible;
 }

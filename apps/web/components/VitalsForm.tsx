@@ -936,7 +936,7 @@ export function VitalsForm({
               {status}
             </p>
           ) : null}
-          <div className={styles.actions} data-vitals-actions>
+          <div className={styles.actions} data-vitals-actions data-sticky-actions>
             {!sections ? (
               <Button
                 type="button"

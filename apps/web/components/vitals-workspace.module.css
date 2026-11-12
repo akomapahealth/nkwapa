@@ -79,6 +79,13 @@
   gap: 0.75rem;
   border-top: 2px solid hsl(var(--rule-strong));
   padding-block: 1rem;
+  /* Stays at the bottom of the screen while the form scrolls, at every width (STICKY_ACTIONS). */
+  position: sticky;
+  z-index: 20;
+  bottom: var(--vitals-nav-clearance, 0px);
+  background: hsl(var(--card));
+  /* Clear the chat launcher when the pinned row runs under it. */
+  padding-inline-end: var(--vitals-chat-clearance, 0px);
 }
 
 .actions > button {
@@ -91,10 +98,6 @@
 
 @media (max-width: 599px) {
   .actions {
-    position: sticky;
-    z-index: 20;
-    bottom: var(--vitals-nav-clearance, 0px);
-    background: hsl(var(--card));
     padding-right: 0;
   }
 

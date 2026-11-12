@@ -33,6 +33,7 @@ import {
   type EyeScreeningRecord,
 } from '@/lib/eye-screening';
 import { Button } from '@/components/ui/button';
+import { STICKY_ACTIONS } from '@/components/ui/form-actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -483,7 +484,7 @@ export function EyeScreeningForm({
         )}
         {status ? <InlineNotice tone={status.tone}>{status.text}</InlineNotice> : null}
         {editable && !loading ? (
-          <div className="flex justify-end">
+          <div data-sticky-actions className={cn('flex justify-end', STICKY_ACTIONS)}>
             <Button type="button" onClick={() => void save()} disabled={saving}>
               {saving ? 'Saving…' : 'Save eye examination'}
             </Button>

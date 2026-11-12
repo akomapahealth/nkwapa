@@ -230,7 +230,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
               Check that the name and patient code above match the person in front of you before you
               record anything.
             </p>
-            <FormActions className="mt-4">
+            <FormActions sticky className="mt-4">
               <Button onClick={() => setStep(1)}>Continue to Vitals</Button>
             </FormActions>
           </RecordSectionContent>
@@ -317,7 +317,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
               Review the data in each section. You can go back to edit. When ready, submit for
               clinical review.
             </p>
-            <FormActions split>
+            <FormActions split sticky>
               <Button variant="outline" onClick={() => setStep(3)}>
                 Back to Diabetes
               </Button>

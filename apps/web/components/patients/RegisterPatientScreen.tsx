@@ -455,7 +455,12 @@ export function RegisterPatientScreen({
               </div>
             </FormSectionCard>
           </div>
-          <div className={styles.actions} aria-label="Registration actions" role="group">
+          <div
+            className={styles.actions}
+            aria-label="Registration actions"
+            role="group"
+            data-sticky-actions
+          >
             <Button type="submit" disabled={loading} aria-busy={loading || undefined}>
               {loading ? 'Creating...' : 'Create patient'}
             </Button>

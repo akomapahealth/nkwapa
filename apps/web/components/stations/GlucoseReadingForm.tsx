@@ -22,6 +22,8 @@ import {
 } from '@/lib/glucose-reading';
 import type { DiabetesScreeningRecord } from '@/lib/db';
 import { Button } from '@/components/ui/button';
+import { STICKY_ACTIONS } from '@/components/ui/form-actions';
+import { cn } from '@/lib/utils';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -181,7 +183,7 @@ export function GlucoseReadingForm({
           </InlineNotice>
         ) : null}
         {status ? <InlineNotice tone={status.tone}>{status.text}</InlineNotice> : null}
-        <div className="flex justify-end">
+        <div data-sticky-actions className={cn('flex justify-end', STICKY_ACTIONS)}>
           <Button type="button" onClick={() => void save()} disabled={saving || invalid}>
             {saving ? 'Saving…' : 'Save reading'}
           </Button>

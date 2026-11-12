@@ -12,6 +12,7 @@ import {
 import { AlertCircle, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { STICKY_ACTIONS } from '@/components/ui/form-actions';
 import { cn } from '@/lib/utils';
 
 /**
@@ -354,10 +355,7 @@ export function InterviewFlow({
 
           {canEdit ? (
             <div
-              className={cn(
-                'sticky z-20 mt-6 flex flex-wrap items-center gap-2 border-t border-rule bg-card py-3 pr-[4.5rem] compact:gap-3',
-                'bottom-[calc(var(--workspace-bottom-nav-height,0px)+env(safe-area-inset-bottom))]',
-              )}
+              className={cn('mt-6 flex flex-wrap items-center gap-2 compact:gap-3', STICKY_ACTIONS)}
             >
               <p
                 role="status"

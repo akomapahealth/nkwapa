@@ -33,6 +33,13 @@
   border-top: 2px solid hsl(var(--rule-strong));
   background: hsl(var(--card));
   padding-block: 1rem;
+  /* From 600px the row stays at the bottom of the screen while the form scrolls; phones pin it
+     with position: fixed below. */
+  position: sticky;
+  z-index: 20;
+  bottom: 0;
+  /* Clear the chat launcher when the pinned row runs under it. */
+  padding-inline-end: var(--registration-chat-clearance, 0px);
 }
 @media (min-width: 600px) {
   .sections > section > div > [class~='grid'] {

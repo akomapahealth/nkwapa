@@ -91,7 +91,7 @@ for (const theme of ['light', 'dark']) {
         await page
           .getByRole('group', { name: 'Registration actions' })
           .evaluate((el) => getComputedStyle(el).position),
-      ).toBe(width < 600 ? 'fixed' : 'static');
+      ).toBe(width < 600 ? 'fixed' : 'sticky');
       const first = await page.getByLabel('First name', { exact: true }).boundingBox();
       const last = await page.getByLabel('Last name', { exact: true }).boundingBox();
       if (width >= 600) expect(Math.abs(first.y - last.y)).toBeLessThan(1);
