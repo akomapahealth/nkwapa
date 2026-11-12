@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { chooseAnswer, question } = require('../playwright/interview');
 
 const { storageStateFor } = require('../playwright/roles');
 test.use({ storageState: storageStateFor('staff') });
@@ -95,8 +96,7 @@ test('the note can be drafted from the interviews, and regenerating is safe', as
 
   // Record something for the generator to describe.
   await page.getByRole('tab', { name: 'Hypertension' }).click();
-  await page.getByLabel('Hypertension status').click();
-  await page.getByRole('option', { name: 'Known hypertension', exact: true }).click();
+  await chooseAnswer(question(page, 'Hypertension status'), 'Known hypertension');
   await page.getByRole('button', { name: 'Save assessment' }).click();
   await expect(page.getByText(/saved (and synced|on this device)/i)).toBeVisible();
 

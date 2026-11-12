@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { openSection } = require('../playwright/interview');
 
 const { storageStateFor } = require('../playwright/roles');
 
@@ -47,12 +48,13 @@ test('the wizard runs the guided interviews and carries vitals into them', async
   await page.getByRole('button', { name: 'Save measurements' }).click();
 
   /*
-    The guided interview, not the four-field form. Section 2 exists only on the interview, and
-    its heading is what distinguishes the two without depending on a field they share.
+    The guided interview, not the four-field form. Only the interview has a section rail, and its
+    Blood pressure control section is where today's reading is shown.
   */
-  await expect(page.getByRole('heading', { name: /2\. Blood pressure control/i })).toBeVisible({
-    timeout: 30_000,
-  });
+  const rail = page.getByRole('navigation', { name: 'Hypertension interview' });
+  await expect(rail).toBeVisible({ timeout: 30_000 });
+  await openSection(page, 'Hypertension interview', /BP control/);
+  await expect(page.getByRole('heading', { name: /Blood pressure control/i })).toBeVisible();
 
   /*
     And it carries the reading the previous step just saved.

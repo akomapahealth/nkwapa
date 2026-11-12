@@ -223,7 +223,7 @@ export default function EncounterDetailPage() {
               }
               document
                 .querySelector<HTMLElement>(
-                  '[role="tabpanel"][data-state="active"] [aria-invalid="true"]',
+                  '[role="tabpanel"][data-state="active"] [aria-invalid="true"]:not([hidden] *)',
                 )
                 ?.focus();
             };

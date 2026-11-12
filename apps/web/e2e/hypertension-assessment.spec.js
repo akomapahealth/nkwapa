@@ -2,6 +2,11 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const {
+  chooseAnswer,
+  question,
+  openSection: openInterviewSection,
+} = require('../playwright/interview');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -48,9 +53,11 @@ async function readAssessments(page, encounterId) {
 }
 
 async function chooseStatus(page, label) {
-  await page.getByLabel('Hypertension status').click();
-  await page.getByRole('option', { name: label, exact: true }).click();
+  await chooseAnswer(question(page, 'Hypertension status'), label);
 }
+
+// The interview shows one section at a time; the rail moves between them.
+const openSection = (page, name) => openInterviewSection(page, 'Hypertension interview', name);
 
 async function recordVitals(page, systolic, diastolic) {
   await page.getByRole('tab', { name: 'Vitals' }).click();
@@ -110,7 +117,7 @@ test('a corrected blood pressure classification is what the encounter shows next
   // And the encounter agrees on the next visit, which is what a clinician actually experiences.
   await page.goto(`/encounters/${encounterId}`);
   await page.getByRole('tab', { name: 'Hypertension' }).click();
-  await expect(page.getByLabel('Hypertension status')).toHaveText(/newly elevated/i);
+  await expect(page.getByRole('radio', { name: 'Newly elevated BP', exact: true })).toBeChecked();
 });
 
 /**
@@ -147,6 +154,7 @@ test("today's reading, its classification and the repeat prompt all come from th
   await recordVitals(page, 162, 98);
 
   await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await openSection(page, /BP control/);
 
   // Read through from Vitals, never re-entered here.
   //
@@ -160,8 +168,7 @@ test("today's reading, its classification and the repeat prompt all come from th
   await expect(prompt).toBeVisible();
 
   // Recording the repeat answers the prompt, and it goes away.
-  await page.getByLabel('BP measurement repeated today').click();
-  await page.getByRole('option', { name: 'Yes', exact: true }).click();
+  await chooseAnswer(question(page, 'BP measurement repeated today'), 'Yes');
   await expect(prompt).toBeHidden();
 });
 
@@ -198,6 +205,7 @@ test('an urgent symptom raises the escalation notice and offers the review reaso
   await page.goto(`/encounters/${encounterId}`);
   await page.getByRole('tab', { name: 'Hypertension' }).click();
 
+  await openSection(page, /Current symptoms/);
   await expect(page.getByText(/this visit needs a clinician now/i)).toBeHidden();
 
   await page.getByRole('checkbox', { name: 'Chest pain' }).check();
@@ -206,6 +214,7 @@ test('an urgent symptom raises the escalation notice and offers the review reaso
   await expect(notice).toBeVisible();
 
   await page.getByRole('button', { name: /add to the reasons for clinician review/i }).click();
+  await openSection(page, /Actions and referral/);
   await expect(page.getByRole('checkbox', { name: 'Concerning symptoms' })).toBeChecked();
 
   // Reversible: the volunteer can disagree with what was preselected.

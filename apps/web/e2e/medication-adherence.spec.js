@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
 const { storageStateFor } = require('../playwright/roles');
+const { answer, question, openSection } = require('../playwright/interview');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -86,9 +87,13 @@ async function createEncounter(page, patientId) {
   return (await (await created).json()).id;
 }
 
-async function answer(card, page, label, option) {
-  await card.getByLabel(label, { exact: true }).click();
-  await page.getByRole('option', { name: option, exact: true }).click();
+async function expectAnswer(scope, label, option) {
+  const group = question(scope, label);
+  if (await group.count()) {
+    await expect(group.getByRole('radio', { name: option, exact: true })).toBeChecked();
+    return;
+  }
+  await expect(scope.getByLabel(label, { exact: true })).toHaveText(new RegExp(option, 'i'));
 }
 
 test('medication adherence is recorded against the reconciled list and survives a tab switch', async ({
@@ -103,6 +108,7 @@ test('medication adherence is recorded against the reconciled list and survives 
 
   await page.goto(`/encounters/${encounterId}`);
   await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await openSection(page, 'Hypertension interview', /Medications/);
 
   /*
     The medication arrives from the reconciled list, not from a list of the interview's own. Its
@@ -118,9 +124,9 @@ test('medication adherence is recorded against the reconciled list and survives 
   // The seeded catalogue entry is an ANTIHYPERTENSIVE, so the section can name the group.
   await expect(page.getByRole('heading', { name: 'Blood-pressure medications' })).toBeVisible();
 
-  await answer(card, page, 'Took it today?', 'Yes');
-  await answer(card, page, 'Doses missed in the past 7 days', '1');
-  await answer(card, page, 'Supply remaining', 'Less than 1 week');
+  await answer(card, 'Took it today?', 'Yes');
+  await answer(card, 'Doses missed in the past 7 days', '1');
+  await answer(card, 'Supply remaining', 'Less than 1 week');
   await expect(card.getByText('Recorded')).toBeVisible();
   await expect(page.getByText('1 of 1 medication recorded')).toBeVisible();
 
@@ -144,15 +150,15 @@ test('medication adherence is recorded against the reconciled list and survives 
   // Away and back, which is how the tab is actually used.
   await page.getByRole('tab', { name: 'Vitals' }).click();
   await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await openSection(page, 'Hypertension interview', /Medications/);
   await expect(page.getByRole('region', { name: /Amlodipine/ })).toContainText('Recorded');
-  await expect(page.getByLabel('Took it today?', { exact: true })).toHaveText(/yes/i);
+  await expectAnswer(page, 'Took it today?', 'Yes');
 
   // And on the next visit to the encounter, which is what reaches the clinician.
   await page.goto(`/encounters/${encounterId}`);
   await page.getByRole('tab', { name: 'Hypertension' }).click();
-  await expect(page.getByLabel('Supply remaining', { exact: true })).toHaveText(
-    /less than 1 week/i,
-  );
+  await openSection(page, 'Hypertension interview', /Medications/);
+  await expectAnswer(page, 'Supply remaining', 'Less than 1 week');
 });
 
 /**
@@ -177,17 +183,18 @@ test('each condition keeps its own adherence answers for the same encounter', as
   const diabetesCard = page.getByRole('region', { name: /Metformin/ });
   await expect(diabetesCard).toBeVisible();
   await expect(diabetesCard.getByLabel('Took it today?', { exact: true })).toHaveCount(0);
-  await answer(diabetesCard, page, 'Taking it as prescribed?', 'Sometimes');
+  await answer(diabetesCard, 'Taking it as prescribed?', 'Sometimes');
   await page.getByRole('button', { name: 'Save screening' }).click();
   await expect(page.getByRole('button', { name: 'Save screening' })).toBeEnabled();
 
   // Hypertension asks about today, and its own save must not disturb the diabetes set.
   await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await openSection(page, 'Hypertension interview', /Medications/);
   const hypertensionCard = page.getByRole('region', { name: /Metformin/ });
   await expect(
     hypertensionCard.getByLabel('Taking it as prescribed?', { exact: true }),
   ).toHaveCount(0);
-  await answer(hypertensionCard, page, 'Took it today?', 'No');
+  await answer(hypertensionCard, 'Took it today?', 'No');
   await page.getByRole('button', { name: 'Save assessment' }).click();
   await expect(page.getByRole('button', { name: 'Save assessment' })).toBeEnabled();
 
@@ -227,6 +234,7 @@ test('the adherence section is axe-clean at phone and desktop widths', async ({ 
     await page.setViewportSize(viewport);
     await page.goto(`/encounters/${encounterId}`);
     await page.getByRole('tab', { name: 'Hypertension' }).click();
+    await openSection(page, 'Hypertension interview', /Medications/);
     await expect(page.getByRole('region', { name: /Amlodipine/ })).toBeVisible();
 
     const results = await new AxeBuilder({ page })

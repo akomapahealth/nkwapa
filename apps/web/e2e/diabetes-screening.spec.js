@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { answer, question } = require('../playwright/interview');
 const { waitForOutboxDrain } = require('../playwright/outbox');
 
 const { storageStateFor } = require('../playwright/roles');
@@ -33,8 +34,7 @@ async function createEncounter(page, patientId) {
 }
 
 async function chooseContext(page, option) {
-  await page.getByLabel('When was the sample taken?').click();
-  await page.getByRole('option', { name: option, exact: true }).click();
+  await answer(page, 'When was the sample taken?', option);
 }
 
 async function saveAndSync(page) {
@@ -72,8 +72,7 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   await chooseContext(page, 'Fasting');
   // The value only appears once the status says one is known, which is what stops a record
   // holding both a number and "never checked".
-  await page.getByLabel('Most recent HbA1c').click();
-  await page.getByRole('option', { name: 'Value known', exact: true }).click();
+  await answer(page, 'Most recent HbA1c', 'Value known');
   await page.getByLabel('HbA1c (%)').fill('6.5');
   await page.getByLabel('Frequent urination').check();
   await page.getByLabel('Notes').fill('First encounter screening');
@@ -85,7 +84,13 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   await page.keyboard.press('Tab');
   await expect(page.getByRole('combobox', { name: 'Glucose unit' })).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('When was the sample taken?')).toBeFocused();
+  // A radio group takes focus on its picked answer.
+  await expect(
+    question(page, 'When was the sample taken?').getByRole('radio', {
+      name: 'Fasting',
+      exact: true,
+    }),
+  ).toBeFocused();
 
   await page.getByRole('button', { name: 'Submit for Review' }).click();
   await page.getByRole('button', { name: 'Mark Reviewed' }).click();
@@ -234,13 +239,11 @@ test('the PHQ-2 score appears only when the screen is complete, and alerts at th
 
   await expect(page.getByText(/score appears once both questions are answered/i)).toBeVisible();
 
-  await page.getByLabel('Little interest or pleasure in doing things?').click();
-  await page.getByRole('option', { name: 'Nearly every day', exact: true }).click();
+  await answer(page, 'Little interest or pleasure in doing things?', 'Nearly every day');
   await expect(page.getByText(/score appears once both questions are answered/i)).toBeVisible();
   await expect(page.getByText(/PHQ-2 score/)).toBeHidden();
 
-  await page.getByLabel('Feeling down, depressed, or hopeless?').click();
-  await page.getByRole('option', { name: 'Several days', exact: true }).click();
+  await answer(page, 'Feeling down, depressed, or hopeless?', 'Several days');
 
   await expect(page.getByText('PHQ-2 score:')).toBeVisible();
   await expect(page.getByText('4 / 6')).toBeVisible();

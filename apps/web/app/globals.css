@@ -880,3 +880,12 @@ html:has([data-landing]) {
     display: none;
   }
 }
+
+/* The workspace <main> is a scroll container (overflow: auto) that grows with its content, so a
+   sticky element inside it never pins to the screen. The read-aloud interview's rail and save
+   footer must (BRIEF-INTERVIEW.md), so on pages that hold one, <main> clips sideways instead of
+   scrolling. Every other page keeps the old behaviour. */
+#main-content:has([data-interview-flow]) {
+  overflow-x: clip;
+  overflow-y: visible;
+}

@@ -62,10 +62,9 @@ import {
   shouldPromptRepeat,
 } from '@nkwapa/db/bp-classification';
 import { Button } from '@/components/ui/button';
-import { FormActions } from '@/components/ui/form-actions';
 import { Textarea } from '@/components/ui/textarea';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
-import { FieldLabel, RequiredLegend, focusFirstInvalid } from '@/components/ui/field';
+import { FieldLabel, focusFirstInvalid } from '@/components/ui/field';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { isFullySynced } from '@/lib/sync';
@@ -91,6 +90,7 @@ import {
 } from '@/lib/encounter-vitals';
 import { HYPERTENSION_LABELS } from '@/lib/hypertension';
 import { ClinicianPlanSection } from '@/components/encounters/ClinicianPlanSection';
+import { InterviewFlow, InterviewSection } from '@/components/encounters/InterviewFlow';
 import { MedicationAdherenceSection } from '@/components/encounters/MedicationAdherenceSection';
 import { useMedicationAdherence } from '@/lib/use-medication-adherence';
 import {
@@ -122,6 +122,23 @@ interface HypertensionInterviewFormProps {
   onSaved?: () => void;
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
 }
+
+// Spoken wording drafted 2026-11-12 for owner review (BRIEF-INTERVIEW.md section 7).
+const HYPERTENSION_SECTIONS = [
+  { id: 'history', title: 'Hypertension history', short: 'History' },
+  { id: 'bp-control', title: 'Blood pressure control', short: 'BP control' },
+  { id: 'symptoms', title: 'Current symptoms' },
+  { id: 'medications', title: 'Medications and adherence', short: 'Medications' },
+  {
+    id: 'substances',
+    title: 'Other substances affecting blood pressure',
+    short: 'Other substances',
+  },
+  { id: 'lifestyle', title: 'Nutrition and lifestyle', short: 'Lifestyle' },
+  { id: 'medical-history', title: 'Relevant medical history', short: 'Medical history' },
+  { id: 'screening', title: 'Essential screening status', short: 'Screening status' },
+  { id: 'plan', title: 'Actions and referral' },
+];
 
 export function HypertensionInterviewForm({
   clinicId,
@@ -430,561 +447,599 @@ export function HypertensionInterviewForm({
 
   return (
     <div className="space-y-4">
-      {canEdit ? <RequiredLegend /> : null}
-
-      <FormSectionCard title="1. Hypertension history" titleAs="h2">
-        <ChoiceQuestion
-          {...q('htn-status')}
-          label="Hypertension status"
-          value={values.hypertensionStatus}
-          onChange={(value) => update('hypertensionStatus', value)}
-          options={HYPERTENSION_STATUSES}
-          labels={HYPERTENSION_STATUS_LABELS}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <NumberQuestion
-            {...q('htn-year-diagnosed')}
-            label="Year diagnosed"
-            value={values.yearDiagnosed}
-            onChange={(value) => update('yearDiagnosed', value)}
-            placeholder="e.g. 2019"
-            disabled={shared.disabled || values.yearDiagnosedUnknown}
+      <InterviewFlow
+        label="Hypertension interview"
+        sections={HYPERTENSION_SECTIONS}
+        canEdit={canEdit}
+        onSave={handleSave}
+        saveLabel="Save assessment"
+        save={{ saving, message: saveMessage, error: saveError }}
+      >
+        <InterviewSection id="history" title="Hypertension history">
+          <ChoiceQuestion
+            {...q('htn-status')}
+            ask="Has a doctor or nurse ever told you that you have high blood pressure?"
+            label="Hypertension status"
+            value={values.hypertensionStatus}
+            onChange={(value) => update('hypertensionStatus', value)}
+            options={HYPERTENSION_STATUSES}
+            labels={HYPERTENSION_STATUS_LABELS}
           />
-          <div className="flex items-end pb-6">
-            <CheckboxQuestion
-              id="htn-year-unknown"
-              label="Year unknown"
-              checked={values.yearDiagnosedUnknown}
-              onChange={(checked) => update('yearDiagnosedUnknown', checked)}
-              disabled={shared.disabled}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <NumberQuestion
+              {...q('htn-year-diagnosed')}
+              ask="What year were you first told?"
+              label="Year diagnosed"
+              value={values.yearDiagnosed}
+              onChange={(value) => update('yearDiagnosed', value)}
+              placeholder="e.g. 2019"
+              disabled={shared.disabled || values.yearDiagnosedUnknown}
             />
+            <div className="flex items-end pb-6">
+              <CheckboxQuestion
+                id="htn-year-unknown"
+                label="Year unknown"
+                checked={values.yearDiagnosedUnknown}
+                onChange={(checked) => update('yearDiagnosedUnknown', checked)}
+                disabled={shared.disabled}
+              />
+            </div>
           </div>
-        </div>
-        <ChoiceQuestion
-          {...q('htn-main-concern')}
-          label="Main concern today"
-          value={values.mainConcern}
-          onChange={(value) => update('mainConcern', value)}
-          options={HYPERTENSION_CONCERNS}
-          labels={HYPERTENSION_CONCERN_LABELS}
-        />
-        {values.mainConcern === 'OTHER' ? (
-          <TextQuestion
-            {...q('htn-main-concern-other')}
-            label="Describe the concern"
-            required
-            value={values.mainConcernOther}
-            onChange={(value) => update('mainConcernOther', value)}
-            maxLength={200}
-          />
-        ) : null}
-        <ChoiceQuestion
-          {...q('htn-usual-care-status')}
-          label="Usual hypertension care site"
-          value={values.usualCareFacilityStatus}
-          onChange={(value) => update('usualCareFacilityStatus', value)}
-          options={FACILITY_KNOWN_STATUSES}
-          labels={FACILITY_KNOWN_STATUS_LABELS}
-        />
-        {values.usualCareFacilityStatus === 'SELECTED' ? (
-          <TextQuestion
-            {...q('htn-usual-care-facility')}
-            label="Facility name"
-            required
-            value={values.usualCareFacility}
-            onChange={(value) => update('usualCareFacility', value)}
-            maxLength={200}
-          />
-        ) : null}
-      </FormSectionCard>
-
-      <FormSectionCard
-        title="2. Blood pressure control"
-        titleAs="h2"
-        description="Today's measurements come from the Vitals tab. They are shown here, not re-entered."
-      >
-        {/*
-          Read-only, with units re-attached, exactly as MASTER.md describes a locked record. These
-          values are never written to this record: Vitals is the one place today's measurement
-          lives, so correcting a mistyped vital corrects the classification with no second edit.
-        */}
-        <dl className="grid gap-3 rounded-lg border border-border bg-muted/40 p-4 sm:grid-cols-3">
-          <div>
-            <dt className="text-sm text-muted-foreground">Today&rsquo;s blood pressure</dt>
-            <dd className="text-base font-medium">{formatBloodPressure(todaysVitals)}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Pulse</dt>
-            <dd className="text-base font-medium">{formatPulse(todaysVitals)}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Classification</dt>
-            <dd className="text-base font-medium">{HYPERTENSION_LABELS[derivedClassification]}</dd>
-          </div>
-        </dl>
-
-        {!hasBloodPressure(todaysVitals) ? (
-          <InlineNotice tone="info" live={false}>
-            {isOnline
-              ? 'No blood pressure has been recorded for this visit yet. Record it on the Vitals tab and it will appear here.'
-              : 'No blood pressure is available on this device for this visit. Reconnect to check for readings, or record one on the Vitals tab.'}
-          </InlineNotice>
-        ) : null}
-
-        {promptRepeat && values.repeatPerformed === 'NOT_ASSESSED' ? (
-          <InlineNotice tone="warning">
-            This reading is high enough to confirm. Let the patient rest quietly for five minutes,
-            check the cuff size is right for their arm, then record the repeat below.
-          </InlineNotice>
-        ) : null}
-
-        <ChoiceQuestion
-          {...q('htn-repeat-performed')}
-          label="BP measurement repeated today"
-          value={values.repeatPerformed}
-          onChange={(value) => update('repeatPerformed', value)}
-          options={BP_REPEAT_STATUSES}
-          labels={BP_REPEAT_STATUS_LABELS}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <NumberQuestion
-            {...q('htn-repeat-systolic')}
-            label="Repeat systolic (mmHg)"
-            value={values.repeatSystolicBp}
-            onChange={(value) => update('repeatSystolicBp', value)}
-          />
-          <NumberQuestion
-            {...q('htn-repeat-diastolic')}
-            label="Repeat diastolic (mmHg)"
-            value={values.repeatDiastolicBp}
-            onChange={(value) => update('repeatDiastolicBp', value)}
-          />
-        </div>
-        <ChoiceQuestion
-          {...q('htn-home-monitor')}
-          label="Home BP monitor"
-          value={values.homeMonitorStatus}
-          onChange={(value) => update('homeMonitorStatus', value)}
-          options={HOME_BP_MONITOR_STATUSES}
-          labels={HOME_BP_MONITOR_STATUS_LABELS}
-        />
-        <ChoiceQuestion
-          {...q('htn-home-frequency')}
-          label="Checks BP at home"
-          value={values.homeCheckFrequency}
-          onChange={(value) => update('homeCheckFrequency', value)}
-          options={HOME_BP_CHECK_FREQUENCIES}
-          labels={HOME_BP_CHECK_FREQUENCY_LABELS}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <NumberQuestion
-            {...q('htn-home-systolic')}
-            label="Usual home systolic (mmHg)"
-            value={values.homeSystolicAvg}
-            onChange={(value) => update('homeSystolicAvg', value)}
-            disabled={shared.disabled || values.homeReadingsUnknown}
-          />
-          <NumberQuestion
-            {...q('htn-home-diastolic')}
-            label="Usual home diastolic (mmHg)"
-            value={values.homeDiastolicAvg}
-            onChange={(value) => update('homeDiastolicAvg', value)}
-            disabled={shared.disabled || values.homeReadingsUnknown}
-          />
-        </div>
-        <CheckboxQuestion
-          id="htn-home-unknown"
-          label="Readings unknown"
-          checked={values.homeReadingsUnknown}
-          onChange={(checked) => update('homeReadingsUnknown', checked)}
-          disabled={shared.disabled}
-        />
-        <ChoiceQuestion
-          {...q('htn-home-source')}
-          label="Source of home readings"
-          value={values.homeReadingSource}
-          onChange={(value) => update('homeReadingSource', value)}
-          options={HOME_BP_SOURCES}
-          labels={HOME_BP_SOURCE_LABELS}
-        />
-      </FormSectionCard>
-
-      <FormSectionCard
-        title="3. Current symptoms"
-        titleAs="h2"
-        description="Is the patient experiencing any of these right now?"
-      >
-        <MultiChoiceQuestion
-          {...q('htn-symptoms')}
-          label="Current symptoms"
-          value={values.currentSymptoms}
-          onChange={(value) => update('currentSymptoms', value)}
-          options={HYPERTENSION_SYMPTOMS}
-          labels={HYPERTENSION_SYMPTOM_LABELS}
-          exclusive={['NONE']}
-        />
-        {escalation.urgentReviewRequired ? (
-          <InlineNotice tone="error">
-            <span className="block font-medium">This visit needs a clinician now.</span>
-            <span className="block">
-              {escalation.reasons
-                .map((reason) => HYPERTENSION_ESCALATION_REASON_LABELS[reason])
-                .join(' · ')}
-            </span>
-            {canEdit ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={applyEscalationReasons}
-              >
-                Add to the reasons for clinician review
-              </Button>
-            ) : null}
-          </InlineNotice>
-        ) : null}
-      </FormSectionCard>
-
-      <FormSectionCard
-        title="4. Medications and adherence"
-        titleAs="h2"
-        description="The medications come from the reconciled list on the Medications tab and are read-only here. Record only what was observed today."
-      >
-        <MedicationAdherenceSection
-          context="HYPERTENSION"
-          clinicId={clinicId}
-          patientId={patientId}
-          forCondition={adherence.forCondition}
-          other={adherence.other}
-          categoriesUnavailable={adherence.categoriesUnavailable}
-          entries={adherence.entries}
-          errors={adherence.errors}
-          disabled={!canEdit || saving}
-          reserveErrorSpace={hasSubmitted}
-          onChange={adherence.update}
-          loading={adherence.loading}
-          loadError={adherence.loadError}
-        />
-        <MultiChoiceQuestion
-          {...q('htn-reminder-strategies')}
-          label="How does the patient remember medications?"
-          value={values.medicationReminderStrategies}
-          onChange={(value) => update('medicationReminderStrategies', value)}
-          options={MEDICATION_REMINDER_STRATEGIES}
-          labels={MEDICATION_REMINDER_STRATEGY_LABELS}
-          exclusive={['NONE']}
-        />
-        {values.medicationReminderStrategies.includes('OTHER') ? (
-          <TextQuestion
-            {...q('htn-reminder-other')}
-            label="Describe the reminder system"
-            required
-            value={values.reminderStrategyOther}
-            onChange={(value) => update('reminderStrategyOther', value)}
-            maxLength={200}
-          />
-        ) : null}
-        <InlineNotice tone="info" live={false}>
-          Document what the patient takes and any barriers. Do not recommend medication changes.
-        </InlineNotice>
-      </FormSectionCard>
-
-      <FormSectionCard
-        title="5. Other substances affecting blood pressure"
-        titleAs="h2"
-        description="Recorded for the clinician to consider. This does not mean a substance caused the hypertension."
-      >
-        <MultiChoiceQuestion
-          {...q('htn-substances')}
-          label="Currently uses any of the following?"
-          value={values.contributingSubstances}
-          onChange={(value) => update('contributingSubstances', value)}
-          options={BP_AFFECTING_SUBSTANCES}
-          labels={BP_AFFECTING_SUBSTANCE_LABELS}
-          exclusive={['NONE', 'UNSURE']}
-        />
-      </FormSectionCard>
-
-      <FormSectionCard title="6. Nutrition and lifestyle" titleAs="h2">
-        <div className="grid gap-4 sm:grid-cols-2">
           <ChoiceQuestion
-            {...q('htn-lifestyle-salt-cooking')}
-            label="Adds salt during cooking"
-            value={values.lifestyle.saltDuringCooking}
-            onChange={(value) => updateLifestyle('saltDuringCooking', value)}
-            options={FREQUENCY_NEVER_SOMETIMES_USUALLY}
-            labels={FREQUENCY_NEVER_SOMETIMES_USUALLY_LABELS}
+            {...q('htn-main-concern')}
+            ask="What worries you most about your blood pressure today?"
+            label="Main concern today"
+            value={values.mainConcern}
+            onChange={(value) => update('mainConcern', value)}
+            options={HYPERTENSION_CONCERNS}
+            labels={HYPERTENSION_CONCERN_LABELS}
           />
-          <ChoiceQuestion
-            {...q('htn-lifestyle-salt-table')}
-            label="Adds salt at the table"
-            value={values.lifestyle.saltAtTable}
-            onChange={(value) => updateLifestyle('saltAtTable', value)}
-            options={FREQUENCY_NEVER_SOMETIMES_USUALLY}
-            labels={FREQUENCY_NEVER_SOMETIMES_USUALLY_LABELS}
-          />
-          <ChoiceQuestion
-            {...q('htn-lifestyle-processed')}
-            label="Frequently eats salty or processed foods"
-            value={values.lifestyle.saltyProcessedFoods}
-            onChange={(value) => updateLifestyle('saltyProcessedFoods', value)}
-            options={NKWAPA_ANSWERS}
-            labels={NKWAPA_ANSWER_LABELS}
-          />
-          <ChoiceQuestion
-            {...q('htn-lifestyle-fruit-veg')}
-            label="Fruit or vegetables"
-            value={values.lifestyle.fruitVegetables}
-            onChange={(value) => updateLifestyle('fruitVegetables', value)}
-            options={FREQUENCY_RARELY_SOME_MOST}
-            labels={FREQUENCY_RARELY_SOME_MOST_LABELS}
-          />
-          <ChoiceQuestion
-            {...q('htn-lifestyle-sugary-drinks')}
-            label="Sugar-sweetened drinks"
-            value={values.lifestyle.sugarSweetenedDrinks}
-            onChange={(value) => updateLifestyle('sugarSweetenedDrinks', value)}
-            options={FREQUENCY_NEVER_SOMETIMES_DAILY}
-            labels={FREQUENCY_NEVER_SOMETIMES_DAILY_LABELS}
-          />
-          <ChoiceQuestion
-            {...q('htn-lifestyle-food-insecurity')}
-            label="Difficulty obtaining healthy food"
-            value={values.lifestyle.foodInsecurity}
-            onChange={(value) => updateLifestyle('foodInsecurity', value)}
-            options={FREQUENCY_NEVER_SOMETIMES_OFTEN}
-            labels={FREQUENCY_NEVER_SOMETIMES_OFTEN_LABELS}
-          />
-          <ChoiceQuestion
-            {...q('htn-lifestyle-counselling')}
-            label="Interested in nutrition counseling"
-            value={values.lifestyle.wantsNutritionCounseling}
-            onChange={(value) => updateLifestyle('wantsNutritionCounseling', value)}
-            options={NKWAPA_ANSWERS}
-            labels={NKWAPA_ANSWER_LABELS}
-          />
-          <NumberQuestion
-            {...q('htn-lifestyle-active-days')}
-            label="Physically active days per week (0-7)"
-            value={
-              values.lifestyle.activeDaysPerWeek == null
-                ? ''
-                : String(values.lifestyle.activeDaysPerWeek)
-            }
-            onChange={(value) =>
-              updateLifestyle('activeDaysPerWeek', value.trim() ? Number(value) : null)
-            }
-          />
-          <ChoiceQuestion
-            {...q('htn-lifestyle-activity')}
-            label="Typical activity"
-            value={values.lifestyle.typicalActivity}
-            onChange={(value) => updateLifestyle('typicalActivity', value)}
-            options={PHYSICAL_ACTIVITY_TYPES}
-            labels={PHYSICAL_ACTIVITY_TYPE_LABELS}
-          />
-          {/*
-            `typicalActivityOther` has been in the lifestyle payload since the interview shipped
-            and was the one OTHER answer with nowhere to write it down, so "Other" recorded that
-            the question was answered and discarded the answer.
-          */}
-          {values.lifestyle.typicalActivity === 'OTHER' ? (
+          {values.mainConcern === 'OTHER' ? (
             <TextQuestion
-              {...q('htn-lifestyle-activity-other')}
-              label="Describe the activity"
+              {...q('htn-main-concern-other')}
+              label="Describe the concern"
               required
-              value={values.lifestyle.typicalActivityOther ?? ''}
-              onChange={(value) => updateLifestyle('typicalActivityOther', value)}
+              value={values.mainConcernOther}
+              onChange={(value) => update('mainConcernOther', value)}
               maxLength={200}
             />
           ) : null}
           <ChoiceQuestion
-            {...q('htn-lifestyle-alcohol')}
-            label="Alcohol use"
-            value={values.lifestyle.alcoholUse}
-            onChange={(value) => updateLifestyle('alcoholUse', value)}
-            options={ALCOHOL_USE_STATUSES}
-            labels={ALCOHOL_USE_STATUS_LABELS}
+            {...q('htn-usual-care-status')}
+            ask="Where do you usually go for your blood pressure care?"
+            label="Usual hypertension care site"
+            value={values.usualCareFacilityStatus}
+            onChange={(value) => update('usualCareFacilityStatus', value)}
+            options={FACILITY_KNOWN_STATUSES}
+            labels={FACILITY_KNOWN_STATUS_LABELS}
           />
-        </div>
-        {/*
+          {values.usualCareFacilityStatus === 'SELECTED' ? (
+            <TextQuestion
+              {...q('htn-usual-care-facility')}
+              label="Facility name"
+              required
+              value={values.usualCareFacility}
+              onChange={(value) => update('usualCareFacility', value)}
+              maxLength={200}
+            />
+          ) : null}
+        </InterviewSection>
+
+        <InterviewSection
+          id="bp-control"
+          title="Blood pressure control"
+          description="Today's measurements come from the Vitals tab. They are shown here, not re-entered."
+        >
+          {/*
+          Read-only, with units re-attached, exactly as MASTER.md describes a locked record. These
+          values are never written to this record: Vitals is the one place today's measurement
+          lives, so correcting a mistyped vital corrects the classification with no second edit.
+        */}
+          <dl className="grid gap-3 rounded-lg border border-border bg-muted/40 p-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-sm text-muted-foreground">Today&rsquo;s blood pressure</dt>
+              <dd className="text-base font-medium">{formatBloodPressure(todaysVitals)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-muted-foreground">Pulse</dt>
+              <dd className="text-base font-medium">{formatPulse(todaysVitals)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-muted-foreground">Classification</dt>
+              <dd className="text-base font-medium">
+                {HYPERTENSION_LABELS[derivedClassification]}
+              </dd>
+            </div>
+          </dl>
+
+          {!hasBloodPressure(todaysVitals) ? (
+            <InlineNotice tone="info" live={false}>
+              {isOnline
+                ? 'No blood pressure has been recorded for this visit yet. Record it on the Vitals tab and it will appear here.'
+                : 'No blood pressure is available on this device for this visit. Reconnect to check for readings, or record one on the Vitals tab.'}
+            </InlineNotice>
+          ) : null}
+
+          {promptRepeat && values.repeatPerformed === 'NOT_ASSESSED' ? (
+            <InlineNotice tone="warning">
+              This reading is high enough to confirm. Let the patient rest quietly for five minutes,
+              check the cuff size is right for their arm, then record the repeat below.
+            </InlineNotice>
+          ) : null}
+
+          <ChoiceQuestion
+            {...q('htn-repeat-performed')}
+            label="BP measurement repeated today"
+            value={values.repeatPerformed}
+            onChange={(value) => update('repeatPerformed', value)}
+            options={BP_REPEAT_STATUSES}
+            labels={BP_REPEAT_STATUS_LABELS}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <NumberQuestion
+              {...q('htn-repeat-systolic')}
+              label="Repeat systolic (mmHg)"
+              value={values.repeatSystolicBp}
+              onChange={(value) => update('repeatSystolicBp', value)}
+            />
+            <NumberQuestion
+              {...q('htn-repeat-diastolic')}
+              label="Repeat diastolic (mmHg)"
+              value={values.repeatDiastolicBp}
+              onChange={(value) => update('repeatDiastolicBp', value)}
+            />
+          </div>
+          <ChoiceQuestion
+            {...q('htn-home-monitor')}
+            ask="Do you have a blood pressure machine at home?"
+            label="Home BP monitor"
+            value={values.homeMonitorStatus}
+            onChange={(value) => update('homeMonitorStatus', value)}
+            options={HOME_BP_MONITOR_STATUSES}
+            labels={HOME_BP_MONITOR_STATUS_LABELS}
+          />
+          <ChoiceQuestion
+            {...q('htn-home-frequency')}
+            ask="How often do you check your blood pressure at home?"
+            label="Checks BP at home"
+            value={values.homeCheckFrequency}
+            onChange={(value) => update('homeCheckFrequency', value)}
+            options={HOME_BP_CHECK_FREQUENCIES}
+            labels={HOME_BP_CHECK_FREQUENCY_LABELS}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <NumberQuestion
+              {...q('htn-home-systolic')}
+              ask="What does your reading at home usually say? The top number first."
+              label="Usual home systolic (mmHg)"
+              value={values.homeSystolicAvg}
+              onChange={(value) => update('homeSystolicAvg', value)}
+              disabled={shared.disabled || values.homeReadingsUnknown}
+            />
+            <NumberQuestion
+              {...q('htn-home-diastolic')}
+              label="Usual home diastolic (mmHg)"
+              value={values.homeDiastolicAvg}
+              onChange={(value) => update('homeDiastolicAvg', value)}
+              disabled={shared.disabled || values.homeReadingsUnknown}
+            />
+          </div>
+          <CheckboxQuestion
+            id="htn-home-unknown"
+            label="Readings unknown"
+            checked={values.homeReadingsUnknown}
+            onChange={(checked) => update('homeReadingsUnknown', checked)}
+            disabled={shared.disabled}
+          />
+          <ChoiceQuestion
+            {...q('htn-home-source')}
+            label="Source of home readings"
+            value={values.homeReadingSource}
+            onChange={(value) => update('homeReadingSource', value)}
+            options={HOME_BP_SOURCES}
+            labels={HOME_BP_SOURCE_LABELS}
+          />
+        </InterviewSection>
+
+        <InterviewSection id="symptoms" title="Current symptoms">
+          <MultiChoiceQuestion
+            {...q('htn-symptoms')}
+            ask="Right now, do you have any of these? Read each one out."
+            label="Symptoms"
+            value={values.currentSymptoms}
+            onChange={(value) => update('currentSymptoms', value)}
+            options={HYPERTENSION_SYMPTOMS}
+            labels={HYPERTENSION_SYMPTOM_LABELS}
+            exclusive={['NONE']}
+          />
+          {escalation.urgentReviewRequired ? (
+            <InlineNotice tone="error">
+              <span className="block font-medium">This visit needs a clinician now.</span>
+              <span className="block">
+                {escalation.reasons
+                  .map((reason) => HYPERTENSION_ESCALATION_REASON_LABELS[reason])
+                  .join(' · ')}
+              </span>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={applyEscalationReasons}
+                >
+                  Add to the reasons for clinician review
+                </Button>
+              ) : null}
+            </InlineNotice>
+          ) : null}
+        </InterviewSection>
+
+        <InterviewSection
+          id="medications"
+          title="Medications and adherence"
+          description="The medications come from the reconciled list on the Medications tab and are read-only here. Record only what was observed today."
+        >
+          <MedicationAdherenceSection
+            context="HYPERTENSION"
+            clinicId={clinicId}
+            patientId={patientId}
+            forCondition={adherence.forCondition}
+            other={adherence.other}
+            categoriesUnavailable={adherence.categoriesUnavailable}
+            entries={adherence.entries}
+            errors={adherence.errors}
+            disabled={!canEdit || saving}
+            reserveErrorSpace={hasSubmitted}
+            onChange={adherence.update}
+            loading={adherence.loading}
+            loadError={adherence.loadError}
+          />
+          <MultiChoiceQuestion
+            {...q('htn-reminder-strategies')}
+            ask="How do you remember to take your medicines?"
+            label="How does the patient remember medications?"
+            value={values.medicationReminderStrategies}
+            onChange={(value) => update('medicationReminderStrategies', value)}
+            options={MEDICATION_REMINDER_STRATEGIES}
+            labels={MEDICATION_REMINDER_STRATEGY_LABELS}
+            exclusive={['NONE']}
+          />
+          {values.medicationReminderStrategies.includes('OTHER') ? (
+            <TextQuestion
+              {...q('htn-reminder-other')}
+              label="Describe the reminder system"
+              required
+              value={values.reminderStrategyOther}
+              onChange={(value) => update('reminderStrategyOther', value)}
+              maxLength={200}
+            />
+          ) : null}
+          <InlineNotice tone="info" live={false}>
+            Document what the patient takes and any barriers. Do not recommend medication changes.
+          </InlineNotice>
+        </InterviewSection>
+
+        <InterviewSection
+          id="substances"
+          title="Other substances affecting blood pressure"
+          description="Recorded for the clinician to consider. This does not mean a substance caused the hypertension."
+        >
+          <MultiChoiceQuestion
+            {...q('htn-substances')}
+            ask="Do you currently use any of these?"
+            label="Currently uses any of the following?"
+            value={values.contributingSubstances}
+            onChange={(value) => update('contributingSubstances', value)}
+            options={BP_AFFECTING_SUBSTANCES}
+            labels={BP_AFFECTING_SUBSTANCE_LABELS}
+            exclusive={['NONE', 'UNSURE']}
+          />
+        </InterviewSection>
+
+        <InterviewSection id="lifestyle" title="Nutrition and lifestyle">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChoiceQuestion
+              {...q('htn-lifestyle-salt-cooking')}
+              ask="Do you add salt when you cook?"
+              label="Adds salt during cooking"
+              value={values.lifestyle.saltDuringCooking}
+              onChange={(value) => updateLifestyle('saltDuringCooking', value)}
+              options={FREQUENCY_NEVER_SOMETIMES_USUALLY}
+              labels={FREQUENCY_NEVER_SOMETIMES_USUALLY_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-lifestyle-salt-table')}
+              ask="Do you add salt to your food at the table?"
+              label="Adds salt at the table"
+              value={values.lifestyle.saltAtTable}
+              onChange={(value) => updateLifestyle('saltAtTable', value)}
+              options={FREQUENCY_NEVER_SOMETIMES_USUALLY}
+              labels={FREQUENCY_NEVER_SOMETIMES_USUALLY_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-lifestyle-processed')}
+              ask="Do you often eat salty or packaged foods?"
+              label="Frequently eats salty or processed foods"
+              value={values.lifestyle.saltyProcessedFoods}
+              onChange={(value) => updateLifestyle('saltyProcessedFoods', value)}
+              options={NKWAPA_ANSWERS}
+              labels={NKWAPA_ANSWER_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-lifestyle-fruit-veg')}
+              ask="How often do you eat fruit or vegetables?"
+              label="Fruit or vegetables"
+              value={values.lifestyle.fruitVegetables}
+              onChange={(value) => updateLifestyle('fruitVegetables', value)}
+              options={FREQUENCY_RARELY_SOME_MOST}
+              labels={FREQUENCY_RARELY_SOME_MOST_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-lifestyle-sugary-drinks')}
+              ask="How often do you drink sweet drinks, like soda or sweetened juice?"
+              label="Sugar-sweetened drinks"
+              value={values.lifestyle.sugarSweetenedDrinks}
+              onChange={(value) => updateLifestyle('sugarSweetenedDrinks', value)}
+              options={FREQUENCY_NEVER_SOMETIMES_DAILY}
+              labels={FREQUENCY_NEVER_SOMETIMES_DAILY_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-lifestyle-food-insecurity')}
+              ask="Is it hard for you to get healthy food?"
+              label="Difficulty obtaining healthy food"
+              value={values.lifestyle.foodInsecurity}
+              onChange={(value) => updateLifestyle('foodInsecurity', value)}
+              options={FREQUENCY_NEVER_SOMETIMES_OFTEN}
+              labels={FREQUENCY_NEVER_SOMETIMES_OFTEN_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-lifestyle-counselling')}
+              ask="Would you like advice about food and nutrition?"
+              label="Interested in nutrition counseling"
+              value={values.lifestyle.wantsNutritionCounseling}
+              onChange={(value) => updateLifestyle('wantsNutritionCounseling', value)}
+              options={NKWAPA_ANSWERS}
+              labels={NKWAPA_ANSWER_LABELS}
+            />
+            <NumberQuestion
+              {...q('htn-lifestyle-active-days')}
+              ask="Last week, on how many days were you physically active?"
+              label="Physically active days per week (0-7)"
+              value={
+                values.lifestyle.activeDaysPerWeek == null
+                  ? ''
+                  : String(values.lifestyle.activeDaysPerWeek)
+              }
+              onChange={(value) =>
+                updateLifestyle('activeDaysPerWeek', value.trim() ? Number(value) : null)
+              }
+            />
+            <ChoiceQuestion
+              {...q('htn-lifestyle-activity')}
+              ask="What kind of activity do you usually do?"
+              label="Typical activity"
+              value={values.lifestyle.typicalActivity}
+              onChange={(value) => updateLifestyle('typicalActivity', value)}
+              options={PHYSICAL_ACTIVITY_TYPES}
+              labels={PHYSICAL_ACTIVITY_TYPE_LABELS}
+            />
+            {/*
+            `typicalActivityOther` has been in the lifestyle payload since the interview shipped
+            and was the one OTHER answer with nowhere to write it down, so "Other" recorded that
+            the question was answered and discarded the answer.
+          */}
+            {values.lifestyle.typicalActivity === 'OTHER' ? (
+              <TextQuestion
+                {...q('htn-lifestyle-activity-other')}
+                label="Describe the activity"
+                required
+                value={values.lifestyle.typicalActivityOther ?? ''}
+                onChange={(value) => updateLifestyle('typicalActivityOther', value)}
+                maxLength={200}
+              />
+            ) : null}
+            <ChoiceQuestion
+              {...q('htn-lifestyle-alcohol')}
+              ask="Do you drink alcohol? How often?"
+              label="Alcohol use"
+              value={values.lifestyle.alcoholUse}
+              onChange={(value) => updateLifestyle('alcoholUse', value)}
+              options={ALCOHOL_USE_STATUSES}
+              labels={ALCOHOL_USE_STATUS_LABELS}
+            />
+          </div>
+          {/*
           Tobacco is asked on the Vitals tab, which writes TobaccoScreening for this encounter.
           Asking again here would let one visit hold two different answers.
         */}
-        <InlineNotice tone="info" live={false}>
-          Tobacco use is recorded with the vitals for this visit, on the Vitals tab.
-        </InlineNotice>
-      </FormSectionCard>
+          <InlineNotice tone="info" live={false}>
+            Tobacco use is recorded with the vitals for this visit, on the Vitals tab.
+          </InlineNotice>
+        </InterviewSection>
 
-      <FormSectionCard title="7. Relevant medical history" titleAs="h2">
-        <MultiChoiceQuestion
-          {...q('htn-conditions')}
-          label="Documented or patient-reported conditions"
-          value={values.relevantConditions}
-          onChange={(value) => update('relevantConditions', value)}
-          options={CARDIOMETABOLIC_CONDITIONS}
-          labels={CARDIOMETABOLIC_CONDITION_LABELS}
-          exclusive={['NONE_KNOWN', 'UNSURE']}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ChoiceQuestion
-            {...q('htn-pregnant-now')}
-            label="Pregnant now"
-            value={values.pregnantNow}
-            onChange={(value) => update('pregnantNow', value)}
-            options={NKWAPA_ANSWERS}
-            labels={NKWAPA_ANSWER_LABELS}
+        <InterviewSection id="medical-history" title="Relevant medical history">
+          <MultiChoiceQuestion
+            {...q('htn-conditions')}
+            ask="Has a health worker ever told you that you have any of these? Read each one out."
+            label="Documented or patient-reported conditions"
+            value={values.relevantConditions}
+            onChange={(value) => update('relevantConditions', value)}
+            options={CARDIOMETABOLIC_CONDITIONS}
+            labels={CARDIOMETABOLIC_CONDITION_LABELS}
+            exclusive={['NONE_KNOWN', 'UNSURE']}
           />
-          <ChoiceQuestion
-            {...q('htn-planning-pregnancy')}
-            label="Planning pregnancy within 12 months"
-            value={values.planningPregnancy}
-            onChange={(value) => update('planningPregnancy', value)}
-            options={PREGNANCY_PLANNING_ANSWERS}
-            labels={PREGNANCY_PLANNING_ANSWER_LABELS}
-          />
-        </div>
-      </FormSectionCard>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChoiceQuestion
+              {...q('htn-pregnant-now')}
+              ask="Are you pregnant now?"
+              label="Pregnant now"
+              value={values.pregnantNow}
+              onChange={(value) => update('pregnantNow', value)}
+              options={NKWAPA_ANSWERS}
+              labels={NKWAPA_ANSWER_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-planning-pregnancy')}
+              ask="Are you planning to become pregnant in the next year?"
+              label="Planning pregnancy within 12 months"
+              value={values.planningPregnancy}
+              onChange={(value) => update('planningPregnancy', value)}
+              options={PREGNANCY_PLANNING_ANSWERS}
+              labels={PREGNANCY_PLANNING_ANSWER_LABELS}
+            />
+          </div>
+        </InterviewSection>
 
-      <FormSectionCard
-        title="8. Essential screening status"
-        titleAs="h2"
-        description="Record what has been done. Do not decide what is indicated."
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ChoiceQuestion
-            {...q('htn-kidney-testing')}
-            label="Kidney function testing in the past year"
-            value={values.kidneyFunctionTesting}
-            onChange={(value) => update('kidneyFunctionTesting', value)}
-            options={SCREENING_COMPLETION_STATUSES}
-            labels={SCREENING_COMPLETION_STATUS_LABELS}
-          />
-          {values.kidneyFunctionTesting === 'COMPLETED' ? (
-            <DateQuestion
-              {...q('htn-kidney-testing-completed-on')}
-              label="Date of the kidney function testing"
-              hint="Leave blank if the patient is not sure when."
-              max={today}
-              value={values.kidneyFunctionTestingCompletedOn ?? ''}
-              onChange={(value) => update('kidneyFunctionTestingCompletedOn', value || null)}
+        <InterviewSection
+          id="screening"
+          title="Essential screening status"
+          description="Record what has been done. Do not decide what is indicated."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChoiceQuestion
+              {...q('htn-kidney-testing')}
+              ask="In the past year, have you had a blood test for your kidneys?"
+              label="Kidney function testing in the past year"
+              value={values.kidneyFunctionTesting}
+              onChange={(value) => update('kidneyFunctionTesting', value)}
+              options={SCREENING_COMPLETION_STATUSES}
+              labels={SCREENING_COMPLETION_STATUS_LABELS}
             />
-          ) : null}
-          <ChoiceQuestion
-            {...q('htn-urine-protein')}
-            label="Urine protein testing in the past year"
-            value={values.urineProteinTesting}
-            onChange={(value) => update('urineProteinTesting', value)}
-            options={SCREENING_COMPLETION_STATUSES}
-            labels={SCREENING_COMPLETION_STATUS_LABELS}
-          />
-          {values.urineProteinTesting === 'COMPLETED' ? (
-            <DateQuestion
-              {...q('htn-urine-protein-completed-on')}
-              label="Date of the urine protein testing"
-              hint="Leave blank if the patient is not sure when."
-              max={today}
-              value={values.urineProteinTestingCompletedOn ?? ''}
-              onChange={(value) => update('urineProteinTestingCompletedOn', value || null)}
+            {values.kidneyFunctionTesting === 'COMPLETED' ? (
+              <DateQuestion
+                {...q('htn-kidney-testing-completed-on')}
+                ask="When was that?"
+                label="Date of the kidney function testing"
+                hint="Leave blank if the patient is not sure when."
+                max={today}
+                value={values.kidneyFunctionTestingCompletedOn ?? ''}
+                onChange={(value) => update('kidneyFunctionTestingCompletedOn', value || null)}
+              />
+            ) : null}
+            <ChoiceQuestion
+              {...q('htn-urine-protein')}
+              ask="In the past year, have you had a urine test for protein?"
+              label="Urine protein testing in the past year"
+              value={values.urineProteinTesting}
+              onChange={(value) => update('urineProteinTesting', value)}
+              options={SCREENING_COMPLETION_STATUSES}
+              labels={SCREENING_COMPLETION_STATUS_LABELS}
             />
-          ) : null}
-          <ChoiceQuestion
-            {...q('htn-cholesterol')}
-            label="Cholesterol testing in the past year"
-            value={values.cholesterolTesting}
-            onChange={(value) => update('cholesterolTesting', value)}
-            options={SCREENING_COMPLETION_STATUSES}
-            labels={SCREENING_COMPLETION_STATUS_LABELS}
-          />
-          {values.cholesterolTesting === 'COMPLETED' ? (
-            <DateQuestion
-              {...q('htn-cholesterol-completed-on')}
-              label="Date of the cholesterol testing"
-              hint="Leave blank if the patient is not sure when."
-              max={today}
-              value={values.cholesterolTestingCompletedOn ?? ''}
-              onChange={(value) => update('cholesterolTestingCompletedOn', value || null)}
+            {values.urineProteinTesting === 'COMPLETED' ? (
+              <DateQuestion
+                {...q('htn-urine-protein-completed-on')}
+                ask="When was that?"
+                label="Date of the urine protein testing"
+                hint="Leave blank if the patient is not sure when."
+                max={today}
+                value={values.urineProteinTestingCompletedOn ?? ''}
+                onChange={(value) => update('urineProteinTestingCompletedOn', value || null)}
+              />
+            ) : null}
+            <ChoiceQuestion
+              {...q('htn-cholesterol')}
+              ask="In the past year, have you had your cholesterol checked?"
+              label="Cholesterol testing in the past year"
+              value={values.cholesterolTesting}
+              onChange={(value) => update('cholesterolTesting', value)}
+              options={SCREENING_COMPLETION_STATUSES}
+              labels={SCREENING_COMPLETION_STATUS_LABELS}
             />
-          ) : null}
-          <ChoiceQuestion
-            {...q('htn-ecg')}
-            label="ECG previously completed"
-            value={values.ecgCompleted}
-            onChange={(value) => update('ecgCompleted', value)}
-            options={SCREENING_COMPLETION_STATUSES}
-            labels={SCREENING_COMPLETION_STATUS_LABELS}
-          />
-          {values.ecgCompleted === 'COMPLETED' ? (
-            <DateQuestion
-              {...q('htn-ecg-completed-on')}
-              label="Date of the ECG"
-              hint="Leave blank if the patient is not sure when."
-              max={today}
-              value={values.ecgCompletedOn ?? ''}
-              onChange={(value) => update('ecgCompletedOn', value || null)}
+            {values.cholesterolTesting === 'COMPLETED' ? (
+              <DateQuestion
+                {...q('htn-cholesterol-completed-on')}
+                ask="When was that?"
+                label="Date of the cholesterol testing"
+                hint="Leave blank if the patient is not sure when."
+                max={today}
+                value={values.cholesterolTestingCompletedOn ?? ''}
+                onChange={(value) => update('cholesterolTestingCompletedOn', value || null)}
+              />
+            ) : null}
+            <ChoiceQuestion
+              {...q('htn-ecg')}
+              ask="Have you ever had an ECG, a tracing of your heart?"
+              label="ECG previously completed"
+              value={values.ecgCompleted}
+              onChange={(value) => update('ecgCompleted', value)}
+              options={SCREENING_COMPLETION_STATUSES}
+              labels={SCREENING_COMPLETION_STATUS_LABELS}
             />
-          ) : null}
-          <ChoiceQuestion
-            {...q('htn-statin')}
-            label="Statin"
-            value={values.statinUse}
-            onChange={(value) => update('statinUse', value)}
-            options={MEDICATION_USE_STATUSES}
-            labels={MEDICATION_USE_STATUS_LABELS}
-          />
-          <ChoiceQuestion
-            {...q('htn-aspirin')}
-            label="Aspirin"
-            value={values.aspirinUse}
-            onChange={(value) => update('aspirinUse', value)}
-            options={MEDICATION_USE_STATUSES}
-            labels={MEDICATION_USE_STATUS_LABELS}
-          />
-        </div>
-      </FormSectionCard>
+            {values.ecgCompleted === 'COMPLETED' ? (
+              <DateQuestion
+                {...q('htn-ecg-completed-on')}
+                ask="When was that?"
+                label="Date of the ECG"
+                hint="Leave blank if the patient is not sure when."
+                max={today}
+                value={values.ecgCompletedOn ?? ''}
+                onChange={(value) => update('ecgCompletedOn', value || null)}
+              />
+            ) : null}
+            <ChoiceQuestion
+              {...q('htn-statin')}
+              ask="Are you taking a statin, a medicine for cholesterol?"
+              label="Statin"
+              value={values.statinUse}
+              onChange={(value) => update('statinUse', value)}
+              options={MEDICATION_USE_STATUSES}
+              labels={MEDICATION_USE_STATUS_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('htn-aspirin')}
+              ask="Are you taking aspirin?"
+              label="Aspirin"
+              value={values.aspirinUse}
+              onChange={(value) => update('aspirinUse', value)}
+              options={MEDICATION_USE_STATUSES}
+              labels={MEDICATION_USE_STATUS_LABELS}
+            />
+          </div>
+        </InterviewSection>
 
-      <FormSectionCard title="Guided plan" titleAs="h2">
-        <MultiChoiceQuestion
-          {...q('htn-volunteer-actions')}
-          label="Actions completed"
-          value={values.volunteerActions}
-          onChange={(value) => update('volunteerActions', value)}
-          options={HYPERTENSION_VOLUNTEER_ACTIONS}
-          labels={HYPERTENSION_VOLUNTEER_ACTION_LABELS}
-          exclusive={['NO_INTERVENTION_COMPLETED']}
-        />
-        <MultiChoiceQuestion
-          {...q('htn-review-reasons')}
-          label="Reason for clinician review"
-          value={values.reviewReasons}
-          onChange={(value) => update('reviewReasons', value)}
-          options={HYPERTENSION_REVIEW_REASONS}
-          labels={HYPERTENSION_REVIEW_REASON_LABELS}
-          exclusive={['ROUTINE_REVIEW_ONLY']}
-        />
-        {values.reviewReasons.includes('OTHER') ? (
-          <TextQuestion
-            {...q('htn-review-reason-other')}
-            label="Describe the reason"
-            required
-            value={values.reviewReasonOther}
-            onChange={(value) => update('reviewReasonOther', value)}
-            maxLength={200}
+        <InterviewSection id="plan" title="Actions and referral">
+          <MultiChoiceQuestion
+            {...q('htn-volunteer-actions')}
+            label="Actions completed"
+            value={values.volunteerActions}
+            onChange={(value) => update('volunteerActions', value)}
+            options={HYPERTENSION_VOLUNTEER_ACTIONS}
+            labels={HYPERTENSION_VOLUNTEER_ACTION_LABELS}
+            exclusive={['NO_INTERVENTION_COMPLETED']}
           />
-        ) : null}
-        <div className="space-y-2">
-          <FieldLabel htmlFor="htn-notes">Notes</FieldLabel>
-          <Textarea
-            id="htn-notes"
-            value={values.notes}
-            onChange={(event) => update('notes', event.target.value)}
-            disabled={shared.disabled}
-            maxLength={2000}
-            rows={3}
+          <MultiChoiceQuestion
+            {...q('htn-review-reasons')}
+            label="Reason for clinician review"
+            value={values.reviewReasons}
+            onChange={(value) => update('reviewReasons', value)}
+            options={HYPERTENSION_REVIEW_REASONS}
+            labels={HYPERTENSION_REVIEW_REASON_LABELS}
+            exclusive={['ROUTINE_REVIEW_ONLY']}
           />
-        </div>
-      </FormSectionCard>
+          {values.reviewReasons.includes('OTHER') ? (
+            <TextQuestion
+              {...q('htn-review-reason-other')}
+              label="Describe the reason"
+              required
+              value={values.reviewReasonOther}
+              onChange={(value) => update('reviewReasonOther', value)}
+              maxLength={200}
+            />
+          ) : null}
+          <div className="space-y-2">
+            <FieldLabel htmlFor="htn-notes">Notes</FieldLabel>
+            <Textarea
+              id="htn-notes"
+              value={values.notes}
+              onChange={(event) => update('notes', event.target.value)}
+              disabled={shared.disabled}
+              maxLength={2000}
+              rows={3}
+            />
+          </div>
+        </InterviewSection>
+      </InterviewFlow>
 
       {canRecordClinicianPlan ? (
         <FormSectionCard
@@ -1027,19 +1082,6 @@ export function HypertensionInterviewForm({
           ) : null}
         </FormSectionCard>
       ) : null}
-
-      {saveError ? <InlineNotice tone="error">{saveError}</InlineNotice> : null}
-      {saveMessage ? <InlineNotice tone="success">{saveMessage}</InlineNotice> : null}
-
-      {canEdit ? (
-        <FormActions>
-          <Button onClick={() => void handleSave().catch(() => undefined)} disabled={saving}>
-            {saving ? 'Saving…' : 'Save assessment'}
-          </Button>
-        </FormActions>
-      ) : (
-        <p className="text-sm text-muted-foreground">This assessment is read-only.</p>
-      )}
 
       {canRecordClinicianPlan ? (
         <ClinicianPlanSection

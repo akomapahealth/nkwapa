@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { answer } = require('../playwright/interview');
 
 const { storageStateFor } = require('../playwright/roles');
 
@@ -80,13 +81,11 @@ test.describe('as a doctor', () => {
     await page.getByLabel('BP goal systolic (mmHg)').fill('130');
     await page.getByLabel('BP goal diastolic (mmHg)').fill('80');
 
-    await page.getByLabel('Follow-up', { exact: true }).click();
-    await page.getByRole('option', { name: 'Within 1 month', exact: true }).click();
+    await answer(page, 'Follow-up', 'Within 1 month');
     // The window is the input; a concrete date is what schedules the reminder on finalize.
     await expect(page.getByText(/schedules the patient.s follow-up reminder/i)).toBeVisible();
 
-    await page.getByLabel('Follow-up owner').click();
-    await page.getByRole('option', { name: 'Akomapa team', exact: true }).click();
+    await answer(page, 'Follow-up owner', 'Akomapa team');
 
     await page.getByRole('button', { name: 'Save plan' }).click();
     await expect(page.getByText('Plan saved.')).toBeVisible();
@@ -173,10 +172,8 @@ test.describe('offline, as a doctor', () => {
     await context.setOffline(true);
     await expect(page.getByText(/saving seals the plan/i)).toBeVisible({ timeout: 15_000 });
     await page.getByRole('checkbox', { name: 'Adjust medication' }).check();
-    await page.getByLabel('Follow-up', { exact: true }).click();
-    await page.getByRole('option', { name: 'Within 1 month', exact: true }).click();
-    await page.getByLabel('Follow-up owner').click();
-    await page.getByRole('option', { name: 'Akomapa team', exact: true }).click();
+    await answer(page, 'Follow-up', 'Within 1 month');
+    await answer(page, 'Follow-up owner', 'Akomapa team');
     await page.getByLabel('Additional comments').fill(marker);
     await page.getByRole('button', { name: 'Queue plan' }).click();
     await expect(page.getByText(/queued on this device, not saved yet/i)).toBeVisible();

@@ -1,5 +1,7 @@
 'use client';
 
+import { Fragment, useState } from 'react';
+
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { FieldError, FieldLabel, fieldErrorProps } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
+import { isUnasked, useInterviewQuestion } from '@/components/encounters/InterviewFlow';
 
 /**
  * The question shapes the chronic-disease interviews are built from.
@@ -31,7 +34,12 @@ const UNSET = '__UNSET__';
 export interface QuestionProps {
   id: string;
   label: string;
-  /** Rendered under the label, for the phrasing a volunteer should actually say aloud. */
+  /**
+   * The sentence the volunteer reads aloud to the patient. Shown larger than the label, which
+   * stays the field's short name (and its accessible name) for the review screen and the chart.
+   */
+  ask?: string;
+  /** A short note under the question: "Leave blank if the patient is not sure when." */
   hint?: string;
   error?: string;
   disabled?: boolean;
@@ -46,6 +54,7 @@ export interface QuestionProps {
 function QuestionShell({
   id,
   label,
+  ask,
   hint,
   error,
   reserveErrorSpace,
@@ -54,9 +63,14 @@ function QuestionShell({
 }: QuestionProps & { children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <FieldLabel htmlFor={id} required={required}>
+      <FieldLabel
+        htmlFor={id}
+        required={required}
+        className={ask ? 'font-normal text-muted-foreground' : undefined}
+      >
         {label}
       </FieldLabel>
+      <Ask id={id} ask={ask} />
       {hint ? (
         <p id={`${id}-hint`} className="text-sm text-muted-foreground">
           {hint}
@@ -65,6 +79,139 @@ function QuestionShell({
       {children}
       <FieldError id={id} message={error} reserveSpace={reserveErrorSpace} />
     </div>
+  );
+}
+
+/** Everything that describes the control: the spoken question, the note, then any error. */
+function describedBy({ id, ask, hint, error }: QuestionProps) {
+  const ids = [
+    ask && `${id}-ask`,
+    hint && `${id}-hint`,
+    error && fieldErrorProps(id, error)['aria-describedby'],
+  ];
+  return ids.filter(Boolean).join(' ') || undefined;
+}
+
+function Ask({ id, ask }: { id: string; ask?: string }) {
+  return ask ? (
+    <p
+      id={`${id}-ask`}
+      className="max-w-prose text-pretty text-lg font-medium leading-snug text-foreground"
+    >
+      {ask}
+    </p>
+  ) : null;
+}
+
+/** Answer sets up to this size render as one row of choices instead of a menu. */
+const SEGMENTED_MAX = 5;
+
+/**
+ * One answer from a short vocabulary, as a row of native radios styled as choices.
+ *
+ * Native radios, so arrow keys, the label and the group name come from the platform. Digits 1-9
+ * pick the matching choice while the group has focus, for a volunteer typing answers as the
+ * patient speaks. "Not asked" is the last, quiet choice and is never shown as picked until the
+ * volunteer picks it: an untouched question reads as unanswered, while it still saves as "Not
+ * asked" exactly as before.
+ */
+function SegmentedChoice({
+  value,
+  onChange,
+  options,
+  labels,
+  ...shell
+}: QuestionProps & {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  labels: Record<string, string>;
+}) {
+  const [touched, setTouched] = useState(false);
+  const shown = isUnasked(value) && !touched ? '' : value;
+  const pick = (option: string) => {
+    setTouched(true);
+    onChange(option);
+  };
+  const ordered = [
+    ...options.filter((option) => !isUnasked(option)),
+    ...options.filter((option) => isUnasked(option)),
+  ];
+  return (
+    <fieldset className="space-y-2" aria-describedby={describedBy({ ...shell, error: undefined })}>
+      <legend
+        id={`${shell.id}-legend`}
+        className={cn('text-sm leading-none', shell.ask ? 'text-muted-foreground' : 'font-medium')}
+      >
+        {shell.label}
+        {shell.required ? <span aria-hidden="true"> *</span> : null}
+      </legend>
+      <Ask id={shell.id} ask={shell.ask} />
+      {shell.hint ? (
+        <p id={`${shell.id}-hint`} className="text-sm text-muted-foreground">
+          {shell.hint}
+        </p>
+      ) : null}
+      <div
+        id={shell.id}
+        role="radiogroup"
+        aria-labelledby={`${shell.id}-legend`}
+        tabIndex={-1}
+        className="flex flex-wrap gap-2 rounded-md focus-visible:outline-none"
+        onKeyDown={(event) => {
+          const n = Number(event.key);
+          if (shell.disabled || !Number.isInteger(n) || n < 1 || n > ordered.length) return;
+          if (event.altKey || event.ctrlKey || event.metaKey) return;
+          event.preventDefault();
+          pick(ordered[n - 1]);
+          (event.currentTarget.querySelectorAll('input')[n - 1] as HTMLInputElement)?.focus();
+        }}
+        {...fieldErrorProps(shell.id, shell.error)}
+        aria-describedby={describedBy(shell)}
+      >
+        {ordered.map((option, i) => {
+          const optionId = `${shell.id}-${option.toLowerCase().replace(/_/g, '-')}`;
+          const quiet = isUnasked(option);
+          return (
+            <label
+              key={option}
+              htmlFor={optionId}
+              className={cn(
+                'group relative flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-input bg-card px-3 text-sm motion-safe:transition-colors motion-safe:duration-150 hover:border-primary/60 has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 [@media(pointer:coarse)]:min-h-11',
+                quiet && 'border-dashed text-muted-foreground has-[:checked]:text-foreground',
+              )}
+            >
+              <input
+                id={optionId}
+                type="radio"
+                name={shell.id}
+                value={option}
+                checked={shown === option}
+                onChange={() => pick(option)}
+                disabled={shell.disabled}
+                className="peer sr-only"
+              />
+              <span
+                aria-hidden="true"
+                className="grid size-4 shrink-0 place-items-center rounded-full border border-muted-foreground/60 peer-checked:border-primary"
+              >
+                <span className="size-2 rounded-full bg-primary opacity-0 group-has-[:checked]:opacity-100" />
+              </span>
+              {labels[option] ?? option}
+              {i < 9 ? (
+                <kbd
+                  aria-hidden="true"
+                  className="ml-1 hidden font-sans text-xs tabular-nums text-muted-foreground [@media(pointer:fine)]:inline"
+                >
+                  {i + 1}
+                </kbd>
+              ) : null}
+            </label>
+          );
+        })}
+      </div>
+      <FieldError id={shell.id} message={shell.error} reserveSpace={shell.reserveErrorSpace} />
+    </fieldset>
   );
 }
 
@@ -83,6 +230,26 @@ export function ChoiceQuestion({
   labels: Record<string, string>;
   placeholder?: string;
 }) {
+  useInterviewQuestion({
+    id: shell.id,
+    label: shell.label,
+    answered: !isUnasked(value),
+    display: labels[value] ?? value,
+    invalid: Boolean(shell.error),
+  });
+  // Short vocabularies are read out and answered in one press; long ones stay a menu.
+  const answerable = options.filter((option) => !isUnasked(option));
+  if (answerable.length <= SEGMENTED_MAX) {
+    return (
+      <SegmentedChoice
+        value={value}
+        onChange={onChange}
+        options={options}
+        labels={labels}
+        {...shell}
+      />
+    );
+  }
   return (
     <QuestionShell {...shell}>
       {/*
@@ -96,7 +263,11 @@ export function ChoiceQuestion({
         onValueChange={(next) => onChange(next === UNSET ? '' : next)}
         disabled={shell.disabled}
       >
-        <SelectTrigger id={shell.id} {...fieldErrorProps(shell.id, shell.error)}>
+        <SelectTrigger
+          id={shell.id}
+          {...fieldErrorProps(shell.id, shell.error)}
+          aria-describedby={describedBy(shell)}
+        >
           <SelectValue placeholder={placeholder ?? 'Select an answer'} />
         </SelectTrigger>
         <SelectContent>
@@ -139,6 +310,16 @@ export function MultiChoiceQuestion({
   exclusive?: readonly string[];
   columns?: 1 | 2 | 3;
 }) {
+  useInterviewQuestion({
+    id: shell.id,
+    label: shell.label,
+    answered: value.length > 0,
+    display: value.map((v) => labels[v] ?? v).join(', '),
+    invalid: Boolean(shell.error),
+  });
+  // Where the trailing run of exclusive options starts (options.length when there is none).
+  let tailStart = options.length;
+  while (tailStart > 0 && (exclusive?.includes(options[tailStart - 1]) ?? false)) tailStart -= 1;
   const toggle = (option: string) => {
     const isExclusive = exclusive?.includes(option) ?? false;
     if (value.includes(option)) {
@@ -153,8 +334,13 @@ export function MultiChoiceQuestion({
   };
 
   return (
-    <fieldset className="space-y-2" aria-describedby={shell.hint ? `${shell.id}-hint` : undefined}>
-      <legend className="text-sm font-medium leading-none">{shell.label}</legend>
+    <fieldset className="space-y-2" aria-describedby={describedBy({ ...shell, error: undefined })}>
+      <legend
+        className={cn('text-sm leading-none', shell.ask ? 'text-muted-foreground' : 'font-medium')}
+      >
+        {shell.label}
+      </legend>
+      <Ask id={shell.id} ask={shell.ask} />
       {shell.hint ? (
         <p id={`${shell.id}-hint`} className="text-sm text-muted-foreground">
           {shell.hint}
@@ -163,26 +349,35 @@ export function MultiChoiceQuestion({
       <div
         id={shell.id}
         className={cn(
-          'grid gap-2',
+          'grid gap-x-4 gap-y-0.5',
           columns === 1 && 'grid-cols-1',
           columns === 2 && 'grid-cols-1 sm:grid-cols-2',
           columns === 3 && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
         )}
       >
-        {options.map((option) => {
+        {options.map((option, index) => {
           const optionId = `${shell.id}-${option.toLowerCase().replace(/_/g, '-')}`;
           return (
-            <div key={option} className="flex items-start gap-2">
-              <Checkbox
-                id={optionId}
-                checked={value.includes(option)}
-                onCheckedChange={() => toggle(option)}
-                disabled={shell.disabled}
-              />
-              <Label htmlFor={optionId} className="cursor-pointer text-sm font-normal leading-5">
-                {labels[option] ?? option}
-              </Label>
-            </div>
+            <Fragment key={option}>
+              {/* "None"/"Unsure" end the list; a rule sets them apart from the real options. */}
+              {index > 0 && index === tailStart ? (
+                <div aria-hidden className="col-span-full my-1 border-t border-rule" />
+              ) : null}
+              <div className="flex min-h-9 items-center gap-2 rounded-md px-2 hover:bg-muted/60 [@media(pointer:coarse)]:min-h-11">
+                <Checkbox
+                  id={optionId}
+                  checked={value.includes(option)}
+                  onCheckedChange={() => toggle(option)}
+                  disabled={shell.disabled}
+                />
+                <Label
+                  htmlFor={optionId}
+                  className="flex-1 cursor-pointer self-stretch py-2 text-sm font-normal leading-5"
+                >
+                  {labels[option] ?? option}
+                </Label>
+              </div>
+            </Fragment>
           );
         })}
       </div>
@@ -211,6 +406,13 @@ export function NumberQuestion({
   /** Offer the decimal keypad, for a value such as mmol/L glucose that is not a whole number. */
   decimal?: boolean;
 }) {
+  useInterviewQuestion({
+    id: shell.id,
+    label: shell.label,
+    answered: value.trim() !== '',
+    display: value,
+    invalid: Boolean(shell.error),
+  });
   return (
     <QuestionShell {...shell}>
       <Input
@@ -222,6 +424,7 @@ export function NumberQuestion({
         onChange={(event) => onChange(event.target.value)}
         disabled={shell.disabled}
         {...fieldErrorProps(shell.id, shell.error)}
+        aria-describedby={describedBy(shell)}
       />
     </QuestionShell>
   );
@@ -243,6 +446,13 @@ export function DateQuestion({
   onChange: (value: string) => void;
   max?: string;
 }) {
+  useInterviewQuestion({
+    id: shell.id,
+    label: shell.label,
+    answered: value.trim() !== '',
+    display: value,
+    invalid: Boolean(shell.error),
+  });
   return (
     <QuestionShell {...shell}>
       <Input
@@ -254,6 +464,7 @@ export function DateQuestion({
         onChange={(event) => onChange(event.target.value)}
         disabled={shell.disabled}
         {...fieldErrorProps(shell.id, shell.error)}
+        aria-describedby={describedBy(shell)}
       />
     </QuestionShell>
   );
@@ -272,6 +483,13 @@ export function TextQuestion({
   placeholder?: string;
   maxLength?: number;
 }) {
+  useInterviewQuestion({
+    id: shell.id,
+    label: shell.label,
+    answered: value.trim() !== '',
+    display: value,
+    invalid: Boolean(shell.error),
+  });
   return (
     <QuestionShell {...shell}>
       <Input
@@ -282,6 +500,7 @@ export function TextQuestion({
         onChange={(event) => onChange(event.target.value)}
         disabled={shell.disabled}
         {...fieldErrorProps(shell.id, shell.error)}
+        aria-describedby={describedBy(shell)}
       />
     </QuestionShell>
   );
