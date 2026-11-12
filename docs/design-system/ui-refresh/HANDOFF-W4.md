@@ -40,7 +40,6 @@ and captures that show the greeting belong in Accra daytime (W2 finding).
 
 ## Carried from W3
 
-- Lists elsewhere (Audit, Message delivery, Staff, Clinics, Duplicate review, Cross-clinic, My
-  Assigned) have the W3 labels and pager inside their `RecordSection` frames; R8.1 decides whether
-  any should bleed (MASTER "Lists (W3)" says only lists directly in `<main>`).
-- Patients "Last visit" and "Location" columns need API fields (`W3-REVIEW.md`).
+- List tabs now share `ListToolbar` and the metric strip (MASTER "Lists (W3)"); use them for any
+  list W4 touches. Staff invitations, Appointments and Data requests not converted (`W3-REVIEW.md`).
+- Last-visit sort is in-memory ranking; revisit past ~20k patients per clinic.

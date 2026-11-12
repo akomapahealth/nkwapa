@@ -9,23 +9,15 @@ import { AlertTriangle, Bell, CheckCheck, Clock3, SendHorizontal, Timer } from '
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
-import { readApiError } from '@/lib/ops';
+import { formatOpsDateTime, readApiError } from '@/lib/ops';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import {
-  RecordSection,
-  RecordSectionContent,
-  RecordSectionDescription,
-  RecordSectionHeader,
-  RecordSectionTitle,
-} from '@/components/patients/RecordSection';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import {
   Select,
@@ -48,7 +40,8 @@ import {
   medianDeliveryLatencyMs,
   type EmailAvailability,
 } from '@/lib/notification-delivery';
-import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { DataTable, SHEET_GUTTER, type DataTableColumn } from '@/components/ui/data-table';
+import { ListFilters } from '@/components/app-shell/ListToolbar';
 import { removeWithUndo } from '@/lib/undoable';
 
 interface ReminderRow {
@@ -233,7 +226,7 @@ export default function RemindersPage() {
       header: 'Created',
       cell: ({ getValue }) => {
         const v = getValue() as string | number | null | undefined;
-        return v ? new Date(v as string).toLocaleString() : '';
+        return v ? formatOpsDateTime(v as string) : '';
       },
     },
     {
@@ -242,7 +235,7 @@ export default function RemindersPage() {
       header: 'Scheduled',
       cell: ({ getValue }) => {
         const v = getValue() as string | number | null | undefined;
-        return v ? new Date(v as string).toLocaleString() : '';
+        return v ? formatOpsDateTime(v as string) : '';
       },
     },
     {
@@ -251,7 +244,7 @@ export default function RemindersPage() {
       header: 'Sent',
       cell: ({ getValue }) => {
         const v = getValue() as string | number | null | undefined;
-        return v ? new Date(v as string).toLocaleString() : '';
+        return v ? formatOpsDateTime(v as string) : '';
       },
     },
     {
@@ -277,7 +270,12 @@ export default function RemindersPage() {
         <StatusLabel variant={getStatusVariant(String(getValue()))} value={String(getValue())} />
       ),
     },
-    { id: 'channel', accessorKey: 'channel', header: 'Channel' },
+    {
+      id: 'channel',
+      accessorKey: 'channel',
+      header: 'Channel',
+      cell: ({ getValue }) => (getValue() === 'SMS' ? 'SMS' : 'Email'),
+    },
     {
       id: 'templateKey',
       accessorKey: 'templateKey',
@@ -327,7 +325,7 @@ export default function RemindersPage() {
       header: 'Updated',
       cell: ({ getValue }) => {
         const v = getValue() as string | number | null | undefined;
-        return v ? new Date(v as string).toLocaleString() : '';
+        return v ? formatOpsDateTime(v as string) : '';
       },
     },
     {
@@ -390,7 +388,7 @@ export default function RemindersPage() {
           </InlineNotice>
         ) : null}
 
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-6">
+        <AppMetricGroup variant="strip" className="sm:grid-cols-3 xl:grid-cols-6">
           <AppMetricCard
             title="Visible messages"
             value={rows.length}
@@ -429,133 +427,116 @@ export default function RemindersPage() {
           />
         </AppMetricGroup>
 
-        <RecordSection>
-          <RecordSectionHeader className="space-y-3">
-            <RecordSectionTitle>Filters</RecordSectionTitle>
-            <RecordSectionDescription>
-              Focus the reminder history before opening results.
-            </RecordSectionDescription>
-          </RecordSectionHeader>
-          <RecordSectionContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={status || 'ALL'}
-                  onValueChange={(value) => setStatus(value === 'ALL' ? '' : value)}
-                >
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All</SelectItem>
-                    <SelectItem value="QUEUED">Queued</SelectItem>
-                    <SelectItem value="SENT">Sent</SelectItem>
-                    <SelectItem value="DELIVERED">Delivered</SelectItem>
-                    <SelectItem value="FAILED">Failed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="channel">Channel</Label>
-                <Select
-                  value={channel || 'ALL'}
-                  onValueChange={(value) => setChannel(value === 'ALL' ? '' : value)}
-                >
-                  <SelectTrigger id="channel">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All channels</SelectItem>
-                    <SelectItem value="EMAIL">Email</SelectItem>
-                    <SelectItem value="SMS">SMS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="type">Type</Label>
-                <Select
-                  value={type || 'ALL'}
-                  onValueChange={(value) => setType(value === 'ALL' ? '' : value)}
-                >
-                  <SelectTrigger id="type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All types</SelectItem>
-                    {typeFilters.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="from">From</Label>
-                <Input
-                  id="from"
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="to">To</Label>
-                <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-              </div>
-              <div className="flex items-end gap-2">
-                <Button
-                  onClick={() => fetchReminders()}
-                  disabled={loading}
-                  className="flex-1 rounded-lg"
-                >
-                  Apply filters
-                  <span aria-live="polite" className="sr-only">
-                    {loading ? 'Applying filters' : ''}
-                  </span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-lg"
-                  onClick={() => {
-                    setStatus('');
-                    setChannel('');
-                    setType('');
-                    setFrom('');
-                    setTo('');
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
+        <ListFilters
+          groupLabel="Message filters"
+          sheetTitle="Filter messages"
+          sheetDescription="Filters update the history immediately."
+          onClearAll={() => {
+            setStatus('');
+            setChannel('');
+            setType('');
+            setFrom('');
+            setTo('');
+          }}
+          chips={[
+            {
+              label: 'Status',
+              value: status
+                ? ((
+                    {
+                      QUEUED: 'Queued',
+                      SENT: 'Sent',
+                      DELIVERED: 'Delivered',
+                      FAILED: 'Failed',
+                    } as Record<string, string>
+                  )[status] ?? status)
+                : null,
+              onRemove: () => setStatus(''),
+            },
+            {
+              label: 'Channel',
+              value: channel ? (channel === 'SMS' ? 'SMS' : 'Email') : null,
+              onRemove: () => setChannel(''),
+            },
+            {
+              label: 'Type',
+              value:
+                NOTIFICATION_TYPE_FILTERS.find((option) => option.value === type)?.label ?? null,
+              onRemove: () => setType(''),
+            },
+            { label: 'From', value: from || null, onRemove: () => setFrom('') },
+            { label: 'To', value: to || null, onRemove: () => setTo('') },
+          ]}
+          trailing={
+            <span aria-live="polite" className="text-sm tabular-nums text-muted-foreground">
+              {rows.length === 1 ? '1 message' : `${rows.length} messages`} loaded
+            </span>
+          }
+        >
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={status || 'ALL'}
+                onValueChange={(value) => setStatus(value === 'ALL' ? '' : value)}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="QUEUED">Queued</SelectItem>
+                  <SelectItem value="SENT">Sent</SelectItem>
+                  <SelectItem value="DELIVERED">Delivered</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <ActiveFilterSummary
-              items={[
-                { label: 'Status', value: status || null },
-                { label: 'Channel', value: channel || null },
-                {
-                  label: 'Type',
-                  value:
-                    NOTIFICATION_TYPE_FILTERS.find((option) => option.value === type)?.label ??
-                    null,
-                },
-                { label: 'From', value: from || null },
-                { label: 'To', value: to || null },
-              ]}
-              emptyLabel="All message history"
-            />
-            <ProgressiveHelp title="Reading delivery status">
-              Queued means the message is waiting to send, and Sent means the provider accepted it —
-              the Sent column and &ldquo;Time to send&rdquo; show when that happened and how long it
-              waited. Only SMS reports Delivered: {explainTerminalStatus('EMAIL')} So a message
-              reading Sent has left the clinic, and anything after that is the mail provider&rsquo;s
-              to answer for. Failed rows name the reason and what to do about it, so start there
-              when a patient says they heard nothing.
-            </ProgressiveHelp>
-          </RecordSectionContent>
-        </RecordSection>
+            <div className="space-y-2">
+              <Label htmlFor="channel">Channel</Label>
+              <Select
+                value={channel || 'ALL'}
+                onValueChange={(value) => setChannel(value === 'ALL' ? '' : value)}
+              >
+                <SelectTrigger id="channel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All channels</SelectItem>
+                  <SelectItem value="EMAIL">Email</SelectItem>
+                  <SelectItem value="SMS">SMS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type">Type</Label>
+              <Select
+                value={type || 'ALL'}
+                onValueChange={(value) => setType(value === 'ALL' ? '' : value)}
+              >
+                <SelectTrigger id="type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All types</SelectItem>
+                  {typeFilters.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="from">From</Label>
+              <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="to">To</Label>
+              <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+          </div>
+        </ListFilters>
 
         {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {error ? (
@@ -566,99 +547,93 @@ export default function RemindersPage() {
           />
         ) : null}
 
-        <RecordSection>
-          <RecordSectionHeader className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <RecordSectionTitle>Reminder history</RecordSectionTitle>
-                <RecordSectionDescription>
-                  Delivery timing, channel, and failure details.
-                </RecordSectionDescription>
-              </div>
-              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
-                <p className="text-muted-foreground">Loaded rows</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{rows.length}</p>
-              </div>
-            </div>
-          </RecordSectionHeader>
-          <RecordSectionContent className="space-y-4">
-            {loading && rows.length === 0 ? (
-              <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-            ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
-              <EmptyStateCard
-                title="No reminders match the current filters"
-                description="Try a wider date range or a broader status filter to review reminder activity."
-              />
-            ) : (
-              <>
-                <div className="divide-y divide-border md:hidden">
-                  {rows.map((row) => (
-                    <article key={row.id} className="py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold text-foreground">
-                            {row.templateKey}
-                          </h3>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {new Date(row.scheduledAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <StatusLabel variant={getStatusVariant(row.status)} value={row.status} />
-                      </div>
-                      <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
-                        <p>
-                          {row.channel} to {maskAddress(row.toAddress)}
+        <section aria-label="Reminder history" className="space-y-4 pb-20">
+          {loading && rows.length === 0 ? (
+            <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
+          ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
+            <EmptyStateCard
+              title="No reminders match the current filters"
+              description="Try a wider date range or a broader status filter to review reminder activity."
+            />
+          ) : (
+            <>
+              <div className="-mx-4 divide-y divide-border border-y border-border compact:-mx-6 md:hidden">
+                {rows.map((row) => (
+                  <article key={row.id} className={`py-4 ${SHEET_GUTTER}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="font-body text-sm font-semibold text-foreground">
+                          {row.templateKey}
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {formatOpsDateTime(row.scheduledAt)}
                         </p>
-                        {row.appointmentId ? (
-                          <p>Appointment {row.appointmentId.slice(0, 8)}</p>
-                        ) : null}
-                        {row.sentAt ? (
-                          <p>
-                            Sent {new Date(row.sentAt).toLocaleString()} (
-                            {formatDeliveryLatency(deliveryLatencyMs(row))} after it was due)
-                          </p>
-                        ) : null}
                       </div>
-                      {row.failureReason ? (
-                        <p className="mt-2 text-sm text-destructive">
-                          {formatFailureReason(row.failureReason)}
+                      <StatusLabel variant={getStatusVariant(row.status)} value={row.status} />
+                    </div>
+                    <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
+                      <p>
+                        {row.channel === 'SMS' ? 'SMS' : 'Email'} to {maskAddress(row.toAddress)}
+                      </p>
+                      {row.appointmentId ? (
+                        <p>Appointment {row.appointmentId.slice(0, 8)}</p>
+                      ) : null}
+                      {row.sentAt ? (
+                        <p>
+                          Sent {formatOpsDateTime(row.sentAt)} (
+                          {formatDeliveryLatency(deliveryLatencyMs(row))} after it was due)
                         </p>
                       ) : null}
-                    </article>
-                  ))}
-                </div>
-
-                <div className="hidden md:block">
-                  <DataTable
-                    keyboardScroll
-                    caption="Messages sent by the clinic"
-                    columns={columns}
-                    data={rows}
-                    isRefreshing={loading}
-                    pageSizeOptions={[25, 50]}
-                  />
-                </div>
-              </>
-            )}
-
-            {nextCursor && (
-              <div className="flex justify-center pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fetchReminders(nextCursor, true)}
-                  disabled={loadingMore}
-                  className="rounded-lg"
-                >
-                  Load more
-                  <span aria-live="polite" className="sr-only">
-                    {loadingMore ? 'Loading more results' : ''}
-                  </span>
-                </Button>
+                    </div>
+                    {row.failureReason ? (
+                      <p className="mt-2 text-sm text-destructive">
+                        {formatFailureReason(row.failureReason)}
+                      </p>
+                    ) : null}
+                  </article>
+                ))}
               </div>
-            )}
-          </RecordSectionContent>
-        </RecordSection>
+
+              <div className="hidden md:block">
+                <DataTable
+                  bleed
+                  keyboardScroll
+                  caption="Messages sent by the clinic"
+                  columns={columns}
+                  data={rows}
+                  isRefreshing={loading}
+                  pageSizeOptions={[25, 50]}
+                  initialPageSize={25}
+                />
+              </div>
+            </>
+          )}
+
+          {nextCursor && (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fetchReminders(nextCursor, true)}
+                disabled={loadingMore}
+                className="rounded-lg"
+              >
+                Load more
+                <span aria-live="polite" className="sr-only">
+                  {loadingMore ? 'Loading more results' : ''}
+                </span>
+              </Button>
+            </div>
+          )}
+          <ProgressiveHelp title="Reading delivery status">
+            Queued means the message is waiting to send, and Sent means the provider accepted it —
+            the Sent column and &ldquo;Time to send&rdquo; show when that happened and how long it
+            waited. Only SMS reports Delivered: {explainTerminalStatus('EMAIL')} So a message
+            reading Sent has left the clinic, and anything after that is the mail provider&rsquo;s
+            to answer for. Failed rows name the reason and what to do about it, so start there when
+            a patient says they heard nothing.
+          </ProgressiveHelp>
+        </section>
       </div>
     </RouteGuard>
   );

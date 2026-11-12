@@ -4,7 +4,7 @@ import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Layers3, RefreshCw, ShieldAlert, UserPen, Users } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ShieldAlert, UserPen, Users } from 'lucide-react';
 import { formatStaffDisplayName } from '@nkwapa/db/staff-name';
 import { toStaffNameInput, updateUserName, type StaffNameInput } from '@/lib/account-name';
 import { StaffNameForm } from '@/components/account/StaffNameForm';
@@ -13,7 +13,6 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { apiFetch } from '@/lib/api';
 import { formatOpsTimestamp, formatRoleLabel, readApiError } from '@/lib/ops';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
@@ -22,7 +21,6 @@ import {
   summarizeZones,
   zoneByClinicId,
   zoneFilterFromSelect,
-  zoneFilterLabel,
   zoneFilterOptions,
   zoneFilterToSelect,
   zoneLabel,
@@ -36,27 +34,25 @@ import {
 } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { InlineNotice } from '@/components/ops/OpsShared';
-import { cn } from '@/lib/utils';
 import { StaffInvitesCard } from '@/components/staff/StaffInvitesCard';
 import { describeIdentitySync, type IdentitySync } from '@/lib/identity-sync';
 import type { OrganizationSummary } from '@/lib/clinic-metadata';
 import {
   adminUsersPath,
   organizationFilterFromSelect,
-  organizationFilterLabel,
   organizationFilterOptions,
   organizationFilterToSelect,
   shouldOfferOrganizationFilter,
   type OrganizationFilter,
 } from '@/lib/organization-filter';
 import { Badge } from '@/components/ui/badge';
+import { TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
 import { Button } from '@/components/ui/button';
 import {
   RecordSection,
   RecordSectionContent,
   RecordSectionDescription,
   RecordSectionHeader,
-  RecordSectionTitle,
 } from '@/components/patients/RecordSection';
 import {
   Dialog,
@@ -83,7 +79,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableActions,
+  SHEET_GUTTER,
+  type DataTableColumn,
+} from '@/components/ui/data-table';
 
 type RoleName = 'SYSTEM_ADMIN' | 'DIRECTOR' | 'MANAGER' | 'DOCTOR' | 'VOLUNTEER' | 'PATIENT';
 
@@ -774,7 +775,7 @@ export default function AdminUsersPage() {
       cell: ({ row: params }) => (
         <DataTableActions>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             className="h-9"
             onClick={() => openDetails(params.original)}
@@ -1045,7 +1046,8 @@ export default function AdminUsersPage() {
           the status tokens.
         */}
         <AppMetricGroup
-          className={cn('sm:grid-cols-2', showPortalFilter ? 'xl:grid-cols-4' : 'xl:grid-cols-3')}
+          variant="strip"
+          className={showPortalFilter ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}
         >
           {/* Counts only. The scope is the roster's own title and the view switch above. */}
           <AppMetricCard
@@ -1098,313 +1100,271 @@ export default function AdminUsersPage() {
           />
         ) : null}
 
-        <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-          <RecordSection className="min-w-0">
-            <RecordSectionHeader>
-              <RecordSectionTitle className="flex items-center gap-2 text-xl">
-                <Layers3 className="h-5 w-5 text-primary" />
-                Filters
-              </RecordSectionTitle>
-              <RecordSectionDescription>
-                Refine the roster before opening a user’s access panel.
-              </RecordSectionDescription>
-            </RecordSectionHeader>
-            <RecordSectionContent className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="staff-status-filter">Account status</Label>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+        <section aria-labelledby="staff-roster-title" className="min-w-0 space-y-4 pb-20">
+          <div>
+            <h2 id="staff-roster-title" className="type-section-title font-body">
+              {viewMode === 'clinic' ? 'Clinic roster' : 'All users'}
+            </h2>
+            <p aria-live="polite" className="mt-1 text-sm text-muted-foreground">
+              {viewMode === 'clinic'
+                ? activeClinicName
+                  ? `Lifecycle controls for ${activeClinicName}.`
+                  : 'Choose a clinic to load the roster.'
+                : 'System-wide user visibility for platform administration.'}{' '}
+              {loading ? null : (
+                <span className="tabular-nums">
+                  Showing {visibleRows.length} of {rows.length}.
+                </span>
+              )}
+            </p>
+          </div>
+          <div
+            role="group"
+            aria-label="Roster filters"
+            className="flex flex-wrap items-center gap-x-4 gap-y-2"
+          >
+            <div className="flex items-center gap-2">
+              <Label
+                htmlFor="staff-status-filter"
+                className="text-sm font-normal text-muted-foreground"
+              >
+                Account status
+              </Label>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+              >
+                <SelectTrigger id="staff-status-filter" className={TOOLBAR_SELECT}>
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active only</SelectItem>
+                  <SelectItem value="inactive">Deactivated only</SelectItem>
+                  <SelectItem value="all">All accounts</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Label
+                htmlFor="staff-role-filter"
+                className="text-sm font-normal text-muted-foreground"
+              >
+                Role focus
+              </Label>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger id="staff-role-filter" className={TOOLBAR_SELECT}>
+                  <SelectValue placeholder="Filter by role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All roles</SelectItem>
+                  {ROLES.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {formatRoleLabel(role)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {showPortalFilter ? (
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="staff-portal-filter"
+                  className="text-sm font-normal text-muted-foreground"
                 >
-                  <SelectTrigger id="staff-status-filter">
-                    <SelectValue placeholder="Filter by status" />
+                  Patient portal state
+                </Label>
+                <Select
+                  value={portalFilter}
+                  onValueChange={(value) => setPortalFilter(value as PortalFilter)}
+                >
+                  <SelectTrigger id="staff-portal-filter" className={TOOLBAR_SELECT}>
+                    <SelectValue placeholder="Filter by portal state" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Active only</SelectItem>
-                    <SelectItem value="inactive">Deactivated only</SelectItem>
-                    <SelectItem value="all">All accounts</SelectItem>
+                    <SelectItem value="ALL">All portal states</SelectItem>
+                    <SelectItem value="MISMATCH">Mismatch only</SelectItem>
+                    <SelectItem value="ROLE_ONLY">Role only</SelectItem>
+                    <SelectItem value="LINK_ONLY">Link only</SelectItem>
+                    <SelectItem value="LINKED">Linked</SelectItem>
+                    <SelectItem value="NONE">No portal access</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            ) : null}
 
-              <div className="space-y-2">
-                <Label htmlFor="staff-role-filter">Role focus</Label>
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger id="staff-role-filter">
-                    <SelectValue placeholder="Filter by role" />
+            {showOrganizationFilter ? (
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="staff-organization-filter"
+                  className="text-sm font-normal text-muted-foreground"
+                >
+                  Organization
+                </Label>
+                <Select
+                  value={organizationFilterToSelect(organizationFilter)}
+                  onValueChange={(value) =>
+                    setOrganizationFilter(organizationFilterFromSelect(value))
+                  }
+                >
+                  <SelectTrigger id="staff-organization-filter" className={TOOLBAR_SELECT}>
+                    <SelectValue placeholder="All organizations" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">All roles</SelectItem>
-                    {ROLES.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {formatRoleLabel(role)}
+                    {organizationFilterOptions(organizations).map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+            ) : null}
 
-              {showPortalFilter ? (
-                <div className="space-y-2">
-                  <Label htmlFor="staff-portal-filter">Patient portal state</Label>
-                  <Select
-                    value={portalFilter}
-                    onValueChange={(value) => setPortalFilter(value as PortalFilter)}
-                  >
-                    <SelectTrigger id="staff-portal-filter">
-                      <SelectValue placeholder="Filter by portal state" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All portal states</SelectItem>
-                      <SelectItem value="MISMATCH">Mismatch only</SelectItem>
-                      <SelectItem value="ROLE_ONLY">Role only</SelectItem>
-                      <SelectItem value="LINK_ONLY">Link only</SelectItem>
-                      <SelectItem value="LINKED">Linked</SelectItem>
-                      <SelectItem value="NONE">No portal access</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-
-              {showOrganizationFilter ? (
-                <div className="space-y-2">
-                  <Label htmlFor="staff-organization-filter">Organization</Label>
-                  <Select
-                    value={organizationFilterToSelect(organizationFilter)}
-                    onValueChange={(value) =>
-                      setOrganizationFilter(organizationFilterFromSelect(value))
-                    }
-                  >
-                    <SelectTrigger id="staff-organization-filter">
-                      <SelectValue placeholder="All organizations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {organizationFilterOptions(organizations).map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-
-              {showZoneFilter ? (
-                <div className="space-y-2">
-                  <Label htmlFor="staff-zone-filter">Zone</Label>
-                  <Select
-                    value={zoneFilterToSelect(zoneFilter)}
-                    onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
-                  >
-                    <SelectTrigger id="staff-zone-filter">
-                      <SelectValue placeholder="All zones" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {zoneOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setStatusFilter('active');
-                    setRoleFilter('ALL');
-                    setPortalFilter('ALL');
-                    setZoneFilter(null);
-                    setOrganizationFilter(null);
-                  }}
+            {showZoneFilter ? (
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="staff-zone-filter"
+                  className="text-sm font-normal text-muted-foreground"
                 >
-                  Reset filters
-                </Button>
-              </div>
-
-              <ActiveFilterSummary
-                items={[
-                  { label: 'Status', value: statusFilter === 'all' ? null : statusFilter },
-                  {
-                    label: 'Role',
-                    value: roleFilter === 'ALL' ? null : formatRoleLabel(roleFilter as RoleName),
-                  },
-                  {
-                    label: 'Portal',
-                    value:
-                      showPortalFilter && portalFilter !== 'ALL'
-                        ? portalFilter === 'MISMATCH'
-                          ? 'Mismatch only'
-                          : portalStatusLabel(portalFilter as PortalLinkStatus)
-                        : null,
-                  },
-                  {
-                    label: 'Organization',
-                    value: showOrganizationFilter
-                      ? organizationFilterLabel(organizations, organizationFilter)
-                      : null,
-                  },
-                  { label: 'Zone', value: zoneFilterLabel(appliedZoneFilter) },
-                  { label: 'Clinic zone', value: activeClinicZoneLabel },
-                ]}
-                emptyLabel="Default roster view"
-              />
-
-              <ProgressiveHelp title="Safety rules">
-                Deactivation is always soft. Audit history, encounters, and clinic records stay in
-                place after access is disabled, and patient portal access still has to be linked
-                from the patient record rather than from this roster.
-              </ProgressiveHelp>
-
-              {isSystemAdmin ? (
-                <ProgressiveHelp title="Identity cleanup rules">
-                  Keycloak remains the source of truth for identity. If a stale legacy account no
-                  longer maps to a real Keycloak user, deactivate that row, have the real user sign
-                  in again, and assign access to the newly created active account.
-                </ProgressiveHelp>
-              ) : null}
-
-              {showPortalFilter ? (
-                <ProgressiveHelp title="How to fix portal mismatches">
-                  `ROLE_ONLY` and `LINK_ONLY` accounts should be repaired from the patient chart,
-                  not from generic role assignment. Use the mismatch filter here to find the row,
-                  then relink from the correct patient record.
-                </ProgressiveHelp>
-              ) : null}
-            </RecordSectionContent>
-          </RecordSection>
-
-          {/*
-            min-w-0 on the wide column. Below xl this is a single-column grid, and a grid item
-            defaults to min-width:auto, so it refuses to shrink under the widest thing inside it --
-            here a data grid whose columns total about 1070px. Above xl the explicit
-            minmax(0,1fr) already permits the shrink, which is why the overflow only appeared at
-            768 and 1024.
-          */}
-          <RecordSection className="min-w-0">
-            <RecordSectionHeader className="space-y-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <RecordSectionTitle className="flex items-center gap-2 text-xl">
-                    <Users className="h-5 w-5 text-primary" />
-                    {viewMode === 'clinic' ? 'Clinic roster' : 'All users'}
-                  </RecordSectionTitle>
-                  <RecordSectionDescription className="mt-1">
-                    {viewMode === 'clinic'
-                      ? activeClinicName
-                        ? `Lifecycle controls for ${activeClinicName}.`
-                        : 'Choose a clinic to load the roster.'
-                      : 'System-wide user visibility for platform administration.'}{' '}
-                    {loading ? null : (
-                      <span className="tabular-nums">
-                        Showing {visibleRows.length} of {rows.length}.
-                      </span>
-                    )}
-                  </RecordSectionDescription>
-                </div>
-              </div>
-              <ActiveFilterSummary
-                items={[
-                  {
-                    label: 'Scope',
-                    value:
-                      viewMode === 'clinic' ? (activeClinicName ?? 'Active clinic') : 'All users',
-                  },
-                  { label: 'Status', value: statusFilter === 'all' ? null : statusFilter },
-                  {
-                    label: 'Role',
-                    value: roleFilter === 'ALL' ? null : formatRoleLabel(roleFilter as RoleName),
-                  },
-                  {
-                    label: 'Portal',
-                    value:
-                      showPortalFilter && portalFilter !== 'ALL'
-                        ? portalFilter === 'MISMATCH'
-                          ? 'Mismatch only'
-                          : portalStatusLabel(portalFilter as PortalLinkStatus)
-                        : null,
-                  },
-                  { label: 'Zone', value: zoneFilterLabel(appliedZoneFilter) },
-                  { label: 'Clinic zone', value: activeClinicZoneLabel },
-                ]}
-              />
-            </RecordSectionHeader>
-            <RecordSectionContent className="space-y-4">
-              {loading ? (
-                <div className="space-y-4">
-                  <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
-                </div>
-              ) : error && rows.length === 0 ? null : visibleRows.length === 0 ? (
-                emptyState
-              ) : (
-                <>
-                  <div className="divide-y divide-rule border-y border-rule md:hidden">
-                    {visibleRows.map((row) => (
-                      <article key={row.id} className="py-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h3 className="text-base font-semibold text-foreground [overflow-wrap:anywhere]">
-                              {nameForRow(row)}
-                            </h3>
-                            <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                              {row.email || 'No email on file'}
-                            </p>
-                          </div>
-                          <Badge variant={statusBadgeVariant(row.isActive)}>
-                            {row.isActive ? 'Active' : 'Deactivated'}
-                          </Badge>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {row.clinicRoles.map((role) => (
-                            <Badge key={`${row.id}-${role}`} variant="outline">
-                              {formatRoleLabel(role)}
-                            </Badge>
-                          ))}
-                          {row.clinicRoles.length === 0 ? (
-                            <Badge variant="outline">No clinic role in view</Badge>
-                          ) : null}
-                          {row.patientPortal ? (
-                            <Badge variant={portalStatusVariant(row.patientPortal.status)}>
-                              {portalStatusLabel(row.patientPortal.status)}
-                            </Badge>
-                          ) : null}
-                        </div>
-
-                        <p className="mt-3 text-sm text-muted-foreground">
-                          {summarizeExtraAccess(row)}
-                        </p>
-
-                        <Button
-                          variant="outline"
-                          className="mt-4 w-full"
-                          onClick={() => openDetails(row)}
-                        >
-                          Manage access
-                        </Button>
-                      </article>
+                  Zone
+                </Label>
+                <Select
+                  value={zoneFilterToSelect(zoneFilter)}
+                  onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
+                >
+                  <SelectTrigger id="staff-zone-filter" className={TOOLBAR_SELECT}>
+                    <SelectValue placeholder="All zones" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zoneOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
                     ))}
-                  </div>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
-                  <div className="hidden md:block">
-                    <DataTable
-                      keyboardScroll
-                      caption="Staff accounts"
-                      columns={columns}
-                      data={visibleRows}
-                      getRowId={(row) => row.id}
-                      isRefreshing={loading}
-                      pageSizeOptions={[10, 25, 50]}
-                    />
-                  </div>
-                </>
-              )}
-            </RecordSectionContent>
-          </RecordSection>
+            {statusFilter !== 'active' ||
+            roleFilter !== 'ALL' ||
+            portalFilter !== 'ALL' ||
+            zoneFilter !== null ||
+            organizationFilter !== null ? (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter('active');
+                  setRoleFilter('ALL');
+                  setPortalFilter('ALL');
+                  setZoneFilter(null);
+                  setOrganizationFilter(null);
+                }}
+              >
+                Reset filters
+              </Button>
+            ) : null}
+            {activeClinicZoneLabel ? (
+              <span className="text-sm text-muted-foreground">
+                Clinic zone{' '}
+                <span className="font-medium text-foreground">{activeClinicZoneLabel}</span>
+              </span>
+            ) : null}
+          </div>
+          {loading ? (
+            <div className="space-y-4">
+              <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
+            </div>
+          ) : error && rows.length === 0 ? null : visibleRows.length === 0 ? (
+            emptyState
+          ) : (
+            <>
+              <div className="-mx-4 divide-y divide-rule border-y border-rule compact:-mx-6 md:hidden">
+                {visibleRows.map((row) => (
+                  <article key={row.id} className={`py-4 ${SHEET_GUTTER}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="font-body text-base font-semibold text-foreground [overflow-wrap:anywhere]">
+                          {nameForRow(row)}
+                        </h3>
+                        <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                          {row.email || 'No email on file'}
+                        </p>
+                      </div>
+                      <Badge variant={statusBadgeVariant(row.isActive)}>
+                        {row.isActive ? 'Active' : 'Deactivated'}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {row.clinicRoles.map((role) => (
+                        <Badge key={`${row.id}-${role}`} variant="outline">
+                          {formatRoleLabel(role)}
+                        </Badge>
+                      ))}
+                      {row.clinicRoles.length === 0 ? (
+                        <Badge variant="outline">No clinic role in view</Badge>
+                      ) : null}
+                      {row.patientPortal ? (
+                        <Badge variant={portalStatusVariant(row.patientPortal.status)}>
+                          {portalStatusLabel(row.patientPortal.status)}
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {summarizeExtraAccess(row)}
+                    </p>
+
+                    <Button
+                      variant="outline"
+                      className="mt-4 w-full"
+                      onClick={() => openDetails(row)}
+                    >
+                      Manage access
+                    </Button>
+                  </article>
+                ))}
+              </div>
+
+              <div className="hidden md:block">
+                <DataTable
+                  bleed
+                  keyboardScroll
+                  caption="Staff accounts"
+                  columns={columns}
+                  data={visibleRows}
+                  getRowId={(row) => row.id}
+                  isRefreshing={loading}
+                  pageSizeOptions={[10, 25, 50]}
+                />
+              </div>
+            </>
+          )}
+          <ProgressiveHelp title="Safety rules">
+            Deactivation is always soft. Audit history, encounters, and clinic records stay in place
+            after access is disabled, and patient portal access still has to be linked from the
+            patient record rather than from this roster.
+          </ProgressiveHelp>
+
+          {isSystemAdmin ? (
+            <ProgressiveHelp title="Identity cleanup rules">
+              Keycloak remains the source of truth for identity. If a stale legacy account no longer
+              maps to a real Keycloak user, deactivate that row, have the real user sign in again,
+              and assign access to the newly created active account.
+            </ProgressiveHelp>
+          ) : null}
+
+          {showPortalFilter ? (
+            <ProgressiveHelp title="How to fix portal mismatches">
+              `ROLE_ONLY` and `LINK_ONLY` accounts should be repaired from the patient chart, not
+              from generic role assignment. Use the mismatch filter here to find the row, then
+              relink from the correct patient record.
+            </ProgressiveHelp>
+          ) : null}
         </section>
       </div>
 

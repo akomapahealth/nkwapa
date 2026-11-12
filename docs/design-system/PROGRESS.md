@@ -1370,6 +1370,32 @@ palette check, design hook clean. Scratch dark spec over the R7.5 states and the
 Focused Chromium over 10 specs 76/76. Six-role audit **228 rows, 0 violations, 0 overflow**. Local
 commit only; no push. Next is `ui-refresh/HANDOFF-R7.7.md`.
 
+## W3 follow-up: Last visit, sort, and every list tab on one toolbar (2026-11-12)
+
+Owner review of the first W3 pass (`ui-refresh/W3-REVIEW.md` "Follow-up"). API: the registry item
+adds `lastVisitAt` (latest encounter at the clinic) and the residential fields; `sortBy=lastVisitAt`
+(in-memory rank, no cursor). Patients: Last visit and Location columns, ID under the name, a
+plain-language Sort select (the phone's only sort; code sort back as "registered"). New shared
+`app-shell/ListToolbar.tsx` (`ListSearch`, `ListFilters`, `TOOLBAR_SELECT`), Patients refactored
+onto it, and `AppMetricGroup variant="strip"`. Audit, Message delivery, Staff, Clinics, Duplicate
+review and Cross-clinic lose their Filters sections, summary lines and filter rails for the
+toolbar, a strip, one loaded line and a bled table; My Assigned leads with the worklist. Message
+delivery: Accra times, "Email", Rows select fixed. Rules in MASTER "Lists (W3)".
+
+**Validation:** API Jest (patients) 269/269 and the registry integration spec 8/8 with a real DB;
+web Jest 1060/1060 (98 suites); TypeScript, changed-file lint/format; audit-flag web and API builds.
+Focused Chromium (13 files: patient-registry-workspace, clinic-metadata, duplicate-review,
+cross-clinic-investigation, assigned-redesign, notifications-email, keyboard-focus,
+responsive-offline, responsive-migration, shell-consumers, staff-invite, governance,
+patient-residential-location) 167/171 after two spec updates for removed summary text. Four
+failures on screens this unit did not touch: the two noted in W3 (residential record line, portal
+self-report focus at 390), `responsive-migration` /dashboard expecting "Today at a glance" (W2
+home), and `staff-invite` profile page (also failed alone); not compared against HEAD. Route audit
+first pass found heading-order (phone row h3 with no h2) and a duplicate "Audit events" landmark,
+both fixed; re-run **12/12, 228 rows, 0 violations, 0 minor, 0 overflow, one h1 everywhere**.
+Captures of the eight list tabs at 1440/1024/744/390/320 in both themes, 0 overflow (audit DB, not
+committed). Local commit only; no push.
+
 ## W3 Patients and Queues to the pilot tables (2026-11-12)
 
 Phase W unit 3 (`ui-refresh/PHASE-W.md`). The pilot's list language now lives in the shared

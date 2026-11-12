@@ -22,18 +22,31 @@ reaches every list tab, not only these two. Rules: MASTER "Lists (W3)".
 | Refresh queues outline                                                                                                                                                           | Ghost                                                                                                                                    | Matches the dashboard's ghost Refresh (W2)                  |
 | My Assigned headers "Checked In", "My Role", "Care Team"                                                                                                                         | Sentence case                                                                                                                            | Every other header is sentence case                         |
 
-## Columns the pilot has that the API lacks
+## Follow-up (same unit, owner review of the first pass)
 
-- **Last visit** and **Location** (Patients): `PatientRegistryItem` (`apps/api/src/patients/patient.service.ts`
-  `toRegistryItem`) returns id, code, names, phone, email, ID last 4 only. W3 is frontend only, so
-  the table keeps **ID last 4** in their place. Adding them is an API task (the patient row has the
-  residential fields; last visit needs an encounter join).
+| Before (first W3 pass)                                                                                                                                       | After                                                                                                                                                                                                                    | Why                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Patients kept ID last 4 in place of the pilot's Last visit and Location (no API fields)                                                                      | API `PatientRegistryItem` adds `lastVisitAt` (latest encounter at the clinic, one `groupBy` per page) and the residential fields (not the address note); columns Last visit and Location; ID last 4 moves under the name | Pilot columns; same last-visit definition as the chart  |
+| Sort by code gone; phone sort a separate "Sort by" block                                                                                                     | `sortBy=lastVisitAt` on the API (ranked in memory, never-seen last both ways, no cursor); one plain-language Sort select pinned right of the chips, the phone's only sort; code sort back as "Newest/Oldest registered"  | Owner asked for sorting back                            |
+| Phone row meta: code · masked phone · ID                                                                                                                     | code · last visit · ID                                                                                                                                                                                                   | What the desk needs before opening a record             |
+| Audit, Message delivery: boxed Filters section (6 fields, Apply/Clear, summary chips, tips accordion), then a second ruled section with a "Loaded rows" tile | Search (Audit: person), dashed Filter chip + Sheet, removable chips, one loaded line, bled table; help below the list                                                                                                    | Same toolbar as Patients; filters already applied live  |
+| Six 230px KPI tiles above Message delivery, four above Clinics, Duplicates, Cross-clinic, My Assigned, Staff                                                 | `AppMetricGroup variant="strip"`: label + figure, detail in the help                                                                                                                                                     | The list starts in the first screen                     |
+| Duplicate review / Cross-clinic: 320px filter rail squeezing a pair table so chart codes wrapped                                                             | Search + three inline selects above a full-width bled table                                                                                                                                                              | Rows readable at 1440                                   |
+| Clinics: segmented view, labelled Zone block, summary chips, outline Edit per row                                                                            | One toolbar row (view, Zone, Organization, "Showing x of y"), removable chips, ghost Edit, title count                                                                                                                   | Wall of outline buttons; three statements of one filter |
+| Staff: filter rail beside the roster, two summary lines, outline Manage                                                                                      | Inline selects over a bled roster, ghost Manage                                                                                                                                                                          | Same                                                    |
+| Message delivery: browser-zone times, "EMAIL", empty Rows select (page size not in options)                                                                  | Accra times, "Email", Rows 25                                                                                                                                                                                            | Bugs                                                    |
+| My Assigned: shift card first, worklist second                                                                                                               | Worklist leads, shift and notes on the right                                                                                                                                                                             | The worklist is the job                                 |
 
 ## Behaviour changes to note
 
-- **Sort by code is gone** from Patients: the code now sits under the name in one column, sorted by
-  name. An old link with `sortBy=patientCode` loads unsorted rather than sorting invisibly.
-  `patient-registry-sort.ts` still maps it (the API supports it); nothing in the UI sends it.
+- Sorting by code is offered as "Newest / Oldest registered" in the Sort select; old
+  `sortBy=patientCode` links sort again.
+- Last-visit sort ranks every matching id in memory and refuses a cursor
+  (`CURSOR_UNSUPPORTED_FOR_SORT`); fine at clinic scale, upgrade past ~20k patients (comment in
+  `patient.service.ts`).
+- Strip metrics move their detail sentence into the help (`duplicate-review` spec now asserts the
+  help button); `clinic-metadata` asserts the pressed view and the Zone chip instead of
+  "View: …" / "Zone: …" summary text; `assigned-redesign` heading is "Assigned patients".
 - Queue phone cards no longer show the encounter status badge (the lane already says it).
 - The registry's "Patient results" heading is now a labelled region; phone cards are `h2`, and the
   card's record link is named by the patient (inside an `article` named the same).
@@ -62,9 +75,10 @@ counts and "loaded" fallback, Show more, offline and stale states, cosign gate, 
 
 ## Open
 
-- Other list tabs (Audit, Message delivery, Staff, Clinics, Duplicate review, Cross-clinic, My
-  Assigned) take the new labels and pager but keep their `RecordSection` frames, so they do not
-  bleed. Whether those pages should lose the frame is an R8.1 audit question.
+- Staff invitations (`StaffInvitesCard`) keeps its ruled frame and own tabs above the roster;
+  Appointments and Data requests were looked at and left as they are (a scheduling page and an
+  empty queue). R8.1.
+- My Assigned "Shift Status" / "On Duty" title case lives in the shared `ShiftControlCard`.
 - At 320px the search placeholder truncates ("…ID las"); the sr-only label carries the full text.
 - The landing `manager-dashboard-20261112.png` predates the new column labels in its "By station"
   table. Small drift; re-capture with W4 if that shot is retaken anyway.

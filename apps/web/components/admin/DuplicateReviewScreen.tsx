@@ -40,13 +40,6 @@ import { InlineNotice } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  RecordSection,
-  RecordSectionContent,
-  RecordSectionDescription,
-  RecordSectionHeader,
-  RecordSectionTitle,
-} from '@/components/patients/RecordSection';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -377,7 +370,7 @@ export function DuplicateReviewScreen() {
         </div>
       </ProgressiveHelp>
 
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup variant="strip" className="sm:grid-cols-4">
         <AppMetricCard
           title="Needs review"
           value={summary.open}
@@ -436,159 +429,136 @@ export function DuplicateReviewScreen() {
         </div>
       ) : null}
 
-      {/*
-        min-w-0 on both columns. A CSS grid track defaults to min-width:auto, so a wide table in
-        the right column pushes the whole grid past the viewport at 768 and 1024 instead of
-        scrolling inside its own container.
-      */}
-      <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-        <RecordSection className="min-w-0">
-          <RecordSectionHeader>
-            <RecordSectionTitle>Filters</RecordSectionTitle>
-            <RecordSectionDescription>
-              Narrow the queue to the work in front of you.
-            </RecordSectionDescription>
-          </RecordSectionHeader>
-          <RecordSectionContent className="space-y-4">
-            <DuplicateFilterFields
-              idPrefix="duplicate"
-              filters={filters}
-              onChange={(next) => {
-                setFilters(next);
-                setPage(0);
-              }}
-              onReset={() => {
-                setFilters(DEFAULT_DUPLICATE_FILTERS);
-                setPage(0);
-              }}
-              emptyLabel="Showing every open candidate"
-            />
+      <DuplicateFilterFields
+        idPrefix="duplicate"
+        filters={filters}
+        onChange={(next) => {
+          setFilters(next);
+          setPage(0);
+        }}
+        onReset={() => {
+          setFilters(DEFAULT_DUPLICATE_FILTERS);
+          setPage(0);
+        }}
+      />
 
-            <ProgressiveHelp title="What a match strength means">
-              <p>
-                Strength is the sum of the rules a pair matched, so two weak signals together
-                outrank either one alone. It is a prompt to look, never a decision: a shared phone
-                number can be a household, and two siblings can share a surname and a birthday.
-                Always open the comparison before you act.
-              </p>
-            </ProgressiveHelp>
-          </RecordSectionContent>
-        </RecordSection>
+      <section aria-label="Candidates" className="space-y-4 pb-20">
+        <p aria-live="polite" className="text-sm text-muted-foreground">
+          Open a pair to compare the two charts side by side.
+          {queue.data ? (
+            <span className="tabular-nums">
+              {' '}
+              Showing {queue.data.items.length} of {queue.data.total}.
+            </span>
+          ) : null}
+        </p>
+        {!scopeReady ? (
+          <SelectClinicState surface="The duplicate review queue" />
+        ) : (
+          <ResourceState
+            state={queue}
+            errorTitle="We couldn't load the duplicate review queue"
+            skeleton={
+              <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
+            }
+            isEmpty={(data) => data.items.length === 0}
+            empty={{
+              title:
+                filters.status === 'OPEN' && filtersAreDefault
+                  ? 'No suspected duplicates'
+                  : 'No candidates match these filters',
+              description:
+                filters.status === 'OPEN' && filtersAreDefault
+                  ? 'Every chart in scope looks like a distinct person. New candidates appear here as patients are registered.'
+                  : 'Try a broader decision or match strength, or clear the search term.',
+              icon: Users,
+            }}
+          >
+            {(data) => (
+              <>
+                {data.truncated ? (
+                  <InlineNotice tone="warning">
+                    There were more candidates than one page can scan. Narrow to a single clinic, or
+                    work through these first and refresh.
+                  </InlineNotice>
+                ) : null}
 
-        <RecordSection className="min-w-0">
-          <RecordSectionHeader className="space-y-3">
-            <RecordSectionTitle>Candidates</RecordSectionTitle>
-            <RecordSectionDescription>
-              Open a pair to compare the two charts side by side.
-              {queue.data ? (
-                <span className="tabular-nums">
-                  {' '}
-                  Showing {queue.data.items.length} of {queue.data.total}.
-                </span>
-              ) : null}
-            </RecordSectionDescription>
-          </RecordSectionHeader>
-          <RecordSectionContent className="space-y-4">
-            {!scopeReady ? (
-              <SelectClinicState surface="The duplicate review queue" />
-            ) : (
-              <ResourceState
-                state={queue}
-                errorTitle="We couldn't load the duplicate review queue"
-                skeleton={
-                  <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
-                }
-                isEmpty={(data) => data.items.length === 0}
-                empty={{
-                  title:
-                    filters.status === 'OPEN' && filtersAreDefault
-                      ? 'No suspected duplicates'
-                      : 'No candidates match these filters',
-                  description:
-                    filters.status === 'OPEN' && filtersAreDefault
-                      ? 'Every chart in scope looks like a distinct person. New candidates appear here as patients are registered.'
-                      : 'Try a broader decision or match strength, or clear the search term.',
-                  icon: Users,
-                }}
-              >
-                {(data) => (
-                  <>
-                    {data.truncated ? (
-                      <InlineNotice tone="warning">
-                        There were more candidates than one page can scan. Narrow to a single
-                        clinic, or work through these first and refresh.
-                      </InlineNotice>
-                    ) : null}
+                {/*
+                  Cards until lg, not md. Every other grid in the product switches at md
+                  because its row is one record; a row here is a pair, and the columns need
+                  roughly 830px to keep both chart codes and the Compare action on screen. At
+                  768 that leaves the only way into the comparison behind a horizontal
+                  scrollbar, which is the same failure the column widths above were rebalanced
+                  to fix.
+                */}
+                <div className="space-y-3 lg:hidden">
+                  {data.items.map((candidate) => (
+                    <DuplicatePairCard
+                      key={candidate.pairKey}
+                      candidate={candidate}
+                      onCompare={setSelected}
+                    />
+                  ))}
+                </div>
 
-                    {/*
-                      Cards until lg, not md. Every other grid in the product switches at md
-                      because its row is one record; a row here is a pair, and the columns need
-                      roughly 830px to keep both chart codes and the Compare action on screen. At
-                      768 that leaves the only way into the comparison behind a horizontal
-                      scrollbar, which is the same failure the column widths above were rebalanced
-                      to fix.
-                    */}
-                    <div className="space-y-3 lg:hidden">
-                      {data.items.map((candidate) => (
-                        <DuplicatePairCard
-                          key={candidate.pairKey}
-                          candidate={candidate}
-                          onCompare={setSelected}
-                        />
-                      ))}
-                    </div>
+                {/*
+                  A bounded height rather than autoHeight: the sticky column headers in
+                  dataGridSx only stick against the grid's own scroll container.
+                */}
+                <div className="hidden lg:block">
+                  <DataTable
+                    bleed
+                    keyboardScroll
+                    caption="Possible duplicate charts"
+                    columns={columns}
+                    data={data.items}
+                    getRowId={(row) => row.pairKey}
+                    isRefreshing={queue.isRefreshing}
+                    pageSizeOptions={[10, 25, 50]}
+                    rowCount={data.total}
+                    pagination={{ pageIndex: page, pageSize }}
+                    onPaginationChange={(next) => {
+                      setPage(next.pageIndex);
+                      setPageSize(next.pageSize);
+                    }}
+                  />
+                </div>
 
-                    {/*
-                      A bounded height rather than autoHeight: the sticky column headers in
-                      dataGridSx only stick against the grid's own scroll container.
-                    */}
-                    <div className="hidden lg:block">
-                      <DataTable
-                        keyboardScroll
-                        caption="Possible duplicate charts"
-                        columns={columns}
-                        data={data.items}
-                        getRowId={(row) => row.pairKey}
-                        isRefreshing={queue.isRefreshing}
-                        pageSizeOptions={[10, 25, 50]}
-                        rowCount={data.total}
-                        pagination={{ pageIndex: page, pageSize }}
-                        onPaginationChange={(next) => {
-                          setPage(next.pageIndex);
-                          setPageSize(next.pageSize);
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 text-sm lg:hidden">
-                      <p className="tabular-nums text-muted-foreground">
-                        Showing {data.items.length} of {data.total}
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={page === 0 || queue.isRefreshing}
-                          onClick={() => setPage((current) => Math.max(0, current - 1))}
-                        >
-                          Previous
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={(page + 1) * pageSize >= data.total || queue.isRefreshing}
-                          onClick={() => setPage((current) => current + 1)}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </ResourceState>
+                <div className="flex items-center justify-between gap-3 text-sm lg:hidden">
+                  <p className="tabular-nums text-muted-foreground">
+                    Showing {data.items.length} of {data.total}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={page === 0 || queue.isRefreshing}
+                      onClick={() => setPage((current) => Math.max(0, current - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={(page + 1) * pageSize >= data.total || queue.isRefreshing}
+                      onClick={() => setPage((current) => current + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
-          </RecordSectionContent>
-        </RecordSection>
+          </ResourceState>
+        )}
+        <ProgressiveHelp title="What a match strength means">
+          <p>
+            Strength is the sum of the rules a pair matched, so two weak signals together outrank
+            either one alone. It is a prompt to look, never a decision: a shared phone number can be
+            a household, and two siblings can share a surname and a birthday. Always open the
+            comparison before you act.
+          </p>
+        </ProgressiveHelp>
       </section>
 
       <DuplicateComparisonSheet

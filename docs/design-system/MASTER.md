@@ -972,6 +972,27 @@ page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-
 - **Patients**: search with a `/` hint (hover pointers only) and a sr-only label; a dashed Filter
   chip opening the existing Sheet, then one removable chip per set filter and Clear all filters.
   The chip row scrolls sideways on phones. "Swipe a patient left" hint on touch phones only.
+  Columns Patient (name over code · ID last 4), Phone (masked), Last visit (latest encounter at
+  this clinic, "No visits yet"), Location (community or district, region; muted status when not
+  recorded). A plain-language **Sort** select sits pinned right of the chips (Recently updated,
+  Name, Last visit, Newest/Oldest registered, Screened when on) and is the phone's only sort
+  (`DataTable mobileSort={false}`); column headers still sort on wide screens.
+- **List toolbar** (`app-shell/ListToolbar.tsx`), shared by every list tab: `ListSearch` (one
+  full-width search on `--surface-2`, clear button, optional `/` hint), `ListFilters` (dashed
+  Filter chip opening a right / bottom Sheet of the page's own fields, removable chips per set
+  filter, non-removable context chips such as an audit log's zone, Clear all, a pinned `trailing`
+  slot) and `TOOLBAR_SELECT` (a small select with a quiet inline label, for a list whose two to
+  five filters fit one row: Clinics, Duplicate review, Cross-clinic, Staff). Filters apply as they
+  change; no Apply button, no "Filters" section, no summary line repeating what the controls show.
+- **Context figures on a list** (`AppMetricGroup variant="strip"`): one row of label + figure
+  between hairlines, what each counts in its help. Never the 2px-ruled tile panel above a list;
+  the panel stays for dashboards.
+- **List tabs** (Audit, Message delivery, Staff, Clinics, Duplicate review, Cross-clinic): page
+  header, strip, toolbar, one muted "Showing / loaded" line, bled table, then any "how to read
+  this" help below the list. No `RecordSection` frames, no two-column filter rail. Long ids are
+  mono, first 8 characters, full value on hover. Times in Accra (`formatOpsDateTime`).
+- **My Assigned**: the worklist leads (left, wide); shift and workflow notes sit in a 320px column
+  on the right.
 
 ### Patient registry and records (#270)
 

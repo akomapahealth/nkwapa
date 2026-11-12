@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 /*
   Inside an AppMetricGroup a metric is a cell of one panel rather than a card of its own.
 */
-const InMetricGroup = createContext(false);
+const InMetricGroup = createContext<false | 'panel' | 'strip'>(false);
 
 /**
  * A number, what it counts, and a line of context.
@@ -33,6 +33,27 @@ export function AppMetricCard({
   className?: string;
 }) {
   const grouped = useContext(InMetricGroup);
+  if (grouped === 'strip') {
+    // A list's context line: label, then the figure. The detail moves into the help so the rows
+    // below, not the tiles, are what the page leads with.
+    const help = [hint, detail].filter(Boolean).join(' ');
+    return (
+      <div className={cn('min-w-0 border-b border-r border-rule px-4 py-3', className)}>
+        <p className="type-label flex items-center gap-1 text-muted-foreground">
+          <span className="min-w-0 truncate">{title}</span>
+          {help ? <InfoHint label={help} size="sm" /> : null}
+        </p>
+        <p
+          className={cn(
+            'mt-1 font-semibold tabular-nums text-foreground',
+            String(value).length > 10 ? 'text-base' : 'text-2xl leading-tight',
+          )}
+        >
+          {value}
+        </p>
+      </div>
+    );
+  }
   return (
     <div
       className={cn(
@@ -79,16 +100,33 @@ export function AppMetricGroup({
   children,
   className,
   label,
+  variant = 'panel',
 }: {
   children: React.ReactNode;
   className?: string;
   /** Names the group for assistive technology when no heading sits right above it. */
   label?: string;
+  /**
+   * `strip` is for list tabs (MASTER "Lists (W3)"): one quiet row of figures between hairlines,
+   * details in the help, so the list starts in the first screen. Pass `className` grid columns
+   * as for a panel; cells in one row share hairlines.
+   */
+  variant?: 'panel' | 'strip';
 }) {
+  if (variant === 'strip') {
+    return (
+      <section aria-label={label} className="overflow-hidden border-y border-rule">
+        {/* Bled past the section on both sides, so the outer hairlines crop and text aligns. */}
+        <div className={cn('-mx-4 -mb-px grid grid-cols-2', className)}>
+          <InMetricGroup.Provider value="strip">{children}</InMetricGroup.Provider>
+        </div>
+      </section>
+    );
+  }
   return (
     <section aria-label={label} className="overflow-hidden border-t-2 border-rule-strong">
       <div className={cn('-mb-px -mr-px grid grid-cols-1', className)}>
-        <InMetricGroup.Provider value={true}>{children}</InMetricGroup.Provider>
+        <InMetricGroup.Provider value="panel">{children}</InMetricGroup.Provider>
       </div>
     </section>
   );

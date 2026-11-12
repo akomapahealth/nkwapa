@@ -6,6 +6,7 @@ import { animate, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SHEET_GUTTER } from '@/components/ui/data-table';
+import { formatOpsDay } from '@/lib/ops';
 import { cn } from '@/lib/utils';
 
 /** A registry result, never a queue ticket. A swipe invokes the same check-in as the button. */
@@ -24,6 +25,7 @@ export function PatientRegistryCard({
     patientCode: string;
     phoneE164?: string | null;
     nationalIdLast4?: string | null;
+    lastVisitAt?: string | null;
   };
   href: string;
   canCheckIn: boolean;
@@ -173,12 +175,19 @@ export function PatientRegistryCard({
             <span className="break-all font-mono text-xs leading-5" translate="no">
               {patient.patientCode}
             </span>
-            {patient.phoneE164 ? (
-              <span className="tabular-nums">{maskPhone(patient.phoneE164)}</span>
-            ) : null}
+            {/* Pilot: code and last visit. The masked phone stays on the wide table only. */}
+            {patient.lastVisitAt ? (
+              <span className="tabular-nums">
+                <span className="sr-only">Last visit </span>
+                <time dateTime={patient.lastVisitAt}>{formatOpsDay(patient.lastVisitAt)}</time>
+              </span>
+            ) : (
+              <span>No visits yet</span>
+            )}
             {patient.nationalIdLast4 ? (
               <span className="tabular-nums">
-                <span className="sr-only">ID last 4 </span>…{patient.nationalIdLast4}
+                <span className="sr-only">ID last 4 </span>
+                <span aria-hidden="true">ID </span>…{patient.nationalIdLast4}
               </span>
             ) : null}
           </p>
@@ -201,12 +210,30 @@ export function PatientRegistryCard({
 }
 
 /** Name over code, the pilot's patient cell. Shared with the queues so a patient reads the same. */
-export function PatientIdentity({ name, code }: { name: string; code: string }) {
+export function PatientIdentity({
+  name,
+  code,
+  idLast4,
+}: {
+  name: string;
+  code: string;
+  /** The registry's search key; shown after the code so identity checks need no extra column. */
+  idLast4?: string | null;
+}) {
   return (
     <span className="block min-w-0">
       <span className="block break-words font-semibold text-foreground">{name}</span>
-      <span className="block font-mono text-xs text-muted-foreground" translate="no">
-        {code}
+      <span className="block text-xs text-muted-foreground">
+        <span className="font-mono" translate="no">
+          {code}
+        </span>
+        {idLast4 ? (
+          <span className="tabular-nums">
+            <span aria-hidden="true"> · </span>
+            <span className="sr-only">, ID last 4 </span>
+            <span aria-hidden="true">ID </span>…{idLast4}
+          </span>
+        ) : null}
       </span>
     </span>
   );

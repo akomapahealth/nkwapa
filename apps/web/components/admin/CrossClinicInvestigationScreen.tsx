@@ -285,7 +285,7 @@ export function CrossClinicInvestigationScreen() {
         under All clinics.
       </InlineNotice>
 
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup variant="strip" className="sm:grid-cols-4">
         <AppMetricCard
           title="Pairs across clinics"
           value={burden?.totalPairs ?? '—'}
@@ -348,140 +348,109 @@ export function CrossClinicInvestigationScreen() {
               <ReasonBreakdown burden={data.burden} />
             </section>
 
-            {/* min-w-0 on both tracks, so a wide grid scrolls inside its card at 768 and 1024. */}
-            <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-              <RecordSection className="min-w-0">
-                <RecordSectionHeader>
-                  <RecordSectionTitle>Filters</RecordSectionTitle>
-                  <RecordSectionDescription>
-                    Narrow the pairs. The counts above always cover every pair.
-                  </RecordSectionDescription>
-                </RecordSectionHeader>
-                <RecordSectionContent className="space-y-4">
-                  <DuplicateFilterFields
-                    idPrefix="cross-clinic"
-                    filters={filters}
-                    onChange={changeFilters}
-                    onReset={() => {
-                      changeFilters(INVESTIGATION_DEFAULT_FILTERS);
-                      setClinicPair(null);
-                    }}
-                    resetDisabled={filtersAreDefault(filters, clinicPair)}
-                    extraSummary={[
-                      {
-                        label: 'Clinics',
-                        value: selectedPair ? clinicPairLabel(selectedPair) : null,
-                      },
-                    ]}
-                    emptyLabel="Showing every pair across clinics"
-                  />
-                  <ProgressiveHelp title="What a match strength means">
-                    <p>
-                      Strength is the sum of the rules a pair matched. It is a prompt to look, never
-                      a decision: a shared phone number can be a household, and two siblings can
-                      share a surname and a birthday. Compare the charts before drawing a conclusion
-                      from any single pair.
-                    </p>
-                  </ProgressiveHelp>
-                </RecordSectionContent>
-              </RecordSection>
+            <DuplicateFilterFields
+              idPrefix="cross-clinic"
+              filters={filters}
+              onChange={changeFilters}
+              onReset={() => {
+                changeFilters(INVESTIGATION_DEFAULT_FILTERS);
+                setClinicPair(null);
+              }}
+              resetDisabled={filtersAreDefault(filters, clinicPair)}
+            />
 
-              <RecordSection className="min-w-0">
-                <RecordSectionHeader className="space-y-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1.5">
-                      <RecordSectionTitle>Pairs</RecordSectionTitle>
-                      <RecordSectionDescription>
-                        {selectedPair
-                          ? `Only pairs between ${clinicPairLabel(selectedPair)}.`
-                          : 'Open a pair to compare the two charts side by side.'}{' '}
-                        <span className="tabular-nums">
-                          Showing {data.items.length} of {data.total}.
-                        </span>
-                      </RecordSectionDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selectedPair ? (
-                        <Button variant="ghost" size="sm" onClick={() => focusClinicPair(null)}>
-                          <X aria-hidden="true" className="mr-1.5 h-4 w-4" />
-                          All clinic pairs
-                        </Button>
-                      ) : null}
+            <section aria-label="Pairs" className="space-y-4 pb-20">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p aria-live="polite" className="text-sm text-muted-foreground">
+                  {selectedPair
+                    ? `Only pairs between ${clinicPairLabel(selectedPair)}.`
+                    : 'Open a pair to compare the two charts side by side.'}{' '}
+                  <span className="tabular-nums">
+                    Showing {data.items.length} of {data.total}.
+                  </span>
+                </p>
+                {selectedPair ? (
+                  <Button variant="ghost" size="sm" onClick={() => focusClinicPair(null)}>
+                    <X aria-hidden="true" className="mr-1.5 h-4 w-4" />
+                    All clinic pairs
+                  </Button>
+                ) : null}
+              </div>
+              {data.items.length === 0 ? (
+                <EmptyState
+                  title="No pairs match these filters"
+                  description="Try a broader decision or match strength, clear the search, or show every clinic pair."
+                  icon={SearchX}
+                  density="compact"
+                />
+              ) : (
+                <>
+                  {/*
+                    Cards until lg, as on the review queue: a row is a pair of charts, and the
+                    columns need roughly 830px to keep both and the Compare action on screen.
+                  */}
+                  <div className="space-y-3 lg:hidden">
+                    {data.items.map((candidate) => (
+                      <DuplicatePairCard
+                        key={candidate.pairKey}
+                        candidate={candidate}
+                        onCompare={setSelected}
+                        showClinics
+                      />
+                    ))}
+                  </div>
+
+                  <div className="hidden lg:block">
+                    <DataTable
+                      keyboardScroll
+                      caption="Possible duplicates across clinics"
+                      columns={columns}
+                      data={data.items}
+                      getRowId={(row) => row.pairKey}
+                      isRefreshing={investigation.isRefreshing}
+                      pageSizeOptions={[10, 25, 50]}
+                      rowCount={data.total}
+                      pagination={{ pageIndex: page, pageSize }}
+                      onPaginationChange={(next) => {
+                        setPage(next.pageIndex);
+                        setPageSize(next.pageSize);
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 text-sm lg:hidden">
+                    <p className="tabular-nums text-muted-foreground">
+                      Showing {data.items.length} of {data.total}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page === 0 || investigation.isRefreshing}
+                        onClick={() => setPage((current) => Math.max(0, current - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={(page + 1) * pageSize >= data.total || investigation.isRefreshing}
+                        onClick={() => setPage((current) => current + 1)}
+                      >
+                        Next
+                      </Button>
                     </div>
                   </div>
-                </RecordSectionHeader>
-                <RecordSectionContent className="space-y-4">
-                  {data.items.length === 0 ? (
-                    <EmptyState
-                      title="No pairs match these filters"
-                      description="Try a broader decision or match strength, clear the search, or show every clinic pair."
-                      icon={SearchX}
-                      density="compact"
-                    />
-                  ) : (
-                    <>
-                      {/*
-                        Cards until lg, as on the review queue: a row is a pair of charts, and the
-                        columns need roughly 830px to keep both and the Compare action on screen.
-                      */}
-                      <div className="space-y-3 lg:hidden">
-                        {data.items.map((candidate) => (
-                          <DuplicatePairCard
-                            key={candidate.pairKey}
-                            candidate={candidate}
-                            onCompare={setSelected}
-                            showClinics
-                          />
-                        ))}
-                      </div>
-
-                      <div className="hidden lg:block">
-                        <DataTable
-                          keyboardScroll
-                          caption="Possible duplicates across clinics"
-                          columns={columns}
-                          data={data.items}
-                          getRowId={(row) => row.pairKey}
-                          isRefreshing={investigation.isRefreshing}
-                          pageSizeOptions={[10, 25, 50]}
-                          rowCount={data.total}
-                          pagination={{ pageIndex: page, pageSize }}
-                          onPaginationChange={(next) => {
-                            setPage(next.pageIndex);
-                            setPageSize(next.pageSize);
-                          }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 text-sm lg:hidden">
-                        <p className="tabular-nums text-muted-foreground">
-                          Showing {data.items.length} of {data.total}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={page === 0 || investigation.isRefreshing}
-                            onClick={() => setPage((current) => Math.max(0, current - 1))}
-                          >
-                            Previous
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              (page + 1) * pageSize >= data.total || investigation.isRefreshing
-                            }
-                            onClick={() => setPage((current) => current + 1)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </RecordSectionContent>
-              </RecordSection>
+                </>
+              )}
+              <ProgressiveHelp title="What a match strength means">
+                <p>
+                  Strength is the sum of the rules a pair matched. It is a prompt to look, never a
+                  decision: a shared phone number can be a household, and two siblings can share a
+                  surname and a birthday. Compare the charts before drawing a conclusion from any
+                  single pair.
+                </p>
+              </ProgressiveHelp>
             </section>
           </div>
         )}

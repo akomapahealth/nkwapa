@@ -54,8 +54,10 @@ test.describe('a system admin working the queue', () => {
     for (const label of ['Needs review', 'Very likely', 'Across clinics', 'Ruled out']) {
       await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
     }
-    // The metric is a real number, not a placeholder dash.
-    await expect(page.getByText('Pairs nobody has decided on yet.')).toBeVisible();
+    // What each figure counts sits in its help, beside the label.
+    await expect(
+      page.getByRole('button', { name: /Pairs nobody has decided on yet/ }),
+    ).toBeVisible();
   });
 
   test('says plainly that it never merges anything', async ({ page }) => {

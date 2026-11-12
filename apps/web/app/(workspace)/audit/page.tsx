@@ -4,14 +4,12 @@ import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { zoneLabel } from '@/lib/clinic-zones';
 import { formatOpsDateTime, formatOpsTimestamp } from '@/lib/ops';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import {
   InlineErrorState,
@@ -20,19 +18,11 @@ import {
 } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
-import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  RecordSection,
-  RecordSectionContent,
-  RecordSectionDescription,
-  RecordSectionHeader,
-  RecordSectionTitle,
-} from '@/components/patients/RecordSection';
-import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
-import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { DataTable, SHEET_GUTTER, type DataTableColumn } from '@/components/ui/data-table';
+import { ListFilters, ListSearch } from '@/components/app-shell/ListToolbar';
 
 interface AuditRow {
   id: string;
@@ -135,6 +125,17 @@ export default function AuditPage() {
     setPerson('');
   };
 
+  const clearAll = () => {
+    setFrom('');
+    setTo('');
+    setAction('');
+    setActor(null);
+    setPersonDraft('');
+    setPerson('');
+    setEntityType('');
+    setRequestId('');
+  };
+
   const columns: DataTableColumn<AuditRow>[] = [
     {
       id: 'createdAt',
@@ -153,8 +154,18 @@ export default function AuditPage() {
     },
     { id: 'action', accessorKey: 'action', header: 'Action' },
     { id: 'entityType', accessorKey: 'entityType', header: 'Entity' },
-    { id: 'entityId', accessorKey: 'entityId', header: 'Entity ID' },
-    { id: 'requestId', accessorKey: 'requestId', header: 'Request ID' },
+    {
+      id: 'entityId',
+      accessorKey: 'entityId',
+      header: 'Entity ID',
+      cell: ({ getValue }) => <Token value={getValue() as string} />,
+    },
+    {
+      id: 'requestId',
+      accessorKey: 'requestId',
+      header: 'Request ID',
+      cell: ({ getValue }) => <Token value={getValue() as string} />,
+    },
   ];
 
   if (!clinicId) {
@@ -175,15 +186,36 @@ export default function AuditPage() {
           helpText="Search for a person, or select a name in the results, then narrow by date, action, entity, or request ID to rebuild a timeline for support, governance, or incident review."
         />
 
-        <RecordSection>
-          <RecordSectionHeader className="space-y-3">
-            <RecordSectionTitle>Filters</RecordSectionTitle>
-            <RecordSectionDescription>
-              Focus the timeline before loading results.
-            </RecordSectionDescription>
-          </RecordSectionHeader>
-          <RecordSectionContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Search the audit log" className="space-y-3">
+          <ListSearch
+            id="person"
+            label="Person"
+            value={actor ? actor.name : personDraft}
+            onChange={(value) => {
+              setActor(null);
+              setPersonDraft(value);
+            }}
+            placeholder="Name or email of a staff member or volunteer"
+            help="Results update as you type. Select a name in the results to follow one person."
+          />
+          <ListFilters
+            groupLabel="Audit filters"
+            sheetTitle="Filter audit events"
+            sheetDescription="Filters update the timeline immediately, for this clinic only."
+            onClearAll={clearAll}
+            chips={[
+              {
+                label: 'Zone',
+                value: activeClinic ? zoneLabel(activeClinic.zoneCode) : null,
+              },
+              { label: 'From', value: from || null, onRemove: () => setFrom('') },
+              { label: 'To', value: to || null, onRemove: () => setTo('') },
+              { label: 'Action', value: action || null, onRemove: () => setAction('') },
+              { label: 'Entity', value: entityType || null, onRemove: () => setEntityType('') },
+              { label: 'Request', value: requestId || null, onRemove: () => setRequestId('') },
+            ]}
+          >
+            <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="from">From</Label>
                 <Input
@@ -197,97 +229,36 @@ export default function AuditPage() {
                 <Label htmlFor="to">To</Label>
                 <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="person">Person</Label>
-                <div className="relative">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    id="person"
-                    type="search"
-                    value={actor ? actor.name : personDraft}
-                    onChange={(e) => {
-                      setActor(null);
-                      setPersonDraft(e.target.value);
-                    }}
-                    placeholder="Name or email of a staff member or volunteer"
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="action">Action</Label>
-                <Input
-                  id="action"
-                  value={action}
-                  onChange={(e) => setAction(e.target.value)}
-                  placeholder="ENCOUNTER.CREATE"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="entityType">Entity type</Label>
-                <Input
-                  id="entityType"
-                  value={entityType}
-                  onChange={(e) => setEntityType(e.target.value)}
-                  placeholder="Encounter"
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="requestId">Request ID</Label>
-                <Input
-                  id="requestId"
-                  value={requestId}
-                  onChange={(e) => setRequestId(e.target.value)}
-                  placeholder="Trace a request"
-                />
-              </div>
             </div>
-            <FormActions>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setFrom('');
-                  setTo('');
-                  setAction('');
-                  setActor(null);
-                  setPersonDraft('');
-                  setPerson('');
-                  setEntityType('');
-                  setRequestId('');
-                }}
-              >
-                Clear
-              </Button>
-              <Button onClick={() => fetchAudit()} disabled={loading}>
-                Apply filters
-                <span aria-live="polite" className="sr-only">
-                  {loading ? 'Applying filters' : ''}
-                </span>
-              </Button>
-            </FormActions>
-            <ActiveFilterSummary
-              items={[
-                { label: 'From', value: from || null },
-                { label: 'To', value: to || null },
-                { label: 'Action', value: action || null },
-                { label: 'Person', value: actor?.name ?? (person || null) },
-                { label: 'Entity', value: entityType || null },
-                { label: 'Request', value: requestId || null },
-                { label: 'Zone', value: activeClinic ? zoneLabel(activeClinic.zoneCode) : null },
-              ]}
-              emptyLabel="Recent clinic activity"
-            />
-            <ProgressiveHelp title="Filter tips">
-              Type part of someone&apos;s name or email to see what they did, or select a name in
-              the results to follow that one person. Add a date range, action, entity, or request ID
-              to rebuild a narrower timeline for support or incident review.
-            </ProgressiveHelp>
-          </RecordSectionContent>
-        </RecordSection>
+            <div className="space-y-2">
+              <Label htmlFor="action">Action</Label>
+              <Input
+                id="action"
+                value={action}
+                onChange={(e) => setAction(e.target.value)}
+                placeholder="ENCOUNTER.CREATE"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="entityType">Entity type</Label>
+              <Input
+                id="entityType"
+                value={entityType}
+                onChange={(e) => setEntityType(e.target.value)}
+                placeholder="Encounter"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="requestId">Request ID</Label>
+              <Input
+                id="requestId"
+                value={requestId}
+                onChange={(e) => setRequestId(e.target.value)}
+                placeholder="Trace a request"
+              />
+            </div>
+          </ListFilters>
+        </section>
 
         {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
         {error ? (
@@ -298,94 +269,100 @@ export default function AuditPage() {
           />
         ) : null}
 
-        <RecordSection>
-          <RecordSectionHeader className="space-y-3">
-            <RecordSectionTitle>Audit events</RecordSectionTitle>
-            {/* What is loaded, said once in words: a count tile and "Has more: Yes" said it twice. */}
-            <RecordSectionDescription>
-              Newest first, for this clinic only.{' '}
-              <span className="tabular-nums">
-                {rows.length === 1 ? '1 event' : `${rows.length} events`} loaded
-              </span>
-              {nextCursor ? '; older history is available below.' : '.'}
-            </RecordSectionDescription>
-          </RecordSectionHeader>
-          <RecordSectionContent className="space-y-4">
-            {loading && rows.length === 0 ? (
-              <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-            ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
-              <EmptyStateCard
-                title="No audit events match the current filters"
-                description="Adjust your filters or widen the date range to pull more activity into view."
-              />
-            ) : (
-              <>
-                <div className="divide-y divide-border md:hidden">
-                  {rows.map((row) => (
-                    <article key={row.id} className="py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        {/*
+        <section aria-label="Audit results" className="space-y-3 pb-20">
+          {/* What is loaded, said once in words: a count tile and "Has more: Yes" said it twice. */}
+          <p aria-live="polite" className="text-sm text-muted-foreground">
+            Newest first, for this clinic only.{' '}
+            <span className="tabular-nums">
+              {rows.length === 1 ? '1 event' : `${rows.length} events`} loaded
+            </span>
+            {nextCursor ? '; older history is available below.' : '.'}
+          </p>
+          {loading && rows.length === 0 ? (
+            <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
+          ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
+            <EmptyStateCard
+              title="No audit events match the current filters"
+              description="Adjust your filters or widen the date range to pull more activity into view."
+            />
+          ) : (
+            <>
+              <div className="-mx-4 divide-y divide-border border-y border-border compact:-mx-6 md:hidden">
+                {rows.map((row) => (
+                  <article key={row.id} className={`py-4 ${SHEET_GUTTER}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      {/*
                           min-w-0 and break-words, because an audit action is an unbroken token
                           like PATIENT_RESIDENTIAL_LOCATION_UPDATED. A flex item defaults to
                           min-width:auto, so it refuses to shrink below that word and pushed the
                           card 188px past a 375px screen -- the audit log was unreadable on a
                           phone, which is where a director checks it.
                         */}
-                        <div className="min-w-0">
-                          <h3 className="break-words text-sm font-semibold text-foreground">
-                            {row.action}
-                          </h3>
-                          <p className="mt-1 break-words text-sm text-muted-foreground">
-                            {row.entityType} • <ActorButton row={row} onSelect={filterToActor} />
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatOpsDateTime(row.createdAt)}
-                        </span>
+                      <div className="min-w-0">
+                        <h2 className="break-words font-body text-sm font-semibold text-foreground">
+                          {row.action}
+                        </h2>
+                        <p className="mt-1 break-words text-sm text-muted-foreground">
+                          {row.entityType} • <ActorButton row={row} onSelect={filterToActor} />
+                        </p>
                       </div>
-                      <p className="mt-3 break-all text-xs text-muted-foreground">
-                        Entity ID: {row.entityId}
-                      </p>
-                      <p className="mt-2 break-all text-xs text-muted-foreground">
-                        Request ID: {row.requestId}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="hidden md:block">
-                  <DataTable
-                    keyboardScroll
-                    caption="Audit events"
-                    columns={columns}
-                    data={rows}
-                    isRefreshing={loading}
-                    pageSizeOptions={[25, 50, 100]}
-                    initialPageSize={25}
-                  />
-                </div>
-              </>
-            )}
-
-            {nextCursor && (
-              <div className="flex justify-center pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fetchAudit(nextCursor, true)}
-                  disabled={loadingMore}
-                >
-                  Load more
-                  <span aria-live="polite" className="sr-only">
-                    {loadingMore ? 'Loading more results' : ''}
-                  </span>
-                </Button>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatOpsDateTime(row.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-3 break-all text-xs text-muted-foreground">
+                      Entity ID: {row.entityId}
+                    </p>
+                    <p className="mt-2 break-all text-xs text-muted-foreground">
+                      Request ID: {row.requestId}
+                    </p>
+                  </article>
+                ))}
               </div>
-            )}
-          </RecordSectionContent>
-        </RecordSection>
+
+              <div className="hidden md:block">
+                <DataTable
+                  bleed
+                  keyboardScroll
+                  caption="Audit events"
+                  columns={columns}
+                  data={rows}
+                  isRefreshing={loading}
+                  pageSizeOptions={[25, 50, 100]}
+                  initialPageSize={25}
+                />
+              </div>
+            </>
+          )}
+
+          {nextCursor && (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fetchAudit(nextCursor, true)}
+                disabled={loadingMore}
+              >
+                Load more
+                <span aria-live="polite" className="sr-only">
+                  {loadingMore ? 'Loading more results' : ''}
+                </span>
+              </Button>
+            </div>
+          )}
+        </section>
       </div>
     </RouteGuard>
+  );
+}
+
+/** A long id: mono, quiet, the first 8 characters with the rest on hover and for copy. */
+function Token({ value }: { value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <span title={value} className="font-mono text-xs text-muted-foreground">
+      {value.length > 12 ? `${value.slice(0, 8)}…` : value}
+    </span>
   );
 }
 

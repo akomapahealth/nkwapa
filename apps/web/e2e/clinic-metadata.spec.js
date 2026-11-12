@@ -162,7 +162,10 @@ test.describe('clinic metadata visibility', () => {
 
     // The seeded clinic is valid, so this view is empty and says so rather than looking broken.
     await expect(page.getByText(/no clinic has a metadata problem/i)).toBeVisible();
-    await expect(page.getByText('View: Needs attention')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Needs attention' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 });
 
@@ -257,13 +260,13 @@ test.describe('clinic zone filter', () => {
 
     await expect(grid.getByText(locationCode)).toBeVisible({ timeout: 15_000 });
     await expect(grid.getByText('nkwapa-clinic-demo')).toBeHidden();
-    await expect(page.getByText(`Zone: ${zoneCode}`)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Zone filter' })).toContainText(zoneCode);
 
     await zoneFilter(page).click();
     await page.getByRole('option', { name: 'All zones' }).click();
 
     await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(`Zone: ${zoneCode}`)).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Remove Zone filter' })).toHaveCount(0);
   });
 
   test('selects the clinics that have no zone', async ({ page }) => {
@@ -275,7 +278,7 @@ test.describe('clinic zone filter', () => {
     const grid = page.getByRole('table');
     await expect(grid.getByText('nkwapa-clinic-demo')).toBeVisible({ timeout: 15_000 });
     await expect(grid.getByText(locationCode)).toBeHidden();
-    await expect(page.getByText('Zone: No zone')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Zone filter' })).toContainText('No zone');
   });
 
   test('offers an existing zone as a suggestion rather than making it retypeable', async ({
@@ -309,6 +312,6 @@ test.describe('clinic zone filter', () => {
     await expect(page.getByRole('heading', { name: 'No clinics yet' })).toBeHidden();
 
     await page.getByRole('button', { name: 'Show all zones' }).click();
-    await expect(page.getByText(`Zone: ${zoneCode}`)).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Remove Zone filter' })).toHaveCount(0);
   });
 });

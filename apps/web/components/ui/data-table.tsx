@@ -119,6 +119,7 @@ export function DataTable<TData extends RowData>({
   keyboardScroll = true,
   paginationClassName,
   bleed = false,
+  mobileSort = true,
   className,
 }: {
   columns: DataTableColumn<TData>[];
@@ -157,6 +158,8 @@ export function DataTable<TData extends RowData>({
    * page-level list sitting directly in `<main>`; never inside a card, panel or dialog.
    */
   bleed?: boolean;
+  /** The phone list's "Sort by" row. Off when the page draws its own sort control. */
+  mobileSort?: boolean;
   className?: string;
 }) {
   const serverMode = rowCount !== undefined;
@@ -230,7 +233,8 @@ export function DataTable<TData extends RowData>({
         </div>
         {renderMobileRow ? (
           <section className="data-table-cards flex flex-col gap-3" aria-label={caption}>
-            {table
+            {mobileSort &&
+            table
               .getHeaderGroups()
               .some((group) => group.headers.some((header) => header.column.getCanSort())) ? (
               <fieldset

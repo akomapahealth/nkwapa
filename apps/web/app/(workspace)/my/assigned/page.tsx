@@ -341,7 +341,7 @@ export default function MyAssignedPage() {
           </section>
         ) : null}
 
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+        <AppMetricGroup variant="strip" className="sm:grid-cols-4">
           <AppMetricCard
             title="Assigned today"
             value={assignments.length}
@@ -401,15 +401,58 @@ export default function MyAssignedPage() {
         <OpsFeedbackNotice feedback={shiftControls.feedback} />
 
         {view.isInitialLoading ? (
-          <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),320px]">
+            <SectionSkeleton lines={5} />
             <div className="min-w-0 space-y-6">
               <SectionSkeleton lines={2} />
               <SectionSkeleton lines={2} />
             </div>
-            <SectionSkeleton lines={5} />
           </div>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
+          // The worklist leads; the shift and the notes support it from the side.
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),320px]">
+            <section
+              id="assigned-patients"
+              aria-labelledby="assigned-patients-title"
+              className="min-w-0 scroll-mt-24 space-y-4"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 id="assigned-patients-title" className="type-section-title font-body">
+                    Assigned patients
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Cases aligned to your current clinic role.
+                  </p>
+                </div>
+                <SegmentedControl
+                  label="Filter assigned patients"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  className="sm:w-[30rem]"
+                  options={[
+                    { value: 'ALL', label: 'All' },
+                    { value: 'ASSIGNED', label: 'Assigned' },
+                    { value: 'IN_PROGRESS', label: 'In progress' },
+                    { value: 'COMPLETED', label: 'Completed' },
+                  ]}
+                />
+              </div>
+              {!view.data ? null : filteredAssignments.length === 0 ? (
+                <EmptyStateCard
+                  title="Nothing assigned yet"
+                  description="As soon as the manager pairs you to a patient, the case will appear here."
+                />
+              ) : (
+                <DataTable
+                  caption="Patients assigned to you"
+                  columns={columns}
+                  data={rows}
+                  pageSizeOptions={[10, 25]}
+                  initialPageSize={10}
+                />
+              )}
+            </section>
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
                 ruled
@@ -429,7 +472,7 @@ export default function MyAssignedPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <ClipboardList className="h-5 w-5 text-primary" />
-                    Workflow Notes
+                    Workflow notes
                   </CardTitle>
                   <CardDescription className="leading-6">
                     Volunteers start intake and generate the draft encounter. Doctors can enter as
@@ -448,52 +491,6 @@ export default function MyAssignedPage() {
                 </CardContent>
               </Card>
             </div>
-
-            <Card id="assigned-patients" className="min-w-0 scroll-mt-24">
-              <CardHeader className="space-y-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <Stethoscope className="h-5 w-5 text-primary" />
-                      Assigned Patients
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      Cases aligned to your current clinic role.
-                    </CardDescription>
-                  </div>
-                  <SegmentedControl
-                    label="Filter assigned patients"
-                    value={statusFilter}
-                    onChange={setStatusFilter}
-                    className="sm:w-[30rem]"
-                    options={[
-                      { value: 'ALL', label: 'All' },
-                      { value: 'ASSIGNED', label: 'Assigned' },
-                      { value: 'IN_PROGRESS', label: 'In Progress' },
-                      { value: 'COMPLETED', label: 'Completed' },
-                    ]}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                {!view.data ? null : filteredAssignments.length === 0 ? (
-                  <EmptyStateCard
-                    title="Nothing assigned yet"
-                    description="As soon as the manager pairs you to a patient, the case will appear here."
-                  />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <DataTable
-                      caption="Patients assigned to you"
-                      columns={columns}
-                      data={rows}
-                      pageSizeOptions={[10, 25]}
-                      initialPageSize={10}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         )}
       </div>
