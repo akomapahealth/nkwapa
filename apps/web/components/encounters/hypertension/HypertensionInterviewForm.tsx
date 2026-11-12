@@ -578,21 +578,18 @@ export function HypertensionInterviewForm({
           values are never written to this record: Vitals is the one place today's measurement
           lives, so correcting a mistyped vital corrects the classification with no second edit.
         */}
-          <dl className="grid gap-3 rounded-lg border border-border bg-muted/40 p-4 sm:grid-cols-3">
-            <div>
-              <dt className="text-sm text-muted-foreground">Today&rsquo;s blood pressure</dt>
-              <dd className="text-base font-medium">{formatBloodPressure(todaysVitals)}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Pulse</dt>
-              <dd className="text-base font-medium">{formatPulse(todaysVitals)}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Classification</dt>
-              <dd className="text-base font-medium">
-                {HYPERTENSION_LABELS[derivedClassification]}
-              </dd>
-            </div>
+          {/* Ruled rows, not a bordered box: a box here read as one more answer card to tap. */}
+          <dl className="grid gap-x-6 border-y border-rule sm:grid-cols-3">
+            {[
+              ['Today’s blood pressure', formatBloodPressure(todaysVitals)],
+              ['Pulse', formatPulse(todaysVitals)],
+              ['Classification', HYPERTENSION_LABELS[derivedClassification]],
+            ].map(([term, detail]) => (
+              <div key={term} className="py-3">
+                <dt className="type-label font-normal text-muted-foreground">{term}</dt>
+                <dd className="mt-1 type-data font-semibold text-foreground">{detail}</dd>
+              </div>
+            ))}
           </dl>
 
           {!hasBloodPressure(todaysVitals) ? (

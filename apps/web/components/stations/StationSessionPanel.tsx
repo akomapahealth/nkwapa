@@ -102,6 +102,7 @@ export function StationSessionPanel({
   return (
     <div className="space-y-6">
       <StationResultsSummary
+        ruled
         timeline={timeline}
         vitals={vitals}
         diabetes={diabetes}
@@ -163,6 +164,7 @@ export function StationSessionPanel({
       ) : null}
       {timeline.some((stop) => stop.station.kind === 'EYE') ? (
         <EyeScreeningForm
+          ruled
           clinicId={clinicId}
           encounterId={encounterId}
           canEdit={canEditCounselling}
@@ -171,6 +173,7 @@ export function StationSessionPanel({
         />
       ) : null}
       <CounsellingForm
+        ruled
         clinicId={clinicId}
         encounterId={encounterId}
         canEdit={canEditCounselling}
