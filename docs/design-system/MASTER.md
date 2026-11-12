@@ -789,8 +789,11 @@ sample tabs are a visual reference; the production bar follows the documented
 role/flag-driven contract and may contain five controls.
 
 The bar uses the pilot's 60px minimum rows, 11.5px labels, semantic card background,
-muted ink, primary current state and a single moving 2px top indicator. Labels wrap
-and scale in rem. Safe-area padding covers the home indicator and horizontal
+muted ink, primary current state and a single moving 2px top indicator. Phone labels are one word,
+centred, 11.5px, and fit on one line at 320px: Home, Today, Stations, Assigned, Queues,
+Patients, Visits (portal: Home, Health, Visits). The full label remains the accessible name,
+and sidebar and More keep it. `AppNavItem.shortLabel` is presentation only. Labels scale in rem
+and may wrap at enlarged text sizes for accessibility. Safe-area padding covers the home indicator and horizontal
 cutouts; keyboard focus is inset. More is a real button with dialog expansion
 state, and marks the current section for overflow routes. Clinic-dependent links
 remain native disabled controls when no clinic is selected.
@@ -1477,7 +1480,7 @@ Shipped in [PR #300](https://github.com/akomapahealth/nkwapa/pull/300); before a
 
 R2.5 keeps the existing Overview, My Health and Appointments labels and routes.
 Below 600px they appear in the shared fixed BottomNav followed by More, with the
-same moving indicator, wrapping labels, safe-area padding and 44px target floor
+same moving indicator, one-word short labels (full accessible names), safe-area padding and 44px target floor
 as the staff bar. At 600px and above a wrapping top navigation strip replaces the
 phone bar. Health owns self-report routes; Appointments owns request routes.
 Account and settings routes mark More as current. CSS selects the presentation;

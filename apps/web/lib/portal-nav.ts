@@ -5,6 +5,7 @@ export const portalNavItems = [
   {
     href: '/portal',
     label: 'Overview',
+    shortLabel: 'Home',
     description: 'Your care snapshot.',
     icon: House,
     matches: (path: string) => path === '/portal',
@@ -12,6 +13,7 @@ export const portalNavItems = [
   {
     href: '/portal/health',
     label: 'My Health',
+    shortLabel: 'Health',
     description: 'Measurements and self-reports.',
     icon: HeartPulse,
     matches: (path: string) => /^\/portal\/(health|self-reports)(\/|$)/.test(path),
@@ -19,6 +21,7 @@ export const portalNavItems = [
   {
     href: '/portal/appointments',
     label: 'Appointments',
+    shortLabel: 'Visits',
     description: 'Appointments and requests.',
     icon: CalendarDays,
     matches: (path: string) => /^\/portal\/appointments(\/|$)/.test(path),

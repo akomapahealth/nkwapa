@@ -97,17 +97,27 @@ export function BottomNav({
             const content = (
               <>
                 <Icon aria-hidden="true" className="size-5 shrink-0" />
-                <span className="w-full break-words [overflow-wrap:anywhere]">{item.label}</span>
+                <span className="w-full [overflow-wrap:anywhere] compact:hidden">
+                  {item.shortLabel ?? item.label}
+                </span>
+                <span className="hidden compact:inline">{item.label}</span>
               </>
             );
             return item.requiresClinic && !clinicId ? (
-              <button key={item.href} type="button" disabled className={tabClass}>
+              <button
+                key={item.href}
+                type="button"
+                disabled
+                aria-label={item.label}
+                className={tabClass}
+              >
                 {content}
               </button>
             ) : (
               <Link
                 key={item.href}
                 href={getNavItemHref(item, clinicId)}
+                aria-label={item.label}
                 aria-current={active ? 'page' : undefined}
                 className={cn(tabClass, active && 'font-semibold text-primary')}
               >

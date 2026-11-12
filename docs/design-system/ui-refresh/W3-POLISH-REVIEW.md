@@ -46,4 +46,28 @@ create synthetic records, so row-content changes can affect counts independently
 
 ## Remaining units
 
-1, 5, 3, 4/8, 2/7 and 9 remain pending, in the owner's requested order.
+5, 3, 4/8, 2/7 and 9 remain pending, in the owner's requested order.
+
+## Unit 1: phone labels
+
+| Before                                              | After                                                                 | Why                                                                     |
+| --------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Dashboard / Today Board wrap at narrow phone widths | Home / Today; Assigned and Visits where those occupy a primary slot   | One word per destination preserves glanceable navigation.               |
+| Portal labels use wider top-navigation wording      | Home / Health / Visits below 600px                                    | Same short-label system in both shells.                                 |
+| Visible text supplies the link name                 | Explicit full `aria-label`; sidebar, More and 600px+ labels unchanged | Existing screen-reader and role-based link locators retain their names. |
+
+Fitts: existing 60px rows and 44px target widths remain. Jakob: short phone tabs, full drawer
+navigation. Accessibility exception: at 200% text, labels may wrap rather than overflow or
+shrink. Default-size labels must fit one line at 320px. String search:
+`/private/tmp/nkwapa-w3-polish/unit1-string-search.txt`.
+
+Validation: TypeScript, ESLint, Prettier and build passed; Jest 98 suites / 1,060 tests passed.
+Focused browser run: 29/31 passed initially. Updated a stale "Today at a glance" assertion to
+wait for the existing role-home figures (the mismatch is present in `e453a18b` and the before
+screenshots). The other failure was a portal queue expecting `held` but receiving `failed`;
+its cause is unknown. Isolated rerun of the two portal themes and the rail-height case: 3/3
+passed, with the held-state assertion unchanged. All distinct targeted cases have passed.
+Route/capture run: 12/12, 228 rows, 0 violations, 0 minor, 0 overflow, 0 errors, one h1
+throughout; 570 screenshots. This also rechecks unit 6's final code on all normal routes.
+Inspected staff 320px and portal 320px, both themes and larger matrix samples. Evidence:
+`/private/tmp/nkwapa-w3-polish/unit1`.

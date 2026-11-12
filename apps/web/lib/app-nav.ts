@@ -33,6 +33,8 @@ export type AppNavPlacement = 'sidebar' | 'header' | 'profile';
 export interface AppNavItem {
   href: string;
   label: string;
+  /** One-word phone label; accessible names and wider navigation retain label. */
+  shortLabel?: string;
   description: string;
   icon: LucideIcon;
   permission?: string;
@@ -67,6 +69,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/dashboard',
         label: 'Dashboard',
+        shortLabel: 'Home',
         description: 'Snapshot and trends.',
         icon: LayoutDashboard,
       },
@@ -79,6 +82,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/today',
         label: 'Today Board',
+        shortLabel: 'Today',
         description: 'Check-ins and assignments.',
         icon: CalendarDays,
         permission: 'OPS.CHECKIN.READ',
@@ -87,6 +91,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/stations',
         label: 'Stations',
+        shortLabel: 'Stations',
         description: 'Take the next patient at your station.',
         icon: ListOrdered,
         permission: 'OPS.STATION.WORK',
@@ -96,6 +101,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/my/assigned',
         label: 'My Assigned',
+        shortLabel: 'Assigned',
         description: 'Your next tasks.',
         icon: Stethoscope,
         permission: 'OPS.ASSIGNMENT.READ_SELF',
@@ -106,6 +112,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/queues',
         label: 'Queues',
+        shortLabel: 'Queues',
         description: 'Drafts, reviews, sign-off.',
         icon: ClipboardList,
         anyOf: ['ENCOUNTER.READ', 'ENCOUNTER.CREATE', 'ENCOUNTER.REVIEW', 'DOCTOR.FINALIZE'],
@@ -114,6 +121,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/patients',
         label: 'Patients',
+        shortLabel: 'Patients',
         description: 'Find and open records.',
         icon: Users,
         permission: 'PATIENT.SEARCH',
@@ -122,6 +130,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/appointments',
         label: 'Appointments',
+        shortLabel: 'Visits',
         description: 'Schedule by day or week.',
         icon: CalendarDays,
         permission: 'APPOINTMENT.READ',

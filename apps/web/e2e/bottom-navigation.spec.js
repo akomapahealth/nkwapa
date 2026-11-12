@@ -38,11 +38,19 @@ for (const theme of ['light', 'dark']) {
     for (const width of [320, 390, 599]) {
       await page.setViewportSize({ width, height: 640 });
       await expect(nav).toBeVisible();
+      await expect(
+        nav.getByRole('link', { name: 'Dashboard', exact: true }).locator('span:visible'),
+      ).toHaveText('Home');
       for (const control of await nav.locator('a,button').all()) {
         const box = await control.boundingBox();
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(60);
         expect(await control.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+        for (const label of await control.locator('span:visible').all()) {
+          const box = await label.boundingBox();
+          const line = await label.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
+          expect(box.height).toBeLessThanOrEqual(line + 1);
+        }
       }
       const chatBox = await page.getByTestId('chat-toggle').boundingBox();
       const navBox = await nav.boundingBox();

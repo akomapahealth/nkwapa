@@ -236,9 +236,16 @@ for (const role of Object.keys(EXPECTED)) {
       await page.setViewportSize({ width: 390, height: 844 });
       const primaryLabels = PHONE_PRIMARY[role];
       const primary = page.getByRole('navigation', { name: 'Primary', exact: true });
-      expect((await primary.locator('a').allTextContents()).map((text) => text.trim())).toEqual(
-        primaryLabels,
-      );
+      expect(
+        await primary
+          .locator('a')
+          .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label'))),
+      ).toEqual(primaryLabels);
+      const shortLabels = { Dashboard: 'Home', 'Today Board': 'Today', 'My Assigned': 'Assigned' };
+      for (const full of primaryLabels)
+        await expect(
+          primary.getByRole('link', { name: full, exact: true }).locator('span:visible'),
+        ).toHaveText(shortLabels[full] ?? full);
       await page.getByRole('button', { name: 'More', exact: true }).click();
       await expectNav(
         page.getByRole('dialog'),
@@ -342,9 +349,7 @@ test.describe('rail behaviour', () => {
   test('the rail and its edge run the full height of a long page', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 700 });
     await page.goto('/dashboard');
-    await expect(page.getByRole('heading', { name: /today at a glance/i })).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByTestId('figure-strip')).toBeVisible({ timeout: 15_000 });
     const { rail, doc } = await page.evaluate(() => ({
       rail: document.getElementById('workspace-sidebar').getBoundingClientRect().height,
       doc: document.documentElement.scrollHeight,
