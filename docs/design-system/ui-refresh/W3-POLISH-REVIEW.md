@@ -229,11 +229,17 @@ inspected 1440 light and 390 dark.
 
 ## Open items (not done in this pass)
 
-- **Header at 320–390px**: the clinic name and role still truncate ("Nkwapa Clinic - D…"). The
-  initials-plus-switcher idea changes what `header-sync` measures at 320; it needs its own unit.
-- **Relative dates** ("2 h ago" with the Accra time in `title`): `formatOpsDateTime` is asserted
-  verbatim by several specs; a shared change needs a spec sweep of its own.
-- **Long ids with copy on hover** (Audit entity/request ids): not started.
+- **Header at 320–390px** (done, 763866c2): phone-only switcher padding 6px, gap 4px, chevron
+  14px. "Nkwapa Clinic - Demo" now fits whole at 390 (143 of 143px); 320 still truncates, which
+  `header-sync` allows (name at least 64px). The sync slot reservation is unchanged.
+- **Relative dates** (done, 5100718b): `RelativeTime` reuses `formatRelativeTime` for the last
+  week and falls back to `formatOpsDateTime` beyond it or in the future; the exact clinic time is
+  in `title` and `dateTime`. Used for message Created/Sent/Updated, queue arrival, duplicate
+  Updated and dashboard "Visit started". Scheduled, Audit, chart and in-sentence times stay
+  absolute. No spec asserted these cells' text. The label does not tick while a page stays open.
+- **Long ids with copy** (done, d8421d30): Audit entity and request ids are quiet buttons that
+  copy the full value via `useCopyToClipboard` and announce "copied"; the icon shows on hover and
+  focus, faintly on touch; 36px on mouse, 44px on touch.
 - **Row stagger on first load** (MASTER 9.1): not added; lists already fade in with the page.
 - **Floating chat launcher**: left as is (see unit B note); revisit only if a page ends in a pager
   that real data pushes under it.

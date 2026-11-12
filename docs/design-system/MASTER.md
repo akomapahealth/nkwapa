@@ -1038,7 +1038,10 @@ page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-
 - **List tabs** (Audit, Message delivery, Staff, Clinics, Duplicate review, Cross-clinic): page
   header, strip, toolbar, one muted "Showing / loaded" line, bled table, then any "how to read
   this" help below the list. No `RecordSection` frames, no two-column filter rail. Long ids are
-  mono, first 8 characters, full value on hover. Times in Accra (`formatOpsDateTime`).
+  mono, first 8 characters, full value on hover, and a press copies the whole id (Audit).
+  "When did this happen" row times use `RelativeTime` ("12 min ago" for a week, then the Accra
+  date; exact time in the title). Planned times, audit entries, clinical timestamps and times
+  inside sentences stay absolute (`formatOpsDateTime` / `formatOpsTimestamp`).
 - **My Assigned**: the worklist leads (left, wide); shift and workflow notes sit in a 320px column
   on the right.
 
