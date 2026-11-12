@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { CalendarCheck, UserPlus } from 'lucide-react';
+import { CalendarCheck, MoreHorizontal, UserPlus } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { useAuth } from '@/lib/auth-context';
@@ -17,6 +17,12 @@ import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   DataTable,
   DataTableActions,
@@ -223,45 +229,51 @@ function VolunteersContent() {
       <Button size="sm" variant="ghost" onClick={() => open(contact)} disabled={!writable}>
         Edit
       </Button>
-      {contact.linkedUserId ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!writable || busyId === contact.id}
-          onClick={() => act(contact, 'unlink', undefined, 'Account unlinked')}
-        >
-          Unlink
-        </Button>
-      ) : contact.linkCandidate ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!writable || busyId === contact.id}
-          onClick={() =>
-            act(contact, 'link', { userId: contact.linkCandidate!.id }, 'Account linked')
-          }
-        >
-          Link account
-        </Button>
-      ) : null}
-      {/* Plain outline: Reactivate undoes it, and warning ink is kept for what cannot be undone. */}
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={!writable || busyId === contact.id}
-        onClick={() =>
-          act(
-            contact,
-            contact.isActive ? 'deactivate' : 'reactivate',
-            undefined,
-            contact.isActive
-              ? `${contact.displayName} deactivated`
-              : `${contact.displayName} reactivated`,
-          )
-        }
-      >
-        {contact.isActive ? 'Deactivate' : 'Reactivate'}
-      </Button>
+      {/* One visible action per row (Hick); the account and status actions wait in a menu. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={`More actions for ${contact.displayName}`}
+            disabled={!writable || busyId === contact.id}
+          >
+            <MoreHorizontal aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {contact.linkedUserId ? (
+            <DropdownMenuItem
+              onSelect={() => act(contact, 'unlink', undefined, 'Account unlinked')}
+            >
+              Unlink
+            </DropdownMenuItem>
+          ) : contact.linkCandidate ? (
+            <DropdownMenuItem
+              onSelect={() =>
+                act(contact, 'link', { userId: contact.linkCandidate!.id }, 'Account linked')
+              }
+            >
+              Link account
+            </DropdownMenuItem>
+          ) : null}
+          {/* Plain item: Reactivate undoes it, and warning ink is kept for what cannot be undone. */}
+          <DropdownMenuItem
+            onSelect={() =>
+              act(
+                contact,
+                contact.isActive ? 'deactivate' : 'reactivate',
+                undefined,
+                contact.isActive
+                  ? `${contact.displayName} deactivated`
+                  : `${contact.displayName} reactivated`,
+              )
+            }
+          >
+            {contact.isActive ? 'Deactivate' : 'Reactivate'}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </DataTableActions>
   );
 

@@ -186,3 +186,42 @@ dashboard summary chips (number then label); Vercel's one-line page subtitles.
 Consciously not changed: the floating chat launcher. `main` already reserves 10rem (phones) and
 6rem (600px+) below the content, more than the launcher's footprint, so nothing is unreachable at
 the end of a page; the overlap mid-scroll is inherent to any floating button.
+
+### Units A and B: measurements
+
+- **Header descriptions** (source strings, `00f3d0d3` vs `c5b9cbbf`): the 16 rewritten
+  descriptions fell from 1,417 to 768 characters (−46%); the longest is now 69 characters (was 164:
+  Cross-clinic). No fact was dropped: each removed clause moved to the title's help or already
+  appeared on the page (badge, notice, row action).
+- **Visible words in the first viewport** (the audit's DOM count inside `main`, light theme, same
+  seeded database): 4,560 → 4,717 at 390 (+3.4%) and 7,733 → 7,831 at 1440 (+1.3%). This rose
+  because shorter headers and one-row actions let more _work_ into the first screen: the biggest
+  rises are where the header shrank most (Station line at 390 +42%, My Assigned +24%, Message
+  delivery +21% at 1440), and the biggest falls are pages whose chrome was mostly prose (Stations
+  1440 −33%, Volunteers 390 −19%, Clinic settings 1440 −18%). It measures content shown, not chrome
+  cut, so it is reported as measured rather than as a reduction. Browser specs also add synthetic
+  rows between runs, which moves these counts independently of copy.
+
+Validation (units A and B, final code): TypeScript, changed-file ESLint and Prettier passed; Jest 98
+suites / 1,060 tests; `design:check-tokens` 0 failures. Focused Chromium over 27 specs: 210 passed,
+26 failed, 5 not run (241). Of the 26: 14 were shift-panel specs I had already moved to "On duty"
+casing while the server still ran the previous build; 2 were `header-sync`, a real regression
+(releasing the phone slot moved the adjacent control 44px), fixed by restoring the reservation;
+3 `today-offline` cases expect the legacy "Today Board" heading that the station-flag build replaces
+with "Station line" (environmental, see below); the rest are the owner-listed or previously
+reproduced failures (time-zone Escape, portal keyboard-focus at 390, `responsive-migration`
+/dashboard, staff profile, `patient-chart` trends date format ×2) and the intermittent portal
+`held`/`failed` case. After a rebuild, the ten affected specs reran 112/113; the one failure was
+`getByLabel(/^To/)` also matching the "Today Board" nav links named in unit 5, fixed to the exact
+"To (optional)" label in both registry specs (21/21 and 9/9). Route/capture: 12/12, 228 rows,
+0 violations, 0 minor, 0 overflow, 0 errors, one h1 throughout; 570 screenshots in
+`/private/tmp/nkwapa-w3-polish/unitAB`.
+
+### Unit C: one visible action per row
+
+| Before                                                                   | After                                                                                               | Why                                                                                                                              |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Every volunteer row carried Edit, Link/Unlink and an outlined Deactivate | Edit stays; account and status actions sit in a "More actions for {name}" menu (Radix DropdownMenu) | Hick; a column of outlined Deactivate buttons read as the page's main action. Staff (Manage) and Clinics (Edit) already had one. |
+
+Validation: TypeScript, ESLint, Prettier, build; `volunteer-roster` and `staff-activity` 14/14;
+inspected 1440 light and 390 dark.
