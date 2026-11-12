@@ -47,6 +47,7 @@ import { CounsellingForm } from '@/components/stations/CounsellingForm';
 import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
 import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
+import { IntakeInterviews } from '@/components/stations/IntakeInterviews';
 import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +73,8 @@ import {
 interface EncounterReadings {
   vitals: VitalsRecord | null;
   diabetes: DiabetesScreeningRecord | null;
+  /** The intake interview's record, for the hypertension interview to build on. */
+  hypertension: Record<string, unknown> | null;
   /** Online only: null offline, and before the eye station records. */
   eye: EyeScreeningRecord | null;
 }
@@ -105,6 +108,7 @@ export default function StationVisitPage() {
   const [readings, setReadings] = useState<EncounterReadings>({
     vitals: null,
     diabetes: null,
+    hypertension: null,
     eye: null,
   });
   const [loading, setLoading] = useState(true);
@@ -113,6 +117,12 @@ export default function StationVisitPage() {
   const [busy, setBusy] = useState(false);
   // Edits typed into this station's form since its last save; hand-off asks before dropping them.
   const [unsavedForm, setUnsavedForm] = useState(false);
+  // Intake's medical history saves per item and never reports it, so only the interviews count.
+  const markUnsaved = (target: EventTarget) => {
+    if (visit?.station.kind === 'INTAKE' && !(target as Element).closest?.('[data-interview-flow]'))
+      return;
+    setUnsavedForm(true);
+  };
   /** The caller's own shift, for who is really screening on this account (#227). */
   const [myShift, setMyShift] = useState<OnShiftStaff | null>(null);
   const [changingScreener, setChangingScreener] = useState(false);
@@ -147,19 +157,27 @@ export default function StationVisitPage() {
         const encounter = (await response.json()) as {
           vitals?: VitalsRecord | null;
           diabetesScreening?: DiabetesScreeningRecord | null;
+          hypertensionAssessment?: Record<string, unknown> | null;
         };
         setReadings({
           vitals: encounter.vitals ?? null,
           diabetes: encounter.diabetesScreening ?? null,
+          hypertension: encounter.hypertensionAssessment ?? null,
           eye: await loadEyeScreening(encounterId),
         });
       } catch {
         // Offline or unreachable: this device's copy is what the forms build on.
-        const [vitals, diabetes] = await Promise.all([
+        const [vitals, diabetes, hypertension] = await Promise.all([
           db.vitals.where('encounterId').equals(encounterId).first(),
           db.diabetes_screenings.where('encounterId').equals(encounterId).first(),
+          db.hypertension_assessments.where('encounterId').equals(encounterId).first(),
         ]);
-        setReadings({ vitals: vitals ?? null, diabetes: diabetes ?? null, eye: null });
+        setReadings({
+          vitals: vitals ?? null,
+          diabetes: diabetes ?? null,
+          hypertension: (hypertension as unknown as Record<string, unknown>) ?? null,
+          eye: null,
+        });
       }
     },
     [getToken, clinicId, loadEyeScreening],
@@ -352,18 +370,19 @@ export default function StationVisitPage() {
                 shortcut: edits are seen as native input/change events and checkbox or radio
                 clicks, so a dropdown pick (rendered in a portal) is missed, and only stations
                 whose form reports onSaved are guarded (not intake history or the review note).
+                At intake only the interviews count; with both open, saving one clears the flag.
                 Give each form a dirty flag if those need guarding too.
               */
               <div
-                onInput={() => setUnsavedForm(true)}
-                onChange={() => setUnsavedForm(true)}
+                onInput={(event) => markUnsaved(event.target)}
+                onChange={(event) => markUnsaved(event.target)}
                 onClick={(event) => {
                   if (
                     (event.target as Element).closest(
                       '[role="checkbox"],[role="radio"],[role="switch"]',
                     )
                   )
-                    setUnsavedForm(true);
+                    markUnsaved(event.target);
                 }}
               >
                 <StationForm
@@ -529,7 +548,13 @@ function Timeline({
 }
 
 /** Stations whose form calls onSaved, so a cleared flag means the readings were saved. */
-const GUARDED_STATION_KINDS = new Set(['BLOOD_PRESSURE', 'ANTHROPOMETRY', 'GLUCOSE', 'EYE']);
+const GUARDED_STATION_KINDS = new Set([
+  'INTAKE',
+  'BLOOD_PRESSURE',
+  'ANTHROPOMETRY',
+  'GLUCOSE',
+  'EYE',
+]);
 
 function StationForm({
   visit,
@@ -552,13 +577,26 @@ function StationForm({
   switch (visit.station.kind) {
     case 'INTAKE':
       return (
-        <MedicalHistoryPanel
-          ruled
-          clinicId={clinicId}
-          patientId={visit.patient.id}
-          userId={userId}
-          canWrite
-        />
+        <div className="space-y-6">
+          <MedicalHistoryPanel
+            ruled
+            clinicId={clinicId}
+            patientId={visit.patient.id}
+            userId={userId}
+            canWrite
+          />
+          {isWebFeatureEnabled('guidedChronicTabs') ? (
+            <IntakeInterviews
+              clinicId={clinicId}
+              encounterId={encounterId}
+              patientId={visit.patient.id}
+              vitals={readings.vitals}
+              hypertension={readings.hypertension}
+              diabetes={readings.diabetes}
+              onSaved={onSaved}
+            />
+          ) : null}
+        </div>
       );
     case 'BLOOD_PRESSURE':
       return (

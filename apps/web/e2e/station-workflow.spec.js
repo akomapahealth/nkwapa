@@ -4,6 +4,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 
 const { apiRequestAs } = require('../playwright/api-client');
 const { storageStateFor } = require('../playwright/roles');
+const { answer, question } = require('../playwright/interview');
 
 /*
   Issue #167: the station line, end to end.
@@ -332,6 +333,60 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   ).toBeVisible();
   await expect(doctorPage.getByText(/recommended follow-up\s+within 1 month/)).toBeVisible();
   await doctorContext.close();
+});
+
+/*
+  The intake volunteer chooses which interviews to run, and an interview that already holds
+  answers opens by itself on the next visit to the station, so nothing recorded is hidden.
+*/
+test('intake runs the interviews the volunteer chooses, and reopens a saved one', async ({
+  page,
+}) => {
+  test.skip(
+    process.env.NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED !== 'true',
+    'The interviews run only with the guided chronic tabs flag on.',
+  );
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const intake = await boardVisit('staff', clinicId, checkIn.json().id);
+  const claim = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/station-visits/${intake.visit.id}/claim`,
+    { clinicId },
+  );
+  expect(claim.ok(), claim.text()).toBeTruthy();
+
+  await page.goto(`/stations/visits/${intake.visit.id}`);
+  const choices = page.getByRole('group', { name: 'Interviews to run' });
+  const hypertension = choices.getByRole('button', { name: 'Hypertension interview' });
+  const diabetes = choices.getByRole('button', { name: 'Diabetes interview' });
+  await expect(hypertension).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
+  await expect(diabetes).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('navigation', { name: 'Hypertension interview' })).toHaveCount(0);
+
+  await hypertension.click();
+  await answer(page, 'Hypertension status', 'Known hypertension');
+  await page.getByRole('button', { name: 'Save assessment' }).click();
+  await expect(page.getByText(/saved (and synced|on this device)/i)).toBeVisible();
+
+  // Back at the station later: the saved interview is open, the untouched one is not.
+  await page.reload();
+  await expect(hypertension).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+  await expect(diabetes).toHaveAttribute('aria-pressed', 'false');
+  await expect(
+    question(page, 'Hypertension status').getByRole('radio', {
+      name: 'Known hypertension',
+      exact: true,
+    }),
+  ).toBeChecked();
 });
 
 test('manager assignment is refused while the station line runs', async ({ page }) => {
