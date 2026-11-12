@@ -628,6 +628,14 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   expect(again.status()).toBe(400);
 
   await page.goto('/today');
+  await expect(page.getByRole('heading', { name: 'Station line' })).toBeVisible({
+    timeout: 20_000,
+  });
+  // A busy station folds patients past the first eight; this one queued last.
+  await expect(page.getByTestId('patient-wait-track').first()).toBeVisible({ timeout: 20_000 });
+  for (const more of await page.getByRole('button', { name: /^Show \d+ more$/ }).all()) {
+    await more.click();
+  }
   // The bar opens the patient's menu, which says who handed them over.
   await page.getByRole('button', { name: new RegExp(`^${patient.name}, With staff`) }).click();
   await expect(

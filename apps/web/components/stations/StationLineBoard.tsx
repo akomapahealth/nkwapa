@@ -69,6 +69,8 @@ const needsReason = (override: Override | null) => override?.kind !== 'assign';
 
 /** A fixed scale keeps normal waits readable; a longer wait fills the lane and keeps its real minutes. */
 const SCALE_END = 40;
+// A busy station showed every waiting patient as a full-width bar; past this it folds behind a toggle.
+const STATION_BAR_LIMIT = 8;
 const TICKS = [0, 10, 20, 30, 40];
 const share = (minutes: number) => (Math.min(minutes, SCALE_END) / SCALE_END) * 100;
 const at = (minutes: number) => `${share(minutes)}%`;
@@ -218,6 +220,7 @@ export function StationLineBoard() {
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canManage = perms.includes('*') || perms.includes('OPS.STATION.MANAGE');
   const [tableView, setTableView] = useState(false);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [date, setDate] = useState(getTodayInTimeZone());
   const [override, setOverride] = useState<Override | null>(null);
   const [reason, setReason] = useState('');
@@ -612,7 +615,10 @@ export function StationLineBoard() {
                           aria-label={`Patients at ${station.name}`}
                           className="relative flex min-h-11 flex-wrap items-center gap-x-1"
                         >
-                          {station.visits.map((visit) => (
+                          {(expanded.has(station.id)
+                            ? station.visits
+                            : station.visits.slice(0, STATION_BAR_LIMIT)
+                          ).map((visit) => (
                             <PatientBar
                               key={visit.id}
                               visit={visit}
@@ -629,6 +635,28 @@ export function StationLineBoard() {
                               onAction={(kind) => setOverride({ kind, visit })}
                             />
                           ))}
+                          {station.visits.length > STATION_BAR_LIMIT ? (
+                            <li className="basis-full py-1">
+                              <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                className="h-auto px-0"
+                                aria-expanded={expanded.has(station.id)}
+                                onClick={() =>
+                                  setExpanded((current) => {
+                                    const next = new Set(current);
+                                    if (!next.delete(station.id)) next.add(station.id);
+                                    return next;
+                                  })
+                                }
+                              >
+                                {expanded.has(station.id)
+                                  ? 'Show fewer'
+                                  : `Show ${station.visits.length - STATION_BAR_LIMIT} more`}
+                              </Button>
+                            </li>
+                          ) : null}
                         </ul>
                       </div>
                     )}
