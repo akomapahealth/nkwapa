@@ -473,6 +473,29 @@ export function HypertensionInterviewForm({
         onSave={handleSave}
         saveLabel="Save assessment"
         save={{ saving, message: saveMessage, error: saveError }}
+        alert={
+          escalation.urgentReviewRequired ? (
+            <InlineNotice tone="error">
+              <span className="block font-medium">This visit needs a clinician now.</span>
+              <span className="block">
+                {escalation.reasons
+                  .map((reason) => HYPERTENSION_ESCALATION_REASON_LABELS[reason])
+                  .join(' · ')}
+              </span>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={applyEscalationReasons}
+                >
+                  Add to the reasons for clinician review
+                </Button>
+              ) : null}
+            </InlineNotice>
+          ) : null
+        }
       >
         <InterviewSection id="history" title="Hypertension history">
           <ChoiceQuestion
@@ -679,27 +702,6 @@ export function HypertensionInterviewForm({
             labels={HYPERTENSION_SYMPTOM_LABELS}
             exclusive={['NONE']}
           />
-          {escalation.urgentReviewRequired ? (
-            <InlineNotice tone="error">
-              <span className="block font-medium">This visit needs a clinician now.</span>
-              <span className="block">
-                {escalation.reasons
-                  .map((reason) => HYPERTENSION_ESCALATION_REASON_LABELS[reason])
-                  .join(' · ')}
-              </span>
-              {canEdit ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={applyEscalationReasons}
-                >
-                  Add to the reasons for clinician review
-                </Button>
-              ) : null}
-            </InlineNotice>
-          ) : null}
         </InterviewSection>
 
         <InterviewSection
@@ -1106,6 +1108,28 @@ export function HypertensionInterviewForm({
               options={HYPERTENSION_CLASSIFICATIONS}
               labels={HYPERTENSION_LABELS}
             />
+          ) : null}
+          {/*
+            The interview's save bar stays inside the interview, so the override carries its own.
+            Same save as the bar: the classification is a field of the assessment.
+          */}
+          {canEdit && values.classificationOverridden ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={() => void handleSave().catch(() => undefined)}
+              >
+                {saving ? 'Saving…' : 'Save classification'}
+              </Button>
+              <p
+                role="status"
+                className={saveError ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}
+              >
+                {saveError ?? saveMessage}
+              </p>
+            </div>
           ) : null}
         </FormSectionCard>
       ) : null}

@@ -367,6 +367,29 @@ export function DiabetesInterviewForm({
         onSave={handleSave}
         saveLabel="Save screening"
         save={{ saving, message: saveMessage, error: saveError }}
+        alert={
+          escalation.urgentReviewRequired ? (
+            <InlineNotice tone="error">
+              <span className="block font-medium">This visit needs a clinician now.</span>
+              <span className="block">
+                {escalation.reasons
+                  .map((reason) => DIABETES_ESCALATION_REASON_LABELS[reason])
+                  .join(' · ')}
+              </span>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => applyReviewReasons(reviewReasonsForDiabetesEscalation(escalation))}
+                >
+                  Add to the reasons for clinician review
+                </Button>
+              ) : null}
+            </InlineNotice>
+          ) : null
+        }
       >
         <InterviewSection id="history" title="Diabetes history">
           <div className="space-y-6">
@@ -565,28 +588,6 @@ export function DiabetesInterviewForm({
             labels={DIABETES_URGENT_SYMPTOM_LABELS}
             exclusive={['NONE']}
           />
-
-          {escalation.urgentReviewRequired ? (
-            <InlineNotice tone="error">
-              <span className="block font-medium">This visit needs a clinician now.</span>
-              <span className="block">
-                {escalation.reasons
-                  .map((reason) => DIABETES_ESCALATION_REASON_LABELS[reason])
-                  .join(' · ')}
-              </span>
-              {canEdit ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => applyReviewReasons(reviewReasonsForDiabetesEscalation(escalation))}
-                >
-                  Add to the reasons for clinician review
-                </Button>
-              ) : null}
-            </InlineNotice>
-          ) : null}
         </InterviewSection>
 
         <InterviewSection

@@ -110,6 +110,10 @@ test.describe('as a doctor', () => {
     await expect(control).toBeVisible();
     // No vitals recorded, so the derivation is "Not classified" and the override matches it.
     await expect(control).toHaveText(/not classified/i);
+
+    // Saved from beside the override: the interview's save bar is out of reach down here.
+    await page.getByRole('button', { name: 'Save classification' }).click();
+    await expect(page.getByText(/saved (and synced|on this device)/i).first()).toBeVisible();
   });
 });
 

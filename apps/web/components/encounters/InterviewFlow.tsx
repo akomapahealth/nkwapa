@@ -92,6 +92,7 @@ export function InterviewFlow({
   onSave,
   saveLabel,
   save,
+  alert,
   children,
 }: {
   /** Names the rail for assistive technology: "Hypertension interview". */
@@ -102,6 +103,11 @@ export function InterviewFlow({
   onSave: () => Promise<void>;
   saveLabel: string;
   save: InterviewSaveState;
+  /**
+   * A notice that must stay in view on every section once raised, such as "This visit needs a
+   * clinician now". Rendered once above the heading, so moving between sections never re-announces it.
+   */
+  alert?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [active, setActive] = useState(sections[0]?.id ?? REVIEW);
@@ -324,6 +330,7 @@ export function InterviewFlow({
         )}
 
         <div className="min-w-0 max-w-3xl">
+          {alert ? <div className="mb-5">{alert}</div> : null}
           {showAll ? null : (
             <h2
               ref={headingRef}
