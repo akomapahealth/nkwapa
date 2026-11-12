@@ -1885,6 +1885,13 @@ so annotating the majority is noise.
 The codebase previously ran both conventions inside the same submitted form: `*` in
 `RegisterPatientScreen` and `(optional)` in `ResidentialLocationFields`.
 
+Two places keep `(optional)`, because there is no form around them for an asterisk to contrast with:
+a filter field (`To (optional)` in `ScreenedDateFilter`), and an action dialog whose only input is
+an optional note (duplicate review, data request details, chat group name). Everywhere else
+`(optional)` was removed on 2026-11-12: care plan, address note, medication drug link, volunteer
+roster, screening day, staff invite and the portal measurement composer, which now mark their
+required fields instead.
+
 ### Error recovery
 
 - The message renders **beside the field**, through `FieldError`, which carries `role="alert"`.

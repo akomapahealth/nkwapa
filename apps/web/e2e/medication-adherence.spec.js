@@ -65,7 +65,7 @@ async function addCatalogueMedication(page, name) {
   await page.getByRole('button', { name: 'Add medication' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add reported medication' });
   await dialog.getByLabel('Medication name', { exact: true }).fill(name);
-  await dialog.getByLabel('Link clinic Drug (optional)').fill(name);
+  await dialog.getByLabel('Link clinic Drug').fill(name);
   // The results are `role="option"` inside a listbox, and the search is debounced.
   await dialog
     .getByRole('option', { name: new RegExp(name, 'i') })

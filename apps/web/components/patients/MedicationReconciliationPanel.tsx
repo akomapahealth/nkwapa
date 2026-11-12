@@ -73,7 +73,7 @@ import {
   ChartSectionLoading,
   ChartSectionOffline,
 } from '@/components/patients/chart/ChartSectionState';
-import { FieldLabel } from '@/components/ui/field';
+import { FieldLabel, RequiredLegend } from '@/components/ui/field';
 
 const unavailableAllergies: AllergySummary = { state: 'UNAVAILABLE', activeAllergies: [] };
 
@@ -1384,6 +1384,7 @@ function MedicationDialog({
             catalog entry.
           </DialogDescription>
         </DialogHeader>
+        <RequiredLegend />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             id="medication-name"
@@ -1393,7 +1394,7 @@ function MedicationDialog({
             onChange={(value) => setForm((current) => ({ ...current, medicationName: value }))}
           />
           <div className="relative space-y-2">
-            <Label htmlFor="medication-drug-search">Link clinic Drug (optional)</Label>
+            <Label htmlFor="medication-drug-search">Link clinic Drug</Label>
             <Input
               id="medication-drug-search"
               value={drugQuery}

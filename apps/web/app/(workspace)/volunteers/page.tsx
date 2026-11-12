@@ -37,7 +37,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FieldError, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
+import {
+  FieldError,
+  FieldLabel,
+  fieldErrorProps,
+  focusFirstInvalid,
+  RequiredLegend,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -394,10 +400,14 @@ function VolunteersContent() {
             </DialogDescription>
           </DialogHeader>
           <form noValidate onSubmit={save} className="space-y-4 border-t-2 border-rule-strong pt-5">
+            <RequiredLegend />
             <div className="space-y-1">
-              <Label htmlFor="volunteer-name">Name</Label>
+              <FieldLabel htmlFor="volunteer-name" required>
+                Name
+              </FieldLabel>
               <Input
                 id="volunteer-name"
+                required
                 value={form.displayName}
                 maxLength={120}
                 autoComplete="off"
@@ -411,9 +421,12 @@ function VolunteersContent() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="volunteer-email">Email</Label>
+              <FieldLabel htmlFor="volunteer-email" required>
+                Email
+              </FieldLabel>
               <Input
                 id="volunteer-email"
+                required
                 type="email"
                 value={form.email}
                 maxLength={320}
@@ -432,7 +445,7 @@ function VolunteersContent() {
               ) : null}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="volunteer-phone">Phone (optional)</Label>
+              <Label htmlFor="volunteer-phone">Phone</Label>
               <Input
                 id="volunteer-phone"
                 type="tel"
@@ -449,7 +462,7 @@ function VolunteersContent() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="volunteer-notes">Notes (optional)</Label>
+              <Label htmlFor="volunteer-notes">Notes</Label>
               <Textarea
                 id="volunteer-notes"
                 value={form.notes}

@@ -157,7 +157,7 @@ export function CarePlanForm({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes (optional)</Label>
+            <Label htmlFor="notes">Notes</Label>
             {/* Free clinical text, so a textarea: this was a single-line Input, alone among every
                 Notes field in the product. */}
             <Textarea

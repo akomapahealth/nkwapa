@@ -144,7 +144,7 @@ export function ResidentialLocationFields({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-note`}>Address note (optional)</Label>
+        <Label htmlFor={`${idPrefix}-note`}>Address note</Label>
         <Textarea
           id={`${idPrefix}-note`}
           value={value.residentialAddressNote}

@@ -37,7 +37,7 @@ import { usePortalResource } from '@/components/portal/use-portal-resource';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { focusField } from '@/components/ui/field';
+import { FieldLabel, focusField, RequiredLegend } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -295,9 +295,12 @@ export function MeasurementComposerScreen() {
         >
           <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-5">
+              <RequiredLegend />
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="recordedAt">Date and time</Label>
+                  <FieldLabel htmlFor="recordedAt" required>
+                    Date and time
+                  </FieldLabel>
                   <Input
                     id="recordedAt"
                     {...invalidProps('recordedAt')}
@@ -313,7 +316,9 @@ export function MeasurementComposerScreen() {
               {type === 'BP' && (
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="systolic">Systolic (mmHg)</Label>
+                    <FieldLabel htmlFor="systolic" required>
+                      Systolic (mmHg)
+                    </FieldLabel>
                     <Input
                       id="systolic"
                       {...invalidProps('systolic')}
@@ -328,7 +333,9 @@ export function MeasurementComposerScreen() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="diastolic">Diastolic (mmHg)</Label>
+                    <FieldLabel htmlFor="diastolic" required>
+                      Diastolic (mmHg)
+                    </FieldLabel>
                     <Input
                       id="diastolic"
                       {...invalidProps('diastolic')}
@@ -343,7 +350,7 @@ export function MeasurementComposerScreen() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="pulse">Pulse in beats per minute (optional)</Label>
+                    <Label htmlFor="pulse">Pulse in beats per minute</Label>
                     <Input
                       id="pulse"
                       type="number"
@@ -361,7 +368,9 @@ export function MeasurementComposerScreen() {
               {type === 'GLUCOSE' && (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="glucoseValue">Glucose ({glucoseUnitLabel(glucoseUnit)})</Label>
+                    <FieldLabel htmlFor="glucoseValue" required>
+                      Glucose ({glucoseUnitLabel(glucoseUnit)})
+                    </FieldLabel>
                     <div className="flex gap-2">
                       <Input
                         id="glucoseValue"
@@ -406,7 +415,9 @@ export function MeasurementComposerScreen() {
               {type === 'WEIGHT' && (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="weightKg">Weight ({weightUnitLabel(units.bodyUnit)})</Label>
+                    <FieldLabel htmlFor="weightKg" required>
+                      Weight ({weightUnitLabel(units.bodyUnit)})
+                    </FieldLabel>
                     <Input
                       id="weightKg"
                       {...invalidProps('weightKg')}

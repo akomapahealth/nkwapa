@@ -22,7 +22,7 @@ import {
   validateStaffName,
   type StaffNameErrors,
 } from '@/lib/account-name';
-import { focusFirstInvalid } from '@/components/ui/field';
+import { FieldLabel, focusFirstInvalid, RequiredLegend } from '@/components/ui/field';
 import { StaffNameFields } from '@/components/account/StaffNameForm';
 import {
   describeInviteExpiry,
@@ -428,10 +428,9 @@ export function StaffInvitesCard({
           </DialogHeader>
 
           <div className="space-y-4">
+            <RequiredLegend />
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-foreground">
-                Their name <span className="font-normal text-muted-foreground">(optional)</span>
-              </legend>
+              <legend className="text-sm font-medium text-foreground">Their name</legend>
               <p className="text-xs text-muted-foreground">
                 Add it if you know it and they go straight in. Leave it blank and they are asked for
                 it when they first sign in.
@@ -451,9 +450,12 @@ export function StaffInvitesCard({
               />
             </fieldset>
             <div className="space-y-2">
-              <Label htmlFor="staff-invite-email">Email</Label>
+              <FieldLabel htmlFor="staff-invite-email" required>
+                Email
+              </FieldLabel>
               <Input
                 id="staff-invite-email"
+                required
                 type="email"
                 autoComplete="off"
                 value={email}
