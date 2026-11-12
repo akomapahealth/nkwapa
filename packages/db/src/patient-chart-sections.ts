@@ -87,7 +87,7 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
   },
   {
     id: 'medical-history',
-    label: 'Medical History',
+    label: 'Medical history',
     description: 'Longitudinal conditions, allergies, surgeries, and family history.',
     requiredPermission: 'MEDICAL_HISTORY.READ',
     featureFlag: 'medicalHistory',

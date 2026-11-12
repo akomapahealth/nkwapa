@@ -469,7 +469,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
             <Button asChild>
               <Link href={`/clinics/${clinicId}/patients/new`}>
                 <UserPlus className="h-4 w-4" />
-                New Patient
+                New patient
               </Link>
             </Button>
           ) : null

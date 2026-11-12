@@ -154,12 +154,12 @@ export function RecordConsentScreen({
       <Button variant="ghost" asChild className="w-fit">
         <Link href={patientHref}>
           <ArrowLeft className="h-4 w-4" />
-          Back to Patient
+          Back to patient
         </Link>
       </Button>
 
       <AppPageHeader
-        title="Record Research Consent"
+        title="Record research consent"
         description="Record informed consent for de-identified research."
       />
 
@@ -218,7 +218,7 @@ export function RecordConsentScreen({
               disabled={loading || !attested}
             >
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              {loading ? 'Recording...' : 'Record Consent'}
+              {loading ? 'Recording...' : 'Record consent'}
             </Button>
             <Button variant="outline" asChild>
               <Link href={patientHref}>Cancel</Link>

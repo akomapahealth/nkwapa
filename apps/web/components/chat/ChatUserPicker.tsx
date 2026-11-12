@@ -104,7 +104,7 @@ export function ChatUserPicker({
   };
 
   const heading =
-    title ?? (mode === 'group' ? 'New group' : mode === 'add' ? 'Add people' : 'New Message');
+    title ?? (mode === 'group' ? 'New group' : mode === 'add' ? 'Add people' : 'New message');
 
   return (
     <div className="flex h-full flex-col">

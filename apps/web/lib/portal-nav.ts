@@ -12,7 +12,7 @@ export const portalNavItems = [
   },
   {
     href: '/portal/health',
-    label: 'My Health',
+    label: 'My health',
     shortLabel: 'Health',
     description: 'Measurements and self-reports.',
     icon: HeartPulse,

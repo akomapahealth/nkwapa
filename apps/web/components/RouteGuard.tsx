@@ -28,7 +28,7 @@ export function RouteGuard({
    * same: are you still loading, may you be here at all, and only then, which clinic.
    */
   requiresClinic?: boolean;
-  /** Plain-language name of the surface, e.g. "The Today Board". Required when requiresClinic. */
+  /** Plain-language name of the surface, e.g. "The Today board". Required when requiresClinic. */
   clinicSurface?: string;
 }) {
   const ctx = useBootstrap();

@@ -407,7 +407,7 @@ export function NoAccessState({
  * sentences for one situation. It is also not an error and not a permission refusal, which is
  * why it neither borrows destructive colour nor offers a retry.
  *
- * `surface` names the thing in plain language ("the Today Board", "this patient chart") and is
+ * `surface` names the thing in plain language ("the Today board", "this patient chart") and is
  * folded into one sentence, so callers cannot drift into ten phrasings again.
  */
 export function SelectClinicState({

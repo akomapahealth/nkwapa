@@ -138,7 +138,7 @@ test('offline, history pages keep their saved copy and writes wait for a connect
 
   await context.setOffline(true);
 
-  await page.getByRole('link', { name: 'My Health', exact: true }).click();
+  await page.getByRole('link', { name: 'My health', exact: true }).click();
   const notice = page.getByTestId('stale-data-notice');
   await expect(notice).toBeVisible({ timeout: 20_000 });
   await expect(notice).toContainText('You are offline');
@@ -155,7 +155,7 @@ test('offline, history pages keep their saved copy and writes wait for a connect
   await expect(page.getByTestId('portal-write-gate')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Submit appointment request' })).toBeEnabled();
 
-  await page.getByRole('link', { name: 'My Health', exact: true }).click();
+  await page.getByRole('link', { name: 'My health', exact: true }).click();
   await expect(page.getByRole('heading', { name: /blood pressure trend/i })).toBeVisible();
   await expect(page.getByTestId('stale-data-notice')).toHaveCount(0, { timeout: 20_000 });
 });

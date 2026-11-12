@@ -15,7 +15,7 @@ const ALL_TABS = [
   'Medications',
   'Hypertension',
   'Diabetes',
-  'Medical History',
+  'Medical history',
   'Notes',
   'Visits',
   'Patient-reported',

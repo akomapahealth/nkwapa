@@ -126,7 +126,7 @@ const ACTIONS: Record<StaffHomeRole, HomeAction[]> = {
   MANAGER: [
     {
       href: '/today',
-      label: 'Open Today Board',
+      label: 'Open Today board',
       allowed: (p) => hasPermission(p, 'OPS.CHECKIN.READ'),
     },
     {

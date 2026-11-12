@@ -89,7 +89,7 @@ export function PatientProfileHeader({
       <header ref={header} className={styles.header}>
         <Link className={styles.back} href={`/clinics/${clinicId}/patients`}>
           <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Back to Patient Search
+          Back to patient search
         </Link>
         <div className={styles.identityRow}>
           <span className={styles.avatar} aria-hidden="true" {...avatarToneProps(name)}>

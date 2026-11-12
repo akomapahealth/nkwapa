@@ -44,7 +44,7 @@ async function endShiftIfRunning(page) {
 
 async function openTodayBoard(page) {
   await page.goto('/today');
-  await expect(page.getByRole('heading', { name: 'Today Board' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Today board' })).toBeVisible();
   await expect(page.getByText('Shift status', { exact: true })).toBeVisible({ timeout: 20_000 });
 }
 
@@ -88,7 +88,7 @@ test('a patient checked in offline reaches the board once, and is not checked in
   const patient = await createPatient(page);
 
   await context.setOffline(true);
-  await page.getByRole('button', { name: 'Check In Patient' }).click();
+  await page.getByRole('button', { name: 'Check in patient' }).click();
   await expect(page.getByTestId('ops-feedback')).toContainText(
     'is checked in on this device and will reach the clinic board',
   );
@@ -103,7 +103,7 @@ test('a patient checked in offline reaches the board once, and is not checked in
 
   // A second check-in the same day is refused in plain words, with the way to the board.
   await page.goto(`/clinics/${patient.clinicId}/patients/${patient.patientId}`);
-  await page.getByRole('button', { name: 'Check In Patient' }).click();
+  await page.getByRole('button', { name: 'Check in patient' }).click();
   const feedback = page.getByTestId('ops-feedback');
   await expect(feedback).toContainText('is already checked in today');
   await expect(feedback).toHaveAttribute('data-tone', 'warning');

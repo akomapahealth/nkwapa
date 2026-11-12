@@ -95,7 +95,7 @@ for (const theme of ['light', 'dark']) {
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await page
         .getByRole('navigation', { name: 'Patient portal' })
-        .getByRole('link', { name: 'My Health', exact: true })
+        .getByRole('link', { name: 'My health', exact: true })
         .click();
       await expect(page).toHaveURL(/\/portal\/health$/);
     });

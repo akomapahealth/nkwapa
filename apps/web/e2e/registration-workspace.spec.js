@@ -127,7 +127,7 @@ test('both registration routes keep their own clinic payload and registry links'
 }) => {
   await open(page);
   const registry = await page
-    .getByRole('link', { name: 'Back to Patients', exact: true })
+    .getByRole('link', { name: 'Back to patients', exact: true })
     .getAttribute('href');
   const clinic = registry.split('/')[2];
   const bodies = [];
@@ -147,7 +147,7 @@ test('both registration routes keep their own clinic payload and registry links'
       'href',
       registry,
     );
-    await expect(page.getByRole('link', { name: 'Back to Patients', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('link', { name: 'Back to patients', exact: true })).toHaveAttribute(
       'href',
       registry,
     );

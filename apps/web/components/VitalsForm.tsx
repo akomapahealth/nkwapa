@@ -229,7 +229,7 @@ function ReadOnlyMeasurements({
   const { bodyUnit } = useClinicUnits();
   const groups = [
     {
-      title: 'Blood Pressure',
+      title: 'Blood pressure',
       icon: HeartPulse,
       rows: [
         [
@@ -244,7 +244,7 @@ function ReadOnlyMeasurements({
       ],
     },
     {
-      title: 'Other Measurements',
+      title: 'Other measurements',
       icon: Thermometer,
       rows: [
         ['Pulse', displayValue(vitals?.pulseBpm ?? vitals?.heartRate, ' bpm')],
@@ -267,7 +267,7 @@ function ReadOnlyMeasurements({
       ],
     },
     {
-      title: 'Tobacco Use',
+      title: 'Tobacco use',
       icon: Cigarette,
       rows: [
         ['Smoking', displayValue(tobacco?.smokingStatus)],
@@ -300,7 +300,7 @@ function ReadOnlyMeasurements({
               <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="font-semibold">{title}</h3>
             </div>
-            {title === 'Blood Pressure' ? (
+            {title === 'Blood pressure' ? (
               <BloodPressureSignal
                 systolic={vitals?.systolicBp}
                 diastolic={vitals?.diastolicBp}
@@ -609,7 +609,7 @@ export function VitalsForm({
             <section className={styles.section}>
               <SectionHeading
                 icon={HeartPulse}
-                title="Blood Pressure"
+                title="Blood pressure"
                 description="Record the reading and measurement context together."
               />
               <div className={styles.pressure}>
@@ -702,7 +702,7 @@ export function VitalsForm({
             <section className={styles.section}>
               <SectionHeading
                 icon={Thermometer}
-                title="Other Measurements"
+                title="Other measurements"
                 description="Capture pulse, breathing, oxygen saturation, and temperature."
               />
               <div className={styles.fields}>
@@ -838,7 +838,7 @@ export function VitalsForm({
             <section className={styles.section}>
               <SectionHeading
                 icon={Cigarette}
-                title="Tobacco Use"
+                title="Tobacco use"
                 description="Not assessed remains distinct from a negative response."
               />
               <div className={styles.fields}>

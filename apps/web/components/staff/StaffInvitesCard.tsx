@@ -507,7 +507,7 @@ export function StaffInvitesCard({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Director and System Admin access is never sent by email; assign it by hand on this
+              Director and System admin access is never sent by email; assign it by hand on this
               page.
             </p>
 

@@ -26,7 +26,7 @@ interface NeedsYouNowProps {
    * (`DashboardData.summary`) and, for managers and directors, its pending HAP cosigns.
    */
   clinic?: { pendingReview: number; readyToFinalize: number; pendingClinicalNoteCosigns?: number };
-  /** Where this person's next patient is: their station, Today Board or My Assigned. */
+  /** Where this person's next patient is: their station, Today board or My assigned. */
   worklistHref: string | null;
   /** "Needs attention" on a manager's home, where the rows are the clinic's, not theirs. */
   title?: string;
@@ -40,13 +40,13 @@ const WORKLIST_LABELS: Record<string, { title: string; detail: string; action: s
   },
   '/my/assigned': {
     title: 'See the patients assigned to you',
-    detail: 'Your next tasks, in order, are on My Assigned.',
-    action: 'Open My Assigned',
+    detail: 'Your next tasks, in order, are on My assigned.',
+    action: 'Open My assigned',
   },
   '/today': {
     title: "Check today's arrivals",
-    detail: 'Check-ins and assignments for this clinic are on the Today Board.',
-    action: 'Open Today Board',
+    detail: 'Check-ins and assignments for this clinic are on the Today board.',
+    action: 'Open Today board',
   },
 };
 

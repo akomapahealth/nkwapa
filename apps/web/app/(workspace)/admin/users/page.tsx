@@ -997,7 +997,7 @@ export default function AdminUsersPage() {
     <RouteGuard requiredPermission="CLINIC.MANAGE">
       <div className="space-y-6">
         <AppPageHeader
-          title="Staff & Access"
+          title="Staff and access"
           description="Manage clinic access and roster status."
           helpTitle="How access changes work"
           helpText="Use Active clinic for day-to-day roster changes, switch to All users when you need cross-clinic or global account checks, and remember that deactivating an account blocks access without removing audit history."
@@ -1664,7 +1664,7 @@ export default function AdminUsersPage() {
                   <RecordSectionHeader>
                     <h3 className="type-section-title">Assign a new role</h3>
                     <RecordSectionDescription>
-                      Directors can assign roles only for clinics they direct. System Admins can
+                      Directors can assign roles only for clinics they direct. System admins can
                       assign staff and admin roles here.
                     </RecordSectionDescription>
                   </RecordSectionHeader>
@@ -1768,7 +1768,7 @@ export default function AdminUsersPage() {
                     !isSystemAdmin &&
                     viewMode === 'clinic' ? (
                       <InlineNotice tone="error">
-                        Only System Admin can deactivate users who still have global roles or access
+                        Only system admin can deactivate users who still have global roles or access
                         in other clinics.
                       </InlineNotice>
                     ) : null}

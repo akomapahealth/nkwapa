@@ -26,7 +26,7 @@ export default function CrossClinicDuplicatesPage() {
       ) : (
         <NoAccessState
           title="You don't have access to the cross-clinic investigation"
-          description="Comparing patient charts across clinics is limited to System Admins while the policy for consolidating them is decided. Your own clinic's suspected duplicates are in Duplicate review."
+          description="Comparing patient charts across clinics is limited to System admins while the policy for consolidating them is decided. Your own clinic's suspected duplicates are in Duplicate review."
           action={
             <Button asChild variant="outline">
               <Link href="/admin/duplicates">Go to Duplicate review</Link>

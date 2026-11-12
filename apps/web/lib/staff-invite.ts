@@ -65,7 +65,7 @@ export const DEFAULT_STAFF_INVITE_TTL_HOURS = 72;
 export const ADDRESS_IN_USE_CODE = 'STAFF_INVITE_ADDRESS_IN_USE';
 
 const ROLE_LABELS: Record<string, string> = {
-  SYSTEM_ADMIN: 'System Admin',
+  SYSTEM_ADMIN: 'System admin',
   DIRECTOR: 'Director',
   MANAGER: 'Manager',
   DOCTOR: 'Doctor',

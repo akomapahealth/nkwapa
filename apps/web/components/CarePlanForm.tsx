@@ -126,7 +126,7 @@ export function CarePlanForm({
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-lg font-semibold">Care Plan</h2>
+        <h2 className="text-lg font-semibold">Care plan</h2>
       </CardHeader>
       <CardContent className="space-y-4">
         <fieldset disabled={!canEdit || saving} className="space-y-4 disabled:opacity-75">
@@ -173,7 +173,7 @@ export function CarePlanForm({
         {canEdit ? (
           <FormActions>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : 'Save Care Plan'}
+              {saving ? 'Saving…' : 'Save care plan'}
             </Button>
           </FormActions>
         ) : (

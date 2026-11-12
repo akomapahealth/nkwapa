@@ -24,7 +24,7 @@ async function createEncounter(page) {
   const response = await responsePromise;
   expect(response.ok()).toBeTruthy();
   const encounter = await response.json();
-  await page.getByRole('button', { name: 'Continue to Vitals' }).click();
+  await page.getByRole('button', { name: 'Continue to vitals' }).click();
   return encounter.id;
 }
 
@@ -34,7 +34,7 @@ test('doctor authors, signs, amends, and securely loses note access offline', as
 }) => {
   const encounterId = await createEncounter(page);
   await page.goto(`/encounters/${encounterId}?tab=clinical-note`);
-  await page.getByRole('tab', { name: 'Clinical Note' }).click();
+  await page.getByRole('tab', { name: 'Clinical note' }).click();
 
   await expect(page.getByText('No HAP note for this encounter', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Start HAP note' }).click();
@@ -100,7 +100,7 @@ test('the note can be drafted from the interviews, and regenerating is safe', as
   await page.getByRole('button', { name: 'Save assessment' }).click();
   await expect(page.getByText(/saved (and synced|on this device)/i)).toBeVisible();
 
-  await page.getByRole('tab', { name: 'Clinical Note' }).click();
+  await page.getByRole('tab', { name: 'Clinical note' }).click();
   await page.getByRole('button', { name: 'Draft from the interviews' }).click();
 
   await expect(page.getByText(/Draft written from the interviews/i)).toBeVisible();
@@ -138,7 +138,7 @@ test('regenerating over an edited draft asks before discarding it', async ({ pag
   await page.getByRole('button', { name: 'Save assessment' }).click();
   await expect(page.getByText(/saved (and synced|on this device)/i)).toBeVisible();
 
-  await page.getByRole('tab', { name: 'Clinical Note' }).click();
+  await page.getByRole('tab', { name: 'Clinical note' }).click();
   await page.getByRole('button', { name: 'Start HAP note' }).click();
   await page.getByLabel('History').fill('Typed by the clinician.');
 
@@ -185,7 +185,7 @@ test('a note awaiting this doctor leads with the cosign band', async ({ page }) 
     });
   });
   await page.goto(`/encounters/${encounterId}?tab=clinical-note`);
-  await page.getByRole('tab', { name: 'Clinical Note' }).click();
+  await page.getByRole('tab', { name: 'Clinical note' }).click();
 
   const band = page.getByRole('region', { name: 'Waiting for your cosign' });
   await expect(band).toBeVisible();

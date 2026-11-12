@@ -233,7 +233,7 @@ test('read-only registry hides create and check-in actions, including swipe', as
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
   await expect(page.getByRole('article', { name: 'Synthetic Registry' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'New Patient', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'New patient', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Check in', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Synthetic Registry', exact: true })).toBeVisible();
 });

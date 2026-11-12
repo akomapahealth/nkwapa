@@ -56,7 +56,7 @@ test.describe('volunteer', () => {
     await expect(ownWork).toBeInViewport();
 
     // The next patient lives on the volunteer's worklist; the row goes there.
-    const worklist = section.getByRole('link', { name: /^Open (Stations|My Assigned)$/ });
+    const worklist = section.getByRole('link', { name: /^Open (Stations|My assigned)$/ });
     await expect(worklist).toHaveAttribute('href', /^\/(stations|my\/assigned)$/);
     await expect(worklist).toBeInViewport();
     const box = await worklist.boundingBox();
@@ -123,7 +123,7 @@ test.describe('manager', () => {
       role: 'MANAGER',
       strip: /^(Station flow today|Today in this clinic)$/,
       figure: /checked in|visits today/,
-      actions: ['Open Today Board'],
+      actions: ['Open Today board'],
     });
 
     const hrefs = await section

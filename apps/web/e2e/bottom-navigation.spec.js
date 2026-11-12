@@ -138,7 +138,7 @@ test('current route, overflow route, history and sync handoff', async ({ page })
   );
   await nav.getByRole('button', { name: 'More', exact: true }).click();
   let sheet = page.getByRole('dialog', { name: 'More', exact: true });
-  await sheet.getByRole('link', { name: 'New Patient', exact: true }).click();
+  await sheet.getByRole('link', { name: 'New patient', exact: true }).click();
   await expect(page).toHaveURL(/\/clinics\/[^/]+\/patients\/new$/);
   await expect(sheet).toBeHidden();
   await expect(nav.getByRole('button', { name: 'More', exact: true })).toHaveAttribute(

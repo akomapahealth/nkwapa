@@ -1868,6 +1868,15 @@ Rules live outside the component where they are testable: `lib/clinical-measurem
 cross-field clinical rules (systolic above diastolic, a temperature that converts into 25-45 °C, a
 blood-pressure context that requires a reading), and `validateClinicalMeasurements` is unit-tested.
 
+### Sentence case
+
+Every button, link, heading, tab, nav item and field label is sentence case: "Check in patient",
+"Submit for review", "Medical history", "Today board". Proper names keep their capitals (Nkwapa,
+Ghana Card, Greater Accra), and so do the literal names of other software's controls ("Add to
+Home Screen" in Safari, the Escape key) and of options quoted in copy ("tick None"). Copy that
+names a nav item keeps only that item's own capital: "Open Today board". Applied product-wide on
+2026-11-12; release notes keep the wording they shipped with.
+
 ### Required and optional
 
 **Mark what is required. Do not mark what is optional.** On these forms most fields are optional,

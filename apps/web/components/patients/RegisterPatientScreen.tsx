@@ -191,7 +191,7 @@ export function RegisterPatientScreen({
       <Button variant="ghost" asChild className="w-fit">
         <Link href={registryHref}>
           <ArrowLeft className="h-4 w-4" />
-          Back to Patients
+          Back to patients
         </Link>
       </Button>
 

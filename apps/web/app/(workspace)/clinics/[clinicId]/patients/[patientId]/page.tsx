@@ -608,7 +608,7 @@ function PatientChartWorkspace() {
         clinicId={clinicId}
         badges={
           <>
-            {hasGrantedResearchConsent ? <Badge variant="finalized">Consent Granted</Badge> : null}
+            {hasGrantedResearchConsent ? <Badge variant="finalized">Consent granted</Badge> : null}
           </>
         }
         actions={
@@ -634,7 +634,7 @@ function PatientChartWorkspace() {
                 disabled={loading || patientCheckIn.isBusy || !patientCheckIn.canSubmit}
               >
                 <Stethoscope className="h-4 w-4" />
-                {patientCheckIn.isBusy ? 'Checking in...' : 'Check In Patient'}
+                {patientCheckIn.isBusy ? 'Checking in...' : 'Check in patient'}
               </Button>
             ) : null}
           </>
@@ -983,13 +983,13 @@ function PatientChartWorkspace() {
                           onClick={() => void handleRevoke()}
                           disabled={loading}
                         >
-                          Revoke Consent
+                          Revoke consent
                         </Button>
                       ) : (
                         <Button asChild size="sm">
                           <Link href={`/clinics/${clinicId}/patients/${patientId}/consent`}>
                             <FileCheck className="mr-2 h-4 w-4" />
-                            Record Consent
+                            Record consent
                           </Link>
                         </Button>
                       )}

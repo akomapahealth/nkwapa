@@ -279,7 +279,7 @@ export default function EncounterDetailPage() {
           <Button asChild variant="outline">
             <Link href="/queues">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Queues
+              Back to queues
             </Link>
           </Button>
         </div>
@@ -293,7 +293,7 @@ export default function EncounterDetailPage() {
           <Button asChild variant="outline">
             <Link href="/queues">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Queues
+              Back to queues
             </Link>
           </Button>
         </div>
@@ -323,7 +323,7 @@ export default function EncounterDetailPage() {
             href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}
           >
             <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Back to Patient
+            Back to patient
           </Link>
           <div className={styles.identityRow}>
             <div className={styles.identity}>
@@ -331,7 +331,7 @@ export default function EncounterDetailPage() {
               <h1 className="mt-1 type-page-title">
                 {encounter.patient
                   ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
-                  : 'Encounter Workspace'}
+                  : 'Encounter workspace'}
               </h1>
               <div className={styles.metadata}>
                 {encounter.patient ? (
@@ -361,7 +361,7 @@ export default function EncounterDetailPage() {
             {canSubmit ? (
               <div role="group" aria-label="Encounter actions" className={styles.actions}>
                 <Button onClick={() => doTransition('submit')} disabled={transitioning}>
-                  Submit for Review
+                  Submit for review
                 </Button>
               </div>
             ) : null}
@@ -394,7 +394,7 @@ export default function EncounterDetailPage() {
               </div>
             </div>
             <Button onClick={() => doTransition('review')} disabled={transitioning}>
-              Mark Reviewed
+              Mark reviewed
             </Button>
           </section>
         ) : null}
@@ -467,12 +467,12 @@ export default function EncounterDetailPage() {
               </TabsTrigger>
               {canFinalize && (
                 <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>
-                  Care Plan
+                  Care plan
                 </TabsTrigger>
               )}
               {clinicalNotesEnabled && isClinicalUser ? (
                 <TabsTrigger value="clinical-note" disabled={savingBeforeSwitch}>
-                  Clinical Note
+                  Clinical note
                 </TabsTrigger>
               ) : null}
             </TabsList>

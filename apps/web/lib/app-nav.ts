@@ -77,11 +77,11 @@ const NAV_SECTIONS: AppNavSection[] = [
   },
   {
     id: 'care',
-    label: 'Care Delivery',
+    label: 'Care delivery',
     items: [
       {
         href: '/today',
-        label: 'Today Board',
+        label: 'Today board',
         shortLabel: 'Today',
         description: 'Check-ins and assignments.',
         icon: CalendarDays,
@@ -100,7 +100,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/my/assigned',
-        label: 'My Assigned',
+        label: 'My assigned',
         shortLabel: 'Assigned',
         description: 'Your next tasks.',
         icon: Stethoscope,
@@ -138,7 +138,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/patients/new',
-        label: 'New Patient',
+        label: 'New patient',
         description: 'Add a new patient.',
         icon: FileEdit,
         permission: 'PATIENT.CREATE',

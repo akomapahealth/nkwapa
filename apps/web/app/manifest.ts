@@ -52,7 +52,7 @@ export default function manifest(): MetadataRoute.Manifest {
               sizes: '1280x800',
               type: 'image/png',
               form_factor: 'wide',
-              label: 'The Today Board: live clinic flow for the day',
+              label: 'The Today board: live clinic flow for the day',
             },
             {
               src: '/screenshots/narrow-chart.png',

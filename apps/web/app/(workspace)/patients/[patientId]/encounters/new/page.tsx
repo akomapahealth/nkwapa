@@ -195,7 +195,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         <div className="space-y-4">
           <InlineErrorState title="We couldn't start this visit" description={error} />
           <Button asChild variant="outline">
-            <Link href={patientHref}>Back to Patient</Link>
+            <Link href={patientHref}>Back to patient</Link>
           </Button>
         </div>
       );
@@ -212,7 +212,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
       <header className={styles.header}>
         <Link className={styles.back} href={patientHref}>
           <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Back to Patient
+          Back to patient
         </Link>
         <div className={styles.identityRow}>
           <div className={styles.identity}>
@@ -250,7 +250,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
       {currentStep === 'confirm' && (
         <RecordSection aria-labelledby="new-visit-confirm">
           <RecordSectionHeader>
-            <RecordSectionTitle id="new-visit-confirm">Confirm Patient</RecordSectionTitle>
+            <RecordSectionTitle id="new-visit-confirm">Confirm patient</RecordSectionTitle>
           </RecordSectionHeader>
           <RecordSectionContent>
             <p className="text-muted-foreground">
@@ -265,7 +265,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
               ))}
             </dl>
             <FormActions sticky className="mt-4">
-              <Button onClick={() => setStep(1)}>Continue to Vitals</Button>
+              <Button onClick={() => setStep(1)}>Continue to vitals</Button>
             </FormActions>
           </RecordSectionContent>
         </RecordSection>
@@ -353,10 +353,10 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
             </p>
             <FormActions split sticky>
               <Button variant="outline" onClick={() => setStep(3)}>
-                Back to Diabetes
+                Back to diabetes
               </Button>
               <Button onClick={handleSubmitForReview} disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Submit for Clinical Review'}
+                {submitting ? 'Submitting…' : 'Submit for clinical review'}
               </Button>
             </FormActions>
           </RecordSectionContent>

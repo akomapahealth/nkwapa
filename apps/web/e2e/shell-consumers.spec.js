@@ -193,8 +193,8 @@ test('no-clinic navigation is disabled in desktop, labelled rail and phone sheet
     await page.setViewportSize({ width, height: 800 });
     if (width === 390) await page.getByRole('button', { name: 'More', exact: true }).click();
     const scope = width === 390 ? page.getByRole('dialog') : page.locator('#workspace-sidebar');
-    await expect(scope.getByRole('button', { name: 'New Patient', exact: true })).toBeDisabled();
-    await expect(scope.getByRole('link', { name: 'New Patient', exact: true })).toHaveCount(0);
+    await expect(scope.getByRole('button', { name: 'New patient', exact: true })).toBeDisabled();
+    await expect(scope.getByRole('link', { name: 'New patient', exact: true })).toHaveCount(0);
   }
 });
 

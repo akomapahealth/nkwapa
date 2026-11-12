@@ -17,12 +17,12 @@ const { hitTarget } = require('../playwright/hit-target');
 const FLAG_OFF = {
   staff: [
     ['Dashboard', '/dashboard'],
-    ['Today Board', '/today'],
-    ['My Assigned', '/my/assigned'],
+    ['Today board', '/today'],
+    ['My assigned', '/my/assigned'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
     ['Audit', '/audit'],
     ['Volunteers', '/volunteers'],
     ['Staff activity', '/staff-activity'],
@@ -37,27 +37,27 @@ const FLAG_OFF = {
   ],
   doctor: [
     ['Dashboard', '/dashboard'],
-    ['My Assigned', '/my/assigned'],
+    ['My assigned', '/my/assigned'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
   ],
   volunteer: [
     ['Dashboard', '/dashboard'],
-    ['My Assigned', '/my/assigned'],
+    ['My assigned', '/my/assigned'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
   ],
   manager: [
     ['Dashboard', '/dashboard'],
-    ['Today Board', '/today'],
+    ['Today board', '/today'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
     ['Audit', '/audit'],
     ['Volunteers', '/volunteers'],
     ['Staff activity', '/staff-activity'],
@@ -68,7 +68,7 @@ const FLAG_OFF = {
   ],
   director: [
     ['Dashboard', '/dashboard'],
-    ['Today Board', '/today'],
+    ['Today board', '/today'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
@@ -90,12 +90,12 @@ const FLAG_OFF = {
 const FLAG_ON = {
   staff: [
     ['Dashboard', '/dashboard'],
-    ['Today Board', '/today'],
+    ['Today board', '/today'],
     ['Stations', '/stations'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
     ['Audit', '/audit'],
     ['Volunteers', '/volunteers'],
     ['Staff activity', '/staff-activity'],
@@ -114,7 +114,7 @@ const FLAG_ON = {
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
   ],
   volunteer: [
     ['Dashboard', '/dashboard'],
@@ -122,16 +122,16 @@ const FLAG_ON = {
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
   ],
   manager: [
     ['Dashboard', '/dashboard'],
-    ['Today Board', '/today'],
+    ['Today board', '/today'],
     ['Stations', '/stations'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
-    ['New Patient', '/clinics/:clinicId/patients/new'],
+    ['New patient', '/clinics/:clinicId/patients/new'],
     ['Audit', '/audit'],
     ['Volunteers', '/volunteers'],
     ['Staff activity', '/staff-activity'],
@@ -142,7 +142,7 @@ const FLAG_ON = {
   ],
   director: [
     ['Dashboard', '/dashboard'],
-    ['Today Board', '/today'],
+    ['Today board', '/today'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
@@ -164,18 +164,18 @@ const EXPECTED =
 const PHONE_PRIMARY =
   process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true'
     ? {
-        staff: ['Dashboard', 'Stations', 'Today Board', 'Queues'],
+        staff: ['Dashboard', 'Stations', 'Today board', 'Queues'],
         doctor: ['Dashboard', 'Stations', 'Queues', 'Patients'],
         volunteer: ['Dashboard', 'Stations', 'Queues', 'Patients'],
-        manager: ['Dashboard', 'Stations', 'Today Board', 'Queues'],
-        director: ['Dashboard', 'Today Board', 'Queues', 'Patients'],
+        manager: ['Dashboard', 'Stations', 'Today board', 'Queues'],
+        director: ['Dashboard', 'Today board', 'Queues', 'Patients'],
       }
     : {
-        staff: ['Dashboard', 'Today Board', 'My Assigned', 'Queues'],
-        doctor: ['Dashboard', 'My Assigned', 'Queues', 'Patients'],
-        volunteer: ['Dashboard', 'My Assigned', 'Queues', 'Patients'],
-        manager: ['Dashboard', 'Today Board', 'Queues', 'Patients'],
-        director: ['Dashboard', 'Today Board', 'Queues', 'Patients'],
+        staff: ['Dashboard', 'Today board', 'My assigned', 'Queues'],
+        doctor: ['Dashboard', 'My assigned', 'Queues', 'Patients'],
+        volunteer: ['Dashboard', 'My assigned', 'Queues', 'Patients'],
+        manager: ['Dashboard', 'Today board', 'Queues', 'Patients'],
+        director: ['Dashboard', 'Today board', 'Queues', 'Patients'],
       };
 
 const MESSAGE_DELIVERY = ['Message delivery', '/notifications'];
@@ -248,7 +248,7 @@ for (const role of Object.keys(EXPECTED)) {
           .locator('a')
           .evaluateAll((links) => links.map((link) => link.getAttribute('aria-label'))),
       ).toEqual(primaryLabels);
-      const shortLabels = { Dashboard: 'Home', 'Today Board': 'Today', 'My Assigned': 'Assigned' };
+      const shortLabels = { Dashboard: 'Home', 'Today board': 'Today', 'My assigned': 'Assigned' };
       for (const full of primaryLabels)
         await expect(
           primary.getByRole('link', { name: full, exact: true }).locator('span:visible'),

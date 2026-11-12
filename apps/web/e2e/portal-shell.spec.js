@@ -47,7 +47,7 @@ for (const theme of ['light', 'dark']) {
         await page.setViewportSize({ width, height: 800 });
         await expect(nav(page)).toBeVisible();
         await expect(
-          nav(page).getByRole('link', { name: 'My Health', exact: true }),
+          nav(page).getByRole('link', { name: 'My health', exact: true }),
         ).toHaveAttribute('aria-current', width < 600 ? 'page' : 'location');
         await expect(more(page)).toBeVisible({ visible: width < 600 });
         await expect(

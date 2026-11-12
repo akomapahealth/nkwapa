@@ -688,7 +688,7 @@ export class NkwapaDb extends Dexie {
       medication_adherence: 'id, clinicId, encounterId, context, [encounterId+context], updatedAt',
     });
     /*
-      v12 keeps the last loaded Today board and My Assigned list per clinic (#17).
+      v12 keeps the last loaded Today board and My assigned list per clinic (#17).
 
       A new store with nothing to migrate. It exists so the clinic floor still sees who is on duty
       and who is waiting when the connection drops; pending shift and check-in changes are drawn

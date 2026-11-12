@@ -326,7 +326,7 @@ function TodayBoardPage() {
   if (!clinicId) {
     return (
       <RouteGuard requiredPermission="OPS.CHECKIN.READ">
-        <SelectClinicState surface="The Today Board" />
+        <SelectClinicState surface="The Today board" />
       </RouteGuard>
     );
   }
@@ -427,7 +427,7 @@ function TodayBoardPage() {
     <RouteGuard requiredPermission="OPS.CHECKIN.READ">
       <div className="space-y-6">
         <AppPageHeader
-          title="Today Board"
+          title="Today board"
           description={`Live clinic flow. Times in ${timezone}.`}
           helpTitle="How the board updates"
           helpText="Staff check-ins, patient arrivals, and volunteer assignments refresh here so OPS can see who is available and which patients still need a pair."
@@ -545,7 +545,7 @@ function TodayBoardPage() {
 
         {board.isInitialLoading ? (
           <div className={styles.workGrid} role="status" aria-live="polite" aria-busy="true">
-            <span className="sr-only">Loading the Today Board</span>
+            <span className="sr-only">Loading the Today board</span>
             <SectionSkeleton lines={8} />
             <div className="space-y-6">
               <SectionSkeleton lines={2} />

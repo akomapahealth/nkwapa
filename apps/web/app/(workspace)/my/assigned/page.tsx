@@ -270,7 +270,7 @@ export default function MyAssignedPage() {
     <RouteGuard requiredPermission="OPS.ASSIGNMENT.READ_SELF">
       <div className="space-y-6">
         <AppPageHeader
-          title="My Assigned"
+          title="My assigned"
           description={`Your patients for the day. Times in ${timezone}.`}
           actions={
             <div className="flex items-end gap-2 compact:gap-3">

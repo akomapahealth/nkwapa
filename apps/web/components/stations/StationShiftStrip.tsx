@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 /**
  * The duty strip at the top of Stations (Phase W1, pilot `#s-station`): duty state, since when,
  * the station picker and End shift in one band, so the next patient sits right under it.
- * Today and My Assigned keep their existing shift card.
+ * Today and My assigned keep their existing shift card.
  */
 export function StationShiftStrip({
   controls,

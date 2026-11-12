@@ -68,7 +68,11 @@ export function formatRoles(roles: readonly string[]): string {
 export function describeRecord(entityType: string): string {
   if (entityType === 'Encounter') return 'Visit';
   if (entityType === 'PatientStationVisit') return 'Station visit';
-  return entityType.replace(/([a-z])([A-Z])/g, '$1 $2');
+  // Sentence case: HypertensionAssessment -> Hypertension assessment.
+  return entityType.replace(
+    /([a-z])([A-Z])/g,
+    (_, a: string, b: string) => `${a} ${b.toLowerCase()}`,
+  );
 }
 
 /** The last seven days ending on `today`, the default range. */

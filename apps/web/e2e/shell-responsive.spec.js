@@ -259,7 +259,7 @@ test('phone sheet retains utilities and closes when the persistent rail becomes 
   await page.goto('/queues');
   await page.getByRole('button', { name: 'More', exact: true }).click();
   const sheet = page.getByRole('dialog');
-  await expect(sheet.getByRole('link', { name: 'New Patient', exact: true })).toBeVisible();
+  await expect(sheet.getByRole('link', { name: 'New patient', exact: true })).toBeVisible();
   await sheet.getByRole('link', { name: 'Clinic settings', exact: true }).focus();
   await capture(page, 'phone-sheet-focus');
   await page.setViewportSize({ width: 600, height: 640 });

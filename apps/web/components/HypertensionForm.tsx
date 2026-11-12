@@ -162,7 +162,7 @@ export function HypertensionForm({
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-lg font-semibold">Hypertension Assessment</h2>
+        <h2 className="text-lg font-semibold">Hypertension assessment</h2>
       </CardHeader>
       <CardContent className="space-y-4">
         <fieldset disabled={!canEdit || saving} className="space-y-4 disabled:opacity-75">
@@ -232,7 +232,7 @@ export function HypertensionForm({
         {canEdit ? (
           <FormActions>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : 'Save Assessment'}
+              {saving ? 'Saving…' : 'Save assessment'}
             </Button>
           </FormActions>
         ) : (

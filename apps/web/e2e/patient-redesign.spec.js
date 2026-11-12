@@ -98,7 +98,7 @@ test('record navigation and ID validation preserve the chart and consent contrac
   );
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.goto(`${chart}/consent`);
-  const save = page.getByRole('button', { name: 'Record Consent', exact: true });
+  const save = page.getByRole('button', { name: 'Record consent', exact: true });
   await expect(save).toBeDisabled();
   await page.getByRole('checkbox').check();
   await expect(save).toBeEnabled();
@@ -133,5 +133,5 @@ test('record navigation and ID validation preserve the chart and consent contrac
     consentVersion: 'v1-en',
   });
   await page.waitForURL((url) => url.pathname === chart);
-  await expect(page.getByText('Consent Granted', { exact: true })).toBeVisible();
+  await expect(page.getByText('Consent granted', { exact: true })).toBeVisible();
 });
