@@ -1504,3 +1504,26 @@ detector clean. Scratch measurement and 404 specs (deleted): 404 axe clean in bo
 and 390. Focused Chromium over 16 specs 105/108; the three failures are the known stale
 `patient-chart` date format (twice) and the pre-existing `vitals` BMI check. Six-role audit **228
 rows, 0 violations, 0 overflow**. Local commit only; no push. Next is `ui-refresh/HANDOFF-R8.1.md`.
+
+## W3 polish: takeover, figure chips, header voice, calmer rules (2026-11-12)
+
+Took over the paused W3 polish run: audited its four committed units and recorded and committed
+units 4/8 (`00f3d0d3`). Owner feedback: the figure chips' icons looked small next to their numbers,
+and the synced check looked isolated mid-header. Chips are now one line (icon, figure, label and
+help at one 16px optical size; counts number-first, readings label-first; zero chips ringed, not
+tinted; the phone row bleeds to the screen edge). The synced check sits at the right edge of its
+reserved slot beside the header actions. Header descriptions are one line (16 rewritten: 1,417 →
+768 characters) with reasons in help; phone actions share one row with icon-only Refresh/Export;
+the header hairline is gone; `--rule-strong` is a calm teal-grey that still clears 3:1 in both
+themes. Duplicate figures removed (Total clinics, Visible messages, "Showing 63 of 63"). Shift
+labels in sentence case. Volunteer rows show one action plus a menu. Commits `c5b9cbbf`, `ec5a9715`.
+Detail in `ui-refresh/W3-POLISH-REVIEW.md`; rules in MASTER (Metrics and page headers, Lists (W3),
+sync, rule tokens).
+
+**Validation:** TypeScript, changed-file lint/format, Jest 98 suites / 1,060 tests,
+`design:check-tokens` 0 failures. Focused Chromium 210/241 first pass (failures itemised in the
+review: 14 stale-build casing, 1 real regression fixed, known pre-existing ones); after rebuild the
+affected ten specs 112/113, the last fixed (registry `To` locator) 21/21 and 9/9; `volunteer-roster`
+
+- `staff-activity` 14/14; `today-offline` 9/9 in a flag-off build. Six-role route audit **228 rows,
+  0 violations, 0 minor, 0 overflow, one h1**. Local commits only; no push.

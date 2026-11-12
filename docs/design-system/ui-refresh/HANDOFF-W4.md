@@ -43,3 +43,11 @@ and captures that show the greeting belong in Accra daytime (W2 finding).
 - List tabs now share `ListToolbar` and the metric strip (MASTER "Lists (W3)"); use them for any
   list W4 touches. Staff invitations, Appointments and Data requests not converted (`W3-REVIEW.md`).
 - Last-visit sort is in-memory ranking; revisit past ~20k patients per clinic.
+- W3 polish (`W3-POLISH-REVIEW.md`): figure chips are one line (`AppMetricCard`), never repeat a
+  figure the header or a "loaded" line already states; header descriptions one line under ~70
+  characters, reasons in `hint`; phone actions one row with `sr-only compact:not-sr-only` labels;
+  no header hairline; `--rule-strong` is teal-grey now. One visible action per row, the rest in a
+  `DropdownMenu`. The volunteer welcome band's greeting is 34px on phones and its Refresh shares
+  the shift row: keep both when W4 reworks the volunteer home.
+- Open from W3 polish: 320px header truncation, relative dates, copyable long ids (review "Open
+  items").

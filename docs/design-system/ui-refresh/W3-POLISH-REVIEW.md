@@ -208,7 +208,8 @@ suites / 1,060 tests; `design:check-tokens` 0 failures. Focused Chromium over 27
 casing while the server still ran the previous build; 2 were `header-sync`, a real regression
 (releasing the phone slot moved the adjacent control 44px), fixed by restoring the reservation;
 3 `today-offline` cases expect the legacy "Today Board" heading that the station-flag build replaces
-with "Station line" (environmental, see below); the rest are the owner-listed or previously
+with "Station line" (environmental: in a build without the station flag, as CI's smoke job runs it,
+`today-offline` passed 9/9 with the new "Shift status" / "On duty" casing); the rest are the owner-listed or previously
 reproduced failures (time-zone Escape, portal keyboard-focus at 390, `responsive-migration`
 /dashboard, staff profile, `patient-chart` trends date format ×2) and the intermittent portal
 `held`/`failed` case. After a rebuild, the ten affected specs reran 112/113; the one failure was
@@ -225,3 +226,16 @@ reproduced failures (time-zone Escape, portal keyboard-focus at 390, `responsive
 
 Validation: TypeScript, ESLint, Prettier, build; `volunteer-roster` and `staff-activity` 14/14;
 inspected 1440 light and 390 dark.
+
+## Open items (not done in this pass)
+
+- **Header at 320–390px**: the clinic name and role still truncate ("Nkwapa Clinic - D…"). The
+  initials-plus-switcher idea changes what `header-sync` measures at 320; it needs its own unit.
+- **Relative dates** ("2 h ago" with the Accra time in `title`): `formatOpsDateTime` is asserted
+  verbatim by several specs; a shared change needs a spec sweep of its own.
+- **Long ids with copy on hover** (Audit entity/request ids): not started.
+- **Row stagger on first load** (MASTER 9.1): not added; lists already fade in with the page.
+- **Floating chat launcher**: left as is (see unit B note); revisit only if a page ends in a pager
+  that real data pushes under it.
+- **ProgressiveHelp above lists** (Duplicate review, Research): kept above, because #63 treats them
+  as required reading before a decision.
