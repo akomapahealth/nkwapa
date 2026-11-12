@@ -29,6 +29,8 @@ async function createPatient(page) {
 async function chooseOption(page, label, option) {
   await page.getByLabel(label, { exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
+  // A closing Radix select still owns the page; typing before it unmounts is dropped.
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
 test('the wizard runs the guided interviews and carries vitals into them', async ({ page }) => {
