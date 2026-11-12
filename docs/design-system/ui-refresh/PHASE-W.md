@@ -53,6 +53,6 @@ After W4: update `PROGRESS.md` screen matrix rows for every screen W touched, th
 ## Progress
 
 - W1: complete (2026-11-11), `W1-REVIEW.md`. Next: `HANDOFF-W2.md`
-- W2: complete (2026-11-12), `W2-REVIEW.md`. Landing manager shot re-capture pending (daytime). Next: `HANDOFF-W3.md`
+- W2: complete (2026-11-12), `W2-REVIEW.md`. Next: `HANDOFF-W3.md`
 - W3: not started
 - W4: not started

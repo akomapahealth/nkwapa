@@ -21,8 +21,8 @@ const DECK = [
   {
     role: 'Clinic managers',
     text: 'Run the day: shifts, assignments, stations and wait times.',
-    src: '/product/manager-dashboard-20261111.png',
-    alt: "A clinic manager's dashboard: a visit waiting for a doctor's sign-off, today's clinic totals, and station flow with the longest wait and the staffing at each station.",
+    src: '/product/manager-dashboard-20261112.png',
+    alt: "A clinic manager's home: a greeting with how many patients are in clinic, today's station figures, a visit waiting for a doctor's sign-off, and the station line with each station's longest wait and staffing.",
   },
 ];
 

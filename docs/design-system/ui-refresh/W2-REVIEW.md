@@ -58,11 +58,12 @@ product-shots settle heading.
 
 ## Open
 
-- **Landing `manager-dashboard` not re-captured.** The shots session ran at 02:15 UTC; the API
-  measures live waits from its own clock, so a fixed "clinic morning" `SHOTS_NOW` gave negative
-  waits, and an honest capture would read "Good evening" with 1-2 AM arrivals. Re-capture during
-  Accra daytime (`capture.spec.js` already settles on the greeting) under a new name, then update
-  `CareTeamSection.tsx` src and alt. The current image still shows the pre-W2 dashboard.
+- **Landing `manager-dashboard` re-captured** as `manager-dashboard-20261112.png` (alt text rewritten
+  for the W2 home). It was taken at 02:40 Accra with `SHOTS_NOW` at the real time, because the API
+  measures live waits on its own clock (a faked morning printed negative waits), so it greets
+  "Good evening" with a moon. Every figure in it is real for that seed. If the owner wants a morning
+  greeting on the landing, re-run `capture.spec.js` (manager block) during Accra daytime under a new
+  name.
 - Seeded data leaves doctor charts empty, so the doctor home was checked with empty states.
 
 ## Validation

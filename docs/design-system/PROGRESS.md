@@ -1391,7 +1391,7 @@ Accra time; dashboard specs re-run on the final build 33/33. Six-role route audi
 homes (two regions named "Wait and service time at each station"), fixed, re-audit of staff /
 manager / director 160 rows, 0 minor. Synthetic evidence (`nkwapa_shots`, dropped) at
 1440/1024/744/390/320 in both themes for all five homes, 0 overflow (not committed). Landing
-`manager-dashboard` re-capture deferred to a daytime run (see review). Local commit only; no push.
+`manager-dashboard-20261112.png` re-captured (real-time seed, so it greets "Good evening"; see review). Local commit only; no push.
 Next: `ui-refresh/HANDOFF-W3.md`.
 
 ## W1 Stations to the pilot layout (2026-11-11)

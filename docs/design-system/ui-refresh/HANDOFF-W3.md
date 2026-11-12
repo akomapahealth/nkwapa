@@ -44,9 +44,5 @@ redirects to `localhost:3000`; nothing else may hold the port.
 must be close to the real time, not a fixed morning, or waits print negative. Run captures that
 show times during Accra daytime.
 
-## Also pending from W2
-
-Re-capture the landing `manager-dashboard` during Accra daytime (`capture.spec.js`, manager block,
-already settles on the greeting), save under a new dated name, point
-`components/landing/CareTeamSection.tsx` at it and rewrite its alt text for the W2 home (greeting,
-station figures, needs attention, station line and wait/service list).
+Optional from W2: the landing manager shot greets "Good evening" (captured at night). Re-capture
+it during Accra daytime under a new name if a morning greeting is wanted (`W2-REVIEW.md`, Open).
