@@ -106,6 +106,15 @@ const DIABETES_SECTIONS: InterviewSectionMeta[] = [
   { id: 'plan', title: 'Actions and referral' },
 ];
 
+// What each sample timing means, so the volunteer can match the patient's answer to it.
+const GLUCOSE_CONTEXT_MEANINGS: Record<string, string> = {
+  FASTING: 'Nothing but water for 8 hours or more',
+  BEFORE_MEAL: 'About to eat, and last ate more than 2 hours ago',
+  POST_PRANDIAL_2H: 'Ate a meal in the last 2 hours',
+  RANDOM: 'Any other time, or the patient is not sure when they ate',
+  UNKNOWN: 'The timing was not asked or not recorded',
+};
+
 const SUSPICION_LABELS: Record<string, string> = {
   SUSPECTED: 'Above the threshold for this timing',
   NOT_SUSPECTED: 'Below the threshold for this timing',
@@ -443,6 +452,7 @@ export function DiabetesInterviewForm({
               onChange={(value) => update('glucoseType', value)}
               options={DIABETES_GLUCOSE_CONTEXTS}
               labels={DIABETES_GLUCOSE_CONTEXT_LABELS}
+              descriptions={GLUCOSE_CONTEXT_MEANINGS}
             />
           </div>
           {glucoseValue !== null ? (

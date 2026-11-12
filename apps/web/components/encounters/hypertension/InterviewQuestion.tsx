@@ -120,12 +120,14 @@ function SegmentedChoice({
   onChange,
   options,
   labels,
+  descriptions,
   ...shell
 }: QuestionProps & {
   value: string;
   onChange: (value: string) => void;
   options: readonly string[];
   labels: Record<string, string>;
+  descriptions?: Record<string, string>;
 }) {
   const [touched, setTouched] = useState(false);
   const shown = isUnasked(value) && !touched ? '' : value;
@@ -157,7 +159,10 @@ function SegmentedChoice({
         role="radiogroup"
         aria-labelledby={`${shell.id}-legend`}
         tabIndex={-1}
-        className="flex flex-wrap gap-2 rounded-md focus-visible:outline-none"
+        className={cn(
+          'rounded-md focus-visible:outline-none',
+          descriptions ? 'grid gap-2 sm:grid-cols-2' : 'flex flex-wrap gap-2',
+        )}
         onKeyDown={(event) => {
           const n = Number(event.key);
           if (shell.disabled || !Number.isInteger(n) || n < 1 || n > ordered.length) return;
@@ -172,6 +177,7 @@ function SegmentedChoice({
         {ordered.map((option, i) => {
           const optionId = `${shell.id}-${option.toLowerCase().replace(/_/g, '-')}`;
           const quiet = isUnasked(option);
+          const description = descriptions?.[option];
           return (
             <label
               key={option}
@@ -179,6 +185,7 @@ function SegmentedChoice({
               className={cn(
                 'group relative flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-input bg-card px-3 text-sm motion-safe:transition-colors motion-safe:duration-150 hover:border-primary/60 has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 [@media(pointer:coarse)]:min-h-11',
                 quiet && 'border-dashed text-muted-foreground has-[:checked]:text-foreground',
+                description && 'items-start py-2.5',
               )}
             >
               <input
@@ -189,15 +196,33 @@ function SegmentedChoice({
                 checked={shown === option}
                 onChange={() => pick(option)}
                 disabled={shell.disabled}
+                aria-describedby={description ? `${optionId}-description` : undefined}
                 className="peer sr-only"
               />
               <span
                 aria-hidden="true"
-                className="grid size-4 shrink-0 place-items-center rounded-full border border-muted-foreground/60 peer-checked:border-primary"
+                className={cn(
+                  'grid size-4 shrink-0 place-items-center rounded-full border border-muted-foreground/60 peer-checked:border-primary',
+                  description && 'mt-0.5',
+                )}
               >
                 <span className="size-2 rounded-full bg-primary opacity-0 group-has-[:checked]:opacity-100" />
               </span>
-              {labels[option] ?? option}
+              {description ? (
+                <span className="min-w-0 flex-1">
+                  <span className="block">{labels[option] ?? option}</span>
+                  {/* Hidden from the name, read as the radio's description instead. */}
+                  <span
+                    id={`${optionId}-description`}
+                    aria-hidden="true"
+                    className="block font-normal text-muted-foreground"
+                  >
+                    {description}
+                  </span>
+                </span>
+              ) : (
+                (labels[option] ?? option)
+              )}
               {i < 9 ? (
                 <kbd
                   aria-hidden="true"
@@ -221,6 +246,7 @@ export function ChoiceQuestion({
   onChange,
   options,
   labels,
+  descriptions,
   placeholder,
   ...shell
 }: QuestionProps & {
@@ -228,6 +254,8 @@ export function ChoiceQuestion({
   onChange: (value: string) => void;
   options: readonly string[];
   labels: Record<string, string>;
+  /** A plain-language line under an answer: what it means, for the volunteer to match. */
+  descriptions?: Record<string, string>;
   placeholder?: string;
 }) {
   useInterviewQuestion({
@@ -246,6 +274,7 @@ export function ChoiceQuestion({
         onChange={onChange}
         options={options}
         labels={labels}
+        descriptions={descriptions}
         {...shell}
       />
     );
