@@ -77,7 +77,9 @@ describe('service worker rules (#206)', () => {
     });
 
     it('leaves other same-origin subresources to the network', () => {
-      expect(sw.shouldHandle(req('/images/Akomapa-17.jpg', { mode: 'no-cors' }), ORIGIN)).toBeNull();
+      expect(
+        sw.shouldHandle(req('/images/Akomapa-17.jpg', { mode: 'no-cors' }), ORIGIN),
+      ).toBeNull();
     });
   });
 
