@@ -152,7 +152,9 @@ export function ClinicalNotePanel({
 
   const editable = note?.status === 'DRAFT' && note.authorUserId === userId;
   const canCosign =
-    isDoctor && note?.status === 'PENDING_COSIGN' && note.assignedDoctor?.id === userId;
+    isDoctor &&
+    note?.status === 'PENDING_COSIGN' &&
+    (note.assignedDoctor == null || note.assignedDoctor.id === userId);
   const signed = note?.status === 'COSIGNED' || note?.status === 'AMENDED';
 
   const saveDraft = useCallback(async () => {
@@ -222,7 +224,9 @@ export function ClinicalNotePanel({
           ? 'Note cosigned. Its signed content is now immutable.'
           : updated.status === 'COSIGNED'
             ? 'Note signed. Its content is now immutable.'
-            : 'Note submitted to the assigned doctor.',
+            : updated.assignedDoctor
+              ? 'Note submitted to the assigned doctor.'
+              : 'Note submitted for any clinic doctor to cosign.',
       );
       setConfirmAction(null);
     } catch (requestError) {
