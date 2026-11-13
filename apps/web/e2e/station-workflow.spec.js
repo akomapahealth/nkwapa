@@ -294,18 +294,28 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   expect(counselling.ok(), counselling.text()).toBeTruthy();
   // R8.4: the review volunteer's real note must reach a different doctor's cosign.
   const notePath = `/clinics/${clinicId}/encounters/${encounterId}/clinical-note`;
-  const draft = await apiRequestAs('volunteer', 'post', notePath, {
-    clinicId,
-    data: {
-      history: 'Synthetic station history.',
-      assessment: 'Elevated blood pressure and glucose require follow-up.',
-      plan: 'Review with the supervising clinician.',
-    },
-  });
-  expect(draft.ok(), draft.text()).toBeTruthy();
-  const submitted = await apiRequestAs('volunteer', 'post', `${notePath}/submit`, { clinicId });
-  expect(submitted.ok(), submitted.text()).toBeTruthy();
+  const reviewContext = await browser.newContext({ storageState: storageStateFor('volunteer') });
+  const reviewPage = await reviewContext.newPage();
+  await reviewPage.goto(`/stations/visits/${review.at.visit.id}`);
+  await reviewPage.getByRole('button', { name: 'Start HAP note', exact: true }).click();
+  await reviewPage.getByLabel(/^History$/i).fill('Synthetic station history.');
+  await reviewPage
+    .getByLabel(/^Assessment$/i)
+    .fill('Elevated blood pressure and glucose require follow-up.');
+  await reviewPage.getByLabel(/^Plan$/i).fill('Review with the supervising clinician.');
+  await reviewPage.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(reviewPage.getByText('Draft saved.', { exact: true })).toBeVisible();
+  await keyboardDialog(
+    reviewPage,
+    reviewPage.getByRole('button', { name: 'Submit for cosign', exact: true }),
+    'Submit this HAP note?',
+    'Continue',
+  );
+  await expect(reviewPage.getByText('Pending cosign', { exact: true })).toBeVisible();
+  const submitted = await apiRequestAs('volunteer', 'get', notePath, { clinicId });
   expect(submitted.json().status).toBe('PENDING_COSIGN');
+  expect(submitted.json().assignedDoctor).toBeNull();
+  await reviewContext.close();
   const done = await complete('volunteer', clinicId, review.at.visit.id);
   expect(done.ok(), done.text()).toBeTruthy();
   expect(done.json()).toMatchObject({ sessionCompleted: true, nextVisitId: null });

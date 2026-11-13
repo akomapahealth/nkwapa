@@ -78,7 +78,7 @@ test('R8.7 clinical forms and note confirmation work by keyboard', async ({ page
   await tabTo(page, page.getByRole('button', { name: 'Start HAP note', exact: true }));
   await page.keyboard.press('Enter');
   for (const label of ['History', 'Assessment', 'Plan']) {
-    await tabTo(page, page.getByLabel(label, { exact: true }));
+    await tabTo(page, page.getByLabel(new RegExp(`^${label}$`, 'i')));
     await page.keyboard.type(`Synthetic keyboard ${label.toLowerCase()}.`);
   }
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s');
