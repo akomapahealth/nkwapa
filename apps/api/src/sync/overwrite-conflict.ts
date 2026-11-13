@@ -54,6 +54,11 @@ export async function findOverwrittenSave(
     actions: string[];
     actorUserId: string;
     baseUpdatedAt: string;
+    /**
+     * The columns this save writes, for a partial write (sectioned vitals). A newer save then
+     * counts only if it changed one of them; omitted, any newer save counts.
+     */
+    fields?: string[];
   },
 ): Promise<{ userId: string; savedAt: Date } | null> {
   const base = Date.parse(params.baseUpdatedAt);
@@ -68,26 +73,41 @@ export async function findOverwrittenSave(
       createdAt: { gte: new Date(base - CLOCK_SKEW_MS) },
     },
     orderBy: { createdAt: 'desc' },
-    select: { actorUserId: true, afterJson: true },
+    select: { actorUserId: true, beforeJson: true, afterJson: true },
   });
   for (const event of events) {
     const savedAt = savedUpdatedAt(event.afterJson);
-    if (savedAt !== null && savedAt > base) {
+    if (savedAt === null || savedAt <= base) continue;
+    if (!params.fields || changedAny(event.beforeJson, event.afterJson, params.fields)) {
       return { userId: event.actorUserId, savedAt: new Date(savedAt) };
     }
   }
   return null;
 }
 
-function savedUpdatedAt(afterJson: string | null): number | null {
-  if (!afterJson) return null;
+function parseRow(json: string | null): Record<string, unknown> | null {
+  if (!json) return null;
   try {
-    const row = JSON.parse(afterJson) as { updatedAt?: unknown };
-    const at = typeof row.updatedAt === 'string' ? Date.parse(row.updatedAt) : NaN;
-    return Number.isFinite(at) ? at : null;
+    const row: unknown = JSON.parse(json);
+    return row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
   } catch {
     return null;
   }
+}
+
+function savedUpdatedAt(afterJson: string | null): number | null {
+  const updatedAt = parseRow(afterJson)?.updatedAt;
+  const at = typeof updatedAt === 'string' ? Date.parse(updatedAt) : NaN;
+  return Number.isFinite(at) ? at : null;
+}
+
+/** Whether a save changed any of `fields`; a create (no before row) counts if it set one. */
+function changedAny(beforeJson: string | null, afterJson: string | null, fields: string[]) {
+  const before = parseRow(beforeJson) ?? {};
+  const after = parseRow(afterJson) ?? {};
+  return fields.some(
+    (field) => JSON.stringify(before[field] ?? null) !== JSON.stringify(after[field] ?? null),
+  );
 }
 
 export async function auditOverwrite(

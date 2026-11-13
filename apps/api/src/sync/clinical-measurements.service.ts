@@ -154,6 +154,8 @@ export class ClinicalMeasurementsService {
           actions: ['VITALS.CREATE', 'VITALS.UPSERT'],
           actorUserId: params.actorUserId,
           baseUpdatedAt: params.baseUpdatedAt,
+          // A sectioned save replaces only its own columns; a full save replaces them all.
+          fields: bundle.sections ? Object.keys(bundle.vitals) : undefined,
         });
         if (overwritten) {
           overwrittenUserId = overwritten.userId;

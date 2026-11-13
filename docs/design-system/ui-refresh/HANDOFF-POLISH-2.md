@@ -194,7 +194,9 @@ is written, `PushService.alertOverwritten` sends an `ASSIGNMENT` inbox notice, a
 `conflictType` makes the telemetry `conflicts` counter count it. Saving over your own save is never
 flagged. Not built: the dialog, the InterviewFlow hook and the two-browser e2e. An overwrite is confirmed from the audit trail
 (`findOverwrittenSave`): only a screening save by someone else whose row is newer than the base
-counts, so a clinician plan added since the base no longer flags.
+counts, so a clinician plan added since the base no longer flags. A sectioned vitals save only
+counts a newer save that changed one of the columns it writes. Left: the Playwright run and
+screenshots.
 
 ## 6. Staging auth memory (infra, optional, no deploys)
 
