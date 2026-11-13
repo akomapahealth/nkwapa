@@ -1,16 +1,26 @@
 # Nkwapa UI Refresh — Progress Tracker
 
-## R8.2 device matrix (2026-11-13, verification pending)
+## R8.2 device matrix (2026-11-13, incomplete verification)
 
-Built a guarded Chromium device/breakpoint matrix in three local units: six role homes,
-clinical/portal forms, then More/sync/chat and keyboard traversal. All eleven requested widths,
-both themes and mouse/emulated touch are represented, with 200% root text and short landscape.
-Fast TypeScript, changed-file ESLint/Prettier and related Jest checks precede each unit commit.
-Browser work is deferred until all units are committed, followed by one build and one combined
-Playwright invocation with one worker. Exact status lives in `ui-refresh/R8.2-DEFERRED-CHECKS.md`
-and `ui-refresh/R8.2-REVIEW.md`. Prior R8.1 and W4 evidence is retained, not repeated or extended
-by inference. Hardware, screen readers, local-HTTP WebKit auth and dedicated auth/root-fault/
-conditional workflow states remain explicit gaps. No push, deployment or conflict dialog.
+Three local implementation units added the guarded six-role home, clinical/portal form and
+More/sync/chat/keyboard matrices. Fast TypeScript, changed-file lint/format and affected Jest
+(two workers) preceded commits. One audit-flag web build passed; one combined Chromium invocation
+with one worker finished **46 passed / 36 failed**, including six setup passes. Sheet gestures
+18/18, DM 4/4 and vitals 9/9 passed; HTN 4/5, new homes 5/24, new forms 0/8 and overlays 0/8.
+These are original-build results, not post-fix passes.
+
+Committed corrections address enlarged form grids/labels, More wrapping, Refresh's modal
+accessible name, synthetic registration setup, loaded-data waits and native-field focus checks.
+The HTN trace exposed a stale API build rejecting `baseUpdatedAt`; the API was rebuilt afterward,
+without changing its source or save semantics. Current unit 5 compatibility still needs a rerun.
+508 observations/captures are retained at `/private/tmp/nkwapa-r82`; 384 home captures received
+contact-sheet overview, with selected detailed views. Some early home captures were loading.
+
+R8.2 is **not complete**: remaining home overflows, blocked form/overlay conditions, post-fix
+visual checks, fresh-API save/sync checks and the focused shared-source route audit stay unchecked
+in `ui-refresh/R8.2-DEFERRED-CHECKS.md`. Exact results and evidence are in `ui-refresh/R8.2-REVIEW.md`.
+Hardware, screen readers, WebKit over local HTTP and dedicated auth/root-fault/conditional states
+remain gaps. No conflict dialog, push, deployment or GitHub issue. Finish R8.2 before navigation QA.
 
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
