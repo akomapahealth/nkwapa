@@ -41,7 +41,7 @@ import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel
 import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
 import styles from '@/components/encounters/encounter-workspace.module.css';
 import { confirmAction } from '@/components/ui/confirm-dialog';
-import { formatOpsDateTime } from '@/lib/ops';
+import { formatOpsDateTime, formatOpsDay } from '@/lib/ops';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -666,9 +666,10 @@ export default function EncounterDetailPage() {
                       <div className="grid grid-cols-[minmax(0,12rem)_1fr] gap-4 py-2">
                         <dt className="text-muted-foreground">Follow-up</dt>
                         <dd className="font-medium tabular-nums">
-                          {new Date(
-                            (carePlan as { followUpDate: string }).followUpDate,
-                          ).toLocaleDateString()}
+                          {/* A calendar day stored at midnight UTC: read at noon so no zone moves it. */}
+                          {formatOpsDay(
+                            `${(carePlan as { followUpDate: string }).followUpDate.slice(0, 10)}T12:00:00Z`,
+                          )}
                         </dd>
                       </div>
                     )}
