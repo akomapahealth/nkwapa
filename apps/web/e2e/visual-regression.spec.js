@@ -43,3 +43,17 @@ for (const [role, routes] of Object.entries(PLAN)) {
         });
   });
 }
+
+// The two R8.6 failures were permission-denial destinations, not missing visual baselines.
+test.describe('director organization report boundary', () => {
+  test.use({ storageState: storageStateFor('director') });
+  for (const width of [390, 1440]) {
+    test(`R8.6 /reports/organization denied ${width}`, async ({ page }) => {
+      await prepare(page, 'light');
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+      await page.goto('/reports/organization');
+      await ready(page);
+      await expect(page.locator('main')).toContainText("You don't have access");
+    });
+  }
+});

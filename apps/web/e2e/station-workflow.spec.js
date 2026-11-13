@@ -364,7 +364,7 @@ test('a patient moves through every station and reaches a doctor', async ({ page
     'Cosign this HAP note?',
     'Cosign note',
   );
-  await expect(doctorPage.getByText('Cosigned', { exact: true })).toBeVisible();
+  await expect(doctorPage.getByRole('term').filter({ hasText: /^Cosigned$/ })).toBeVisible();
   const signed = await apiRequestAs('doctor', 'get', notePath, { clinicId });
   expect(signed.json().status).toBe('COSIGNED');
 
