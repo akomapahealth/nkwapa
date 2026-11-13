@@ -1,0 +1,885 @@
+{
+  "stats": {
+    "startTime": "2026-11-13T20:04:18.128Z",
+    "duration": 654659.588,
+    "expected": 54,
+    "skipped": 0,
+    "unexpected": 26,
+    "flaky": 0
+  },
+  "workers": 1,
+  "retries": [
+    {
+      "name": "setup",
+      "retries": 0
+    },
+    {
+      "name": "carried",
+      "retries": 0
+    },
+    {
+      "name": "visual-keyboard",
+      "retries": 0
+    },
+    {
+      "name": "axe-routes",
+      "retries": 0
+    }
+  ],
+  "excluded": "#197",
+  "errors": [],
+  "tests": [
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic staff user",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 6210,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic doctor user",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 6130,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic volunteer user",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 5893,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic manager user",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 5853,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic director user",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 5937,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic patient user",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 5892,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "doctor authors, signs, amends, and securely loses note access offline",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3784,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "the note can be drafted from the interviews, and regenerating is safe",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3841,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "regenerating over an edited draft asks before discarding it",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 4093,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "a note awaiting this doctor leads with the cosign band",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2150,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms mouse light"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3787,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms mouse dark"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3691,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms touch light"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3672,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms touch dark"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3698,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "director"],
+      "title": "R8.3 desktop light follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 5292,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "director"],
+      "title": "R8.3 phone dark follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 7105,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "patient"],
+      "title": "R8.3 desktop light follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1986,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "patient"],
+      "title": "R8.3 phone dark follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2058,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "station-workflow.spec.js",
+      "context": ["station-workflow.spec.js"],
+      "title": "a patient moves through every station and reaches a doctor",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 13658,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "sync-recovery.spec.js",
+      "context": ["sync-recovery.spec.js"],
+      "title": "a blocked change survives reload and an explicit retry applies it",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3589,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "clinical-keyboard.spec.js",
+      "context": ["clinical-keyboard.spec.js"],
+      "title": "R8.7 clinical forms and note confirmation work by keyboard",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 12354,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3403,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 4512px, received 390px by 4581px. 69564 pixels (ratio 0.04 of all image pixels) are different.\n\n  Snapshot: staff-dashboard-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(staff-dashboard-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 4512px, received 390px by 4581px. 69564 pixels (ratio 0.04 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 4512px, received 390px by 4581px. 69564 pixels (ratio 0.04 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /today light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2778,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 2641px, received 390px by 2685px. 20707 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: staff-today-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(staff-today-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 2641px, received 390px by 2685px. 20707 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 2641px, received 390px by 2685px. 20707 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /stations light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2320,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2716,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 1744px, received 390px by 1720px. 9351 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: staff-patients-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(staff-patients-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 1744px, received 390px by 1720px. 9351 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 1744px, received 390px by 1720px. 9351 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients/new light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2280,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /appointments light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2425,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 4163,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 1440px by 3447px, received 1440px by 3496px. 106186 pixels (ratio 0.03 of all image pixels) are different.\n\n  Snapshot: staff-dashboard-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(staff-dashboard-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 1440px by 3447px, received 1440px by 3496px. 106186 pixels (ratio 0.03 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 1440px by 3447px, received 1440px by 3496px. 106186 pixels (ratio 0.03 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /today light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3326,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 1440px by 1890px, received 1440px by 1966px. 51224 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: staff-today-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(staff-today-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 1440px by 1890px, received 1440px by 1966px. 51224 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 1440px by 1890px, received 1440px by 1966px. 51224 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /stations light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2420,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2892,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  6457 pixels (ratio 0.01 of all image pixels) are different.\n\n  Snapshot: staff-patients-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(staff-patients-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - 6457 pixels (ratio 0.01 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - 6457 pixels (ratio 0.01 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients/new light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2298,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /appointments light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2663,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3197,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 3695px, received 390px by 4085px. 160099 pixels (ratio 0.11 of all image pixels) are different.\n\n  Snapshot: doctor-dashboard-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(doctor-dashboard-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 3695px, received 390px by 4085px. 160099 pixels (ratio 0.11 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 3695px, received 390px by 4085px. 160099 pixels (ratio 0.11 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /my/assigned light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2231,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /queues light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2602,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  5263 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: doctor-queues-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(doctor-queues-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - 5263 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - 5263 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /patients light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2633,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 1744px, received 390px by 1720px. 9351 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: doctor-patients-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(doctor-patients-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 1744px, received 390px by 1720px. 9351 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 1744px, received 390px by 1720px. 9351 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 4063,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 1440px by 2903px, received 1440px by 3128px. 202971 pixels (ratio 0.05 of all image pixels) are different.\n\n  Snapshot: doctor-dashboard-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(doctor-dashboard-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 1440px by 2903px, received 1440px by 3128px. 202971 pixels (ratio 0.05 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 1440px by 2903px, received 1440px by 3128px. 202971 pixels (ratio 0.05 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /my/assigned light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2330,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /queues light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2827,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  5238 pixels (ratio 0.01 of all image pixels) are different.\n\n  Snapshot: doctor-queues-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(doctor-queues-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - 5238 pixels (ratio 0.01 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - 5238 pixels (ratio 0.01 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /patients light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2961,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  6457 pixels (ratio 0.01 of all image pixels) are different.\n\n  Snapshot: doctor-patients-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(doctor-patients-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - 6457 pixels (ratio 0.01 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - 6457 pixels (ratio 0.01 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2679,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 1628px, received 390px by 1753px. 1537 pixels (ratio 0.01 of all image pixels) are different.\n\n  Snapshot: volunteer-dashboard-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(volunteer-dashboard-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 1628px, received 390px by 1753px. 1537 pixels (ratio 0.01 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 1628px, received 390px by 1753px. 1537 pixels (ratio 0.01 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /my/assigned light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2189,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /stations light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2758,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 3053px, received 390px by 3174px. 58435 pixels (ratio 0.05 of all image pixels) are different.\n\n  Snapshot: volunteer-stations-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(volunteer-stations-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 3053px, received 390px by 3174px. 58435 pixels (ratio 0.05 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 3053px, received 390px by 3174px. 58435 pixels (ratio 0.05 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /patients/new light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2220,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3136,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 1440px by 1299px, received 1440px by 1376px. \n\n  Snapshot: volunteer-dashboard-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(volunteer-dashboard-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 1440px by 1299px, received 1440px by 1376px.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 1440px by 1299px, received 1440px by 1376px.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /my/assigned light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2330,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /stations light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3137,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 1440px by 1465px, received 1440px by 1538px. 76994 pixels (ratio 0.04 of all image pixels) are different.\n\n  Snapshot: volunteer-stations-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(volunteer-stations-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 1440px by 1465px, received 1440px by 1538px. 76994 pixels (ratio 0.04 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 1440px by 1465px, received 1440px by 1538px. 76994 pixels (ratio 0.04 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /patients/new light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2347,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2557,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 3290px, received 390px by 3387px. 47934 pixels (ratio 0.04 of all image pixels) are different.\n\n  Snapshot: manager-dashboard-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(manager-dashboard-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 3290px, received 390px by 3387px. 47934 pixels (ratio 0.04 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 3290px, received 390px by 3387px. 47934 pixels (ratio 0.04 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /today light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2754,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 2641px, received 390px by 2685px. 20745 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: manager-today-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(manager-today-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 2641px, received 390px by 2685px. 20745 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 2641px, received 390px by 2685px. 20745 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /stations light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2129,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /queues light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2636,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 1713px, received 390px by 1743px. 34531 pixels (ratio 0.06 of all image pixels) are different.\n\n  Snapshot: manager-queues-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(manager-queues-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 1713px, received 390px by 1743px. 34531 pixels (ratio 0.06 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 1713px, received 390px by 1743px. 34531 pixels (ratio 0.06 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3493,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 1440px by 2313px, received 1440px by 2390px. 69517 pixels (ratio 0.03 of all image pixels) are different.\n\n  Snapshot: manager-dashboard-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(manager-dashboard-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 1440px by 2313px, received 1440px by 2390px. 69517 pixels (ratio 0.03 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 1440px by 2313px, received 1440px by 2390px. 69517 pixels (ratio 0.03 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /today light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3353,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 1440px by 1890px, received 1440px by 1966px. 51479 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: manager-today-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(manager-today-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 1440px by 1890px, received 1440px by 1966px. 51479 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 1440px by 1890px, received 1440px by 1966px. 51479 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /stations light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2134,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /queues light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 2972,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  19620 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: manager-queues-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(manager-queues-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - 19620 pixels (ratio 0.02 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - 19620 pixels (ratio 0.02 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3639,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 6361px, received 390px by 6458px. 189664 pixels (ratio 0.08 of all image pixels) are different.\n\n  Snapshot: director-dashboard-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(director-dashboard-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 6361px, received 390px by 6458px. 189664 pixels (ratio 0.08 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 6361px, received 390px by 6458px. 189664 pixels (ratio 0.08 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /metrics light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2423,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /audit light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3636,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  Expected an image 390px by 7285px, received 390px by 7305px. 169432 pixels (ratio 0.06 of all image pixels) are different.\n\n  Snapshot: director-audit-390.png\n\nCall log:\n  - Expect \"toHaveScreenshot(director-audit-390.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - Expected an image 390px by 7285px, received 390px by 7305px. 169432 pixels (ratio 0.06 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - Expected an image 390px by 7285px, received 390px by 7305px. 169432 pixels (ratio 0.06 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 4683,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  33490 pixels (ratio 0.01 of all image pixels) are different.\n\n  Snapshot: director-dashboard-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(director-dashboard-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - 33490 pixels (ratio 0.01 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - 33490 pixels (ratio 0.01 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /metrics light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2607,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /audit light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "durationMs": 3024,
+      "errors": [
+        "Error: expect(page).toHaveScreenshot(expected) failed\n\n  14379 pixels (ratio 0.01 of all image pixels) are different.\n\n  Snapshot: director-audit-1440.png\n\nCall log:\n  - Expect \"toHaveScreenshot(director-audit-1440.png)\" with timeout 10000ms\n    - verifying given screenshot expectation\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - 14379 pixels (ratio 0.01 of all image pixels) are different.\n  - waiting 100ms before taking screenshot\n  - taking page screenshot\n    - disabled all CSS animations\n  - waiting for fonts to load...\n  - fonts loaded\n  - captured a stable screenshot\n  - 14379 pixels (ratio 0.01 of all image pixels) are different.\n\n\n  31 |           // Wait for chart resize/entrance, independently of the shell's polling requests.\n  32 |           await page.waitForTimeout(700);\n> 33 |           await expect(page).toHaveScreenshot(\n     |                              ^\n  34 |             `${role}-${route.slice(1).replaceAll('/', '-')}-${width}.png`,\n  35 |             {\n  36 |               fullPage: true,\n    at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js:33:30"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1294,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/health light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1255,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/appointments light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 2402,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/self-reports/new light 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1293,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1387,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/health light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1388,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/appointments light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 3958,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/self-reports/new light 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1443,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director organization report boundary"],
+      "title": "R8.6 /reports/organization denied 390",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1330,
+      "errors": []
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director organization report boundary"],
+      "title": "R8.6 /reports/organization denied 1440",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 1440,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js"],
+      "title": "public and authentication routes",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 14052,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "staff"],
+      "title": "staff",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 92705,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "director"],
+      "title": "director",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 72614,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "manager"],
+      "title": "manager",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 67184,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "doctor"],
+      "title": "doctor",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 56113,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "volunteer"],
+      "title": "volunteer",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 57962,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "patient"],
+      "title": "patient",
+      "status": "expected",
+      "attempts": 1,
+      "durationMs": 28710,
+      "errors": []
+    }
+  ]
+}

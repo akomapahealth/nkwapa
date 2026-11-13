@@ -1,6 +1,42 @@
 # Nkwapa UI Refresh — Progress Tracker
 
-## Current: R8.4/R8.5 built, verification gaps (2026-11-13)
+## Current: R8.8/R8.9 reviewed, visual gate open (2026-11-13)
+
+On `ui-refresh/r1-1-tokens`, local commits only, never pushed. The required browser
+cosign preflight passed before performance measurement. Separate product commits
+expose any-doctor cosign for unassigned station notes (`dbf6b14b`) and restore the
+confirmation invoker's keyboard focus (`8c8b836d`). The full final browser journey
+also passes, including clinician plan entry and finalization. All nine carried
+R8.6/R8.7 non-baseline failures now pass, including clinical keyboard entry,
+cosign/finalize dialogs, portal chains, retry readback and the two intentional
+director organization-report denials.
+
+Performance: **18/18 lab samples recorded**, six role homes plus patient list,
+encounter and record at throttled 390 and unthrottled 1440. All 57 JS build entries
+are inventoried. Phone LCP is 4.684–6.016 s; director menu INP is 216 ms; all sampled
+CLS is below 0.1. No attributable new bundle regression was established, so no
+performance rewrite was made. No root DB imports or Prisma client signatures were
+found in web/client chunks.
+
+Fresh API/web builds passed. The one final Chromium run uses one worker, zero
+retries, #197 excluded and strict comparison with the 50 existing images. Those
+comparisons are **24 passed / 26 failed**, with no new-baseline soft errors. The
+50 reference hashes remain unchanged. Representative diffs show changed synthetic
+names, counts, queues, waits and charts; a controlled fixture/reference rebuild
+remains necessary. **The requested 50-pass baseline criterion is not met and this
+is not a clean release sign-off.** Final totals: **54 passed / 26 failed** in
+10m 54.7s, no skips/flakes. All seven route walks pass: 259 UI scans plus seven
+HTTP resources, zero axe findings/overflow, one h1, all 64 navigable build entries
+covered. Details and exact limits: `ui-refresh/R8.8-R8.9-REVIEW.md`.
+
+Handoff: `ui-refresh/RELEASE-NOTES.md` covers each role; `ui-refresh/PR-DRAFT.md`
+lists both migrations relative to `release/dev`, Polish 2 API/compatibility changes,
+the Keycloak staging proposal (not deployed) and open items with reasons. The audit
+DB is up to date across 64 migrations; no migration was changed or applied here.
+R8.6/R8.7 evidence remains in `ui-refresh/R8.6-R8.7-REVIEW.md`. Older entries below
+are historical and are superseded by the final review where their cases were rerun.
+
+## Historical: R8.4/R8.5 built, verification gaps (2026-11-13)
 
 Single final regression: **38 passed / 10 failed**, no skips/retries, one worker, #197 excluded.
 Prescriptions, vitals/DM finalization, HTN, sealed offline plans, replay/ownership/conflict recovery
@@ -52,18 +88,18 @@ remain gaps. No conflict dialog, push, deployment or GitHub issue. Finish R8.2 b
 
 ## Phase Status
 
-| Phase | Workstream                             | Status      |
-| ----- | -------------------------------------- | ----------- |
-| R0    | Current UI audit and design pilot      | Completed   |
-| R1    | Design tokens and shared components    | In review   |
-| R2    | Desktop, tablet, and mobile app shells | In review   |
-| R3    | Volunteer and clinical workflows       | In progress |
-| R4    | Clinical review and oversight          | Not started |
-| R5    | Patient portal and authentication      | In progress |
-| R6    | Supporting public experience           | In review   |
-| R7    | Motion and visual polish               | Completed   |
-| W     | Role workspaces (pilot layout parity)  | In progress |
-| R8    | Final QA and release readiness         | In progress |
+| Phase | Workstream                             | Status    |
+| ----- | -------------------------------------- | --------- |
+| R0    | Current UI audit and design pilot      | Completed |
+| R1    | Design tokens and shared components    | In review |
+| R2    | Desktop, tablet, and mobile app shells | In review |
+| R3    | Volunteer and clinical workflows       | In review |
+| R4    | Clinical review and oversight          | In review |
+| R5    | Patient portal and authentication      | In review |
+| R6    | Supporting public experience           | In review |
+| R7    | Motion and visual polish               | Completed |
+| W     | Role workspaces (pilot layout parity)  | In review |
+| R8    | Final QA and release readiness         | In review |
 
 Allowed statuses: `Not started`, `In progress`, `Blocked`, `In review`, `Completed`.
 
