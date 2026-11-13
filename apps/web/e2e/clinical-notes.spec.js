@@ -63,7 +63,7 @@ test('doctor authors, signs, amends, and securely loses note access offline', as
       .filter({ hasText: 'Visit note,' })
       .getByText('Stable examination with no red-flag symptoms.', { exact: true }),
   ).toBeVisible();
-  for (const theme of ['light', 'dark']) {
+  for (const theme of process.env.R84_FUNCTIONAL_ONLY ? [] : ['light', 'dark']) {
     await page.evaluate((t) => {
       document.documentElement.classList.toggle('dark', t === 'dark');
     }, theme);

@@ -291,6 +291,20 @@ test('a patient moves through every station and reaches a doctor', async ({ page
     },
   );
   expect(counselling.ok(), counselling.text()).toBeTruthy();
+  // R8.4: the review volunteer's real note must reach a different doctor's cosign.
+  const notePath = `/clinics/${clinicId}/encounters/${encounterId}/clinical-note`;
+  const draft = await apiRequestAs('volunteer', 'post', notePath, {
+    clinicId,
+    data: {
+      history: 'Synthetic station history.',
+      assessment: 'Elevated blood pressure and glucose require follow-up.',
+      plan: 'Review with the supervising clinician.',
+    },
+  });
+  expect(draft.ok(), draft.text()).toBeTruthy();
+  const submitted = await apiRequestAs('volunteer', 'post', `${notePath}/submit`, { clinicId });
+  expect(submitted.ok(), submitted.text()).toBeTruthy();
+  expect(submitted.json().status).toBe('PENDING_COSIGN');
   const done = await complete('volunteer', clinicId, review.at.visit.id);
   expect(done.ok(), done.text()).toBeTruthy();
   expect(done.json()).toMatchObject({ sessionCompleted: true, nextVisitId: null });
@@ -332,6 +346,44 @@ test('a patient moves through every station and reaches a doctor', async ({ page
     doctorPage.getByText('1 abnormal finding · diabetic signs · referral recommended'),
   ).toBeVisible();
   await expect(doctorPage.getByText(/recommended follow-up\s+within 1 month/)).toBeVisible();
+  await doctorPage.getByRole('tab', { name: 'Clinical note', exact: true }).click();
+  await doctorPage.getByRole('button', { name: 'Cosign note', exact: true }).click();
+  await doctorPage
+    .getByRole('dialog', { name: 'Cosign this HAP note?' })
+    .getByRole('button', { name: 'Cosign note', exact: true })
+    .click();
+  await expect(doctorPage.getByText('Cosigned', { exact: true })).toBeVisible();
+  const signed = await apiRequestAs('doctor', 'get', notePath, { clinicId });
+  expect(signed.json().status).toBe('COSIGNED');
+
+  await doctorPage.getByRole('tab', { name: 'Hypertension', exact: true }).click();
+  await answer(doctorPage, 'Hypertension status', 'Newly elevated BP');
+  await doctorPage.getByRole('button', { name: 'Save assessment', exact: true }).click();
+  await expect(doctorPage.getByText(/saved and synced/i)).toBeVisible();
+  await doctorPage.getByLabel('BP goal systolic (mmHg)').fill('130');
+  await doctorPage.getByLabel('BP goal diastolic (mmHg)').fill('80');
+  await answer(doctorPage, 'Follow-up', 'Within 1 month');
+  await answer(doctorPage, 'Follow-up owner', 'Akomapa team');
+  await doctorPage.getByRole('button', { name: 'Save plan', exact: true }).click();
+  await expect(doctorPage.getByText('Plan saved.', { exact: true })).toBeVisible();
+  await doctorPage.getByRole('tab', { name: 'Diabetes', exact: true }).click();
+  await doctorPage.getByRole('button', { name: 'Save screening', exact: true }).click();
+  await expect(doctorPage.getByText(/saved and synced/i)).toBeVisible();
+  await doctorPage.getByRole('button', { name: 'Mark reviewed', exact: true }).click();
+  await doctorPage.getByRole('button', { name: 'Finalize', exact: true }).click();
+  await doctorPage
+    .getByRole('dialog', { name: 'Finalize this visit?' })
+    .getByRole('button', { name: 'Finalize visit', exact: true })
+    .click();
+  await expect(doctorPage.getByRole('button', { name: 'Save screening', exact: true })).toHaveCount(
+    0,
+  );
+  const finalized = await apiRequestAs('doctor', 'get', `/encounters/${encounterId}`, { clinicId });
+  expect(finalized.json().status).toBe('FINALIZED');
+  expect(finalized.json().vitals.systolicBp).toBe(150);
+  expect(finalized.json().hypertensionAssessment.hypertensionStatus).toBe('NEWLY_ELEVATED_BP');
+  expect(finalized.json().diabetesScreening).toBeTruthy();
+  expect(finalized.json().carePlan.followUpDate).toBeTruthy();
   await doctorContext.close();
 });
 
