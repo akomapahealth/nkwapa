@@ -5,6 +5,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { apiRequestAs } = require('../playwright/api-client');
 const { storageStateFor } = require('../playwright/roles');
 const { answer, question } = require('../playwright/interview');
+const { keyboardDialog } = require('../playwright/clinical-keyboard.cjs');
 
 /*
   Issue #167: the station line, end to end.
@@ -347,11 +348,12 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   ).toBeVisible();
   await expect(doctorPage.getByText(/recommended follow-up\s+within 1 month/)).toBeVisible();
   await doctorPage.getByRole('tab', { name: 'Clinical note', exact: true }).click();
-  await doctorPage.getByRole('button', { name: 'Cosign note', exact: true }).click();
-  await doctorPage
-    .getByRole('dialog', { name: 'Cosign this HAP note?' })
-    .getByRole('button', { name: 'Cosign note', exact: true })
-    .click();
+  await keyboardDialog(
+    doctorPage,
+    doctorPage.getByRole('button', { name: 'Cosign note', exact: true }),
+    'Cosign this HAP note?',
+    'Cosign note',
+  );
   await expect(doctorPage.getByText('Cosigned', { exact: true })).toBeVisible();
   const signed = await apiRequestAs('doctor', 'get', notePath, { clinicId });
   expect(signed.json().status).toBe('COSIGNED');
@@ -370,11 +372,12 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   await doctorPage.getByRole('button', { name: 'Save screening', exact: true }).click();
   await expect(doctorPage.getByText(/saved and synced/i)).toBeVisible();
   await doctorPage.getByRole('button', { name: 'Mark reviewed', exact: true }).click();
-  await doctorPage.getByRole('button', { name: 'Finalize', exact: true }).click();
-  await doctorPage
-    .getByRole('dialog', { name: 'Finalize this visit?' })
-    .getByRole('button', { name: 'Finalize visit', exact: true })
-    .click();
+  await keyboardDialog(
+    doctorPage,
+    doctorPage.getByRole('button', { name: 'Finalize', exact: true }),
+    'Finalize this visit?',
+    'Finalize visit',
+  );
   await expect(doctorPage.getByRole('button', { name: 'Save screening', exact: true })).toHaveCount(
     0,
   );

@@ -154,6 +154,8 @@ for (const routes of Object.values(PLAN)) {
 }
 // AUDIT_THEMES=light limits the themes (dark mode is reviewed separately).
 const THEMES = (process.env.AUDIT_THEMES || 'light,dark').split(',').filter(Boolean);
+// R8.7 reuses the inventory without repeating R8.2's breakpoint sweep.
+const WIDTHS = (process.env.AUDIT_WIDTHS || '1440,390').split(',').map(Number);
 const rows = [];
 test.describe.configure({ mode: 'serial' });
 test.afterAll(() => {
@@ -279,7 +281,7 @@ for (const [role, routes] of Object.entries(PLAN)) {
       for (const theme of THEMES) {
         await page.goto(routes[0]);
         await page.evaluate((t) => localStorage.setItem('nkwapa-theme', t), theme);
-        for (const width of [1440, 390]) {
+        for (const width of WIDTHS) {
           await page.setViewportSize({ width, height: width > 390 ? 900 : 844 });
           for (const route of walks) {
             const row = { role, route, theme, width };
@@ -388,7 +390,7 @@ test('public and authentication routes', async ({ page }) => {
   for (const theme of THEMES) {
     await page.goto('/status');
     await page.evaluate((t) => localStorage.setItem('nkwapa-theme', t), theme);
-    for (const width of [1440, 390]) {
+    for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 900 });
       for (const route of PUBLIC_ROUTES) {
         const row = { role: 'public', route, theme, width };
