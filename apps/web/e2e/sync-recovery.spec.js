@@ -193,7 +193,7 @@ test('a blocked change survives reload and an explicit retry applies it', async 
   await center.getByRole('button', { name: 'Retry', exact: true }).click();
   await waitForOutboxDrain(page, expect, { entityType: 'patient', clinicId });
   expect(attempts).toBe(2);
-  const patient = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/patients/${patientId}`, {
+  const patient = await apiRequestAs('staff', 'get', `/patients/${patientId}`, {
     clinicId,
   });
   expect(patient.ok()).toBeTruthy();

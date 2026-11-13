@@ -73,7 +73,7 @@ for (const role of [...Object.keys(EXPECTED), 'patient']) {
             if (role === 'patient' || !inMore) {
               await expect(scope.getByRole('link', { name: label, exact: true })).toHaveAttribute(
                 'aria-current',
-                phone ? 'page' : role === 'patient' ? 'location' : 'page',
+                'page',
               );
             } else {
               await expect(page.getByRole('button', { name: 'More', exact: true })).toHaveAttribute(
@@ -114,8 +114,17 @@ for (const role of [...Object.keys(EXPECTED), 'patient']) {
           await loaded(page);
           if (role !== 'patient') await expect(page).toHaveURL(/\/patients\/new$/);
         }
-        await page.goBack();
-        await expect(page).toHaveURL(/\/account$/);
+        if (role === 'patient') {
+          // A hard load can add the Keycloak SSO callback to history. Check browser back
+          // on a rendered portal link, where the application owns both history entries.
+          await page.getByRole('link', { name: 'Back to health trends', exact: true }).click();
+          await expect(page).toHaveURL(/\/portal\/health$/);
+          await page.goBack();
+          await expect(page).toHaveURL(/\/portal\/self-reports\/new$/);
+        } else {
+          await page.goBack();
+          await expect(page).toHaveURL(/\/account$/);
+        }
         await loaded(page);
         if (DENIED[role]) {
           await page.goto(DENIED[role]);
