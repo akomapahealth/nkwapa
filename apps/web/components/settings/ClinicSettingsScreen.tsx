@@ -2,13 +2,18 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, FlaskConical, Microscope, Settings2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, FlaskConical, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { useBootstrap } from '@/lib/bootstrap-context';
+import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { formatOpsDay, hasPermission } from '@/lib/ops';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { getActiveBootstrapClinic } from '@/lib/bootstrap-clinics';
+import {
+  BODY_MEASURE_UNIT_LABELS,
+  GLUCOSE_UNIT_LABELS,
+  HBA1C_UNIT_LABELS,
+} from '@nkwapa/db/measurement-units';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
@@ -46,6 +51,26 @@ function toDraft(settings: ResearchSettings): SettingsDraft {
 
 export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
   const getToken = useAuth();
+  const bootstrap = useBootstrap()?.bootstrap;
+  const clinic = getActiveBootstrapClinic(bootstrap, clinicId);
+  const units = useClinicUnits(clinicId);
+  const canEditClinic = hasPermission(
+    bootstrap?.effectivePermissionsForActiveClinic ?? [],
+    'CLINIC.MANAGE',
+  );
+  const facts = useAsyncResource<{ timezone: string }>({
+    requiresOnline: true,
+    resourceKey: clinicId,
+    errorMessage: 'Clinic time zone could not be loaded.',
+    fetcher: async (token, signal) => {
+      const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}`, {
+        getToken: token,
+        signal,
+      });
+      if (!response.ok) throw await readApiError(response);
+      return response.json();
+    },
+  });
   const canSeeExports = hasPermission(
     useBootstrap()?.bootstrap?.effectivePermissionsForActiveClinic ?? [],
     'RESEARCH.EXPORT.REQUEST',
@@ -168,43 +193,56 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
       >
         {(data) => (
           <div className="space-y-6">
-            {/*
-              These three read the saved settings, not the draft. They used to mirror the
-              checkboxes, so an unsaved tick made the card claim research was already enabled
-              for the clinic. The unsaved state is announced next to the Save button instead,
-              which is where the user can act on it.
-            */}
-            <AppMetricGroup>
-              <AppMetricCard
-                title="Research mode"
-                value={data.researchEnabled ? 'Enabled' : 'Disabled'}
-                icon={Microscope}
-                detail="Whether this clinic can generate research exports."
-              />
-              <AppMetricCard
-                title="Approval policy"
-                value={data.requiresDirectorApprovalEachExport ? 'Per export' : 'Not required'}
-                icon={ShieldCheck}
-                detail="How strictly research exports are controlled."
-              />
-              <AppMetricCard
-                title="Last updated"
-                value={data.updatedAt ? formatOpsDay(data.updatedAt) : 'Not set'}
-                icon={Settings2}
-                detail={
-                  data.updatedByDisplayName
-                    ? `Last changed by ${data.updatedByDisplayName}.`
-                    : 'No changes recorded yet.'
-                }
-              />
-            </AppMetricGroup>
+            <RecordSection className="max-w-3xl">
+              <RecordSectionHeader>
+                <RecordSectionTitle>Clinic</RecordSectionTitle>
+              </RecordSectionHeader>
+              <RecordSectionContent>
+                <dl>
+                  {[
+                    ['Name', clinic?.clinicName ?? 'Not available'],
+                    [
+                      'Time zone',
+                      facts.data?.timezone ?? (facts.error ? 'Could not load' : 'Loading…'),
+                    ],
+                    [
+                      'Measurement units',
+                      `${GLUCOSE_UNIT_LABELS[units.glucoseUnit]}, ${BODY_MEASURE_UNIT_LABELS[units.bodyUnit]}, HbA1c ${HBA1C_UNIT_LABELS[units.hba1cUnit]}`,
+                    ],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-rule py-3 text-sm"
+                    >
+                      <dt className="w-36 text-muted-foreground">{label}</dt>
+                      <dd className="min-w-0 flex-1 [overflow-wrap:anywhere]">{value}</dd>
+                      {canEditClinic ? (
+                        <Button asChild variant="ghost" size="sm">
+                          <Link
+                            href="/admin/clinics"
+                            aria-label={`Edit clinic ${label.toLowerCase()}`}
+                          >
+                            Edit
+                          </Link>
+                        </Button>
+                      ) : null}
+                    </div>
+                  ))}
+                </dl>
+                {facts.error ? (
+                  <Button variant="ghost" size="sm" onClick={facts.refresh}>
+                    Retry time zone
+                  </Button>
+                ) : null}
+              </RecordSectionContent>
+            </RecordSection>
 
             <RecordSection className="max-w-3xl">
               <RecordSectionHeader>
                 <RecordSectionTitle>Research settings</RecordSectionTitle>
               </RecordSectionHeader>
               <RecordSectionContent className="space-y-6">
-                <div className="rounded-lg border border-border bg-background p-4">
+                <div className="border-b border-rule py-4">
                   <div className="flex items-center gap-3">
                     <Checkbox
                       id="researchEnabled"
@@ -220,10 +258,12 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border bg-background p-4">
+                <div className="border-b border-rule py-4">
                   <div className="flex items-center gap-3">
                     <Checkbox
                       id="requiresDirectorApproval"
+                      disabled={!(draft?.researchEnabled ?? data.researchEnabled)}
+                      aria-describedby="approval-reason"
                       checked={
                         draft?.requiresDirectorApprovalEachExport ??
                         data.requiresDirectorApprovalEachExport
@@ -236,14 +276,20 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                       <Label htmlFor="requiresDirectorApproval">
                         Requires director approval for each export
                       </Label>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Keep a director checkpoint in place before each export leaves the clinic
-                        workspace.
+                      <p id="approval-reason" className="mt-1 text-sm text-muted-foreground">
+                        {(draft?.researchEnabled ?? data.researchEnabled)
+                          ? 'Keep a director checkpoint before each export leaves the clinic.'
+                          : 'Enable research to change the approval requirement.'}
                       </p>
                     </div>
                   </div>
                 </div>
 
+                <p className="text-sm text-muted-foreground">
+                  {data.updatedAt
+                    ? `Last updated ${formatOpsDay(data.updatedAt)}${data.updatedByDisplayName ? ` by ${data.updatedByDisplayName}` : ''}.`
+                    : 'No changes recorded yet.'}
+                </p>
                 {saveError ? <InlineNotice tone="error">{saveError}</InlineNotice> : null}
                 {saveConfirmation ? (
                   <InlineNotice tone="success">{saveConfirmation}</InlineNotice>
@@ -256,7 +302,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                     MASTER.md principle: help and status must not move content.
                   */}
                   <p className="text-sm text-muted-foreground" aria-live="polite">
-                    {isDirty ? 'You have unsaved changes.' : ' '}
+                    {isDirty ? 'You have unsaved changes.' : 'No changes'}
                   </p>
                   <Button
                     variant={changesSafetyPolicy ? 'outline' : 'default'}

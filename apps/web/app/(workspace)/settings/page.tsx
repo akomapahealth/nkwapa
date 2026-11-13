@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {
   CheckCircle2,
+  Bell,
   Compass,
   Download,
   LogOut,
@@ -17,7 +18,13 @@ import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { useInstallAction } from '@/components/pwa/InstallApp';
 import { DeviceStorageDetails } from '@/components/sync/DeviceStorageDetails';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { cn } from '@/lib/utils';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
@@ -38,28 +45,53 @@ export default function SettingsPage() {
   const logout = useKeycloak()?.logout;
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <AppPageHeader
         title="Your settings"
         description="How Nkwapa looks and works for you on this device."
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <AppearanceCard />
+        <RecordSection>
+          <RecordSectionHeader>
+            <RecordSectionTitle>Notifications</RecordSectionTitle>
+            <RecordSectionDescription>Alerts on this device.</RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent>
+            <Button asChild variant="outline">
+              <Link href="/account#notifications">
+                <Bell className="mr-2 h-4 w-4" aria-hidden="true" />
+                Manage notifications
+              </Link>
+            </Button>
+          </RecordSectionContent>
+        </RecordSection>
         <InstallCard />
 
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2" className="text-lg">
-              Account
-            </CardTitle>
-            <CardDescription>
+        <RecordSection>
+          <RecordSectionHeader>
+            <RecordSectionTitle className="text-lg">This device</RecordSectionTitle>
+            <RecordSectionDescription>
+              Changes you save without a connection wait here until they send. Support may ask for
+              these details.
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent>
+            <DeviceStorageDetails open />
+          </RecordSectionContent>
+        </RecordSection>
+
+        <RecordSection>
+          <RecordSectionHeader>
+            <RecordSectionTitle className="text-lg">Account</RecordSectionTitle>
+            <RecordSectionDescription>
               Signed in as{' '}
               <span className="font-medium text-foreground">{bootstrap?.displayName ?? 'you'}</span>
               .
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+            </RecordSectionDescription>
+          </RecordSectionHeader>
+          <RecordSectionContent className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href="/account">
                 <UserPen className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -74,28 +106,17 @@ export default function SettingsPage() {
               Take the tour
             </Button>
             {logout ? (
-              <Button variant="outline" className="text-destructive" onClick={() => void logout()}>
+              <Button
+                variant="outline"
+                className="ml-auto text-destructive"
+                onClick={() => void logout()}
+              >
                 <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
                 Log out
               </Button>
             ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2" className="text-lg">
-              This device
-            </CardTitle>
-            <CardDescription>
-              Changes you save without a connection wait here until they send. Support may ask for
-              these details.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DeviceStorageDetails open />
-          </CardContent>
-        </Card>
+          </RecordSectionContent>
+        </RecordSection>
       </div>
     </div>
   );
@@ -104,14 +125,12 @@ export default function SettingsPage() {
 function AppearanceCard() {
   const { preference, setPreference } = useTheme();
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle as="h2" className="text-lg">
-          Appearance
-        </CardTitle>
-        <CardDescription>Applies on this device only.</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <RecordSection>
+      <RecordSectionHeader>
+        <RecordSectionTitle className="text-lg">Appearance</RecordSectionTitle>
+        <RecordSectionDescription>Applies on this device only.</RecordSectionDescription>
+      </RecordSectionHeader>
+      <RecordSectionContent>
         <fieldset>
           <legend className="sr-only">Theme</legend>
           <div className="grid grid-cols-3 gap-2">
@@ -144,8 +163,8 @@ function AppearanceCard() {
             })}
           </div>
         </fieldset>
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }
 
@@ -187,18 +206,19 @@ function InstallCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle as="h2" className="flex items-center gap-2 text-lg">
+    <RecordSection>
+      <RecordSectionHeader>
+        <RecordSectionTitle className="flex items-center gap-2 text-lg">
           <Smartphone className="h-5 w-5 text-primary" aria-hidden="true" />
           Install the app
-        </CardTitle>
-        <CardDescription>
-          Opens straight into your workspace in its own window, and better protects changes saved on
-          this device.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>{status}</CardContent>
-    </Card>
+        </RecordSectionTitle>
+        <RecordSectionDescription>
+          {isInstalled
+            ? 'Nkwapa is ready to open from your app list.'
+            : 'Open your workspace in its own window.'}
+        </RecordSectionDescription>
+      </RecordSectionHeader>
+      <RecordSectionContent>{status}</RecordSectionContent>
+    </RecordSection>
   );
 }
