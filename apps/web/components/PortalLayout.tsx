@@ -31,10 +31,12 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       <Header portal />
       <section aria-labelledby="portal-context-title" className="border-b border-border">
         <div className="mx-auto max-w-5xl px-4 md:px-6">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4">
+          {/* One quiet line: each page's own title is the big one. Two serif titles stacked took a
+              quarter of a phone screen before any content. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
             <h1
               id="portal-context-title"
-              className="font-heading text-2xl font-semibold text-foreground"
+              className="font-body text-sm font-semibold text-foreground"
             >
               {pathname === '/portal'
                 ? `Welcome back, ${displayName.split(' ')[0]}`
