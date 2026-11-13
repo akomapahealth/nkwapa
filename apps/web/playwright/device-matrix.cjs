@@ -42,6 +42,7 @@ async function record(page, info, name, extra = {}) {
   const geometry = await page.evaluate(() => {
     const main = document.querySelector('#main-content');
     const sidebar = document.querySelector('#workspace-sidebar');
+    const edge = main?.getBoundingClientRect().right ?? innerWidth;
     return {
       viewport: { width: innerWidth, height: innerHeight },
       coarse: matchMedia('(pointer: coarse)').matches,
@@ -52,6 +53,18 @@ async function record(page, info, name, extra = {}) {
       h1: document.querySelectorAll('h1').length,
       sidebarWidth: sidebar?.getBoundingClientRect().width ?? 0,
       selectedTab: document.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
+      overflowingElements: main
+        ? [...main.querySelectorAll('*')]
+            .filter((el) => el.getBoundingClientRect().right > edge + 1)
+            .slice(0, 30)
+            .map((el) => ({
+              tag: el.tagName,
+              id: el.id,
+              className: el.getAttribute('class'),
+              right: Math.round(el.getBoundingClientRect().right),
+              width: Math.round(el.getBoundingClientRect().width),
+            }))
+        : [],
     };
   });
   const out = process.env.R82_EVIDENCE_DIR || info.outputPath('device-matrix');

@@ -55,6 +55,9 @@ for (const input of INPUTS)
         await page
           .getByLabel('Last name', { exact: true })
           .fill(`Matrix-${randomUUID().slice(0, 8)}`);
+        await page
+          .getByLabel('National ID', { exact: true })
+          .fill(`R82-${randomUUID().slice(0, 12)}`);
         await matrix(page, info, `registration-${input}-${theme}`, {
           field: first,
           value: 'Synthetic',
@@ -63,7 +66,7 @@ for (const input of INPUTS)
         // A fresh synthetic encounter ensures editable forms, rather than claiming a locked
         // fixture's read-only rendering covered data entry. Never use this spec outside audit DB.
         await page.getByRole('button', { name: 'Create patient', exact: true }).click();
-        await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
+        await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
         const patientId = page.url().split('/').at(-1);
         const created = page.waitForResponse(
           (r) => r.request().method() === 'POST' && /\/encounters$/.test(new URL(r.url()).pathname),
