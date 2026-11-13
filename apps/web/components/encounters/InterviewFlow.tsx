@@ -342,171 +342,176 @@ export function InterviewFlow({
 
   return (
     <FlowContext.Provider value={flow}>
-      <div
-        ref={rootRef}
-        data-interview-flow=""
-        onPointerDownCapture={markTouched}
-        onKeyDownCapture={markTouched}
-        className="grid gap-x-8 gap-y-4 scroll-mt-24 desktop:grid-cols-[13.5rem_minmax(0,1fr)]"
-      >
-        {showAll ? null : (
-          <nav
-            aria-label={label}
-            className="min-w-0 desktop:sticky desktop:top-20 desktop:self-start"
-          >
-            <ol className="flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] desktop:flex-col desktop:overflow-visible desktop:pb-0">
-              {sections.map((section, i) => {
-                const list = bySection.get(section.id) ?? [];
-                const asked = list.filter((e) => e.answered).length;
-                const needsFix = list.some((e) => e.invalid);
-                const current = section.id === active;
-                return (
-                  <li key={section.id} className="shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => go(section.id)}
-                      aria-current={current ? 'step' : undefined}
-                      className={cn(
-                        'flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-left motion-safe:transition-colors motion-safe:duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        current && 'bg-primary/10 text-foreground hover:bg-primary/10',
-                      )}
-                    >
-                      <span
-                        aria-hidden="true"
+      <div className="min-w-0 [container-type:inline-size]">
+        <div
+          ref={rootRef}
+          data-interview-flow=""
+          onPointerDownCapture={markTouched}
+          onKeyDownCapture={markTouched}
+          className="grid gap-x-8 gap-y-4 scroll-mt-24 [@container(min-width:48rem)]:grid-cols-[13.5rem_minmax(0,1fr)]"
+        >
+          {showAll ? null : (
+            <nav
+              aria-label={label}
+              className="min-w-0 [@container(min-width:48rem)]:sticky [@container(min-width:48rem)]:top-20 [@container(min-width:48rem)]:self-start"
+            >
+              <ol className="flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [@container(min-width:48rem)]:flex-col [@container(min-width:48rem)]:overflow-visible [@container(min-width:48rem)]:pb-0">
+                {sections.map((section, i) => {
+                  const list = bySection.get(section.id) ?? [];
+                  const asked = list.filter((e) => e.answered).length;
+                  const needsFix = list.some((e) => e.invalid);
+                  const current = section.id === active;
+                  return (
+                    <li key={section.id} className="shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => go(section.id)}
+                        aria-current={current ? 'step' : undefined}
                         className={cn(
-                          'grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums',
-                          current
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : needsFix
-                              ? 'border-destructive text-destructive'
-                              : 'border-border text-muted-foreground',
+                          'flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-left motion-safe:transition-colors motion-safe:duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                          current && 'bg-primary/10 text-foreground hover:bg-primary/10',
                         )}
                       >
-                        {needsFix ? <AlertCircle className="size-3.5" /> : i + 1}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block whitespace-nowrap text-sm font-medium leading-5 desktop:whitespace-normal">
-                          {section.short ?? section.title}
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            'grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums',
+                            current
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : needsFix
+                                ? 'border-destructive text-destructive'
+                                : 'border-border text-muted-foreground',
+                          )}
+                        >
+                          {needsFix ? <AlertCircle className="size-3.5" /> : i + 1}
                         </span>
-                        <span className="hidden text-xs leading-4 text-muted-foreground desktop:block">
-                          {needsFix
-                            ? 'Needs a fix'
-                            : list.length
-                              ? `${asked} of ${list.length} asked`
-                              : 'Nothing to ask'}
+                        <span className="min-w-0">
+                          <span className="block whitespace-nowrap text-sm font-medium leading-5 [@container(min-width:48rem)]:whitespace-normal">
+                            {section.short ?? section.title}
+                          </span>
+                          <span className="hidden text-xs leading-4 text-muted-foreground [@container(min-width:48rem)]:block">
+                            {needsFix
+                              ? 'Needs a fix'
+                              : list.length
+                                ? `${asked} of ${list.length} asked`
+                                : 'Nothing to ask'}
+                          </span>
                         </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-              <li className="shrink-0">
-                <button
-                  type="button"
-                  onClick={() => go(REVIEW)}
-                  aria-current={onReview ? 'step' : undefined}
-                  className={cn(
-                    'flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-left motion-safe:transition-colors motion-safe:duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:mt-2 desktop:border-t desktop:border-rule desktop:pt-3',
-                    onReview && 'bg-primary/10 hover:bg-primary/10',
-                  )}
-                >
-                  <span
-                    aria-hidden="true"
+                      </button>
+                    </li>
+                  );
+                })}
+                <li className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => go(REVIEW)}
+                    aria-current={onReview ? 'step' : undefined}
                     className={cn(
-                      'grid size-6 shrink-0 place-items-center rounded-full border',
-                      onReview
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border text-muted-foreground',
+                      'flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-left motion-safe:transition-colors motion-safe:duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@container(min-width:48rem)]:mt-2 [@container(min-width:48rem)]:border-t [@container(min-width:48rem)]:border-rule [@container(min-width:48rem)]:pt-3',
+                      onReview && 'bg-primary/10 hover:bg-primary/10',
                     )}
                   >
-                    <Check className="size-3.5" />
-                  </span>
-                  <span className="whitespace-nowrap text-sm font-medium">Review and save</span>
-                </button>
-              </li>
-            </ol>
-          </nav>
-        )}
-
-        <div className="min-w-0 max-w-3xl">
-          {alert ? <div className="mb-5">{alert}</div> : null}
-          {showAll ? null : (
-            <h2
-              ref={headingRef}
-              tabIndex={-1}
-              className="type-section-title scroll-mt-24 focus:outline-none"
-            >
-              <span className="sr-only">
-                {onReview ? '' : `Section ${index + 1} of ${sections.length}: `}
-              </span>
-              {onReview ? 'Review and save' : sections[index]?.title}
-            </h2>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'grid size-6 shrink-0 place-items-center rounded-full border',
+                        onReview
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border text-muted-foreground',
+                      )}
+                    >
+                      <Check className="size-3.5" />
+                    </span>
+                    <span className="whitespace-nowrap text-sm font-medium">Review and save</span>
+                  </button>
+                </li>
+              </ol>
+            </nav>
           )}
 
-          <ActiveSectionContext.Provider value={showAll ? null : active}>
-            {children}
-          </ActiveSectionContext.Provider>
+          <div className="min-w-0 max-w-3xl">
+            {alert ? <div className="mb-5">{alert}</div> : null}
+            {showAll ? null : (
+              <h2
+                ref={headingRef}
+                tabIndex={-1}
+                className="type-section-title scroll-mt-24 focus:outline-none"
+              >
+                <span className="sr-only">
+                  {onReview ? '' : `Section ${index + 1} of ${sections.length}: `}
+                </span>
+                {onReview ? 'Review and save' : sections[index]?.title}
+              </h2>
+            )}
 
-          {onReview && !showAll ? (
-            <ReviewScreen sections={sections} bySection={bySection} onJump={go} />
-          ) : null}
+            <ActiveSectionContext.Provider value={showAll ? null : active}>
+              {children}
+            </ActiveSectionContext.Provider>
 
-          {canEdit ? (
-            <div
-              data-interview-actions=""
-              className={cn('mt-6 flex flex-wrap items-center gap-2 compact:gap-3', STICKY_ACTIONS)}
-            >
-              <p
-                role="status"
+            {onReview && !showAll ? (
+              <ReviewScreen sections={sections} bySection={bySection} onJump={go} />
+            ) : null}
+
+            {canEdit ? (
+              <div
+                data-interview-actions=""
                 className={cn(
-                  'mr-auto min-w-0 basis-full text-sm compact:basis-auto',
-                  save.error ? 'text-destructive' : 'text-muted-foreground',
+                  'mt-6 flex flex-wrap items-center gap-2 compact:gap-3',
+                  STICKY_ACTIONS,
                 )}
               >
-                {status}
-              </p>
-              {previous ? (
-                <Button type="button" variant="ghost" onClick={() => go(previous.id)}>
-                  <ChevronLeft aria-hidden="true" />
-                  {/* Icon only on a phone, so Back, Save and Next share one row. */}
-                  <span className="sr-only compact:not-sr-only">Back</span>
-                </Button>
-              ) : null}
-              {onReview ? null : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={save.saving}
-                  onClick={() => void saveThen()}
-                >
-                  {save.saving ? 'Saving…' : saveLabel}
-                </Button>
-              )}
-              {onReview ? (
-                <Button type="button" disabled={save.saving} onClick={() => void saveThen()}>
-                  {save.saving ? 'Saving…' : saveLabel}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  disabled={save.saving}
-                  onClick={() => void saveThen(() => go(next?.id ?? REVIEW))}
-                >
-                  {next ? (
-                    // One inline box: the button's flex gap would split "Next" from its title.
-                    <span>
-                      Next<span className="sr-only compact:not-sr-only">: {next.title}</span>
-                    </span>
-                  ) : (
-                    'Review'
+                <p
+                  role="status"
+                  className={cn(
+                    'mr-auto min-w-0 basis-full text-sm compact:basis-auto',
+                    save.error ? 'text-destructive' : 'text-muted-foreground',
                   )}
-                  <ChevronRight aria-hidden="true" />
-                </Button>
-              )}
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-muted-foreground">This interview is read-only.</p>
-          )}
+                >
+                  {status}
+                </p>
+                {previous ? (
+                  <Button type="button" variant="ghost" onClick={() => go(previous.id)}>
+                    <ChevronLeft aria-hidden="true" />
+                    {/* Icon only on a phone, so Back, Save and Next share one row. */}
+                    <span className="sr-only compact:not-sr-only">Back</span>
+                  </Button>
+                ) : null}
+                {onReview ? null : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={save.saving}
+                    onClick={() => void saveThen()}
+                  >
+                    {save.saving ? 'Saving…' : saveLabel}
+                  </Button>
+                )}
+                {onReview ? (
+                  <Button type="button" disabled={save.saving} onClick={() => void saveThen()}>
+                    {save.saving ? 'Saving…' : saveLabel}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    disabled={save.saving}
+                    onClick={() => void saveThen(() => go(next?.id ?? REVIEW))}
+                  >
+                    {next ? (
+                      // One inline box: the button's flex gap would split "Next" from its title.
+                      <span>
+                        Next<span className="sr-only compact:not-sr-only">: {next.title}</span>
+                      </span>
+                    ) : (
+                      'Review'
+                    )}
+                    <ChevronRight aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">This interview is read-only.</p>
+            )}
+          </div>
         </div>
       </div>
     </FlowContext.Provider>

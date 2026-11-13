@@ -9,6 +9,10 @@ const { chooseAnswer, question, openSection, answer } = require('../playwright/i
 const { waitForOutboxDrain, queueOfflineChange, readOutboxRows } = require('../playwright/outbox');
 
 test.use({ storageState: storageStateFor('staff') });
+test.skip(
+  !process.env.R82_OLD_API_URL,
+  'Local characterization requires an isolated pre-unit-5 API.',
+);
 test.beforeAll(() => requireAuditDatabase());
 
 test('screening saves and corrections sync; characterize old API rejection without changing retry policy', async ({
