@@ -15,7 +15,8 @@ module.exports = {
   workers: 1,
   retries: 0,
   outputDir: path.join(process.env.EVIDENCE_DIR, 'results'),
-  updateSnapshots: process.env.R86_CAPTURE_BASELINE === '1' ? 'missing' : 'none',
+  // Playwright's 'missing' mode writes PNGs but deliberately records a soft failure.
+  updateSnapshots: process.env.R86_CAPTURE_BASELINE === '1' ? 'all' : 'none',
   snapshotPathTemplate: '{testDir}/{testFilePath}-snapshots/{arg}{ext}',
   grepInvert: /#197/,
   projects: [

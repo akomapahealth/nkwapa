@@ -9,6 +9,9 @@ async function tabTo(page, target, start = page.locator('main'), insideTablist =
     for (let i = 0; i < 20; i++) {
       if (await target.evaluate((el) => el === document.activeElement)) return;
       await page.keyboard.press('ArrowRight');
+      // Switching an encounter tab awaits autosave. Do not send subsequent arrows while
+      // its triggers are disabled; require the settled selection to retain keyboard focus.
+      await expect.poll(() => selected.evaluate((el) => el === document.activeElement)).toBe(true);
     }
     throw new Error('Roving tab target was not reached');
   }

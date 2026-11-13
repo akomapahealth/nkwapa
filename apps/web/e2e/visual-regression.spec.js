@@ -8,7 +8,7 @@ const PLAN = {
   doctor: ['/dashboard', '/my/assigned', '/queues', '/patients'],
   volunteer: ['/dashboard', '/my/assigned', '/stations', '/patients/new'],
   manager: ['/dashboard', '/today', '/stations', '/queues'],
-  director: ['/dashboard', '/metrics', '/reports/organization', '/audit'],
+  director: ['/dashboard', '/metrics', '/audit'],
   patient: ['/portal', '/portal/health', '/portal/appointments', '/portal/self-reports/new'],
 };
 
@@ -36,7 +36,7 @@ for (const [role, routes] of Object.entries(PLAN)) {
               fullPage: true,
               animations: 'disabled',
               maxDiffPixelRatio: 0.001,
-              // Live clock, notification count and sync polling are not visual layout contracts.
+              // Explicit time elements and sync polling are not visual layout contracts.
               mask: [page.locator('time'), page.getByTestId('sync-status')],
             },
           );

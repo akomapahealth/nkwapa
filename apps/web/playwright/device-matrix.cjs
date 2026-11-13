@@ -1,4 +1,4 @@
-/* global document, requestAnimationFrame, innerWidth, innerHeight, matchMedia, getComputedStyle */
+/* global document, requestAnimationFrame, innerWidth, innerHeight, matchMedia, getComputedStyle, IntersectionObserver */
 const fs = require('fs');
 const path = require('path');
 const { expect } = require('@playwright/test');
@@ -93,17 +93,25 @@ async function record(page, info, name, extra = {}) {
 async function reachable(control) {
   await expect
     .poll(() =>
-      control.evaluate((el) => {
+      control.evaluate(async (el) => {
         // Resize observers can move the sticky action after the first scroll. Re-align it
         // while polling, rather than repeatedly testing an obsolete scroll position.
         el.scrollIntoView({ block: 'center', inline: 'nearest' });
+        // Check full intersection in the same poll as alignment/hit testing. A separate
+        // assertion can sample the portal's scroll restoration after the successful poll.
+        const ratio = await new Promise((resolve) => {
+          const observer = new IntersectionObserver(([entry]) => {
+            observer.disconnect();
+            resolve(entry.intersectionRatio);
+          });
+          observer.observe(el);
+        });
         const r = el.getBoundingClientRect();
         const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-        return hit === el || el.contains(hit);
+        return ratio === 1 && (hit === el || el.contains(hit));
       }),
     )
     .toBe(true);
-  await expect(control).toBeInViewport({ ratio: 1 });
 }
 
 module.exports = {
