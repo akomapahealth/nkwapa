@@ -91,17 +91,19 @@ async function record(page, info, name, extra = {}) {
 }
 
 async function reachable(control) {
-  await control.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
-  await expect(control).toBeInViewport({ ratio: 1 });
   await expect
     .poll(() =>
       control.evaluate((el) => {
+        // Resize observers can move the sticky action after the first scroll. Re-align it
+        // while polling, rather than repeatedly testing an obsolete scroll position.
+        el.scrollIntoView({ block: 'center', inline: 'nearest' });
         const r = el.getBoundingClientRect();
         const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
         return hit === el || el.contains(hit);
       }),
     )
     .toBe(true);
+  await expect(control).toBeInViewport({ ratio: 1 });
 }
 
 module.exports = {

@@ -65,7 +65,9 @@ for (const theme of ['light', 'dark']) {
     const panel = page.getByTestId('chat-panel');
     await expect(panel).toBeVisible();
     expect((await panel.boundingBox()).y).toBeGreaterThanOrEqual(0);
-    await page.getByTestId('chat-toggle').click();
+    // Phone chat is modal; its launcher is correctly inert behind the sheet.
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
     // A synthetic final action checks actual pointer reachability above chat and the bar.
     await page.locator('main > div').evaluate((el) => {
       const button = document.createElement('button');
