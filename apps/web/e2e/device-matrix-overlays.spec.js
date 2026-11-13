@@ -122,10 +122,14 @@ for (const input of INPUTS)
         await page.getByLabel('First name', { exact: true }).focus();
         for (let i = 0; i < 12; i++) {
           await page.keyboard.press('Tab');
-          const focused = page.locator(':focus');
+          // Chromium's native date segments/calendar can focus within the host without the
+          // host matching :focus (MASTER focus rules). Keep checking the actual main target.
+          const focused = page.locator('main :focus-within').last();
           await expect(focused).toHaveCount(1);
           await expect(focused).toBeInViewport();
-          expect(await focused.evaluate((el) => el.closest('main') !== null)).toBe(true);
+          expect(await page.evaluate(() => Boolean(document.activeElement?.closest('main')))).toBe(
+            true,
+          );
         }
         await record(page, info, `keyboard-registration-${input}-${theme}-text200`);
       });

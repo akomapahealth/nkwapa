@@ -29,6 +29,7 @@ async function prepare(page, theme) {
 async function ready(page) {
   await expect(page.locator('#main-content')).toBeVisible();
   await expect(page.locator('h1')).toHaveCount(1);
+  await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
   const sync = page.getByTestId('sync-status');
   if (await sync.count()) await expect(sync).toHaveAttribute('data-state', 'synced');
@@ -39,6 +40,19 @@ async function record(page, info, name, extra = {}) {
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
+  await expect.soft
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const main = document.querySelector('#main-content');
+          return Math.max(
+            document.documentElement.scrollWidth - innerWidth,
+            main ? main.scrollWidth - main.clientWidth : 0,
+          );
+        }),
+      { timeout: 1500, message: `${name}: settled document/main overflow` },
+    )
+    .toBeLessThanOrEqual(1);
   const geometry = await page.evaluate(() => {
     const main = document.querySelector('#main-content');
     const sidebar = document.querySelector('#workspace-sidebar');
@@ -72,8 +86,6 @@ async function record(page, info, name, extra = {}) {
   const stem = path.join(out, name);
   await page.screenshot({ path: `${stem}.png`, animations: 'disabled', fullPage: false });
   fs.writeFileSync(`${stem}.json`, JSON.stringify({ name, ...geometry, ...extra }, null, 2));
-  expect.soft(geometry.documentOverflow, `${name}: document overflow`).toBeLessThanOrEqual(1);
-  expect.soft(geometry.mainOverflow, `${name}: main overflow`).toBeLessThanOrEqual(1);
   expect.soft(geometry.h1, `${name}: heading`).toBe(1);
   return geometry;
 }

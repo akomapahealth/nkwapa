@@ -17,8 +17,26 @@ for (const role of ['staff', 'doctor', 'volunteer', 'manager', 'director', 'pati
         test('R8.2 home boundaries and short landscape', async ({ page }, info) => {
           test.setTimeout(120_000);
           await prepare(page, theme);
+          const dataReady =
+            role === 'patient'
+              ? null
+              : page.waitForResponse(
+                  (response) =>
+                    response.request().resourceType() === 'fetch' &&
+                    /\/clinics\/[^/]+\/dashboard$/.test(new URL(response.url()).pathname),
+                );
           await page.goto(role === 'patient' ? '/portal' : '/dashboard');
+          if (dataReady) expect((await dataReady).ok()).toBe(true);
           await ready(page);
+          if (role === 'patient')
+            await expect(
+              page.getByRole('heading', { name: 'Next appointment', exact: true }),
+            ).toBeAttached();
+          else if (role === 'volunteer')
+            await expect(
+              page.getByRole('heading', { name: 'Your clinic day', exact: true }),
+            ).toBeAttached();
+          else await expect(page.getByTestId('figure-strip')).toBeAttached();
           for (const width of WIDTHS) {
             await page.setViewportSize({ width, height: 900 });
             const row = await record(page, info, `home-${role}-${input}-${theme}-${width}`);
