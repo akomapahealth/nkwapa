@@ -33,6 +33,7 @@ import { ResearchReasonDialog, type ReasonPrompt } from './ResearchReasonDialog'
 import { ResearchRunKey } from './ResearchRunKey';
 import { ResearchScheduleDialog, type ScheduleDraft } from './ResearchScheduleDialog';
 import { EXPORT_STATUS_STYLES } from './research-status';
+import { formatOpsDay, formatOpsDateTime } from '@/lib/ops';
 
 const SCHEDULE_STATUS_STYLES: Record<ResearchScheduleStatus, string> = {
   PENDING_APPROVAL: 'border-warning/25 bg-warning/10 text-warning-ink',
@@ -43,13 +44,11 @@ const SCHEDULE_STATUS_STYLES: Record<ResearchScheduleStatus, string> = {
 };
 
 function formatWhen(iso: string | null): string | null {
-  return iso
-    ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-    : null;
+  return iso ? formatOpsDateTime(iso) : null;
 }
 
 function formatDay(iso: string | null): string | null {
-  return iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : null;
+  return iso ? formatOpsDay(iso) : null;
 }
 
 /**

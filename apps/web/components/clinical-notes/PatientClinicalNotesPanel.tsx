@@ -16,6 +16,7 @@ import {
   ChartSectionLoading,
   ChartSectionOffline,
 } from '@/components/patients/chart/ChartSectionState';
+import { formatOpsDay } from '@/lib/ops';
 
 export function PatientClinicalNotesPanel({
   clinicId,
@@ -89,9 +90,7 @@ export function PatientClinicalNotesPanel({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <FileText className="h-4 w-4 text-primary" aria-hidden="true" />
-                      <p className="font-medium">
-                        Encounter {new Date(note.createdAt).toLocaleDateString()}
-                      </p>
+                      <p className="font-medium">Encounter {formatOpsDay(note.createdAt)}</p>
                       <ClinicalNoteStatusBadge status={note.status} />
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">

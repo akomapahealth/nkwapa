@@ -4,10 +4,13 @@ import { formatOpsDateTime } from '@/lib/ops';
 import { statusLabel } from '@/lib/status-presentation';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { CalendarClock, ExternalLink, UserRound, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, CalendarClock, UserRound, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import {
   ChartSectionEmpty,
   ChartSectionError,
@@ -33,7 +36,7 @@ export function ScreeningRecordFrame({
   children: ReactNode;
 }) {
   return (
-    <li className="rounded-lg border border-border bg-background p-4 sm:p-5">
+    <li className="border-b border-rule py-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -55,11 +58,13 @@ export function ScreeningRecordFrame({
             </span>
           </div>
         </div>
-        <Button asChild variant="outline" className="shrink-0">
-          <Link href={`/clinics/${clinicId}/encounters/${item.sourceEncounter.id}`}>
-            Open source visit <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </Button>
+        <Link
+          href={`/clinics/${clinicId}/encounters/${item.sourceEncounter.id}`}
+          className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
+        >
+          Open source visit
+          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
       </div>
     </li>
   );
@@ -107,12 +112,12 @@ export function ScreeningHistoryCard<TItem extends ScreeningHistoryItemBase>({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
-        <div>
-          <h2 className="text-lg font-semibold">{copy.title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{copy.description}</p>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          <h2 className="type-section-title">{copy.title}</h2>
         </div>
-        <Icon className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+        <p className="mt-1 text-sm text-muted-foreground">{copy.description}</p>
       </CardHeader>
       <CardContent className="space-y-6">
         {error ? (
@@ -132,7 +137,7 @@ export function ScreeningHistoryCard<TItem extends ScreeningHistoryItemBase>({
         {/* error is set only when no copy loaded: "none recorded" under it would be untrue. */}
         {!loading && !error && currentEncounterId ? (
           <section aria-labelledby={`current-${slug}`} className="space-y-3">
-            <h3 id={`current-${slug}`} className="text-eyebrow text-muted-foreground">
+            <h3 id={`current-${slug}`} className="text-sm font-semibold text-muted-foreground">
               Current encounter
             </h3>
             {current ? (
@@ -144,13 +149,13 @@ export function ScreeningHistoryCard<TItem extends ScreeningHistoryItemBase>({
         ) : null}
         {error ? null : (
           <section aria-labelledby={`previous-${slug}`} className="space-y-3">
-            <h3 id={`previous-${slug}`} className="text-eyebrow text-muted-foreground">
+            <h3 id={`previous-${slug}`} className="text-sm font-semibold text-muted-foreground">
               {currentEncounterId ? copy.previousHeading : copy.historyHeading}
             </h3>
             {!loading && previous.length === 0 ? (
               <ChartSectionEmpty title={copy.emptyTitle} description={copy.emptyDescription} />
             ) : (
-              <ol className="space-y-3">{previous.map((item) => renderRecord(item, false))}</ol>
+              <ol>{previous.map((item) => renderRecord(item, false))}</ol>
             )}
           </section>
         )}

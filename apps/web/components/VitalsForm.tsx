@@ -47,6 +47,7 @@ import { cn } from '@/lib/utils';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { isFullySynced } from '@/lib/sync';
 import { FieldError, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
+import { formatOpsDateTime } from '@/lib/ops';
 
 const NONE_VALUE = '__NONE__';
 
@@ -278,7 +279,7 @@ function ReadOnlyMeasurements({
         [
           'Reviewed',
           tobacco?.reviewedAt
-            ? `${new Date(tobacco.reviewedAt).toLocaleString()}`
+            ? `${formatOpsDateTime(tobacco.reviewedAt)}`
             : tobacco?.reviewPending
               ? 'Pending sync'
               : 'Not reviewed',
@@ -913,7 +914,7 @@ export function VitalsForm({
                 {localTobacco?.reviewPending
                   ? 'Tobacco review is pending sync.'
                   : localTobacco?.reviewedAt
-                    ? `Reviewed ${new Date(localTobacco.reviewedAt).toLocaleString()}.`
+                    ? `Reviewed ${formatOpsDateTime(localTobacco.reviewedAt)}.`
                     : 'This tobacco screening has not been explicitly reviewed.'}
               </div>
             </section>

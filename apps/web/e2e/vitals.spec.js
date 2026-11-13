@@ -120,7 +120,7 @@ test('expanded vitals save, replay offline, review, finalize, and stay responsiv
   );
   await page.getByRole('button', { name: 'Mark tobacco reviewed' }).click();
   expect((await reviewPush).ok()).toBeTruthy();
-  await expect(page.getByText(/Reviewed \d/)).toBeVisible();
+  await expect(page.getByText(/Reviewed [A-Z][a-z]{2} \d/)).toBeVisible();
 
   await page.getByLabel('Systolic BP (mmHg)').focus();
   await page.keyboard.press('Tab');

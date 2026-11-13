@@ -24,11 +24,10 @@ import {
 } from '@/lib/research';
 import { ResearchRunKey } from './ResearchRunKey';
 import { EXPORT_STATUS_STYLES } from './research-status';
+import { formatOpsDay, formatOpsDateTime } from '@/lib/ops';
 
-const formatWhen = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-const formatDay = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+const formatWhen = (iso: string) => formatOpsDateTime(iso);
+const formatDay = (iso: string) => formatOpsDay(iso);
 
 /** Why a run is in the queue, in the words the run row also uses. */
 function runReason(run: ResearchExportItem): string {

@@ -10,7 +10,7 @@ import {
   enqueueOutboxMutation,
   SYNC_OPERATION,
 } from '@/lib/outbox';
-import { readApiError } from '@/lib/ops';
+import { formatOpsDateTime, formatOpsDay, readApiError } from '@/lib/ops';
 import {
   MEDICAL_HISTORY_CATEGORIES,
   MEDICAL_HISTORY_STATUSES,
@@ -22,7 +22,7 @@ import {
   type MedicalHistoryRevision,
   type MedicalHistoryStatus,
 } from '@/lib/medical-history';
-import { AllergySummaryBanner } from './AllergySummaryBanner';
+import { AllergySummaryBanner, allergyStatusNeedsEntry } from './AllergySummaryBanner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -235,6 +235,11 @@ export function MedicalHistoryPanel({
     setEditorOpen(true);
   };
 
+  const openCreateAllergy = () => {
+    openCreate();
+    setForm({ ...initialForm, category: 'ALLERGY' });
+  };
+
   const openEdit = (record: MedicalHistoryRecord) => {
     const details = record.currentRevision.details;
     setEditing(record);
@@ -406,7 +411,18 @@ export function MedicalHistoryPanel({
 
   return (
     <div className="space-y-4">
-      {settled ? <AllergySummaryBanner summary={allergySummary} /> : null}
+      {settled ? (
+        <AllergySummaryBanner
+          summary={allergySummary}
+          action={
+            canWrite && !loadError && allergyStatusNeedsEntry(allergySummary.state) ? (
+              <Button variant="outline" onClick={openCreateAllergy} className="bg-background">
+                Record allergies
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : null}
       <Card
         className={
           ruled
@@ -417,7 +433,7 @@ export function MedicalHistoryPanel({
         <CardHeader className={ruled ? 'gap-4 px-0 pb-3 pt-4' : 'gap-4'}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Longitudinal medical history</h2>
+              <h2 className="type-section-title">Longitudinal medical history</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Active information appears first. Prior revisions remain recoverable.
               </p>
@@ -493,7 +509,7 @@ export function MedicalHistoryPanel({
                 const presentation = statusPresentations[record.currentRevision.status];
                 const StatusIcon = presentation.icon;
                 return (
-                  <li key={record.id} className="rounded-lg border border-border bg-background p-4">
+                  <li key={record.id} className="border-b border-rule py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -505,7 +521,7 @@ export function MedicalHistoryPanel({
                           <Badge variant="outline">{categoryLabels[record.category]}</Badge>
                         </div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          Updated {new Date(record.updatedAt).toLocaleDateString()} · Revision{' '}
+                          Updated {formatOpsDay(record.updatedAt)} · Revision{' '}
                           {record.currentRevision.revisionNumber}
                           {record.currentRevision.authoredBy?.displayName
                             ? ` · ${record.currentRevision.authoredBy.displayName}`
@@ -659,7 +675,7 @@ export function MedicalHistoryPanel({
                     </Badge>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {new Date(revision.createdAt).toLocaleString()}
+                    {formatOpsDateTime(revision.createdAt)}
                     {revision.authoredBy?.displayName
                       ? ` · ${revision.authoredBy.displayName}`
                       : ''}

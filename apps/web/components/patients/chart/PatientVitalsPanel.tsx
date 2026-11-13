@@ -33,6 +33,17 @@ function formatBloodPressure(record: ChartVitalsRecord): string | null {
 function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; clinicId: string }) {
   const { bodyUnit } = useClinicUnits(clinicId);
   const bloodPressure = formatBloodPressure(record);
+  const measurements = (
+    [
+      ['Pulse', record.pulseBpm, ' bpm'],
+      ['Temperature', record.temperatureCelsius, ' °C'],
+      ['Respiratory rate', record.respiratoryRate, '/min'],
+      ['SpO₂', record.spo2Percent, '%'],
+      ['Weight', formatWeight(record.weightKg, bodyUnit), undefined],
+      ['Height', formatHeight(record.heightCm, bodyUnit), undefined],
+      ['BMI', record.bmi, undefined],
+    ] as const
+  ).filter(([, value]) => value !== null && value !== undefined && value !== '');
   return (
     <ChartRecordCard
       title={bloodPressure ? `Blood pressure ${bloodPressure} mmHg` : 'Measurements recorded'}
@@ -60,15 +71,16 @@ function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; cli
       }
     >
       <BloodPressureSignal systolic={record.systolicBp} diastolic={record.diastolicBp} compact />
-      <dl className={styles.measurements}>
-        <ChartMeasurement label="Pulse" value={record.pulseBpm} suffix=" bpm" />
-        <ChartMeasurement label="Temperature" value={record.temperatureCelsius} suffix=" °C" />
-        <ChartMeasurement label="Respiratory rate" value={record.respiratoryRate} suffix="/min" />
-        <ChartMeasurement label="SpO₂" value={record.spo2Percent} suffix="%" />
-        <ChartMeasurement label="Weight" value={formatWeight(record.weightKg, bodyUnit)} />
-        <ChartMeasurement label="Height" value={formatHeight(record.heightCm, bodyUnit)} />
-        <ChartMeasurement label="BMI" value={record.bmi} />
-      </dl>
+      {/* Only what was measured: seven "Not recorded" rows buried the one reading taken. */}
+      {measurements.length ? (
+        <dl className={styles.measurements}>
+          {measurements.map(([label, value, suffix]) => (
+            <ChartMeasurement key={label} label={label} value={value} suffix={suffix} />
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">No other measurements recorded.</p>
+      )}
       {record.notes ? (
         <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">
           {record.notes}

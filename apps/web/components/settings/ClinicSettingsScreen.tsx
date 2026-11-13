@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, FlaskConical, Microscope, Settings2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { hasPermission } from '@/lib/ops';
+import { formatOpsDay, hasPermission } from '@/lib/ops';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
@@ -189,7 +189,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
               />
               <AppMetricCard
                 title="Last updated"
-                value={data.updatedAt ? new Date(data.updatedAt).toLocaleDateString() : 'Not set'}
+                value={data.updatedAt ? formatOpsDay(data.updatedAt) : 'Not set'}
                 icon={Settings2}
                 detail={
                   data.updatedByDisplayName

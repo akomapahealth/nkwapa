@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
-import { hasPermission } from '@/lib/ops';
+import { formatOpsDateTime, hasPermission } from '@/lib/ops';
 import { getActiveBootstrapClinic } from '@/lib/bootstrap-clinics';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -683,10 +683,10 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                             {formatRange(item.fromDate, item.toDate)}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Requested {new Date(item.requestedAt).toLocaleString()}
+                            Requested {formatOpsDateTime(item.requestedAt)}
                             {item.requestedBy ? ` by ${item.requestedBy.displayName}` : ''}
                             {item.approvedBy && item.approvedAt
-                              ? ` · approved ${new Date(item.approvedAt).toLocaleString()} by ${item.approvedBy.displayName}`
+                              ? ` · approved ${formatOpsDateTime(item.approvedAt)} by ${item.approvedBy.displayName}`
                               : ''}
                           </p>
                         </div>
@@ -792,11 +792,11 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
 
                           {item.completedAt ? (
                             <p className="text-muted-foreground">
-                              Completed {new Date(item.completedAt).toLocaleString()}
+                              Completed {formatOpsDateTime(item.completedAt)}
                             </p>
                           ) : item.startedAt ? (
                             <p className="text-muted-foreground">
-                              Started {new Date(item.startedAt).toLocaleString()}
+                              Started {formatOpsDateTime(item.startedAt)}
                             </p>
                           ) : null}
                         </div>

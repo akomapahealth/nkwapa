@@ -7,6 +7,7 @@ import { useAsyncResource } from '@/lib/use-async-resource';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { eventLabel, type ResearchExportItem, type ResearchRunEvent } from '@/lib/research';
+import { formatOpsDateTime } from '@/lib/ops';
 
 function signed(n: number): string {
   return n > 0 ? `+${n}` : String(n);
@@ -43,7 +44,7 @@ function RunEvents({ clinicId, exportId }: { clinicId: string; exportId: string 
               <span className="font-medium text-foreground">{eventLabel(event.action)}</span>
               <span className="text-muted-foreground">
                 {' '}
-                · {new Date(event.at).toLocaleString()} · {event.actor}
+                · {formatOpsDateTime(event.at)} · {event.actor}
               </span>
               {event.note ? <p className="mt-0.5 text-muted-foreground">“{event.note}”</p> : null}
             </li>

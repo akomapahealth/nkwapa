@@ -59,13 +59,73 @@ const Tabs = React.forwardRef<
 });
 Tabs.displayName = TabsPrimitive.Root.displayName;
 
+/**
+ * The tab row's scroller. On a phone ten chart tabs show four at a time, and a clean cut at the
+ * edge read as the whole list: fade the edge that has more tabs past it, and bring the active tab
+ * into view (also when it arrives from a link such as ?tab=consent).
+ */
+function TabsScroller({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = React.useState({ start: false, end: false });
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const start = el.scrollLeft > 1;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setEdges((current) =>
+        current.start === start && current.end === end ? current : { start, end },
+      );
+    };
+    const reveal = () => {
+      const active = el.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+      if (!active) return;
+      const left =
+        active.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
+      if (left < el.scrollLeft || left + active.offsetWidth > el.scrollLeft + el.clientWidth)
+        el.scrollTo({ left: left - 16 });
+      measure();
+    };
+    reveal();
+    const watch = new MutationObserver(reveal);
+    watch.observe(el, { subtree: true, attributes: true, attributeFilter: ['data-state'] });
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    resize?.observe(el);
+    el.addEventListener('scroll', measure, { passive: true });
+    return () => {
+      watch.disconnect();
+      resize?.disconnect();
+      el.removeEventListener('scroll', measure);
+    };
+  }, []);
+  const fade = '2.5rem';
+  const mask =
+    edges.start || edges.end
+      ? `linear-gradient(to right, ${edges.start ? `transparent, black ${fade}` : 'black'}, ${
+          edges.end ? `black calc(100% - ${fade}), transparent` : 'black'
+        })`
+      : undefined;
+  return (
+    <motion.div
+      ref={ref}
+      layoutScroll
+      className="max-w-full overflow-x-auto"
+      data-overflow-start={edges.start || undefined}
+      data-overflow-end={edges.end || undefined}
+      style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
 >(({ className, ...props }, ref) => (
   // Tabs never wrap: a wrapped row leaves the underline floating mid-list. They scroll instead,
   // and `layoutScroll` keeps the underline's measurement right when a press scrolls a tab into view.
-  <motion.div layoutScroll className="max-w-full overflow-x-auto">
+  <TabsScroller>
     <TabsPrimitive.List
       ref={ref}
       className={cn(
@@ -74,7 +134,7 @@ const TabsList = React.forwardRef<
       )}
       {...props}
     />
-  </motion.div>
+  </TabsScroller>
 ));
 TabsList.displayName = TabsPrimitive.List.displayName;
 

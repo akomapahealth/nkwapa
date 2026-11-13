@@ -886,6 +886,7 @@ function PatientChartWorkspace() {
             case 'medical-history':
               return (
                 <MedicalHistoryPanel
+                  ruled
                   clinicId={clinicId}
                   patientId={patient.id}
                   userId={userId}
@@ -899,6 +900,11 @@ function PatientChartWorkspace() {
                   patientId={patientId}
                   userId={userId}
                   canWrite={canWriteMedicationReconciliation}
+                  onOpenMedicalHistory={
+                    chartSections.some((section) => section.id === 'medical-history')
+                      ? () => chartTabs.goToSection('medical-history')
+                      : undefined
+                  }
                   canReadPrescriptions={canReadPrescriptions}
                 />
               );

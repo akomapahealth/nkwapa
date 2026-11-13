@@ -25,7 +25,7 @@ import {
   enqueueOutboxMutation,
   SYNC_OPERATION,
 } from '@/lib/outbox';
-import { readApiError } from '@/lib/ops';
+import { formatOpsDateTime, formatOpsDay, readApiError } from '@/lib/ops';
 import type { AllergySummary } from '@/lib/medical-history';
 import {
   MEDICATION_SOURCE_TYPES,
@@ -43,11 +43,15 @@ import {
   type ReconciliationEvent,
   assembleMedicationRecords,
 } from '@/lib/medication-reconciliation';
-import { AllergySummaryBanner } from './AllergySummaryBanner';
+import { AllergySummaryBanner, allergyStatusNeedsEntry } from './AllergySummaryBanner';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import {
   Dialog,
   DialogContent,
@@ -197,12 +201,15 @@ export function MedicationReconciliationPanel({
   userId,
   canWrite,
   canReadPrescriptions,
+  onOpenMedicalHistory,
 }: {
   clinicId: string;
   patientId: string;
   userId: string;
   canWrite: boolean;
   canReadPrescriptions: boolean;
+  /** Opens the tab where allergies are recorded, when this user can see it. */
+  onOpenMedicalHistory?: () => void;
 }) {
   const getToken = useAuth();
   const [view, setView] = useState<MedicationReconciliationView>({
@@ -866,7 +873,21 @@ export function MedicationReconciliationPanel({
 
   return (
     <div className="space-y-5">
-      <AllergySummaryBanner summary={allergies} compact />
+      <AllergySummaryBanner
+        summary={allergies}
+        compact
+        action={
+          onOpenMedicalHistory && allergyStatusNeedsEntry(allergies.state) ? (
+            <button
+              type="button"
+              onClick={onOpenMedicalHistory}
+              className="inline-flex min-h-11 items-center gap-1 text-sm font-medium underline underline-offset-4"
+            >
+              Record allergies
+            </button>
+          ) : undefined
+        }
+      />
       {offline ? (
         <ChartSectionOffline description="Showing medications saved on this device. Pending changes sync automatically once you reconnect." />
       ) : null}
@@ -887,7 +908,7 @@ export function MedicationReconciliationPanel({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Current medications</h2>
+              <h2 className="type-section-title">Current medications</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Patient-reported history, kept separate from prescriptions and orders.
               </p>
@@ -913,7 +934,7 @@ export function MedicationReconciliationPanel({
           {view.latestReconciliation ? (
             <p className="text-sm text-muted-foreground">
               <ShieldCheck className="mr-1 inline h-4 w-4" />
-              Last reconciled {new Date(view.latestReconciliation.createdAt).toLocaleString()}
+              Last reconciled {formatOpsDateTime(view.latestReconciliation.createdAt)}
               {view.latestReconciliation.reconciledBy?.displayName
                 ? ` by ${view.latestReconciliation.reconciledBy.displayName}`
                 : ''}
@@ -938,7 +959,7 @@ export function MedicationReconciliationPanel({
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold">Past and stopped medications</h2>
+          <h2 className="type-section-title">Past and stopped medications</h2>
           <p className="text-sm text-muted-foreground">
             Historical entries remain visible and auditable.
           </p>
@@ -952,7 +973,7 @@ export function MedicationReconciliationPanel({
               onHistory={(record) => void openHistory('medication', record)}
             />
           ) : (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            <p className="py-4 text-sm text-muted-foreground">
               {offline
                 ? 'No past or stopped medications saved on this device.'
                 : 'No past or stopped medications recorded.'}
@@ -964,7 +985,7 @@ export function MedicationReconciliationPanel({
       <Card>
         <CardHeader className="flex-row items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Pharmacy preference and history</h2>
+            <h2 className="type-section-title">Pharmacy preference and history</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               One pharmacy can be actively preferred; prior preferences remain in history.
             </p>
@@ -982,7 +1003,7 @@ export function MedicationReconciliationPanel({
               {view.pharmacies.map((record) => {
                 const preferred = activePreference?.pharmacyRecordId === record.id;
                 return (
-                  <li key={record.id} className="rounded-lg border border-border bg-background p-4">
+                  <li key={record.id} className="border-b border-rule py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1045,9 +1066,10 @@ export function MedicationReconciliationPanel({
                       <ol className="mt-3 space-y-1 border-t pt-3 text-xs text-muted-foreground">
                         {record.preferences.map((preference) => (
                           <li key={preference.id}>
-                            Preferred {new Date(preference.effectiveFrom).toLocaleDateString()} –{' '}
+                            Preferred{' '}
+                            {formatOpsDay(`${preference.effectiveFrom.slice(0, 10)}T12:00:00Z`)} –{' '}
                             {preference.effectiveTo
-                              ? new Date(preference.effectiveTo).toLocaleDateString()
+                              ? formatOpsDay(`${preference.effectiveTo.slice(0, 10)}T12:00:00Z`)
                               : 'present'}
                             {preference.setBy?.displayName
                               ? ` · Set by ${preference.setBy.displayName}`
@@ -1061,7 +1083,7 @@ export function MedicationReconciliationPanel({
               })}
             </ul>
           ) : (
-            <div className="rounded-lg border border-dashed p-8 text-center">
+            <div className="py-4">
               <Building2 className="mx-auto h-8 w-8 text-muted-foreground" />
               <h3 className="mt-3 font-semibold">No pharmacy history recorded</h3>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1074,14 +1096,14 @@ export function MedicationReconciliationPanel({
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold">Linked prescription history</h2>
+          <h2 className="type-section-title">Linked prescription history</h2>
           <p className="text-sm text-muted-foreground">
             Read-only encounter orders shown only as context.
           </p>
         </CardHeader>
         <CardContent>
           {!canReadPrescriptions ? (
-            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+            <div className="py-4 text-sm text-muted-foreground">
               <ShieldCheck className="mr-2 inline h-4 w-4" />
               Prescription context requires PRESCRIPTION.READ. Reported medications above remain
               available.
@@ -1089,7 +1111,7 @@ export function MedicationReconciliationPanel({
           ) : prescriptions.length ? (
             <ul className="space-y-3">
               {prescriptions.map((item) => (
-                <li key={item.id} className="rounded-lg border p-3">
+                <li key={item.id} className="border-b border-rule py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-medium">{item.drug?.name ?? 'Catalog medication'}</p>
@@ -1108,16 +1130,14 @@ export function MedicationReconciliationPanel({
                     ) : null}
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Ordered {new Date(item.createdAt).toLocaleString()}
+                    Ordered {formatOpsDateTime(item.createdAt)}
                     {item.prescribedBy?.displayName ? ` by ${item.prescribedBy.displayName}` : ''}
                   </p>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No linked prescriptions found.
-            </p>
+            <p className="py-4 text-sm text-muted-foreground">No linked prescriptions found.</p>
           )}
         </CardContent>
       </Card>
@@ -1172,7 +1192,7 @@ export function MedicationReconciliationPanel({
                   ) : null}
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {new Date(item.createdAt).toLocaleString()}
+                  {formatOpsDateTime(item.createdAt)}
                   {item.authoredBy?.displayName ? ` · ${item.authoredBy.displayName}` : ''}
                 </p>
               </li>
@@ -1196,12 +1216,12 @@ function MedicationList({
   onHistory: (record: MedicationRecord) => void;
 }) {
   return (
-    <ul className="space-y-3">
+    <ul>
       {records.map((record) => {
         const revision = record.currentRevision;
         const status = statusPresentation[revision.status];
         return (
-          <li key={record.id} className="rounded-lg border border-border bg-background p-4">
+          <li key={record.id} className="border-b border-rule py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1247,7 +1267,7 @@ function MedicationList({
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {revision.lastReconciledAt
-                    ? `Last reconciled ${new Date(revision.lastReconciledAt).toLocaleString()}${revision.reconciledBy?.displayName ? ` by ${revision.reconciledBy.displayName}` : ''}`
+                    ? `Last reconciled ${formatOpsDateTime(revision.lastReconciledAt)}${revision.reconciledBy?.displayName ? ` by ${revision.reconciledBy.displayName}` : ''}`
                     : 'Not yet reconciled'}
                 </p>
               </div>
