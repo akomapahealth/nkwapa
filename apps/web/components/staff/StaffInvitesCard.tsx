@@ -53,6 +53,7 @@ import { ListSearch } from '@/components/app-shell/ListToolbar';
 import { InfoHint } from '@/components/ui/info-hint';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DataTable,
@@ -108,11 +109,12 @@ const FILTERS: Array<{ value: StaffInviteFilter; label: string; description?: st
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
-const STATUS_DOT: Record<string, string> = {
-  PENDING: 'bg-primary',
-  ACCEPTED: 'bg-success',
-  CANCELLED: 'bg-muted-foreground/40',
-  EXPIRED: 'bg-warning',
+// Badges, like the roster's status beside it; this list was the one admin table using dots.
+const STATUS_BADGE: Record<string, 'info' | 'finalized' | 'secondary' | 'warning'> = {
+  PENDING: 'info',
+  ACCEPTED: 'finalized',
+  CANCELLED: 'secondary',
+  EXPIRED: 'warning',
 };
 
 function initialsOf(invite: StaffInvite) {
@@ -590,16 +592,9 @@ function InviteSetup({ invite }: { invite: StaffInvite }) {
 
 function InviteStatus({ invite }: { invite: StaffInvite }) {
   return (
-    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-      <span
-        aria-hidden="true"
-        className={cn(
-          'h-1.5 w-1.5 rounded-full',
-          STATUS_DOT[invite.status] ?? 'bg-muted-foreground',
-        )}
-      />
+    <Badge variant={STATUS_BADGE[invite.status] ?? 'secondary'}>
       {describeStaffInviteStatus(invite.status).label}
-    </span>
+    </Badge>
   );
 }
 
