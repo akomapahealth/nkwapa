@@ -24,7 +24,7 @@ export function PortalHero({
   return (
     <div className={cn('min-w-0 space-y-4', className)}>
       <div className="space-y-2">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+        <h2 className="break-words font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
           {title}
         </h2>
         {description ? (
