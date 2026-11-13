@@ -6,6 +6,9 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { InterviewFlow, InterviewSection, useInterviewQuestion } from './InterviewFlow';
 
+const push = jest.fn();
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
 // React 18 only flushes effects inside act() when told it is running under a test.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,16 +26,7 @@ let root: Root;
 let container: HTMLDivElement;
 let onSave: jest.Mock;
 
-beforeEach(async () => {
-  container = document.createElement('div');
-  document.body.append(container);
-  window.requestAnimationFrame = (cb) => {
-    cb(0);
-    return 0;
-  };
-  Element.prototype.scrollIntoView = () => {};
-  onSave = jest.fn().mockResolvedValue(undefined);
-  root = createRoot(container);
+async function renderFlow(secondAnswer = '') {
   await act(async () => {
     root.render(
       <InterviewFlow
@@ -45,7 +39,7 @@ beforeEach(async () => {
       >
         <InterviewSection id="a" title="First section">
           <Question id="q1" label="Asked one" value="Yes" />
-          <Question id="q2" label="Unasked one" />
+          <Question id="q2" label="Unasked one" value={secondAnswer} />
         </InterviewSection>
         <InterviewSection id="b" title="Second section">
           <Question id="q3" label="Later one" />
@@ -53,6 +47,19 @@ beforeEach(async () => {
       </InterviewFlow>,
     );
   });
+}
+
+beforeEach(async () => {
+  container = document.createElement('div');
+  document.body.append(container);
+  window.requestAnimationFrame = (cb) => {
+    cb(0);
+    return 0;
+  };
+  Element.prototype.scrollIntoView = () => {};
+  onSave = jest.fn().mockResolvedValue(undefined);
+  root = createRoot(container);
+  await renderFlow();
 });
 
 afterEach(() => {
@@ -98,4 +105,26 @@ test('the review screen lists every unasked question by its short label', async 
   expect(text).toContain('Unasked one');
   expect(text).toContain('Later one');
   expect(button('Save test')).toBeDefined();
+});
+
+test('counts answers not saved from the first change, and asks before a link leaves the page', async () => {
+  const status = () => container.querySelector('[role="status"]')!.textContent;
+  expect(status()).toBe('');
+  const flow = container.querySelector<HTMLElement>('[data-interview-flow]')!;
+  await act(async () => {
+    flow.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+  });
+  await renderFlow('No');
+  expect(status()).toBe('1 answer not saved');
+
+  const link = document.createElement('a');
+  link.href = '/patients/elsewhere';
+  document.body.append(link);
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+  link.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(true);
+  link.remove();
+
+  await act(async () => button(/Next: Second section/).click());
+  expect(status()).toBe('');
 });

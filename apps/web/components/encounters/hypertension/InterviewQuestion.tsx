@@ -14,7 +14,11 @@ import {
 } from '@/components/ui/select';
 import { FieldError, FieldLabel, fieldErrorProps } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
-import { isUnasked, useInterviewQuestion } from '@/components/encounters/InterviewFlow';
+import {
+  focusNextQuestion,
+  isUnasked,
+  useInterviewQuestion,
+} from '@/components/encounters/InterviewFlow';
 
 /**
  * The question shapes the chronic-disease interviews are built from.
@@ -164,6 +168,11 @@ function SegmentedChoice({
           descriptions ? 'grid gap-2 sm:grid-cols-2' : 'flex flex-wrap gap-2',
         )}
         onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            focusNextQuestion(event.currentTarget);
+            return;
+          }
           const n = Number(event.key);
           if (shell.disabled || !Number.isInteger(n) || n < 1 || n > ordered.length) return;
           if (event.altKey || event.ctrlKey || event.metaKey) return;

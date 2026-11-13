@@ -10,8 +10,10 @@ import {
   useState,
 } from 'react';
 import { AlertCircle, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import { STICKY_ACTIONS } from '@/components/ui/form-actions';
 import { cn } from '@/lib/utils';
 
@@ -77,6 +79,37 @@ export function useInterviewQuestion(entry: Omit<QuestionEntry, 'sectionId'>) {
   }, [flow, sectionId, id]);
 }
 
+/**
+ * Enter on an answer moves to the next question in the section, or to the footer's Next after
+ * the last one, without pressing it: Enter never saves by surprise.
+ */
+export function focusNextQuestion(from: HTMLElement) {
+  const section = from.closest('[data-interview-section]');
+  if (!section) return;
+  const targets = [
+    ...section.querySelectorAll<HTMLElement>(
+      '[role="radiogroup"], input:not([type="radio"]):not([type="hidden"]), select, textarea, button[role="combobox"]',
+    ),
+  ].filter(
+    (el) =>
+      (el.getAttribute('role') === 'radiogroup' || el.tabIndex >= 0) &&
+      !el.closest('[hidden], [aria-hidden="true"]') &&
+      !el.closest('[role="radiogroup"] *'),
+  );
+  const current = targets.findIndex((el) => el === from || el.contains(from));
+  const target = targets[current + 1];
+  const field =
+    target?.getAttribute('role') === 'radiogroup'
+      ? (target.querySelector<HTMLElement>('input:checked') ?? target.querySelector('input'))
+      : target;
+  (
+    field ??
+    from
+      .closest('[data-interview-flow]')
+      ?.querySelector<HTMLElement>('[data-interview-actions] button:last-of-type')
+  )?.focus();
+}
+
 export interface InterviewSaveState {
   saving: boolean;
   /** The form's last success message ("saved on this device and pending sync"). */
@@ -117,8 +150,9 @@ export function InterviewFlow({
   const [positions, setPositions] = useState<Map<string, number>>(() => new Map());
   const rootRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  // Answers as they were at the last save in this session; null until the first save.
-  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+  const router = useRouter();
+  // Answers as they were when the volunteer first touched the interview, then at each save.
+  const [baseline, setBaseline] = useState<Map<string, string> | null>(null);
 
   const register = useCallback((entry: QuestionEntry) => {
     setRegistry((current) => {
@@ -168,14 +202,56 @@ export function InterviewFlow({
     for (const entry of entries) map.get(entry.sectionId)?.push(entry);
     return map;
   }, [entries, sections]);
-  const signature = useMemo(
-    () =>
-      entries
-        .map((e) => `${e.id}=${e.display}`)
-        .sort()
-        .join('|'),
-    [entries],
-  );
+  const snapshot = () => new Map(entries.map((e) => [e.id, e.display]));
+  // Taken before the first change lands, so answers loaded from a saved draft never count.
+  const markTouched = () => {
+    if (canEdit && baseline === null) setBaseline(snapshot());
+  };
+  // A question that appeared after the baseline (a follow-up) counts only once it is answered.
+  const unsaved = baseline
+    ? entries.filter((e) => (baseline.has(e.id) ? baseline.get(e.id) !== e.display : e.answered))
+        .length
+    : 0;
+
+  /*
+    Unsaved answers survive moving between sections and tabs, but not leaving the page. Ask first:
+    the browser's own prompt for a reload or closing the tab, ours for a link inside the app. The
+    browser Back button is not caught; Next saves every section, which keeps that loss small.
+  */
+  useEffect(() => {
+    if (!unsaved) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element | null)?.closest?.('a[href]');
+      if (!(link instanceof HTMLAnchorElement)) return;
+      if (link.target === '_blank' || link.hasAttribute('download')) return;
+      const url = new URL(link.href);
+      // Another site is the browser prompt's job; the same page (tabs, anchors) keeps the answers.
+      if (url.origin !== window.location.origin || url.pathname === window.location.pathname)
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      void confirmAction({
+        title: 'These answers are not saved yet',
+        description: `${unsaved} ${unsaved === 1 ? 'answer in this interview is' : 'answers in this interview are'} not saved. If you leave this page now, ${unsaved === 1 ? 'it is' : 'they are'} lost.`,
+        confirmLabel: 'Leave without saving',
+        cancelLabel: 'Stay',
+      }).then((leave) => {
+        if (leave) router.push(`${url.pathname}${url.search}${url.hash}`);
+      });
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      document.removeEventListener('click', onClick, true);
+    };
+  }, [unsaved, router]);
 
   const index = sections.findIndex((s) => s.id === active);
   const onReview = active === REVIEW;
@@ -226,7 +302,7 @@ export function InterviewFlow({
   const saveThen = async (then?: () => void) => {
     try {
       await onSave();
-      setSavedSignature(signature);
+      setBaseline(snapshot());
       then?.();
     } catch {
       // The form shows the error and marks the fields; the effect above moves to them.
@@ -237,8 +313,8 @@ export function InterviewFlow({
     ? 'Saving…'
     : save.error
       ? save.error
-      : savedSignature !== null && savedSignature !== signature
-        ? 'Changes since the last save'
+      : unsaved
+        ? `${unsaved} ${unsaved === 1 ? 'answer' : 'answers'} not saved`
         : save.message;
 
   // Read-only: every section at once, for a doctor reading the finished interview.
@@ -249,6 +325,8 @@ export function InterviewFlow({
       <div
         ref={rootRef}
         data-interview-flow=""
+        onPointerDownCapture={markTouched}
+        onKeyDownCapture={markTouched}
         className="grid gap-x-8 gap-y-4 scroll-mt-24 desktop:grid-cols-[13.5rem_minmax(0,1fr)]"
       >
         {showAll ? null : (
@@ -355,6 +433,7 @@ export function InterviewFlow({
 
           {canEdit ? (
             <div
+              data-interview-actions=""
               className={cn('mt-6 flex flex-wrap items-center gap-2 compact:gap-3', STICKY_ACTIONS)}
             >
               <p
@@ -369,7 +448,8 @@ export function InterviewFlow({
               {previous ? (
                 <Button type="button" variant="ghost" onClick={() => go(previous.id)}>
                   <ChevronLeft aria-hidden="true" />
-                  Back
+                  {/* Icon only on a phone, so Back, Save and Next share one row. */}
+                  <span className="sr-only compact:not-sr-only">Back</span>
                 </Button>
               ) : null}
               {onReview ? null : (
@@ -392,7 +472,14 @@ export function InterviewFlow({
                   disabled={save.saving}
                   onClick={() => void saveThen(() => go(next?.id ?? REVIEW))}
                 >
-                  {next ? `Next: ${next.title}` : 'Review'}
+                  {next ? (
+                    // One inline box: the button's flex gap would split "Next" from its title.
+                    <span>
+                      Next<span className="sr-only compact:not-sr-only">: {next.title}</span>
+                    </span>
+                  ) : (
+                    'Review'
+                  )}
                   <ChevronRight aria-hidden="true" />
                 </Button>
               )}
@@ -493,7 +580,7 @@ function ReviewScreen({
                       <button
                         type="button"
                         onClick={() => onJump(section.id, entry.id)}
-                        className="rounded-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="rounded-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         Not asked
                         <span className="sr-only">: ask {entry.label}</span>
