@@ -1,6 +1,19 @@
 # Nkwapa UI Refresh — Progress Tracker
 
-## Current: R8.3 built, verification gaps (2026-11-13)
+## Current: R8.4/R8.5 built, verification gaps (2026-11-13)
+
+Single final regression: **38 passed / 10 failed**, no skips/retries, one worker, #197 excluded.
+Prescriptions, vitals/DM finalization, HTN, sealed offline plans, replay/ownership/conflict recovery
+and real second-user overwrite inbox notification pass. Two carried director cases pass; six
+other R8.3 cases remain open. Fixed station-note submission's database constraint in its own
+local commit with a guarded migration and real PostgreSQL Jest coverage. Migration is not yet
+applied to the audit database; the integrated station cosign/plan/finalize journey remains open.
+Nine raw harness failures include two notes cases blocked by initially excluded auth setup.
+One-attempt harness corrections are committed without a second browser invocation. See
+`ui-refresh/R8.4-R8.5-REVIEW.md` for exact counts, fixes and unreached workflows. No push.
+The R8.3 summary below is historical.
+
+## R8.3 built, verification gaps (2026-11-13)
 
 Handoff and each test unit committed locally. Single final run: **48 passed / 8 failed**,
 zero skipped, one worker, #197 excluded. All four R8.2 staff form chains and actual old-API

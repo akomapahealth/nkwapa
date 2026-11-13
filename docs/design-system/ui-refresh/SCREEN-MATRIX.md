@@ -4,6 +4,15 @@ Every App Router page in `apps/web/app` as of `57e138a9` (2026-11-07). Update a 
 
 Legend: `—` not reviewed, `WIP` in progress, `PASS` verified, `FAIL` needs correction, `N/A` not applicable. Phase is the refresh phase that owns the screen.
 
+R8.4/R8.5 functional regression: **38 passed / 10 failed**, one worker, zero retries/skips,
+#197 excluded. Clinical and offline passes include prescriptions, HTN/DM, vitals finalization,
+sealed plans, outbox isolation/recovery and real two-user overwrite inbox notice. Integrated
+station note submission exposed a database constraint bug, fixed by a guarded migration and
+PostgreSQL Jest; post-fix cosign/plan/finalization remain browser-unverified. Two carried director
+cases pass; both patient and all four portal landscape cases remain open. Initial auth selection
+also blocked two notes cases. See `R8.4-R8.5-REVIEW.md`. This functional evidence does not upgrade
+blank visual/accessibility cells or claim the unreached appointment branches passed.
+
 R8.2 verification remains **WIP for form-chain coverage**, not an all-green matrix. Fresh-server
 invocation: 89 passed / 35 failed; affected-spec rerun: 58 passed / 8 failed (six setup passes
 in each). Homes pass 24/24 across 384 existing cases; overlays pass 8/8; focused role audit
