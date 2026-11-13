@@ -6,6 +6,14 @@ const { storageStateFor } = require('../playwright/roles');
 const { readOutbox, waitForOutboxDrain } = require('../playwright/outbox');
 const { hitTarget, minButtonHeight } = require('../playwright/hit-target');
 
+// The shift panel only renders with the station workflow on, which the smoke build leaves off; CI
+// runs this file in its station step.
+test.skip(
+  process.env.FEATURE_STATION_WORKFLOW_ENABLED !== 'true' ||
+    process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED !== 'true',
+  'Station workflow must be on in both API and web build.',
+);
+
 const WIDTHS = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
 const panel = (page) => page.getByRole('region', { name: 'Your shift', exact: true });
 async function capture(page, name) {
