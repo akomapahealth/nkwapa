@@ -15,7 +15,7 @@ test.skip(
 );
 test.beforeAll(() => requireAuditDatabase());
 
-test('screening saves and corrections sync; characterize old API rejection without changing retry policy', async ({
+test('screening corrections sync on current and old APIs after metadata compatibility resend', async ({
   page,
 }, info) => {
   test.setTimeout(180_000);
@@ -131,13 +131,21 @@ test('screening saves and corrections sync; characterize old API rejection witho
   // is forwarded; authentication, bootstrap and reads continue to use the fresh API.
   expect(process.env.R82_OLD_API_URL).toBeTruthy();
   const oldResults = new Map();
+  const attempts = new Map();
   await page.route('**/sync/push**', async (route) => {
     const target = new URL(route.request().url());
     const old = new URL(process.env.R82_OLD_API_URL);
     target.host = old.host;
     target.protocol = old.protocol;
     const response = await route.fetch({ url: target.href });
-    for (const result of (await response.json()).results) oldResults.set(result.id, result);
+    const mutations = route.request().postDataJSON();
+    for (const result of (await response.json()).results) {
+      oldResults.set(result.id, result);
+      const mutation = mutations.find((m) => m.id === result.id);
+      const history = attempts.get(result.id) || [];
+      history.push({ mutation, result });
+      attempts.set(result.id, history);
+    }
     await route.fulfill({ response });
   });
   const ids = [];
@@ -155,29 +163,44 @@ test('screening saves and corrections sync; characterize old API rejection witho
   await page.getByRole('button', { name: 'Sync now', exact: true }).click();
   await expect.poll(() => ids.filter((id) => oldResults.has(id)).length).toBe(3);
   await expect
-    .poll(async () => {
-      const rows = (await readOutboxRows(page)).filter((r) => ids.includes(r.id));
-      return ids.every((id) => {
-        const row = rows.find((r) => r.id === id);
-        return oldResults.get(id).status === 'APPLIED'
-          ? !row
-          : row && ['blocked', 'retrying'].includes(row.syncState);
-      });
+    .poll(() => ids.every((id) => oldResults.get(id)?.status === 'APPLIED'), {
+      timeout: 60_000,
+      message: 'old API corrections must eventually apply after compatibility resend',
     })
     .toBe(true);
+  await waitForOutboxDrain(page, expect);
   const remaining = (await readOutboxRows(page)).filter((r) => ids.includes(r.id));
+  expect(remaining).toEqual([]);
   for (let i = 0; i < ids.length; i++) {
-    const result = oldResults.get(ids[i]);
-    const row = remaining.find((r) => r.id === ids[i]);
-    if (result.status !== 'APPLIED')
-      expect(JSON.stringify(row.lastFailure)).toContain('baseUpdatedAt');
+    const history = attempts.get(ids[i]);
+    const first = history[0];
+    const last = history.at(-1);
+    const entityType = corrections[i].entityType;
+    if (entityType !== 'diabetes_screening') {
+      expect(first.result.status).toBe('ERROR');
+      expect(JSON.stringify(first.result)).toContain('baseUpdatedAt');
+      expect(first.mutation.payloadJson.baseUpdatedAt).toBeTruthy();
+      expect(history.length).toBeGreaterThanOrEqual(2);
+      expect(last.mutation.payloadJson).not.toHaveProperty('baseUpdatedAt');
+      const { baseUpdatedAt, ...clinicalPayload } = first.mutation.payloadJson;
+      expect(baseUpdatedAt).toBeTruthy();
+      expect(last.mutation.payloadJson).toEqual(clinicalPayload);
+      expect(last.mutation.id).toBe(first.mutation.id);
+      expect(last.mutation.idempotencyKey).toBe(first.mutation.idempotencyKey);
+    }
+    expect(last.result.status).toBe('APPLIED');
     evidence.push({
-      entityType: corrections[i].entityType,
+      entityType,
       oldApi: true,
-      result: result.status,
-      syncState: row?.syncState ?? 'removed-after-applied',
-      lastFailure: row?.lastFailure,
+      attempts: history,
+      syncState: 'removed-after-applied',
     });
     persist();
   }
+  const readback = await apiRequestAs('staff', 'get', `/encounters/${encounterId}`, {
+    clinicId: corrections[0].clinicId,
+  });
+  expect(readback.ok()).toBe(true);
+  expect(readback.json().vitals.pulseBpm).toBe(77);
+  expect(readback.json().hypertensionAssessment.hypertensionStatus).toBe('NEWLY_ELEVATED_BP');
 });
