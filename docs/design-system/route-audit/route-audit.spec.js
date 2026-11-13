@@ -40,6 +40,7 @@ const PLAN = {
   director: [
     '/dashboard',
     '/patients',
+    'patient-record',
     '/metrics',
     '/reports/organization',
     '/admin/duplicates',
@@ -51,12 +52,20 @@ const PLAN = {
     '/stations',
     '/queues',
     '/patients',
+    'patient-record',
     '/appointments',
     '/metrics',
     '/staff-activity',
   ],
   doctor: ['/dashboard', '/my/assigned', '/queues', '/patients', 'patient-record', '/appointments'],
-  volunteer: ['/dashboard', '/my/assigned', '/stations', '/patients', '/patients/new'],
+  volunteer: [
+    '/dashboard',
+    '/my/assigned',
+    '/stations',
+    '/patients',
+    'patient-record',
+    '/patients/new',
+  ],
   patient: [
     '/portal',
     '/portal/health',
@@ -70,21 +79,62 @@ const PLAN = {
 // AUDIT_ROLES=staff,manager limits the run (the station-flag build only re-walks station roles).
 const only = (process.env.AUDIT_ROLES || '').split(',').filter(Boolean);
 for (const role of Object.keys(PLAN)) if (only.length && !only.includes(role)) delete PLAN[role];
+// Every section of the patient record, walked by URL for each role that opens the record; a section
+// the role cannot read falls back to one it can, which the row's `tab` shows.
+const CHART_TABS = [
+  'overview',
+  'vitals',
+  'medications',
+  'hypertension',
+  'diabetes',
+  'medical-history',
+  'notes',
+  'visits',
+  'self-reports',
+  'consent',
+];
+for (const routes of Object.values(PLAN)) {
+  const at = routes.indexOf('patient-record');
+  if (at >= 0) routes.splice(at, 1, ...CHART_TABS.map((tab) => `patient-record:${tab}`));
+}
+// AUDIT_THEMES=light limits the themes (dark mode is reviewed separately).
+const THEMES = (process.env.AUDIT_THEMES || 'light,dark').split(',').filter(Boolean);
 const rows = [];
 test.describe.configure({ mode: 'serial' });
 test.afterAll(() =>
   fs.writeFileSync(path.join(OUT, 'route-audit.json'), JSON.stringify(rows, null, 2)),
 );
 
+let recordHref = null;
 async function open(page, route) {
-  if (route !== 'patient-record') return page.goto(route);
+  if (!route.startsWith('patient-record')) return page.goto(route);
+  const tab = route.split(':')[1];
+  if (recordHref) return page.goto(tab ? `${recordHref}?tab=${tab}` : recordHref);
   // The first patient in the registry: a seeded synthetic record.
   await page.goto('/patients');
   // #313: the 1440 registry is a table whose first /patients/ link was not a record; match the
   // record links by their href shape, which the table and the 390 cards share.
   const link = page.locator('main a[href*="/patients/"]:not([href$="/new"])').first();
   await link.waitFor({ state: 'attached', timeout: 30_000 });
-  await page.goto(await link.getAttribute('href'));
+  recordHref = await link.getAttribute('href');
+  await page.goto(tab ? `${recordHref}?tab=${tab}` : recordHref);
+}
+
+/** The role's own sidebar links, so a page the plan forgot is still walked. */
+async function navRoutes(page, first) {
+  await page.goto(first);
+  const nav = page.locator('nav[aria-label="Workspace"]').first();
+  // The sidebar renders after the session loads; a page without one has nothing to add.
+  await nav.waitFor({ timeout: 15_000 }).catch(() => {});
+  if (!(await nav.count())) return [];
+  await nav
+    .locator('a[href^="/"]')
+    .first()
+    .waitFor({ timeout: 15_000 })
+    .catch(() => {});
+  return nav.evaluate((el) =>
+    [...el.querySelectorAll('a[href^="/"]')].map((a) => new URL(a.href).pathname),
+  );
 }
 
 for (const [role, routes] of Object.entries(PLAN)) {
@@ -93,7 +143,11 @@ for (const [role, routes] of Object.entries(PLAN)) {
     test(role, async ({ page }) => {
       test.setTimeout(900_000);
       fs.mkdirSync(OUT, { recursive: true });
-      for (const theme of ['light', 'dark']) {
+      recordHref = null;
+      await page.setViewportSize({ width: 1440, height: 900 });
+      for (const href of await navRoutes(page, routes[0]))
+        if (!routes.includes(href)) routes.push(href);
+      for (const theme of THEMES) {
         await page.goto(routes[0]);
         await page.evaluate((t) => localStorage.setItem('nkwapa-theme', t), theme);
         for (const width of [1440, 390]) {
@@ -102,6 +156,12 @@ for (const [role, routes] of Object.entries(PLAN)) {
             const row = { role, route, theme, width };
             try {
               await open(page, route);
+              if (route.startsWith('patient-record:'))
+                row.tab = await page
+                  .locator('[role="tab"][aria-selected="true"]')
+                  .first()
+                  .innerText({ timeout: 8_000 })
+                  .catch(() => '');
               // Not networkidle: chat and sync polling keep the network busy on every staff page.
               await expect(page.locator('main').first()).toBeVisible({ timeout: 15_000 });
               // A page without an h1 (a feature that is off) is a finding, so it is scanned anyway.
@@ -137,7 +197,7 @@ for (const [role, routes] of Object.entries(PLAN)) {
                 }));
               // SHOTS_DIR=<abs dir> also saves a light-theme screenshot per route (UI refresh R0 "before" set).
               if (process.env.SHOTS_DIR && theme === 'light') {
-                const name = `${role}${route === 'patient-record' ? '-patient-record' : route.replace(/\//g, '-')}-${width}.png`;
+                const name = `${role}${route.startsWith('patient-record') ? `-${route.replace(':', '-')}` : route.replace(/\//g, '-')}-${width}.png`;
                 await page.screenshot({
                   path: path.join(process.env.SHOTS_DIR, name),
                   fullPage: width > 390,

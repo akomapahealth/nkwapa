@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
-import { hasPermission, readApiError, formatOpsDay } from '@/lib/ops';
+import { hasPermission, readApiError, formatOpsDay, formatOpsDateTime } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
 import { PatientProfileHeader } from '@/components/patients/chart/PatientProfileHeader';
 import profileStyles from '@/components/patients/chart/patient-profile.module.css';
@@ -706,7 +706,9 @@ function PatientChartWorkspace() {
                           <div className="border-b border-rule py-3">
                             <p className="type-label font-normal text-muted-foreground">Sex</p>
                             <p className="mt-1 type-data text-foreground">
-                              {statusLabel(patient.sex)}
+                              {patient.sex && patient.sex !== 'UNKNOWN'
+                                ? statusLabel(patient.sex)
+                                : 'Not recorded'}
                             </p>
                           </div>
                           {patient.nationalIdLast4 || patient.nationalIdType === 'NONE' ? (
@@ -935,9 +937,11 @@ function PatientChartWorkspace() {
                             className="flex flex-col gap-1 border-b border-rule py-4 tabular-nums"
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-medium">{report.type.replace(/_/g, ' ')}</span>
+                              <span className="font-medium">
+                                {SELF_REPORT_LABELS[report.type] ?? report.type}
+                              </span>
                               <span className="text-sm text-muted-foreground">
-                                {new Date(report.recordedAt).toLocaleDateString()}
+                                {formatOpsDateTime(report.recordedAt)}
                               </span>
                             </div>
                             {report.systolicBp != null || report.diastolicBp != null ? (
@@ -1005,6 +1009,13 @@ function PatientChartWorkspace() {
     </div>
   );
 }
+
+/** Never the stored code ("GLUCOSE") on screen. */
+const SELF_REPORT_LABELS: Record<string, string> = {
+  BP: 'Blood pressure',
+  GLUCOSE: 'Glucose',
+  WEIGHT: 'Weight',
+};
 
 export default function PatientDetailPage() {
   return (

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatOpsDateTime } from '@/lib/ops';
 import { statusLabel } from '@/lib/status-presentation';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
@@ -46,7 +47,7 @@ export function ScreeningRecordFrame({
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-2">
               <CalendarClock className="h-4 w-4" aria-hidden="true" />
-              <time dateTime={item.collectedAt}>{new Date(item.collectedAt).toLocaleString()}</time>
+              <time dateTime={item.collectedAt}>{formatOpsDateTime(item.collectedAt)}</time>
             </span>
             <span className="inline-flex items-center gap-2">
               <UserRound className="h-4 w-4" aria-hidden="true" />
