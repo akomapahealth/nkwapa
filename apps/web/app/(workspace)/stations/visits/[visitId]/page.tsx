@@ -280,8 +280,9 @@ export default function StationVisitPage() {
             />
 
             <section aria-labelledby="visit-needs" className="border-t-2 border-rule-strong pt-4">
+              {/* Not "Needs you now": elsewhere that heading lists work to act on, here it explains. */}
               <h2 id="visit-needs" className="type-section-title">
-                Needs you now
+                At this station
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 {mine

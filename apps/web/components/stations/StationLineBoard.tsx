@@ -537,7 +537,9 @@ export function StationLineBoard() {
               ) : null}
               {stations.map((station) => {
                 const stationLongWaits = station.visits.filter(isLongWait).length;
-                const open = station.active && station.staff.length === 0;
+                // Unstaffed is urgent only with patients waiting; Needs you now already lists the rest.
+                const open =
+                  station.active && station.staff.length === 0 && station.visits.length > 0;
                 return (
                   <section
                     key={station.id}
