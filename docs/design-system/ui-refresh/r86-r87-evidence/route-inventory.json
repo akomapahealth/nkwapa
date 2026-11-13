@@ -1,0 +1,264 @@
+[
+  {
+    "route": "/",
+    "visited": true
+  },
+  {
+    "route": "/_global-error",
+    "visited": false,
+    "internalState": true,
+    "limitation": "Internal root boundary, not a navigable route; root-fault injection remains unverified."
+  },
+  {
+    "route": "/_not-found",
+    "visited": true
+  },
+  {
+    "route": "/accept-invite",
+    "visited": true
+  },
+  {
+    "route": "/account",
+    "visited": true
+  },
+  {
+    "route": "/account/name",
+    "visited": true
+  },
+  {
+    "route": "/admin/clinics",
+    "visited": true
+  },
+  {
+    "route": "/admin/data-requests",
+    "visited": true
+  },
+  {
+    "route": "/admin/duplicates",
+    "visited": true
+  },
+  {
+    "route": "/admin/duplicates/cross-clinic",
+    "visited": true
+  },
+  {
+    "route": "/admin/users",
+    "visited": true
+  },
+  {
+    "route": "/api/version",
+    "visited": true
+  },
+  {
+    "route": "/appointments",
+    "visited": true
+  },
+  {
+    "route": "/audit",
+    "visited": true
+  },
+  {
+    "route": "/claim-record",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/encounters",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/encounters/[encounterId]",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/patients",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/patients/[patientId]",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/patients/[patientId]/consent",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/patients/[patientId]/edit",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/patients/new",
+    "visited": true
+  },
+  {
+    "route": "/clinics/[clinicId]/research/exports",
+    "visited": true
+  },
+  {
+    "route": "/cookies",
+    "visited": true
+  },
+  {
+    "route": "/dashboard",
+    "visited": true
+  },
+  {
+    "route": "/encounters/[encounterId]",
+    "visited": true
+  },
+  {
+    "route": "/login",
+    "visited": true
+  },
+  {
+    "route": "/manifest.webmanifest",
+    "visited": true
+  },
+  {
+    "route": "/metrics",
+    "visited": true
+  },
+  {
+    "route": "/my/assigned",
+    "visited": true
+  },
+  {
+    "route": "/notifications",
+    "visited": true
+  },
+  {
+    "route": "/notifications/delivery",
+    "visited": true
+  },
+  {
+    "route": "/opengraph-image",
+    "visited": true
+  },
+  {
+    "route": "/patients",
+    "visited": true
+  },
+  {
+    "route": "/patients/[patientId]",
+    "visited": true
+  },
+  {
+    "route": "/patients/[patientId]/consent",
+    "visited": true
+  },
+  {
+    "route": "/patients/[patientId]/encounters/new",
+    "visited": true
+  },
+  {
+    "route": "/patients/new",
+    "visited": true
+  },
+  {
+    "route": "/portal",
+    "visited": true
+  },
+  {
+    "route": "/portal/appointments",
+    "visited": true
+  },
+  {
+    "route": "/portal/appointments/request",
+    "visited": true
+  },
+  {
+    "route": "/portal/health",
+    "visited": true
+  },
+  {
+    "route": "/portal/self-reports",
+    "visited": true
+  },
+  {
+    "route": "/portal/self-reports/new",
+    "visited": true
+  },
+  {
+    "route": "/privacy",
+    "visited": true
+  },
+  {
+    "route": "/queues",
+    "visited": true
+  },
+  {
+    "route": "/reminders",
+    "visited": true
+  },
+  {
+    "route": "/reports/organization",
+    "visited": true
+  },
+  {
+    "route": "/research",
+    "visited": true
+  },
+  {
+    "route": "/robots.txt",
+    "visited": true
+  },
+  {
+    "route": "/service-worker.js",
+    "visited": true
+  },
+  {
+    "route": "/settings",
+    "visited": true
+  },
+  {
+    "route": "/settings/clinic",
+    "visited": true
+  },
+  {
+    "route": "/sitemap.xml",
+    "visited": true
+  },
+  {
+    "route": "/staff-activity",
+    "visited": true
+  },
+  {
+    "route": "/stations",
+    "visited": true
+  },
+  {
+    "route": "/stations/setup",
+    "visited": true
+  },
+  {
+    "route": "/stations/visits/[visitId]",
+    "visited": true
+  },
+  {
+    "route": "/status",
+    "visited": true
+  },
+  {
+    "route": "/terms",
+    "visited": true
+  },
+  {
+    "route": "/today",
+    "visited": true
+  },
+  {
+    "route": "/twitter-image",
+    "visited": true
+  },
+  {
+    "route": "/volunteers",
+    "visited": true
+  },
+  {
+    "route": "/volunteers/events",
+    "visited": true
+  },
+  {
+    "route": "/volunteers/events/[eventId]",
+    "visited": true
+  }
+]

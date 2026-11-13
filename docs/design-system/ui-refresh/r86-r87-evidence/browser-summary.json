@@ -1,0 +1,852 @@
+{
+  "stats": {
+    "startTime": "2026-11-13T19:25:17.392Z",
+    "duration": 690144.478,
+    "expected": 21,
+    "skipped": 0,
+    "unexpected": 59,
+    "flaky": 0
+  },
+  "workers": 1,
+  "retries": 0,
+  "excluded": "#197",
+  "tests": [
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic staff user",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic doctor user",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic volunteer user",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic manager user",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic director user",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "setup",
+      "file": "auth.setup.js",
+      "context": ["auth.setup.js"],
+      "title": "authenticate deterministic patient user",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "doctor authors, signs, amends, and securely loses note access offline",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "the note can be drafted from the interviews, and regenerating is safe",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "regenerating over an edited draft asks before discarding it",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "clinical-notes.spec.js",
+      "context": ["clinical-notes.spec.js"],
+      "title": "a note awaiting this doctor leads with the cosign band",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms mouse light"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeInViewport\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+      ]
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms mouse dark"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeInViewport\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+      ]
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms touch light"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: appointment-touch-light-text200-320: settled document/main overflow",
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeInViewport\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+      ]
+    },
+    {
+      "project": "carried",
+      "file": "device-matrix-forms.spec.js",
+      "context": ["device-matrix-forms.spec.js", "portal forms touch dark"],
+      "title": "R8.2 self-report and appointment drafts survive all boundaries",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeInViewport\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed"
+      ]
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "director"],
+      "title": "R8.3 desktop light follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "director"],
+      "title": "R8.3 phone dark follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "patient"],
+      "title": "R8.3 desktop light follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "role-navigation.spec.js",
+      "context": ["role-navigation.spec.js", "patient"],
+      "title": "R8.3 phone dark follows authorized destinations and deep links",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "carried",
+      "file": "station-workflow.spec.js",
+      "context": ["station-workflow.spec.js"],
+      "title": "a patient moves through every station and reaches a doctor",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: {\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"An unexpected error occurred. Please try again.\",\"requestId\":\"aa2f7f96-6c22-418f-87aa-c13d8b12f997\",\"retryable\":true,\"recoveryAction\":\"Refresh the page or retry in a moment. Contact support if the issue continues.\"}"
+      ]
+    },
+    {
+      "project": "carried",
+      "file": "sync-recovery.spec.js",
+      "context": ["sync-recovery.spec.js"],
+      "title": "a blocked change survives reload and an explicit retry applies it",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "clinical-keyboard.spec.js",
+      "context": ["clinical-keyboard.spec.js"],
+      "title": "R8.7 clinical forms and note confirmation work by keyboard",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": ["Error: Roving tab target was not reached"]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-dashboard-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /today light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-today-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /stations light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-stations-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-patients-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients/new light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-patients-new-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /appointments light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-appointments-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-dashboard-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /today light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-today-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /stations light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-stations-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-patients-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /patients/new light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-patients-new-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "staff"],
+      "title": "R8.6 /appointments light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/staff-appointments-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-dashboard-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /my/assigned light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-my-assigned-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /queues light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-queues-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /patients light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-patients-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-dashboard-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /my/assigned light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-my-assigned-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /queues light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-queues-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "doctor"],
+      "title": "R8.6 /patients light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/doctor-patients-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-dashboard-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /my/assigned light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-my-assigned-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /stations light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-stations-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /patients/new light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-patients-new-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-dashboard-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /my/assigned light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-my-assigned-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /stations light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-stations-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "volunteer"],
+      "title": "R8.6 /patients/new light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/volunteer-patients-new-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-dashboard-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /today light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-today-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /stations light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-stations-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /queues light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-queues-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-dashboard-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /today light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-today-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /stations light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-stations-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "manager"],
+      "title": "R8.6 /queues light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/manager-queues-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /dashboard light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/director-dashboard-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /metrics light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/director-metrics-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /reports/organization light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).not.\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /audit light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/director-audit-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /dashboard light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/director-dashboard-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /metrics light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/director-metrics-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /reports/organization light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).not.\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed"
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "director"],
+      "title": "R8.6 /audit light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/director-audit-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/health light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-health-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/appointments light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-appointments-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/self-reports/new light 390",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-self-reports-new-390.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/health light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-health-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/appointments light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-appointments-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "visual-keyboard",
+      "file": "visual-regression.spec.js",
+      "context": ["visual-regression.spec.js", "patient"],
+      "title": "R8.6 /portal/self-reports/new light 1440",
+      "status": "unexpected",
+      "attempts": 1,
+      "errors": [
+        "Error: A snapshot doesn't exist at /Users/nanaagyei/Documents/Codes/Projects/nkwapa/apps/web/e2e/visual-regression.spec.js-snapshots/patient-portal-self-reports-new-1440.png, writing actual."
+      ]
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js"],
+      "title": "public and authentication routes",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "staff"],
+      "title": "staff",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "director"],
+      "title": "director",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "manager"],
+      "title": "manager",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "doctor"],
+      "title": "doctor",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "volunteer"],
+      "title": "volunteer",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    },
+    {
+      "project": "axe-routes",
+      "file": "../../../docs/design-system/route-audit/route-audit.spec.js",
+      "context": ["../../../docs/design-system/route-audit/route-audit.spec.js", "patient"],
+      "title": "patient",
+      "status": "expected",
+      "attempts": 1,
+      "errors": []
+    }
+  ]
+}
