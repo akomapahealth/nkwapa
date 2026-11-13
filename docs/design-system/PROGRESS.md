@@ -1543,3 +1543,25 @@ affected ten specs 112/113, the last fixed (registry `To` locator) 21/21 and 9/9
 
 - `staff-activity` 14/14; `today-offline` 9/9 in a flag-off build. Six-role route audit **228 rows,
   0 violations, 0 minor, 0 overflow, one h1**. Local commits only; no push.
+
+## R8.1 Full route audit (2026-11-13)
+
+Expanded the permanent plan to detail/alias routes, account-menu discovery, public/auth/legal,
+Keycloak, generated resources and real loading, disabled-account and render-boundary states.
+Build-manifest coverage and findings now fail the audit. Synthetic fixture lookup refuses either
+database URL outside `nkwapa_audit`; wizard entry reuses a fixture instead of creating drafts.
+Fixed skeleton/error headings, whole-page landmarks, duplicate patient account/settings h1s,
+allergy heading order and clinic description-list semantics. No permission, clinical validation,
+offline or API behavior changed.
+
+Validation: production build, TypeScript, changed-source lint/format, detector `[]`, web Jest
+100 suites / 1,073 tests with two workers. Full walk plus focused reruns: **1,016 UI observations
+and seven successful resources**, all 64 navigable build entries covered, zero axe findings or
+overflow, one h1 per UI case. Twelve whole-page state cases and 56/56 focused Chromium checks pass (one worker; #197 excluded).
+Counts combine retained clean
+full-walk evidence with affected-route, alias and public reruns, rather than claiming a second
+complete run. Details and original failures: `ui-refresh/R8.1-REVIEW.md`.
+
+Root `global-error` fault/font behavior, valid one-off auth lifecycles, conditional finalization
+forms, physical devices, screen readers, virtual keyboards and field performance remain open.
+Next: `ui-refresh/HANDOFF-R8.2.md`. Local commit only; no push.

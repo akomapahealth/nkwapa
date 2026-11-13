@@ -13,6 +13,7 @@ import { useSyncRecoveryAvailability } from '@/lib/use-sync-recovery-availabilit
 
 export function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const ContextTitle = /^\/(account|settings)(\/|$)/.test(pathname) ? 'p' : 'h1';
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const activeClinicId = getBootstrapActiveClinicId(bootstrap);
   const activeClinic = getActiveBootstrapClinic(bootstrap, activeClinicId);
@@ -34,14 +35,14 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
           {/* One quiet line: each page's own title is the big one. Two serif titles stacked took a
               quarter of a phone screen before any content. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
-            <h1
+            <ContextTitle
               id="portal-context-title"
               className="font-body text-sm font-semibold text-foreground"
             >
               {pathname === '/portal'
                 ? `Welcome back, ${displayName.split(' ')[0]}`
                 : 'Patient portal'}
-            </h1>
+            </ContextTitle>
             {activeClinic?.clinicName && (
               <p className="text-sm text-muted-foreground">{activeClinic.clinicName}</p>
             )}

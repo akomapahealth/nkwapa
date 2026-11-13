@@ -414,6 +414,7 @@ export function MedicalHistoryPanel({
     <div className="space-y-4">
       {settled ? (
         <AllergySummaryBanner
+          titleAs="h2"
           summary={allergySummary}
           action={
             canWrite && !loadError && allergyStatusNeedsEntry(allergySummary.state) ? (

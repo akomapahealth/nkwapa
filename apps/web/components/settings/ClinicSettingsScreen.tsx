@@ -215,17 +215,19 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
                       className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-rule py-3 text-sm"
                     >
                       <dt className="w-36 text-muted-foreground">{label}</dt>
-                      <dd className="min-w-0 flex-1 [overflow-wrap:anywhere]">{value}</dd>
-                      {canEditClinic ? (
-                        <Button asChild variant="ghost" size="sm">
-                          <Link
-                            href="/admin/clinics"
-                            aria-label={`Edit clinic ${label.toLowerCase()}`}
-                          >
-                            Edit
-                          </Link>
-                        </Button>
-                      ) : null}
+                      <dd className="flex min-w-0 flex-1 items-center gap-4 [overflow-wrap:anywhere]">
+                        <span className="min-w-0 flex-1">{value}</span>
+                        {canEditClinic ? (
+                          <Button asChild variant="ghost" size="sm">
+                            <Link
+                              href="/admin/clinics"
+                              aria-label={`Edit clinic ${label.toLowerCase()}`}
+                            >
+                              Edit
+                            </Link>
+                          </Button>
+                        ) : null}
+                      </dd>
                     </div>
                   ))}
                 </dl>

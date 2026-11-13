@@ -861,7 +861,7 @@ export function MedicationReconciliationPanel({
   if (loadError) {
     return (
       <div className="space-y-5">
-        <AllergySummaryBanner summary={allergies} compact />
+        <AllergySummaryBanner titleAs="h2" summary={allergies} compact />
         <ChartSectionError
           title="Medications could not be loaded"
           description={`${loadError} Nothing is shown until the list loads, so an empty list is never mistaken for no medications.`}
@@ -874,6 +874,7 @@ export function MedicationReconciliationPanel({
   return (
     <div className="space-y-5">
       <AllergySummaryBanner
+        titleAs="h2"
         summary={allergies}
         compact
         action={

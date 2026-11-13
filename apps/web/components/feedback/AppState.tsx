@@ -35,7 +35,7 @@ export function PageSkeleton({
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <div className="space-y-1">
-          <p className="type-label text-foreground">{title}</p>
+          <h1 className="type-record-title text-foreground">{title}</h1>
           {description ? (
             <p className="type-meta max-w-prose text-muted-foreground">{description}</p>
           ) : null}
@@ -126,12 +126,14 @@ export function RetryAction({
 
 export function InlineErrorState({
   title = "We couldn't load this view",
+  titleAs: Title = 'p',
   description,
   onRetry,
   retryLabel,
   className,
 }: {
   title?: string;
+  titleAs?: 'p' | 'h1' | 'h2';
   description: string;
   onRetry?: () => void;
   retryLabel?: string;
@@ -148,7 +150,7 @@ export function InlineErrorState({
         <div className="flex gap-3">
           <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="space-y-1">
-            <p className="type-label">{title}</p>
+            <Title className={Title === 'h1' ? 'type-record-title' : 'type-label'}>{title}</Title>
             <p className="type-body">{description}</p>
           </div>
         </div>
@@ -190,7 +192,11 @@ export function FullscreenStatus({
 }) {
   const Icon = icon ?? (tone === 'danger' ? AlertTriangle : null);
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10 focus-visible:outline-none"
+    >
       <BrandWordmark alt="Nkwapa" width={112} height={32} className="mb-6 h-8 w-auto" />
       <section className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
         {art ? (
@@ -221,7 +227,7 @@ export function FullscreenStatus({
           </div>
         ) : null}
       </section>
-    </div>
+    </main>
   );
 }
 
