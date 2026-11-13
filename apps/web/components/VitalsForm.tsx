@@ -51,6 +51,14 @@ import { formatOpsDateTime } from '@/lib/ops';
 
 const NONE_VALUE = '__NONE__';
 
+function retainEditedFields<T extends object>(current: T, baseline: T, incoming: T): T {
+  const next = { ...incoming };
+  for (const key of Object.keys(incoming) as (keyof T)[]) {
+    if (current[key] !== baseline[key]) next[key] = current[key];
+  }
+  return next;
+}
+
 const LABELS: Record<string, string> = {
   LEFT_ARM: 'Left arm',
   RIGHT_ARM: 'Right arm',
@@ -408,6 +416,10 @@ export function VitalsForm({
   const { bodyUnit } = useClinicUnits(clinicId);
   const [vitals, setVitals] = useState(() => initialVitals(initialData, bodyUnit));
   const [tobacco, setTobacco] = useState(() => initialTobacco(initialTobaccoData));
+  const vitalsBaseline = useRef(initialVitals(initialData, bodyUnit));
+  const tobaccoBaseline = useRef(initialTobacco(initialTobaccoData));
+  const hydratedVitals = useRef(initialData?.updatedAt);
+  const hydratedTobacco = useRef(initialTobaccoData?.updatedAt);
   const [localVitals, setLocalVitals] = useState<VitalsRecord | null>(initialData ?? null);
   const [localTobacco, setLocalTobacco] = useState<TobaccoScreeningRecord | null>(
     initialTobaccoData ?? null,
@@ -420,16 +432,26 @@ export function VitalsForm({
   const bmi = useMemo(() => derivedBmi(vitals), [vitals]);
 
   useEffect(() => {
-    if (!initialData || initialData.updatedAt === localVitals?.updatedAt) return;
+    if (!initialData || initialData.updatedAt === hydratedVitals.current) return;
+    hydratedVitals.current = initialData.updatedAt;
+    const previous = vitalsBaseline.current;
+    const incoming = initialVitals(initialData, bodyUnit);
     setLocalVitals(initialData);
-    setVitals(initialVitals(initialData, bodyUnit));
-  }, [initialData, localVitals?.updatedAt, bodyUnit]);
+    // A saved record may refetch after the next correction was typed. Adopt server metadata
+    // and untouched fields, while keeping edits made since the last saved/loaded snapshot.
+    setVitals((current) => retainEditedFields(current, previous, incoming));
+    vitalsBaseline.current = incoming;
+  }, [initialData, bodyUnit]);
 
   useEffect(() => {
-    if (!initialTobaccoData || initialTobaccoData.updatedAt === localTobacco?.updatedAt) return;
+    if (!initialTobaccoData || initialTobaccoData.updatedAt === hydratedTobacco.current) return;
+    hydratedTobacco.current = initialTobaccoData.updatedAt;
+    const previous = tobaccoBaseline.current;
+    const incoming = initialTobacco(initialTobaccoData);
     setLocalTobacco(initialTobaccoData);
-    setTobacco(initialTobacco(initialTobaccoData));
-  }, [initialTobaccoData, localTobacco?.updatedAt]);
+    setTobacco((current) => retainEditedFields(current, previous, incoming));
+    tobaccoBaseline.current = incoming;
+  }, [initialTobaccoData]);
 
   const updateVital = (field: VitalsTextField, value: string) => {
     setVitals((current) => ({ ...current, [field]: value }));
@@ -479,8 +501,12 @@ export function VitalsForm({
           throw new Error('Review the highlighted clinical measurement fields.');
         }
         setErrors({});
+        vitalsBaseline.current = { ...vitals };
         setLocalVitals(result.vitalsRecord ?? null);
-        if (!sections) setLocalTobacco(result.tobaccoRecord ?? null);
+        if (!sections) {
+          tobaccoBaseline.current = { ...tobacco };
+          setLocalTobacco(result.tobaccoRecord ?? null);
+        }
         if (isOnline) {
           const syncResult = await syncNow(clinicId);
           setStatus(
