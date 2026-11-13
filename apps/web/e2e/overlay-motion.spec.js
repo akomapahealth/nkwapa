@@ -40,6 +40,20 @@ async function sample(popup, milliseconds, originVariable) {
   );
 }
 
+// Hold each overlay animation the frame it starts. Otherwise a slow runner reaches the sample
+// after the 200ms entrance has already finished and finds nothing to measure.
+async function holdOverlayMotion(page) {
+  await page.evaluate(() => {
+    const hold = () => {
+      for (const element of document.querySelectorAll('.anchored-overlay'))
+        for (const animation of element.getAnimations())
+          if (animation.playState === 'running') animation.pause();
+      requestAnimationFrame(hold);
+    };
+    hold();
+  });
+}
+
 async function checkPointerPair(page, popup, originVariable, reduced = false) {
   const enter = await sample(popup, 100, originVariable);
   expect(enter.duration).toBe('0.2s');
@@ -76,6 +90,7 @@ for (const reduced of [false, true]) {
     // Wait for the shell to hydrate. A click that lands earlier is replayed by React after the
     // pointer tracker mounts, so the open is taken for a keyboard one and (correctly) skips motion.
     await expect(page.locator('html')).toHaveAttribute('data-overlay-input', /.+/);
+    await holdOverlayMotion(page);
     const user = page.getByRole('button', { name: 'User menu' });
     await user.click();
     const menu = await checkPointerPair(
