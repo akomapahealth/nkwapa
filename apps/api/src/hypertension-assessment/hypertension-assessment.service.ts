@@ -4,12 +4,14 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { EncounterStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
 import { validate, type ValidationError } from 'class-validator';
 import {
+  HYPERTENSION_ESCALATION_REASON_LABELS,
   classifyBloodPressure,
   deriveHypertensionEscalation,
   parseHypertensionLifestyle,
@@ -18,6 +20,7 @@ import {
   type PayloadIssue,
 } from '@nkwapa/db';
 import { PERMISSIONS } from '../auth/constants/permissions';
+import { PushService } from '../push/push.service';
 import {
   assertPermissionAtClinic,
   hasPermissionAtClinic,
@@ -64,7 +67,10 @@ export interface HypertensionRequestMetadata {
 
 @Injectable()
 export class HypertensionAssessmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly push?: PushService,
+  ) {}
 
   async list(
     clinicId: string,
@@ -139,6 +145,7 @@ export class HypertensionAssessmentService {
     const substances = parseHypertensionSubstanceDetails(dto.substanceDetails ?? null);
     this.assertPayloadsValid([...lifestyle.issues, ...substances.issues]);
 
+    let priorFindings: string[] = [];
     const saved = await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: encounterId },
@@ -263,6 +270,7 @@ export class HypertensionAssessmentService {
       };
 
       const existing = await tx.hypertensionAssessment.findUnique({ where: { encounterId } });
+      priorFindings = existing?.urgentReviewReasons ?? [];
       const record = await tx.hypertensionAssessment.upsert({
         where: { encounterId },
         create: { id: assessmentId ?? randomUUID(), clinicId, encounterId, ...writable },
@@ -282,6 +290,14 @@ export class HypertensionAssessmentService {
       return record;
     });
 
+    this.push?.alertOnNewFindings({
+      clinicId,
+      encounterId,
+      actorUserId: actor.userId,
+      before: priorFindings,
+      after: saved.urgentReviewReasons,
+      labels: HYPERTENSION_ESCALATION_REASON_LABELS,
+    });
     return this.toResponse(saved, actor.roles, clinicId);
   }
 

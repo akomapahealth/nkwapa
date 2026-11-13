@@ -3,12 +3,14 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { EncounterStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
 import { validate, type ValidationError } from 'class-validator';
 import {
+  DIABETES_ESCALATION_REASON_LABELS,
   deriveDiabetesEscalation,
   evaluateDiabetesMentalHealth,
   evaluateGlucoseSuspicion,
@@ -18,6 +20,7 @@ import {
   type PayloadIssue,
 } from '@nkwapa/db';
 import { PERMISSIONS } from '../auth/constants/permissions';
+import { PushService } from '../push/push.service';
 import {
   assertPermissionAtClinic,
   hasPermissionAtClinic,
@@ -66,7 +69,10 @@ export interface DiabetesCompatibilityInput {
 
 @Injectable()
 export class DiabetesScreeningService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly push?: PushService,
+  ) {}
 
   async list(
     clinicId: string,
@@ -122,6 +128,7 @@ export class DiabetesScreeningService {
     const nutrition = parseDiabetesNutrition(dto.nutrition ?? null);
     this.assertPayloadsValid(nutrition.issues);
 
+    let priorFindings: string[] = [];
     const screening = await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: encounterId },
@@ -208,6 +215,7 @@ export class DiabetesScreeningService {
       };
 
       const existing = await tx.diabetesScreening.findUnique({ where: { encounterId } });
+      priorFindings = existing?.urgentReviewReasons ?? [];
       const saved = await tx.diabetesScreening.upsert({
         where: { encounterId },
         create: {
@@ -271,6 +279,14 @@ export class DiabetesScreeningService {
       return saved;
     });
 
+    this.push?.alertOnNewFindings({
+      clinicId,
+      encounterId,
+      actorUserId: actor.userId,
+      before: priorFindings,
+      after: screening.urgentReviewReasons,
+      labels: DIABETES_ESCALATION_REASON_LABELS,
+    });
     return this.toResponse(screening, actor.roles, clinicId);
   }
 
@@ -294,6 +310,7 @@ export class DiabetesScreeningService {
     this.assertWritePermission(actor.roles, clinicId);
     const collectedAt = this.validateCollectionTime(dto.collectedAt);
 
+    let priorFindings: string[] = [];
     const screening = await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: encounterId },
@@ -311,6 +328,7 @@ export class DiabetesScreeningService {
       }
 
       const existing = await tx.diabetesScreening.findUnique({ where: { encounterId } });
+      priorFindings = existing?.urgentReviewReasons ?? [];
       const escalation = deriveDiabetesEscalation({
         urgentSymptoms: existing?.urgentSymptoms ?? [],
         currentFootWound: existing?.currentFootWound,
@@ -368,6 +386,14 @@ export class DiabetesScreeningService {
       return saved;
     });
 
+    this.push?.alertOnNewFindings({
+      clinicId,
+      encounterId,
+      actorUserId: actor.userId,
+      before: priorFindings,
+      after: screening.urgentReviewReasons,
+      labels: DIABETES_ESCALATION_REASON_LABELS,
+    });
     return this.toResponse(screening, actor.roles, clinicId);
   }
 

@@ -42,7 +42,7 @@ describe('phone navigation partitions authorized destinations', () => {
       '/appointments',
       '/patients/new',
     ]);
-    expect(nav.utilities.map((item) => item.href)).toEqual(['/notifications']);
+    expect(nav.utilities.map((item) => item.href)).toEqual(['/notifications/delivery']);
   });
 
   it('does not fill missing permissions with unauthorized tabs', () => {

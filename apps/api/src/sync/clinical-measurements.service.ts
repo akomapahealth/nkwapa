@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate, type ValidationError } from 'class-validator';
@@ -20,6 +21,7 @@ import {
 } from '@prisma/client';
 import {
   computeBmi,
+  isSeverelyElevated,
   toCelsius,
   VITALS_SECTION_FIELDS,
   VITALS_SECTION_INPUT_FIELDS,
@@ -28,6 +30,7 @@ import {
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { assertPermissionAtClinic } from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import {
   EncounterVitalsBundleDto,
   type TemperatureInputUnit,
@@ -81,7 +84,10 @@ export type NormalizedEncounterVitalsBundle = {
 
 @Injectable()
 export class ClinicalMeasurementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly push?: PushService,
+  ) {}
 
   async applyBundle(params: {
     clinicId: string;
@@ -106,6 +112,8 @@ export class ClinicalMeasurementsService {
       : params.payload;
     const bundle = await this.validateAndNormalize(bundlePayload, !params.legacy);
 
+    let severeBefore = false;
+    let severeReading: string | null = null;
     await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: bundle.encounterId },
@@ -129,6 +137,7 @@ export class ClinicalMeasurementsService {
           : Promise.resolve(null),
       ]);
 
+      severeBefore = isSeverelyElevated(existingVitals?.systolicBp, existingVitals?.diastolicBp);
       const vitals = await tx.vitals.upsert({
         where: { encounterId: bundle.encounterId },
         create: {
@@ -214,7 +223,20 @@ export class ClinicalMeasurementsService {
           status: SyncMutationStatus.APPLIED,
         },
       });
+      if (isSeverelyElevated(vitals.systolicBp, vitals.diastolicBp)) {
+        severeReading = `Blood pressure ${vitals.systolicBp ?? '?'}/${vitals.diastolicBp ?? '?'} mmHg`;
+      }
     });
+
+    // The vitals station is the first place a crisis reading appears; tell a clinician then.
+    if (severeReading && !severeBefore) {
+      this.push?.alertClinicians({
+        clinicId: params.clinicId,
+        encounterId: bundle.encounterId,
+        actorUserId: params.actorUserId,
+        findings: [severeReading],
+      });
+    }
   }
 
   async validateAndNormalize(

@@ -38,6 +38,7 @@ import { AppNavList } from '@/components/app-shell/AppNavList';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getAccessibleNavItems, getNavItemHref, isNavItemActive } from '@/lib/app-nav';
 import { cn } from '@/lib/utils';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
 import { useKeycloak } from '@/app/KeycloakProvider';
@@ -102,7 +103,10 @@ export function Header({
   // Gated by the same filter as the rail (#267); only where they are drawn differs.
   const headerItems = getAccessibleNavItems(bootstrap, 'header');
   const profileItems = getAccessibleNavItems(bootstrap, 'profile');
-  const sheetUtilities = [...headerItems, ...profileItems];
+  const sheetUtilities = [
+    ...headerItems.filter((item) => item.href !== '/notifications'),
+    ...profileItems,
+  ];
 
   const handleClinicChange = async (value: string) => {
     if (!value || value === clinicId) return;
@@ -351,12 +355,19 @@ export function Header({
         <div className="ml-auto flex shrink-0 items-center gap-[4px] compact:gap-2">
           <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
           {/*
-            Message delivery: an icon with its name in a tooltip, and no badge, because the ledger
-            is outbound delivery with nothing to read (MASTER.md section 12). From `md`; on a phone
-            it is in the menu sheet, where the header has no room for it.
+            Header icons with their names in a tooltip. The notifications bell is on every screen
+            size and carries the unread count; any other header icon starts at `md`.
           */}
           <TooltipProvider delayDuration={200}>
             {headerItems.map((item) => {
+              if (item.href === '/notifications') {
+                return (
+                  <NotificationBell
+                    key={item.href}
+                    active={isNavItemActive(pathname, item, clinicId)}
+                  />
+                );
+              }
               const Icon = item.icon;
               const href = getNavItemHref(item, clinicId);
               if (href === '#') {

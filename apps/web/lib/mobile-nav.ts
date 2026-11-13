@@ -24,8 +24,9 @@ export function getMobileNavigation(bootstrap: WhoAmIResponse | null) {
       items: section.items.filter((item) => !primaryHrefs.has(item.href)),
     }))
     .filter((section) => section.items.length > 0);
+  // The bell stays in the phone header, so it is not repeated in the More sheet.
   const utilities = [
-    ...getAccessibleNavItems(bootstrap, 'header'),
+    ...getAccessibleNavItems(bootstrap, 'header').filter((item) => item.href !== '/notifications'),
     ...getAccessibleNavItems(bootstrap, 'profile'),
   ];
   return { primary, more, utilities };

@@ -218,8 +218,8 @@ test.describe('portal shell with existing staff permissions', () => {
       for (const width of [390, 600, 767, 768, 1440]) {
         await page.setViewportSize({ width, height: 800 });
         await expect(
-          page.getByRole('banner').getByRole('link', { name: 'Message delivery' }),
-        ).toBeVisible({ visible: width >= 600 });
+          page.getByRole('banner').getByRole('link', { name: /^Notifications/ }),
+        ).toBeVisible();
         if (width < 600) {
           await more(page).click();
           await expect(

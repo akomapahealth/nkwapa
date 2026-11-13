@@ -95,22 +95,23 @@ describe('placement (#267)', () => {
   const hrefs = (bootstrap: WhoAmIResponse, placement: 'header' | 'profile') =>
     getAccessibleNavItems(bootstrap, placement).map((item) => item.href);
 
-  it('takes message delivery and clinic settings out of the rail, and nothing else', () => {
+  it('keeps notifications, message delivery and clinic settings out of the rail', () => {
     const admin = bootstrapAs([], ['*'], ['SYSTEM_ADMIN']);
     const rail = hrefsFor(admin);
     expect(rail).not.toContain('/notifications');
+    expect(rail).not.toContain('/notifications/delivery');
     expect(rail).not.toContain('/settings/clinic');
     expect(hrefs(admin, 'header')).toEqual(['/notifications']);
-    expect(hrefs(admin, 'profile')).toEqual(['/settings/clinic']);
+    expect(hrefs(admin, 'profile')).toEqual(['/notifications/delivery', '/settings/clinic']);
   });
 
-  it('gates each by the same permission as before', () => {
+  it('gives everyone the bell and gates the delivery log and settings by permission', () => {
     const volunteer = bootstrapAs(['VOLUNTEER'], ['REMINDER.READ']);
     expect(hrefs(volunteer, 'header')).toEqual(['/notifications']);
-    expect(hrefs(volunteer, 'profile')).toEqual([]);
+    expect(hrefs(volunteer, 'profile')).toEqual(['/notifications/delivery']);
 
     const settingsOnly = bootstrapAs(['DIRECTOR'], ['RESEARCH.SETTINGS.UPDATE']);
-    expect(hrefs(settingsOnly, 'header')).toEqual([]);
+    expect(hrefs(settingsOnly, 'header')).toEqual(['/notifications']);
     expect(hrefs(settingsOnly, 'profile')).toEqual(['/settings/clinic']);
   });
 });

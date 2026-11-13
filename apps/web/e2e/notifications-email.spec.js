@@ -52,13 +52,13 @@ test.describe('portal invite email', () => {
     // The address is patient-supplied and unverified until the account is claimed.
     expect(content).not.toContain('Unclaimed');
 
-    await page.goto('/notifications');
+    await page.goto('/notifications/delivery');
     await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/portal invite/i).first()).toBeVisible({ timeout: 30_000 });
   });
 
   test('the notifications view is accessible and explains email availability', async ({ page }) => {
-    await page.goto('/notifications');
+    await page.goto('/notifications/delivery');
     await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
 
     // The banner and the failure column are new content in the accessibility tree.
@@ -69,7 +69,7 @@ test.describe('portal invite email', () => {
   });
 
   test('the failed figure applies the existing message status filter', async ({ page }) => {
-    await page.goto('/notifications');
+    await page.goto('/notifications/delivery');
     const failed = page.getByRole('button', { name: 'Show failed messages', exact: true });
     await expect(failed).toHaveAccessibleDescription(/^\d+$/);
     await failed.click();
@@ -81,7 +81,7 @@ test.describe('portal invite email', () => {
   test('the old reminders path still lands somewhere useful', async ({ page }) => {
     // The route was renamed; bookmarks and older documentation still point here.
     await page.goto('/reminders');
-    await page.waitForURL(/\/notifications$/, { timeout: 30_000 });
+    await page.waitForURL(/\/notifications\/delivery$/, { timeout: 30_000 });
     await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
   });
 });

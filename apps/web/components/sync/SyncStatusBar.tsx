@@ -126,8 +126,9 @@ export function SyncStatusBar({
       <div className="flex shrink-0 items-center text-sm">
         {/* The slot is reserved (108px, 192px from 600px) and the pill sits at its right edge, beside
             Sync now and the header icons: a changing state never moves the controls, and the quiet
-            synced check is never stranded mid-header. */}
-        <div className="flex w-[min(6.75rem,180px)] justify-end compact:w-[192px]">
+            synced check is never stranded mid-header. Under 360px the bell needs the room, so the
+            pill keeps its icon and count and the full status stays in its accessible name. */}
+        <div className="flex w-[min(6.75rem,180px)] justify-end max-[359px]:w-16 compact:w-[192px]">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -179,7 +180,9 @@ export function SyncStatusBar({
                     </span>
                     {state !== 'synced' ? (
                       <>
-                        <span className="truncate compact:hidden">{presentation.short}</span>
+                        <span className="truncate max-[359px]:hidden compact:hidden">
+                          {presentation.short}
+                        </span>
                         <span className="hidden truncate compact:inline">{label}</span>
                       </>
                     ) : null}

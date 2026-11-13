@@ -449,7 +449,7 @@ export class ClinicalNoteService {
     assignedDoctorId: string | null,
     actorUserId: string,
   ) {
-    if (!this.push?.enabled) return;
+    if (!this.push) return;
     try {
       const doctors = assignedDoctorId
         ? [assignedDoctorId]
@@ -466,6 +466,9 @@ export class ClinicalNoteService {
           body: 'Open Nkwapa to review it.',
           url: '/queues',
           tag: 'cosign',
+          kind: 'COSIGN',
+          clinicId,
+          inbox: { body: 'A clinical note was submitted and needs your cosign.' },
         },
       );
     } catch {

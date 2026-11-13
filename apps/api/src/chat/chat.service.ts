@@ -457,7 +457,7 @@ export class ChatService {
       return msg;
     });
 
-    if (this.push?.enabled) {
+    if (this.push) {
       const others = await this.prisma.conversationParticipant.findMany({
         where: { conversationId, isActive: true, userId: { not: senderUserId } },
         select: { userId: true },
@@ -471,6 +471,9 @@ export class ChatService {
           body: 'Open Nkwapa to read it.',
           url: `/dashboard?chat=${conversationId}`,
           tag: `chat-${conversationId}`,
+          kind: 'MESSAGE',
+          // The bell never carries what was written: messages are sealed at rest.
+          inbox: { body: 'Open the chat to read it.' },
         },
       );
     }

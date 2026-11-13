@@ -178,7 +178,7 @@ export function ScheduleFollowUpReminderCard({
         ) : null}
         <p className="text-xs text-muted-foreground">
           Scheduled reminders appear in{' '}
-          <Link href="/notifications" className="underline">
+          <Link href="/notifications/delivery" className="underline">
             Message delivery
           </Link>
           .

@@ -78,9 +78,8 @@ test.describe('production header', () => {
           header.getByRole('button', { name: 'User menu' }),
         ])
           await inBounds(control, width);
-        await expect(header.getByRole('link', { name: 'Message delivery' })).toBeVisible({
-          visible: width >= 600,
-        });
+        // The bell is on every width; it replaced the message delivery icon.
+        await expect(header.getByRole('link', { name: /^Notifications/ })).toBeVisible();
         await expect(header.getByRole('button', { name: 'Sync now', exact: true })).toBeVisible({
           visible: width >= 600,
         });

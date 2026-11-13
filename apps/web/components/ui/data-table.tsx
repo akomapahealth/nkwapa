@@ -292,9 +292,10 @@ export function DataTable<TData extends RowData>({
               '[&_:is(th,td):first-child]:pl-4 [&_:is(th,td):last-child]:pr-4 compact:[&_:is(th,td):first-child]:pl-6 compact:[&_:is(th,td):last-child]:pr-6 desktop:[&_:is(th,td):first-child]:pl-8 desktop:[&_:is(th,td):last-child]:pr-8',
           )}
         >
+          {/* Relative so it clips absolute descendants (sr-only text) that would widen the page. */}
           <div
             className={cn(
-              'overflow-auto',
+              'relative overflow-auto',
               keyboardScroll &&
                 'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
             )}

@@ -10,8 +10,8 @@ const { hitTarget } = require('../playwright/hit-target');
  * order, on the desktop rail expanded and collapsed and in the phone menu sheet. A difference
  * here is a permission change wearing a design change's clothes.
  *
- * #267 took two items out of the rail on purpose: Notifications (now "Message delivery", a header
- * icon) and Clinic settings (the account menu). UTILITIES is where each role finds them now; with
+ * #267 took items out of the rail on purpose: the Notifications bell (a header icon for everyone)
+ * and Message delivery and Clinic settings (the account menu). UTILITIES is where each role finds them now; with
  * EXPECTED it is the same set every role had before.
  */
 const FLAG_OFF = {
@@ -178,14 +178,14 @@ const PHONE_PRIMARY =
         director: ['Dashboard', 'Today board', 'Queues', 'Patients'],
       };
 
-const MESSAGE_DELIVERY = ['Message delivery', '/notifications'];
+const MESSAGE_DELIVERY = ['Message delivery', '/notifications/delivery'];
 const CLINIC_SETTINGS = ['Clinic settings', '/settings/clinic'];
 const UTILITIES = {
-  staff: { header: [MESSAGE_DELIVERY], profile: [CLINIC_SETTINGS] },
-  doctor: { header: [MESSAGE_DELIVERY], profile: [] },
-  volunteer: { header: [MESSAGE_DELIVERY], profile: [] },
-  manager: { header: [MESSAGE_DELIVERY], profile: [] },
-  director: { header: [MESSAGE_DELIVERY], profile: [CLINIC_SETTINGS] },
+  staff: { profile: [MESSAGE_DELIVERY, CLINIC_SETTINGS] },
+  doctor: { profile: [MESSAGE_DELIVERY] },
+  volunteer: { profile: [MESSAGE_DELIVERY] },
+  manager: { profile: [MESSAGE_DELIVERY] },
+  director: { profile: [MESSAGE_DELIVERY, CLINIC_SETTINGS] },
 };
 
 const SIDEBAR_KEY = 'nkwapa.sidebar.collapsed';
@@ -261,10 +261,10 @@ for (const role of Object.keys(EXPECTED)) {
       );
     });
 
-    test(`${role} finds message delivery in the header and clinic settings in the account menu`, async ({
+    test(`${role} finds the bell in the header and message delivery in the account menu`, async ({
       page,
     }) => {
-      const { header, profile } = UTILITIES[role];
+      const { profile } = UTILITIES[role];
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto('/dashboard');
       const banner = page.getByRole('banner');
@@ -273,26 +273,21 @@ for (const role of Object.keys(EXPECTED)) {
         timeout: 20_000,
       });
 
-      for (const [label, href] of header) {
-        const icon = banner.getByRole('link', { name: label, exact: true });
-        await expect(icon).toHaveAttribute('href', href);
-        const box = await hitTarget(icon);
-        expect(box.height).toBeGreaterThanOrEqual(44);
-        expect(box.width).toBeGreaterThanOrEqual(44);
-        // A ledger of outbound messages: nothing is unread, so the icon carries no badge.
-        await expect(icon).toHaveText('');
-        await icon.focus();
-        await expect(page.getByRole('tooltip')).toHaveText(label);
-      }
-      await expect(banner.getByRole('link', { name: 'Message delivery' })).toHaveCount(
-        header.length,
-      );
+      // The bell's name carries the unread count ("Notifications, 2 unread") when there is one.
+      const bell = banner.getByRole('link', { name: /^Notifications/ });
+      await expect(bell).toHaveAttribute('href', '/notifications');
+      const box = await hitTarget(bell);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      await bell.focus();
+      await expect(page.getByRole('tooltip')).toHaveText(/^Notifications/);
+      await expect(banner.getByRole('link', { name: 'Message delivery' })).toHaveCount(0);
 
       await page.getByRole('button', { name: 'User menu' }).click();
       const menu = page.getByRole('menu');
       await expect(menu.getByRole('menuitem', { name: 'Your settings' })).toBeVisible();
       await expect(menu.getByRole('menuitem', { name: 'Clinic settings' })).toHaveCount(
-        profile.length,
+        profile.filter(([label]) => label === 'Clinic settings').length,
       );
       for (const [label, href] of profile) {
         await expect(menu.getByRole('menuitem', { name: label })).toHaveAttribute('href', href);
@@ -303,14 +298,14 @@ for (const role of Object.keys(EXPECTED)) {
         await expect(menu).toBeHidden({ timeout: 1_000 });
       }).toPass();
 
-      // Phone: the header has no room for the icon, so both live at the end of the menu sheet.
+      // Phone: the bell stays in the header; the account items close the menu sheet.
       await page.setViewportSize({ width: 390, height: 844 });
-      await expect(banner.getByRole('link', { name: 'Message delivery' })).toBeHidden();
+      await expect(banner.getByRole('link', { name: /^Notifications/ })).toBeVisible();
       await page.getByRole('button', { name: 'More', exact: true }).click();
       const sheet = page.getByRole('dialog');
       await expect
         .poll(async () => navItems(sheet, 'Account'), { timeout: 20_000 })
-        .toEqual([...header, ...profile]);
+        .toEqual(profile);
     });
   });
 }

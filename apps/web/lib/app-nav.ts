@@ -18,14 +18,15 @@ import {
   Stethoscope,
   UserCog,
   Users,
+  Bell,
 } from 'lucide-react';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 import { isWebFeatureEnabled, type WebFeatureFlag } from '@/lib/feature-flags';
 
 /**
- * Where the shell shows an item. Most live in the sidebar rail; message delivery is a header icon
- * and clinic settings sits in the account menu (#267). One list and one filter either way, so a
+ * Where the shell shows an item. Most live in the sidebar rail; notifications is the header bell,
+ * and clinic settings and message delivery sit in the account menu (#267). One list and one filter either way, so a
  * permission or flag gates an item identically wherever it is drawn.
  */
 export type AppNavPlacement = 'sidebar' | 'header' | 'profile';
@@ -184,13 +185,21 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/notifications',
-        // A delivery ledger, not an inbox: no unread badge, because nothing is unread.
+        // The bell: messages, urgent findings, requests and invitations for this person.
+        label: 'Notifications',
+        description: 'What happened for you, in plain English.',
+        icon: Bell,
+        placement: 'header',
+      },
+      {
+        href: '/notifications/delivery',
+        // A delivery ledger, not an inbox: lives in the account menu beside clinic settings.
         label: 'Message delivery',
         description: 'Outbound message delivery.',
         icon: Send,
         permission: 'REMINDER.READ',
         requiresClinic: true,
-        placement: 'header',
+        placement: 'profile',
       },
       {
         href: '/research',

@@ -236,7 +236,11 @@ test.describe('failed list reads', () => {
   test.use({ storageState: storageStateFor('staff') });
   for (const [url, api, empty] of [
     ['/audit', '**/clinics/*/audit?*', 'No audit events match the current filters'],
-    ['/notifications', '**/clinics/*/reminders?*', 'No reminders match the current filters'],
+    [
+      '/notifications/delivery',
+      '**/clinics/*/reminders?*',
+      'No reminders match the current filters',
+    ],
     ['/queues', '**/clinics/*/encounters?*', 'All caught up'],
     ['/admin/users', '**/clinics/*/users?*', 'No staff records match these filters'],
   ])

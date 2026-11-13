@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { InboxNotificationKind } from '@prisma/client';
 import { sendNotification, WebPushError } from 'web-push';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -13,6 +15,15 @@ export interface PushMessage {
   url: string;
   /** Repeats with the same tag replace each other, and match the in-page notification's tag. */
   tag?: string;
+  /** What the bell files it under. */
+  kind: InboxNotificationKind;
+  /** The clinic it concerns; the bell hides it once the reader loses their role there. */
+  clinicId?: string | null;
+  /**
+   * Fuller wording for the in-app bell only, which is read signed in, inside the clinic it is
+   * about. The lock-screen push keeps `title` and `body`, which never name a patient.
+   */
+  inbox?: { title?: string; body?: string | null };
 }
 
 export interface PushSubscriptionInput {
@@ -92,16 +103,148 @@ export class PushService {
     await this.prisma.pushSubscription.deleteMany({ where: { endpoint } });
   }
 
-  /** Push to everyone in `userIds`, without waiting and without throwing. */
+  /**
+   * File a notification in each person's bell and push it to their devices, without waiting and
+   * without throwing. The bell is written whether or not Web Push is configured.
+   */
   notify(userIds: Iterable<string | null | undefined>, message: PushMessage): void {
-    if (!this.vapid) return;
     const recipients = [...new Set([...userIds].filter((id): id is string => Boolean(id)))];
     if (recipients.length === 0) return;
     this.prisma.detachFromRlsContext(() => {
+      void this.record(recipients, message).catch((error) =>
+        this.logger.warn(`In-app notification failed: ${errorText(error)}`),
+      );
+      if (!this.vapid) return;
       void this.deliver(recipients, message).catch((error) =>
         this.logger.warn(`Web push delivery failed: ${errorText(error)}`),
       );
     });
+  }
+
+  /**
+   * Tell the clinicians who should see this patient now (an urgent finding at screening). Goes
+   * to the doctors on shift at the clinic, or to the clinic's doctors when none is on shift, and
+   * never to the person who recorded it: they are looking at the warning already. One tile per
+   * visit: a second finding on the same visit updates it.
+   */
+  alertClinicians(params: {
+    clinicId: string;
+    encounterId: string;
+    actorUserId: string;
+    /** Plain-English findings, e.g. "Chest pain" or "Blood pressure 186/124 mmHg". */
+    findings: string[];
+  }): void {
+    this.prisma.detachFromRlsContext(() => {
+      void this.findAlertRecipients(params)
+        .then(({ recipients, patientName }) =>
+          this.notify(recipients, {
+            title: 'A patient needs urgent review',
+            body: 'Open Nkwapa to see who.',
+            url: `/clinics/${params.clinicId}/encounters/${params.encounterId}`,
+            tag: `health-${params.encounterId}`,
+            kind: 'HEALTH_ALERT',
+            clinicId: params.clinicId,
+            inbox: {
+              title: `${patientName} needs urgent review`,
+              body: `${params.findings.join('. ')}. Recorded at screening; see the patient now.`,
+            },
+          }),
+        )
+        .catch((error) => this.logger.warn(`Health alert failed: ${errorText(error)}`));
+    });
+  }
+
+  /**
+   * Alert only on findings this save added, so re-saving an already urgent screen stays quiet
+   * and a second, different finding on the same visit still gets through.
+   */
+  alertOnNewFindings(params: {
+    clinicId: string;
+    encounterId: string;
+    actorUserId: string;
+    before: readonly string[];
+    after: readonly string[];
+    labels: Readonly<Record<string, string>>;
+  }): void {
+    const added = params.after.filter((reason) => !params.before.includes(reason));
+    if (added.length === 0) return;
+    this.alertClinicians({
+      clinicId: params.clinicId,
+      encounterId: params.encounterId,
+      actorUserId: params.actorUserId,
+      findings: params.after.map((reason) => params.labels[reason] ?? reason),
+    });
+  }
+
+  private findAlertRecipients(params: {
+    clinicId: string;
+    encounterId: string;
+    actorUserId: string;
+  }) {
+    return this.prisma.withSystemContext(
+      { systemReason: 'Route an urgent screening finding' },
+      async (client) => {
+        const [encounter, onShift] = await Promise.all([
+          client.encounter.findUnique({
+            where: { id: params.encounterId },
+            select: { patient: { select: { firstName: true, lastName: true } } },
+          }),
+          client.staffShift.findMany({
+            where: { clinicId: params.clinicId, status: 'ACTIVE', roleAtShift: 'DOCTOR' },
+            select: { userId: true },
+          }),
+        ]);
+        const doctors = onShift.length
+          ? onShift
+          : await client.userClinicRole.findMany({
+              where: { clinicId: params.clinicId, role: 'DOCTOR' },
+              select: { userId: true },
+            });
+        const name = encounter
+          ? `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim()
+          : '';
+        return {
+          recipients: doctors.map((d) => d.userId).filter((id) => id !== params.actorUserId),
+          patientName: name || 'A patient',
+        };
+      },
+    );
+  }
+
+  /**
+   * Exposed for tests; callers use notify(). A tagged notification merges into the person's
+   * unread one with that tag. The merge is one statement against a partial unique index, so two
+   * events racing on different API instances still end as one row with the right count.
+   */
+  async record(userIds: string[], message: PushMessage): Promise<void> {
+    const title = (message.inbox?.title ?? message.title).slice(0, 200);
+    const body = (message.inbox?.body === undefined ? message.body : message.inbox.body) ?? null;
+    const clipped = body ? body.slice(0, 500) : null;
+    const clinicId = message.clinicId ?? null;
+    await this.prisma.withSystemContext(
+      { systemReason: 'Record in-app notifications' },
+      async (client) => {
+        for (const userId of userIds) {
+          await client.$executeRaw`
+          INSERT INTO "InboxNotification"
+            ("id", "userId", "clinicId", "kind", "title", "body", "url", "tag")
+          VALUES (
+            ${randomUUID()}::uuid, ${userId}::uuid, ${clinicId}::uuid,
+            ${message.kind}::"InboxNotificationKind", ${title}, ${clipped}, ${message.url},
+            ${message.tag ?? null}
+          )
+          ON CONFLICT ("userId", "tag") WHERE "readAt" IS NULL AND "tag" IS NOT NULL
+          DO UPDATE SET
+            "title" = EXCLUDED."title",
+            "body" = EXCLUDED."body",
+            "url" = EXCLUDED."url",
+            "clinicId" = EXCLUDED."clinicId",
+            "kind" = EXCLUDED."kind",
+            "count" = "InboxNotification"."count" + 1,
+            "updatedAt" = CURRENT_TIMESTAMP`;
+        }
+      },
+    );
   }
 
   /** Exposed for tests; callers use notify(). */
@@ -118,7 +261,9 @@ export class PushService {
     );
     if (subscriptions.length === 0) return;
 
-    const payload = JSON.stringify(message);
+    // Only the lock-screen fields leave the server: the bell wording can name a patient.
+    const { title, body, url, tag } = message;
+    const payload = JSON.stringify({ title, body, url, tag });
     const gone: string[] = [];
     const delivered: string[] = [];
     await Promise.all(

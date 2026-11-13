@@ -37,9 +37,10 @@ test('a volunteer schedules a follow-up reminder and sees it in the ledger', asy
   await card.getByRole('button', { name: 'Schedule reminder' }).click();
   await expect(card.getByText(/Reminder scheduled by SMS/)).toBeVisible({ timeout: 20_000 });
 
-  // The header entry and the page are reachable as a volunteer.
-  await page.getByRole('banner').getByRole('link', { name: 'Message delivery' }).click();
-  await expect(page).toHaveURL(/\/notifications$/);
+  // The account menu entry and the page are reachable as a volunteer.
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await page.getByRole('menuitem', { name: 'Message delivery' }).click();
+  await expect(page).toHaveURL(/\/notifications\/delivery$/);
   await expect(
     page.getByRole('heading', { name: 'Message delivery', level: 1, exact: true }),
   ).toBeVisible();
