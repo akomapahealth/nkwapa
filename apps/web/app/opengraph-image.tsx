@@ -67,7 +67,7 @@ export default async function OpengraphImage() {
           borderBottom: '1px solid rgb(219, 228, 230)',
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- Satori draws plain img only. */}
+        {}
         <img
           alt=""
           src={`data:image/png;base64,${wordmark.toString('base64')}`}
@@ -78,7 +78,7 @@ export default async function OpengraphImage() {
       <div
         style={{ position: 'relative', display: 'flex', height: PHOTO_HEIGHT, overflow: 'hidden' }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- Satori draws plain img only. */}
+        {}
         <img
           alt=""
           src={photo.src}
