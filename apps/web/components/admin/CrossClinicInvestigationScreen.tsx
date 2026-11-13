@@ -252,10 +252,12 @@ export function CrossClinicInvestigationScreen() {
                 className={cn('h-4 w-4', investigation.isRefreshing && 'animate-spin')}
               />
               <span className="sr-only compact:not-sr-only">Refresh</span>
-              <span aria-live="polite" className="sr-only">
-                {investigation.isRefreshing ? 'Refreshing the cross-clinic investigation' : ''}
-              </span>
             </Button>
+            {/* Outside the button: an open dialog hides everything except live regions and their
+                ancestors, which left this button exposed with its label hidden. */}
+            <span aria-live="polite" className="sr-only">
+              {investigation.isRefreshing ? 'Refreshing the cross-clinic investigation' : ''}
+            </span>
           </div>
         }
       />

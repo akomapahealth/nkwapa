@@ -43,7 +43,15 @@ const DialogContent = React.forwardRef<
   DialogContentProps
 >(
   (
-    { className, children, variant = 'alert', onOpenAutoFocus, onCloseAutoFocus, ...props },
+    {
+      className,
+      children,
+      variant = 'alert',
+      onOpenAutoFocus,
+      onCloseAutoFocus,
+      onEscapeKeyDown,
+      ...props
+    },
     ref,
   ) => {
     const focusReturn = useReturnFocus(onOpenAutoFocus, onCloseAutoFocus);
@@ -65,6 +73,18 @@ const DialogContent = React.forwardRef<
           )}
           {...props}
           {...focusReturn}
+          onEscapeKeyDown={(event) => {
+            // Escape first closes an open combobox list (ui/combobox.tsx handles that itself);
+            // without this the dialog closes too and takes the half-filled form with it.
+            const target = event.target as HTMLElement | null;
+            if (
+              target?.getAttribute?.('role') === 'combobox' &&
+              target.getAttribute('aria-expanded') === 'true'
+            ) {
+              event.preventDefault();
+            }
+            onEscapeKeyDown?.(event);
+          }}
         >
           {children}
         </DialogPrimitive.Content>

@@ -344,10 +344,12 @@ export function DuplicateReviewScreen() {
                 className={`h-4 w-4 ${queue.isRefreshing ? 'animate-spin' : ''}`}
               />
               <span className="sr-only compact:not-sr-only">Refresh</span>
-              <span aria-live="polite" className="sr-only">
-                {queue.isRefreshing ? 'Refreshing the duplicate queue' : ''}
-              </span>
             </Button>
+            {/* Outside the button: an open dialog hides everything except live regions and their
+                ancestors, which left this button exposed with its label hidden. */}
+            <span aria-live="polite" className="sr-only">
+              {queue.isRefreshing ? 'Refreshing the duplicate queue' : ''}
+            </span>
           </div>
         }
       />
