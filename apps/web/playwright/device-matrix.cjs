@@ -1,0 +1,91 @@
+/* global document, requestAnimationFrame, innerWidth, innerHeight, matchMedia, getComputedStyle */
+const fs = require('fs');
+const path = require('path');
+const { expect } = require('@playwright/test');
+
+const WIDTHS = [320, 390, 599, 600, 744, 839, 840, 1024, 1199, 1200, 1440];
+const THEMES = ['light', 'dark'];
+const INPUTS = ['mouse', 'touch'];
+
+function requireAuditDatabase(env = process.env) {
+  for (const key of ['DATABASE_URL', 'APP_DATABASE_URL']) {
+    try {
+      if (new URL(env[key]).pathname === '/nkwapa_audit') continue;
+    } catch {
+      // Never include the supplied connection string in an error.
+    }
+    throw new Error('BAD-DB: device matrix requires both databases to be nkwapa_audit');
+  }
+}
+
+async function prepare(page, theme) {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript((value) => {
+    localStorage.setItem('nkwapa-theme', value);
+    localStorage.removeItem('nkwapa.sidebar.collapsed');
+  }, theme);
+}
+
+async function ready(page) {
+  await expect(page.locator('#main-content')).toBeVisible();
+  await expect(page.locator('h1')).toHaveCount(1);
+  await page.evaluate(() => document.fonts.ready);
+  const sync = page.getByTestId('sync-status');
+  if (await sync.count()) await expect(sync).toHaveAttribute('data-state', 'synced');
+}
+
+async function record(page, info, name, extra = {}) {
+  // Let resize observers, measured headers and chart containers settle before measuring.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  const geometry = await page.evaluate(() => {
+    const main = document.querySelector('#main-content');
+    const sidebar = document.querySelector('#workspace-sidebar');
+    return {
+      viewport: { width: innerWidth, height: innerHeight },
+      coarse: matchMedia('(pointer: coarse)').matches,
+      textSize: getComputedStyle(document.documentElement).fontSize,
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+      documentOverflow: Math.max(0, document.documentElement.scrollWidth - innerWidth),
+      mainOverflow: main ? Math.max(0, main.scrollWidth - main.clientWidth) : null,
+      h1: document.querySelectorAll('h1').length,
+      sidebarWidth: sidebar?.getBoundingClientRect().width ?? 0,
+      selectedTab: document.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
+    };
+  });
+  const out = process.env.R82_EVIDENCE_DIR || info.outputPath('device-matrix');
+  fs.mkdirSync(out, { recursive: true });
+  const stem = path.join(out, name);
+  await page.screenshot({ path: `${stem}.png`, animations: 'disabled', fullPage: false });
+  fs.writeFileSync(`${stem}.json`, JSON.stringify({ name, ...geometry, ...extra }, null, 2));
+  expect.soft(geometry.documentOverflow, `${name}: document overflow`).toBeLessThanOrEqual(1);
+  expect.soft(geometry.mainOverflow, `${name}: main overflow`).toBeLessThanOrEqual(1);
+  expect.soft(geometry.h1, `${name}: heading`).toBe(1);
+  return geometry;
+}
+
+async function reachable(control) {
+  await control.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+  await expect(control).toBeInViewport({ ratio: 1 });
+  await expect
+    .poll(() =>
+      control.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return hit === el || el.contains(hit);
+      }),
+    )
+    .toBe(true);
+}
+
+module.exports = {
+  WIDTHS,
+  THEMES,
+  INPUTS,
+  requireAuditDatabase,
+  prepare,
+  ready,
+  record,
+  reachable,
+};
