@@ -321,7 +321,7 @@ test('a cancelled invitation stays visible and stops granting anything', async (
   await cancelled;
 
   // Under its own filter, and removable from the list once it will not be resent.
-  await page.getByRole('button', { name: /^Cancelled \d+$/ }).click();
+  await page.getByRole('button', { name: 'Cancelled', exact: true }).click();
   await expect(row).toBeVisible();
   const removed = page.waitForResponse(
     (response) => /\/staff-invites\/[^/]+\/remove$/.test(response.url()) && response.ok(),

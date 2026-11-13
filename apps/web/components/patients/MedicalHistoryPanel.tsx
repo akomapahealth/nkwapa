@@ -515,10 +515,12 @@ export function MedicalHistoryPanel({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-semibold">{medicalHistoryLabel(record)}</h3>
-                          <Badge variant={presentation.variant} className="gap-1">
-                            <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                            {presentation.label}
-                          </Badge>
+                          {record.currentRevision.status !== 'ACTIVE' ? (
+                            <Badge variant={presentation.variant} className="gap-1">
+                              <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                              {presentation.label}
+                            </Badge>
+                          ) : null}
                           <Badge variant="outline">{categoryLabels[record.category]}</Badge>
                         </div>
                         {medicalHistoryDetail(record) ? (

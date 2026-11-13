@@ -932,10 +932,12 @@ function PatientChartWorkspace() {
                     ) : !selfReportsLoaded ||
                       ((!isOnline || selfReportsError) &&
                         selfReports.length === 0) ? null : selfReports.length === 0 ? (
-                      <EmptyStateCard
-                        title="No patient-reported updates yet"
-                        description="Portal measurements and self-reports will appear here once the patient begins submitting them."
-                      />
+                      <div className="[&_p]:text-sm">
+                        <EmptyStateCard
+                          title="No patient-reported updates yet"
+                          description="Portal measurements and self-reports will appear here once the patient begins submitting them."
+                        />
+                      </div>
                     ) : (
                       <ul className="space-y-2">
                         {selfReports.map((report) => (

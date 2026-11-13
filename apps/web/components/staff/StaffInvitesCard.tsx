@@ -49,6 +49,7 @@ import {
   type StaffInviteFilter,
   type StaffInviteRole,
 } from '@/lib/staff-invite';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { ListSearch } from '@/components/app-shell/ListToolbar';
 import { InfoHint } from '@/components/ui/info-hint';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
@@ -361,6 +362,22 @@ export function StaffInvitesCard({
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
 
+        {!loading && !loadError && invites.length > 0 ? (
+          <AppMetricGroup variant="strip">
+            <AppMetricCard
+              title="Open invitations"
+              value={counts.OPEN}
+              icon={MailPlus}
+              detail="Invitations that can still be accepted."
+            />
+            <AppMetricCard
+              title="Expired invitations"
+              value={counts.EXPIRED}
+              icon={MailPlus}
+              detail="Invitations past their acceptance deadline."
+            />
+          </AppMetricGroup>
+        ) : null}
         {loading ? (
           <SectionSkeleton lines={3} />
         ) : loadError ? (
@@ -389,7 +406,7 @@ export function StaffInvitesCard({
                   value={filter}
                   options={FILTERS.map((option) => ({
                     value: option.value,
-                    label: `${option.label} ${counts[option.value]}`,
+                    label: option.label,
                     description: option.description,
                   }))}
                   onChange={setFilter}

@@ -1215,89 +1215,100 @@ function MedicationList({
   onEdit: (record: MedicationRecord) => void;
   onHistory: (record: MedicationRecord) => void;
 }) {
+  const allUnreconciled =
+    records.length > 0 && records.every((record) => !record.currentRevision.lastReconciledAt);
   return (
-    <ul>
-      {records.map((record) => {
-        const revision = record.currentRevision;
-        const status = statusPresentation[revision.status];
-        return (
-          <li key={record.id} className="border-b border-rule py-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-semibold">{revision.medicationName}</h3>
-                  <Badge variant={status.variant}>{status.label}</Badge>
-                  {revision.drug ? (
-                    <Badge variant="outline">In drug catalog</Badge>
-                  ) : (
-                    <Badge variant="outline">Not in drug catalog</Badge>
-                  )}
+    <>
+      {allUnreconciled ? (
+        <p className="border-b border-rule pb-3 text-sm text-muted-foreground">
+          This list has not yet been reconciled.
+        </p>
+      ) : null}
+      <ul>
+        {records.map((record) => {
+          const revision = record.currentRevision;
+          const status = statusPresentation[revision.status];
+          return (
+            <li key={record.id} className="border-b border-rule py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold">{revision.medicationName}</h3>
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                    {revision.drug ? (
+                      <Badge variant="outline">In drug catalog</Badge>
+                    ) : (
+                      <Badge variant="outline">Not in drug catalog</Badge>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm">
+                    {[
+                      revision.strength,
+                      revision.dose &&
+                        `${revision.dose}${revision.doseUnit ? ` ${revision.doseUnit}` : ''}`,
+                      revision.route,
+                      revision.frequency,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Dose details not recorded'}
+                  </p>
+                  {revision.indication ? (
+                    <p className="mt-1 text-sm text-muted-foreground">For {revision.indication}</p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {sourceLabels[revision.sourceType]} · Recorded by{' '}
+                    {record.recordedBy?.displayName ?? record.recordedByUserId}
+                    {revision.sourceEncounterId ? (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <Link
+                          className="underline underline-offset-2"
+                          href={`/encounters/${revision.sourceEncounterId}`}
+                        >
+                          Source visit
+                        </Link>
+                      </>
+                    ) : (
+                      ''
+                    )}
+                  </p>
+                  {!allUnreconciled ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {revision.lastReconciledAt
+                        ? `Last reconciled ${formatOpsDateTime(revision.lastReconciledAt)}${revision.reconciledBy?.displayName ? ` by ${revision.reconciledBy.displayName}` : ''}`
+                        : 'Not yet reconciled'}
+                    </p>
+                  ) : null}
                 </div>
-                <p className="mt-2 text-sm">
-                  {[
-                    revision.strength,
-                    revision.dose &&
-                      `${revision.dose}${revision.doseUnit ? ` ${revision.doseUnit}` : ''}`,
-                    revision.route,
-                    revision.frequency,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || 'Dose details not recorded'}
-                </p>
-                {revision.indication ? (
-                  <p className="mt-1 text-sm text-muted-foreground">For {revision.indication}</p>
-                ) : null}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {sourceLabels[revision.sourceType]} · Recorded by{' '}
-                  {record.recordedBy?.displayName ?? record.recordedByUserId}
-                  {revision.sourceEncounterId ? (
-                    <>
-                      {' '}
-                      ·{' '}
-                      <Link
-                        className="underline underline-offset-2"
-                        href={`/encounters/${revision.sourceEncounterId}`}
-                      >
-                        Source visit
-                      </Link>
-                    </>
-                  ) : (
-                    ''
-                  )}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {revision.lastReconciledAt
-                    ? `Last reconciled ${formatOpsDateTime(revision.lastReconciledAt)}${revision.reconciledBy?.displayName ? ` by ${revision.reconciledBy.displayName}` : ''}`
-                    : 'Not yet reconciled'}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg"
-                  onClick={() => onHistory(record)}
-                >
-                  <History className="h-4 w-4" />
-                  History
-                </Button>
-                {canWrite ? (
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     className="rounded-lg"
-                    onClick={() => onEdit(record)}
+                    onClick={() => onHistory(record)}
                   >
-                    <Pencil className="h-4 w-4" />
-                    Revise
+                    <History className="h-4 w-4" />
+                    History
                   </Button>
-                ) : null}
+                  {canWrite ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg"
+                      onClick={() => onEdit(record)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Revise
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 

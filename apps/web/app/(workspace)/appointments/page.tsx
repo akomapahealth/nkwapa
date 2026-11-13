@@ -15,11 +15,10 @@ import {
   Clock3,
   MoreHorizontal,
   RefreshCw,
-  Search,
   UserRound,
   UserX,
 } from 'lucide-react';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
+import { ListFilters, ListSearch } from '@/components/app-shell/ListToolbar';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
@@ -766,110 +765,7 @@ export default function StaffAppointmentsPage() {
             />
           ) : null}
 
-          <div className="grid gap-4 border-t border-border py-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="space-y-2">
-              <Label htmlFor="appointment-date">Go to date</Label>
-              <Input
-                id="appointment-date"
-                type="date"
-                value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value || getTodayInTimeZone())}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-status">Status</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as StatusFilter)}
-              >
-                <SelectTrigger id="appointment-status">
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_FILTERS.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {getStatusLabel(status)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-doctor">Doctor</Label>
-              <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-                <SelectTrigger id="appointment-doctor">
-                  <SelectValue placeholder="All doctors" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All doctors</SelectItem>
-                  {staffOptions.doctors.map((doctor) => (
-                    <SelectItem key={doctor.id} value={doctor.id}>
-                      {doctor.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-volunteer">Volunteer</Label>
-              <Select value={volunteerFilter} onValueChange={setVolunteerFilter}>
-                <SelectTrigger id="appointment-volunteer">
-                  <SelectValue placeholder="All volunteers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All volunteers</SelectItem>
-                  {staffOptions.volunteers.map((volunteer) => (
-                    <SelectItem key={volunteer.id} value={volunteer.id}>
-                      {volunteer.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-patient-search">Patient</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="appointment-patient-search"
-                  type="search"
-                  value={patientSearch}
-                  onChange={(event) => setPatientSearch(event.target.value)}
-                  placeholder="Name or code"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-          </div>
-
-          <ActiveFilterSummary
-            items={[
-              {
-                label: 'Status',
-                value: statusFilter === 'ALL' ? null : getStatusLabel(statusFilter),
-              },
-              {
-                label: 'Doctor',
-                value:
-                  doctorFilter === 'ALL'
-                    ? null
-                    : staffOptions.doctors.find((doctor) => doctor.id === doctorFilter)
-                        ?.displayName,
-              },
-              {
-                label: 'Volunteer',
-                value:
-                  volunteerFilter === 'ALL'
-                    ? null
-                    : staffOptions.volunteers.find((volunteer) => volunteer.id === volunteerFilter)
-                        ?.displayName,
-              },
-              { label: 'Patient', value: debouncedPatientSearch || null },
-            ]}
-            emptyLabel="Showing every appointment in this range"
-          />
-
-          <AppMetricGroup className="mt-4">
+          <AppMetricGroup variant="strip" className="mt-4">
             <AppMetricCard
               title="Next visit"
               tone="calm"
@@ -916,6 +812,115 @@ export default function StaffAppointmentsPage() {
               detail={`${summary.cancelled} cancelled, ${summary.noShow} no-show in this range.`}
             />
           </AppMetricGroup>
+
+          <div className="space-y-3">
+            <ListSearch
+              id="appointment-patient-search"
+              label="Patient"
+              placeholder="Name or code"
+              value={patientSearch}
+              onChange={setPatientSearch}
+            />
+            <ListFilters
+              groupLabel="Appointment filters"
+              sheetTitle="Filter appointments"
+              chips={[
+                {
+                  label: 'Status',
+                  value: statusFilter === 'ALL' ? null : getStatusLabel(statusFilter),
+                  onRemove: () => setStatusFilter('ALL'),
+                },
+                {
+                  label: 'Doctor',
+                  value:
+                    doctorFilter === 'ALL'
+                      ? null
+                      : staffOptions.doctors.find((d) => d.id === doctorFilter)?.displayName,
+                  onRemove: () => setDoctorFilter('ALL'),
+                },
+                {
+                  label: 'Volunteer',
+                  value:
+                    volunteerFilter === 'ALL'
+                      ? null
+                      : staffOptions.volunteers.find((d) => d.id === volunteerFilter)?.displayName,
+                  onRemove: () => setVolunteerFilter('ALL'),
+                },
+              ]}
+              onClearAll={() => {
+                setStatusFilter('ALL');
+                setDoctorFilter('ALL');
+                setVolunteerFilter('ALL');
+              }}
+              trailing={
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-date">Go to date</Label>
+                  <Input
+                    id="appointment-date"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) =>
+                      setSelectedDate(event.target.value || getTodayInTimeZone())
+                    }
+                  />
+                </div>
+              }
+            >
+              <div className="space-y-4">
+                {' '}
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-status">Status</Label>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+                  >
+                    <SelectTrigger id="appointment-status">
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_FILTERS.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {getStatusLabel(status)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-doctor">Doctor</Label>
+                  <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+                    <SelectTrigger id="appointment-doctor">
+                      <SelectValue placeholder="All doctors" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All doctors</SelectItem>
+                      {staffOptions.doctors.map((doctor) => (
+                        <SelectItem key={doctor.id} value={doctor.id}>
+                          {doctor.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-volunteer">Volunteer</Label>
+                  <Select value={volunteerFilter} onValueChange={setVolunteerFilter}>
+                    <SelectTrigger id="appointment-volunteer">
+                      <SelectValue placeholder="All volunteers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All volunteers</SelectItem>
+                      {staffOptions.volunteers.map((volunteer) => (
+                        <SelectItem key={volunteer.id} value={volunteer.id}>
+                          {volunteer.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </ListFilters>
+          </div>
         </RecordSection>
 
         {!isOnline ? <StaleDataNotice isOnline={false} /> : null}

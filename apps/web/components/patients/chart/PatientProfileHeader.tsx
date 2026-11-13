@@ -107,8 +107,8 @@ export function PatientProfileHeader({
                 {patientCode}
               </span>
               <span>{sex}</span>
-              {badges}
             </div>
+            {badges ? <div className="mt-2 flex flex-wrap gap-2">{badges}</div> : null}
           </div>
           <div role="group" aria-label="Patient chart actions" className={styles.actions}>
             {actions}

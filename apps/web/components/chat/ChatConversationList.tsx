@@ -135,9 +135,7 @@ export function ChatConversationList({
                       {conv.lastMessage.content}
                     </p>
                   ) : group ? (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {others.length + 1} members{onlineCount ? ` · ${onlineCount} online` : ''}
-                    </p>
+                    <p className="truncate text-xs text-muted-foreground">No messages yet</p>
                   ) : null}
                 </div>
                 {conv.unreadCount > 0 && (

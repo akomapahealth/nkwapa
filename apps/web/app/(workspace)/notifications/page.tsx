@@ -172,9 +172,9 @@ export default function NotificationsPage() {
           }
         />
       ) : (
-        <ul className="grid gap-3 tablet:grid-cols-2" aria-label="Notifications">
+        <ul className="grid grid-cols-1 gap-3 tablet:grid-cols-2" aria-label="Notifications">
           {shown.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className="min-w-0">
               <NotificationTile item={item} onOpen={() => open(item)} />
             </li>
           ))}
@@ -202,7 +202,7 @@ function NotificationTile({ item, onOpen }: { item: InboxItem; onOpen: () => voi
       type="button"
       onClick={onOpen}
       className={cn(
-        'group flex h-full w-full items-start gap-3 rounded-md border p-4 text-left transition-colors duration-150',
+        'group flex h-full w-full min-w-0 items-start gap-3 rounded-md border p-4 text-left transition-colors duration-150',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         urgent && unread
           ? 'border-destructive/40 bg-destructive/[0.06] hover:bg-destructive/10'
@@ -234,14 +234,14 @@ function NotificationTile({ item, onOpen }: { item: InboxItem; onOpen: () => voi
         </span>
         <span
           className={cn(
-            'mt-1 block text-[0.9375rem] leading-snug text-foreground',
+            'mt-1 block text-[0.9375rem] leading-snug text-foreground [overflow-wrap:anywhere]',
             unread ? 'font-semibold' : 'font-medium',
           )}
         >
           {item.title}
         </span>
         {item.body ? (
-          <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
+          <span className="mt-1 block text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
             {item.body}
           </span>
         ) : null}

@@ -234,3 +234,23 @@ test('a group is only for people who can chat at the clinic', async () => {
   );
   expect(read.status()).toBe(404);
 });
+
+test('phone chat fills the screen and returns focus after Escape', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openChatWidget(page);
+  const panel = page.getByTestId('chat-panel');
+  await expect(panel).toBeVisible();
+  await expect.poll(async () => Math.round((await panel.boundingBox()).y)).toBe(0);
+  const box = await panel.boundingBox();
+  expect(box.x).toBe(0);
+  expect(box.y).toBe(0);
+  expect(box.width).toBe(390);
+  expect(box.height).toBe(844);
+  await page.screenshot({ path: test.info().outputPath('phone-chat.png') });
+  await panel.getByRole('button', { name: 'New message', exact: true }).click();
+  await page.getByPlaceholder('Search staff...').click();
+  await expect(page.getByPlaceholder('Search staff...')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Open chat', exact: true })).toBeFocused();
+});

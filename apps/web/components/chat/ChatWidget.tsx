@@ -13,6 +13,7 @@ import {
 import { ChatConversationList } from './ChatConversationList';
 import { ChatConversation } from './ChatConversation';
 import { ChatUserPicker } from './ChatUserPicker';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ChatUnreadBadge } from './ChatUnreadBadge';
 import {
   CHAT_QUERY_PARAM,
@@ -26,6 +27,14 @@ type View = 'list' | 'conversation' | 'new-message' | 'new-group';
 function ChatPanel() {
   const chat = useChatContext();
   const [isOpen, setIsOpen] = useState(false);
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 599px)');
+    const update = () => setPhone(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const [view, setView] = useState<View>('list');
   const [activeConversation, setActiveConversation] = useState<ChatConversationType | null>(null);
 
@@ -124,6 +133,35 @@ function ChatPanel() {
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen]);
 
+  const content = (
+    <>
+      {/* Connection indicator */}
+      {chat && !chat.isConnected && (
+        <div className="bg-warning/12 px-3 py-1 text-center text-[11px] text-warning-ink">
+          Reconnecting…
+        </div>
+      )}
+
+      {view === 'list' && (
+        <ChatConversationList
+          onSelect={handleOpenConversation}
+          onNewMessage={() => setView('new-message')}
+          onNewGroup={() => setView('new-group')}
+        />
+      )}
+
+      {view === 'conversation' && activeConversation && (
+        <ChatConversation conversation={activeConversation} onBack={handleBack} />
+      )}
+
+      {view === 'new-message' && <ChatUserPicker onSelect={handleUserSelect} onBack={handleBack} />}
+
+      {view === 'new-group' && (
+        <ChatUserPicker mode="group" onSubmit={handleCreateGroup} onBack={handleBack} />
+      )}
+    </>
+  );
+
   return (
     <>
       {/* Floating chat button */}
@@ -147,42 +185,37 @@ function ChatPanel() {
       </button>
 
       {/* Chat panel */}
-      {isOpen && (
-        <div
-          ref={panelRef}
-          id="chat-panel"
-          role="dialog"
-          aria-label="Chat"
-          data-testid="chat-panel"
-          className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(620px,calc(100dvh-7.5rem-var(--workspace-bottom-nav-height,0px)))] max-h-[calc(100vh-7.5rem-var(--workspace-bottom-nav-height,0px))] w-[min(420px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-lg sm:h-[min(660px,calc(100dvh-8rem))] sm:max-h-[calc(100vh-8rem)] sm:w-[min(460px,calc(100vw-2.5rem))]"
-        >
-          {/* Connection indicator */}
-          {chat && !chat.isConnected && (
-            <div className="bg-warning/12 px-3 py-1 text-center text-[11px] text-warning-ink">
-              Reconnecting…
+      {phone ? (
+        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+          <SheetContent
+            ref={panelRef}
+            id="chat-panel"
+            data-testid="chat-panel"
+            side="bottom"
+            className="inset-x-0 top-0 flex h-[calc(100dvh-var(--keyboard-inset,0px))] max-h-none flex-col gap-0 rounded-none p-0 pb-safe"
+          >
+            <div className="h-5 shrink-0">
+              <SheetTitle className="sr-only">Chat</SheetTitle>
+              <SheetDescription className="sr-only">
+                Messages with your clinic team.
+              </SheetDescription>
             </div>
-          )}
-
-          {view === 'list' && (
-            <ChatConversationList
-              onSelect={handleOpenConversation}
-              onNewMessage={() => setView('new-message')}
-              onNewGroup={() => setView('new-group')}
-            />
-          )}
-
-          {view === 'conversation' && activeConversation && (
-            <ChatConversation conversation={activeConversation} onBack={handleBack} />
-          )}
-
-          {view === 'new-message' && (
-            <ChatUserPicker onSelect={handleUserSelect} onBack={handleBack} />
-          )}
-
-          {view === 'new-group' && (
-            <ChatUserPicker mode="group" onSubmit={handleCreateGroup} onBack={handleBack} />
-          )}
-        </div>
+            {content}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        isOpen && (
+          <div
+            ref={panelRef}
+            id="chat-panel"
+            role="dialog"
+            aria-label="Chat"
+            data-testid="chat-panel"
+            className="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-[min(620px,calc(100dvh-7.5rem-var(--workspace-bottom-nav-height,0px)))] max-h-[calc(100vh-7.5rem-var(--workspace-bottom-nav-height,0px))] w-[min(420px,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-lg sm:h-[min(660px,calc(100dvh-8rem))] sm:max-h-[calc(100vh-8rem)] sm:w-[min(460px,calc(100vw-2.5rem))]"
+          >
+            {content}
+          </div>
+        )
       )}
     </>
   );

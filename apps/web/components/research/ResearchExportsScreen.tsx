@@ -701,121 +701,138 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                         ) : null}
                       </div>
 
-                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.8fr)]">
-                        <div className="space-y-3">
-                          {rows.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                              {rows.map(([key, value]) => (
-                                <Badge key={key} variant="secondary">
-                                  {key}: {value}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">
-                              Row counts will appear after the export pack is generated.
-                            </p>
-                          )}
-
-                          {item.consentedSubjectCount != null ? (
-                            <p className="text-sm text-foreground">
-                              {item.consentedSubjectCount} consented patients
-                              {item.revokedSinceLastCount
-                                ? ` · ${item.revokedSinceLastCount} revoked since the last run`
-                                : ''}
-                            </p>
-                          ) : null}
-                          {changes ? (
-                            <p className="text-sm text-muted-foreground">{changes}</p>
-                          ) : null}
-
-                          {item.status === 'SKIPPED' ? (
-                            <InlineNotice tone="warning" live={false}>
-                              <span className="font-medium">Skipped. </span>
-                              {skipReasonLabel(item.skipReason)}
-                            </InlineNotice>
-                          ) : null}
-
-                          {item.failureReason ? (
-                            <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink">
-                              <div className="mb-1 flex items-center gap-2 font-medium">
-                                <AlertTriangle aria-hidden="true" className="h-4 w-4" />
-                                Processing failed
+                      <ResearchRunDetails clinicId={clinicId} item={item}>
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.8fr)]">
+                          <div className="space-y-3">
+                            {rows.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {rows.map(([key, value]) => (
+                                  <Badge key={key} variant="secondary">
+                                    {key}: {value}
+                                  </Badge>
+                                ))}
                               </div>
-                              {item.failureReason}
-                            </div>
-                          ) : null}
-
-                          {item.rejectionReason ? (
-                            <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-                              <div className="mb-1 font-medium">Rejected reason</div>
-                              {item.rejectionReason}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="space-y-3 border-t border-rule pt-4 text-sm lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-                          <div>
-                            <p className="font-medium text-foreground">Artifact</p>
-                            <p className="text-muted-foreground">
-                              {item.fileFormat?.toUpperCase() ?? 'ZIP'}
-                              {size ? ` · ${size}` : ''}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {item.storageProvider
-                                ? DESTINATION_LABELS[item.storageProvider]
-                                : 'Storage'}
-                            </p>
-                            {item.storagePath ? (
-                              <>
-                                <p className="break-all font-mono text-xs text-muted-foreground">
-                                  {item.storagePath}
-                                </p>
-                                {item.storageUrl ? (
-                                  <a
-                                    href={item.storageUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="mt-1 inline-flex min-h-11 items-center rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                  >
-                                    {item.storageProvider === 'GITHUB' ? 'Open commit' : 'Open'}
-                                  </a>
-                                ) : null}
-                              </>
                             ) : (
-                              <p className="text-muted-foreground">
-                                The location appears once the run is published.
+                              <p className="text-sm text-muted-foreground">
+                                Row counts will appear after the export pack is generated.
                               </p>
                             )}
+
+                            {item.consentedSubjectCount != null ? (
+                              <p className="text-sm text-foreground">
+                                {item.consentedSubjectCount} consented patients
+                                {item.revokedSinceLastCount
+                                  ? ` · ${item.revokedSinceLastCount} revoked since the last run`
+                                  : ''}
+                              </p>
+                            ) : null}
+                            {changes ? (
+                              <p className="text-sm text-muted-foreground">{changes}</p>
+                            ) : null}
+
+                            {item.status === 'SKIPPED' ? (
+                              <InlineNotice tone="warning" live={false}>
+                                <span className="font-medium">Skipped. </span>
+                                {skipReasonLabel(item.skipReason)}
+                              </InlineNotice>
+                            ) : null}
+
+                            {item.failureReason ? (
+                              <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive-ink">
+                                <div className="mb-1 flex items-center gap-2 font-medium">
+                                  <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+                                  Processing failed
+                                </div>
+                                {item.failureReason}
+                              </div>
+                            ) : null}
+
+                            {item.rejectionReason ? (
+                              <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+                                <div className="mb-1 font-medium">Rejected reason</div>
+                                {item.rejectionReason}
+                              </div>
+                            ) : null}
                           </div>
 
-                          {item.completedAt ? (
-                            <p className="text-muted-foreground">
-                              Completed {formatOpsDateTime(item.completedAt)}
-                            </p>
-                          ) : item.startedAt ? (
-                            <p className="text-muted-foreground">
-                              Started {formatOpsDateTime(item.startedAt)}
-                            </p>
-                          ) : null}
+                          <div className="space-y-3 border-t border-rule pt-4 text-sm lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+                            <div>
+                              <p className="font-medium text-foreground">Artifact</p>
+                              <p className="text-muted-foreground">
+                                {item.fileFormat?.toUpperCase() ?? 'ZIP'}
+                                {size ? ` · ${size}` : ''}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="font-medium text-foreground">
+                                {item.storageProvider
+                                  ? DESTINATION_LABELS[item.storageProvider]
+                                  : 'Storage'}
+                              </p>
+                              {item.storagePath ? (
+                                <>
+                                  <p className="break-all font-mono text-xs text-muted-foreground">
+                                    {item.storagePath}
+                                  </p>
+                                  {item.storageUrl ? (
+                                    <a
+                                      href={item.storageUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="mt-1 inline-flex min-h-11 items-center rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    >
+                                      {item.storageProvider === 'GITHUB' ? 'Open commit' : 'Open'}
+                                    </a>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <p className="text-muted-foreground">
+                                  The location appears once the run is published.
+                                </p>
+                              )}
+                            </div>
+
+                            {item.completedAt ? (
+                              <p className="text-muted-foreground">
+                                Completed {formatOpsDateTime(item.completedAt)}
+                              </p>
+                            ) : item.startedAt ? (
+                              <p className="text-muted-foreground">
+                                Started {formatOpsDateTime(item.startedAt)}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
 
-                      {item.status === 'COMPLETED' && !item.downloadAvailable ? (
-                        <InlineNotice tone="info" live={false}>
-                          The server no longer holds this run’s zip (a restart or redeploy clears
-                          it). The published copy above is unaffected
-                          {canApprove ? '; rerun the period to download a fresh zip.' : '.'}
-                        </InlineNotice>
-                      ) : null}
-
-                      <ResearchRunDetails clinicId={clinicId} item={item} />
+                        {item.status === 'COMPLETED' && !item.downloadAvailable ? (
+                          <InlineNotice tone="info" live={false}>
+                            The server no longer holds this run’s zip (a restart or redeploy clears
+                            it). The published copy above is unaffected
+                            {canApprove ? '; rerun the period to download a fresh zip.' : '.'}
+                          </InlineNotice>
+                        ) : null}
+                        {item.status === 'PENDING_APPROVAL' && canApprove ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => askRejectReason(item)}
+                            disabled={isBusy}
+                          >
+                            Reject
+                          </Button>
+                        ) : item.status === 'COMPLETED' || item.status === 'SKIPPED' ? (
+                          renderRunActions(item)
+                        ) : null}
+                      </ResearchRunDetails>
 
                       <div className="flex flex-wrap gap-2">
-                        {renderRunActions(item)}
+                        {item.status === 'PENDING_APPROVAL' && canApprove ? (
+                          <Button onClick={() => void handleApprove(item.id)} disabled={isBusy}>
+                            Approve
+                          </Button>
+                        ) : item.status === 'FAILED' ? (
+                          renderRunActions(item)
+                        ) : null}
 
                         {item.status === 'COMPLETED' && item.downloadAvailable ? (
                           <Button
