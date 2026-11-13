@@ -17,7 +17,7 @@ teach. Commit locally after each unit with a clear message ending in
   `set -a && . <env file> >/dev/null 2>&1; set +a`, never `export $(...)`.
 - Volunteers are clinicians: never gate plan, classification or prescribing to doctors.
 - Do not change offline behaviour, permissions or API contracts unless a unit below says so. The
-  owner has approved the API change in unit 2 only.
+  owner has approved the API changes in units 2 and 5 only.
 - No em dashes in user-facing copy. Sentence case for buttons, headings, tabs and nav.
 - Dates: use `formatOpsDay` / `formatOpsDateTime` / `formatOpsTime` from `@/lib/ops`. Date-only
   values (`YYYY-MM-DD`) go through `formatOpsDay(`${d.slice(0, 10)}T12:00:00Z`)` so no zone moves
@@ -62,11 +62,12 @@ Critique findings to fix:
   (`useInstallAction` knows). Show the installed state instead.
 - The Account card is mostly empty space with three equal buttons. "Log out" is the destructive
   action; keep it visually separate from "Manage profile" and "Take the tour".
-- **Clinic settings**: the summary chips (Research mode, Approval policy, Last updated) repeat the
-  two checkboxes directly below. Keep one source of truth: drop the chips or make them the only
-  readout with an Edit action. The page holds only research rules; title and description should
-  say that, or the page should gain the clinic facts a manager expects (name, time zone, units)
-  with links to where they are edited (`/admin/clinics`), within existing permissions.
+- **Clinic settings** (owner decision: add clinic facts): the summary chips (Research mode,
+  Approval policy, Last updated) repeat the two checkboxes directly below. Keep one source of
+  truth. Add a "Clinic" section above the research rules with the clinic's name, time zone and
+  measurement units (read from bootstrap / `useClinicUnits`), each with a link to where it is
+  edited (`/admin/clinics` or the clinic metadata dialog) for people with that permission, and
+  read-only text for everyone else. Do not add new write endpoints; reuse the existing ones.
 - When "Research enabled" is off, the director-approval checkbox should be disabled with a reason.
 - The disabled "Save settings" button gives no hint why. Show "No changes" or enable on change only
   with a visible reason.
@@ -82,7 +83,8 @@ date, status, author and cosign facts, but no content, so a doctor must open eve
 - API: the patient note list endpoint
   (`GET /clinics/:clinicId/patients/:patientId/clinical-notes`, in
   `apps/api/src/clinical-notes/`) returns `ClinicalNoteSummary`. Add a short `preview` field: the
-  first ~160 characters of the **assessment** (fall back to history), whitespace-collapsed, cut at
+  first ~160 characters of the **assessment** (owner approved showing it to every role that can
+  read notes) (fall back to history), whitespace-collapsed, cut at
   a word boundary. Use the same permission and RLS checks the list already uses. Never include
   addenda text. Add a unit test in the service spec for the truncation and for a role without
   note-read access getting no preview.
@@ -158,16 +160,51 @@ Note: the `responsive-migration.spec.js` dashboard entry now waits for the greet
 (`/^good (morning|afternoon|evening)/i`), not "Today at a glance". Keep that when W4 changes the
 page.
 
-## 5. Owner decisions still open (do not implement; list them in your review)
+## 5. Version checks on screening saves (owner approved: warn, never silently overwrite)
 
-- **Version checks on screening saves:** HTN, DM and vitals saves are last-write-wins with an
-  audit trail. Adding an expected-version check would change offline sync semantics.
-- **Hosting:** the prod API is on the Render free tier (sleeps when idle, 512 MB). A local load
-  test of 1,000 requests at 200 concurrency gave no 5xx, p95 624 ms and 217 MB RSS.
+Today HTN assessment, DM screening and vitals saves are last-write-wins with an audit trail
+(`hypertension-assessment.service.ts`, `diabetes-screening.service.ts`,
+`sync/clinical-measurements.service.ts`). Notes and counselling already use `expectedVersion`;
+copy that pattern.
+
+- API: accept an optional `expectedVersion` (or `expectedUpdatedAt` if the model has no version
+  column; add a `version Int @default(1)` column with an idempotent migration if needed). When it
+  is sent and does not match, return 409 with the current record and who saved it. When it is
+  absent (old clients), keep today's behaviour.
+- Online web forms: send the version they loaded. On 409, show a dialog: "<Name> saved this at
+  <time> while you were editing", with "Review their version" (reload into the form, your unsaved
+  values listed beside it) and "Save mine anyway" (resend without the check). Never drop input.
+- Offline outbox replays: **do not block them.** A replay that carries a stale base version still
+  applies (offline work must never be lost), but the server records `CONFLICT_OVERWRITTEN` in the
+  audit log and sends an inbox notification (`PushService.notify`, new kind or `ASSIGNMENT`-style
+  wording) to the person whose save was overwritten: "<Name>'s offline save replaced your
+  hypertension assessment for <patient>. Review it." Check the sync telemetry `conflicts` counter
+  still counts these.
+- Tests: service specs for match, mismatch (409), absent version, and the offline replay path
+  (applies plus notifies); one e2e with two browser contexts editing the same screening.
+- Update the `InterviewFlow` hide-save path so a 409 there surfaces the same dialog on return.
+
+## 6. Staging auth memory (infra, optional, no deploys)
+
+Prod API and prod Keycloak are on paid instances. `release/dev` staging is still on the free tier,
+and `nkwapa-auth-staging` (Keycloak) fails with "memory limit exceeded" (512 MB).
+`infra/keycloak/Dockerfile` sets no JVM limits. Propose (as a PR-ready commit, not a deploy):
+
+- `JAVA_OPTS_KC_HEAP="-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=30"` (or an explicit
+  `-Xmx320m -Xms128m`), `-XX:+UseSerialGC`, `KC_CACHE=local` (single node, no Infinispan
+  clustering), and `KC_METRICS_ENABLED=false` / `KC_HEALTH_ENABLED=true` for staging only.
+- Keep the prod settings unchanged unless measured. Document how to verify (container RSS after a
+  login burst) and the Render env vars to set. Do not touch Render yourself.
+
+## 7. For your review note (no action)
+
+- A local load test of 1,000 requests at 200 concurrency gave no 5xx, p95 624 ms and 217 MB RSS
+  on one API instance; prod API is now on a paid instance.
+- Notification retention (read after 30 days, any after 90) is owner-approved.
 
 ## Order and definition of done
 
-Do units 1, 2, 3, 4 in that order, one or more local commits each. For every unit, all of these
+Do units 1, 2, 5, 3, 4, then 6 if time remains, in that order, one or more local commits each. For every unit, all of these
 must hold:
 
 - tsc is clean.
