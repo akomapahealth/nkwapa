@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
-import { hasPermission, readApiError } from '@/lib/ops';
+import { hasPermission, readApiError, formatOpsDay } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
 import { PatientProfileHeader } from '@/components/patients/chart/PatientProfileHeader';
 import profileStyles from '@/components/patients/chart/patient-profile.module.css';
@@ -699,7 +699,7 @@ function PatientChartWorkspace() {
                             </p>
                             <p className="mt-1 type-data text-foreground">
                               {patient.dob
-                                ? new Date(patient.dob).toLocaleDateString()
+                                ? formatOpsDay(`${patient.dob.slice(0, 10)}T12:00:00Z`)
                                 : 'Not recorded'}
                             </p>
                           </div>

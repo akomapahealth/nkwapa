@@ -1,5 +1,6 @@
 'use client';
 
+import { formatOpsDay } from '@/lib/ops';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -47,10 +48,10 @@ function identityRows(patient: WizardPatient): Array<[string, string]> {
     [
       'Date of birth',
       patient.dob
-        ? `${new Date(patient.dob).toLocaleDateString()}${age !== null ? ` (${age} yrs)` : ''}`
+        ? `${formatOpsDay(`${patient.dob.slice(0, 10)}T12:00:00Z`)}${age !== null ? ` (${age} yrs)` : ''}`
         : 'Not recorded',
     ],
-    ['Sex', statusLabel(patient.sex)],
+    ['Sex', patient.sex && patient.sex !== 'UNKNOWN' ? statusLabel(patient.sex) : 'Not recorded'],
     ['Phone', patient.phoneE164 || 'No phone on file'],
   ];
   if (patient.nationalIdType === 'NONE') rows.push(['National ID', 'No ID document']);

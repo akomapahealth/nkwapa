@@ -11,7 +11,12 @@ import { apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
+import {
+  OPS_DEFAULT_TIMEZONE,
+  formatOpsDateTime,
+  getTodayInTimeZone,
+  formatOpsDay,
+} from '@/lib/ops';
 import { isFullySynced } from '@/lib/sync';
 import {
   cancelCheckIn,
@@ -268,7 +273,7 @@ export default function StationVisitPage() {
             <AppPageHeader
               context={visit.station.name}
               title={patientName(visit.patient)}
-              description={`${visit.patient.patientCode}${visit.patient.dob ? ` · born ${visit.patient.dob}` : ''} · checked in ${formatOpsDateTime(visit.checkedInAt, timezone)}`}
+              description={`${visit.patient.patientCode}${visit.patient.dob ? ` · born ${formatOpsDay(`${visit.patient.dob.slice(0, 10)}T12:00:00Z`)}` : ''} · checked in ${formatOpsDateTime(visit.checkedInAt, timezone)}`}
               actions={
                 <Badge variant={mine ? 'default' : 'secondary'}>
                   {STATUS_LABELS[visit.status]}
