@@ -134,6 +134,7 @@ function PatientChartWorkspace() {
   const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const canScheduleReminder = hasPermission(perms, 'REMINDER.CREATE');
+  const canRecordConsent = hasPermission(perms, 'CONSENT.RECORD');
   const patientCheckIn = usePatientCheckIn(clinicId);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
@@ -985,25 +986,31 @@ function PatientChartWorkspace() {
                           ? 'Research consent has been revoked.'
                           : 'Research consent has not been recorded yet.'}
                     </p>
-                    <div className="flex gap-2">
-                      {hasGrantedResearchConsent ? (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => void handleRevoke()}
-                          disabled={loading}
-                        >
-                          Revoke consent
-                        </Button>
-                      ) : (
-                        <Button asChild size="sm">
-                          <Link href={`/clinics/${clinicId}/patients/${patientId}/consent`}>
-                            <FileCheck className="mr-2 h-4 w-4" />
-                            Record consent
-                          </Link>
-                        </Button>
-                      )}
-                    </div>
+                    {canRecordConsent ? (
+                      <div className="flex gap-2">
+                        {hasGrantedResearchConsent ? (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void handleRevoke()}
+                            disabled={loading}
+                          >
+                            Revoke consent
+                          </Button>
+                        ) : (
+                          <Button asChild size="sm">
+                            <Link href={`/clinics/${clinicId}/patients/${patientId}/consent`}>
+                              <FileCheck className="mr-2 h-4 w-4" />
+                              Record consent
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Your role can view consent but not record or revoke it.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               );

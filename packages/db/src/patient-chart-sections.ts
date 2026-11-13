@@ -115,7 +115,8 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
     id: 'consent',
     label: 'Consent',
     description: 'De-identified research consent status and history.',
-    requiredPermission: 'CONSENT.RECORD',
+    // Anyone on the chart may see consent status; recording or revoking it needs CONSENT.RECORD.
+    requiredPermission: 'PATIENT.READ',
   },
 ];
 
