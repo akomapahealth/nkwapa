@@ -8,6 +8,11 @@ const apiCommand =
   process.env.PLAYWRIGHT_API_COMMAND || 'npm run start:prod --workspace=@nkwapa/api';
 const webCommand = process.env.PLAYWRIGHT_WEB_COMMAND || 'npm run start --workspace=@nkwapa/web';
 
+// R8 audit specs need the nkwapa_audit database (or a frozen clock for visual baselines), so they
+// run only through playwright/device-matrix.config.cjs, never in the default suite CI runs.
+const AUDIT_ONLY_SPECS =
+  /(device-matrix-(homes|forms|overlays)|role-navigation|screening-api-compatibility|visual-regression|performance-review)\.spec\.js/;
+
 module.exports = defineConfig({
   testDir: './e2e',
   timeout: 60_000,
@@ -103,7 +108,10 @@ module.exports = defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: /auth\.setup\.js/,
+      testIgnore:
+        process.env.NKWAPA_AUDIT_SUITE === '1'
+          ? /auth\.setup\.js/
+          : [/auth\.setup\.js/, AUDIT_ONLY_SPECS],
       use: {
         ...devices['Desktop Chrome'],
       },

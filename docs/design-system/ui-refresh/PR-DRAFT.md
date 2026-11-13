@@ -80,6 +80,10 @@ Historical passing suites are not substituted for this run's failures.
 | #197 offline-copy checks                                         | Excluded at the owner's request because of known local failures; no passing result is claimed.                                             |
 | Staging Keycloak rollout                                         | Proposal only, pending staging deployment and RSS/login-burst measurements.                                                                |
 
+CI's default Playwright suite skips the R8 audit specs (device matrix, role navigation,
+old-API compatibility, visual regression, performance). They need the `nkwapa_audit` database,
+audit fixtures or a frozen clock, and run only through `playwright/device-matrix.config.cjs`.
+
 Any baseline drift is reported against the committed images; release QA does not
 silently accept new snapshots, increase the pixel allowance or remove validation.
 

@@ -1,4 +1,6 @@
 const path = require('path');
+// Set before loading the base config, which skips these specs otherwise.
+process.env.NKWAPA_AUDIT_SUITE = '1';
 const base = require('../playwright.config');
 const { requireAuditDatabase } = require('./device-matrix.cjs');
 
