@@ -293,10 +293,13 @@ export function MeasurementComposerScreen() {
           title="Measurement details"
           description="Record your reading and add notes if there is anything unusual your care team should know."
         >
-          <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-5">
+          <form
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+          >
+            <div className="min-w-0 space-y-5">
               <RequiredLegend />
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <FieldLabel htmlFor="recordedAt" required>
                     Date and time
@@ -314,7 +317,7 @@ export function MeasurementComposerScreen() {
               </div>
 
               {type === 'BP' && (
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <FieldLabel htmlFor="systolic" required>
                       Systolic (mmHg)
@@ -366,7 +369,7 @@ export function MeasurementComposerScreen() {
               )}
 
               {type === 'GLUCOSE' && (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <FieldLabel htmlFor="glucoseValue" required>
                       Glucose ({glucoseUnitLabel(glucoseUnit)})
@@ -413,7 +416,7 @@ export function MeasurementComposerScreen() {
               )}
 
               {type === 'WEIGHT' && (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <FieldLabel htmlFor="weightKg" required>
                       Weight ({weightUnitLabel(units.bodyUnit)})
@@ -446,7 +449,7 @@ export function MeasurementComposerScreen() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               <div className="border-t border-border py-4">
                 <h3 className="flex items-center gap-2 font-medium text-foreground">
                   <Activity aria-hidden="true" className="h-4 w-4 text-primary" />
@@ -473,7 +476,11 @@ export function MeasurementComposerScreen() {
 
               <PortalWriteGateNotice gate={writeGate} />
 
-              <Button type="submit" disabled={submitting || !writeGate.canWrite} className="w-full">
+              <Button
+                type="submit"
+                disabled={submitting || !writeGate.canWrite}
+                className="h-auto w-full min-w-0 whitespace-normal [overflow-wrap:anywhere]"
+              >
                 {submitting
                   ? 'Saving reading…'
                   : `Save ${activeOption.label.toLowerCase()} reading`}

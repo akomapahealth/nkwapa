@@ -185,9 +185,12 @@ export function AppointmentRequestScreen() {
           title="Visit request details"
           description="Choose the dates that work for you. Your clinic will confirm the time."
         >
-          <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
+          <form
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+          >
+            <div className="min-w-0 space-y-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="preferredStartDate">Preferred start date</Label>
                   <Input
@@ -260,7 +263,7 @@ export function AppointmentRequestScreen() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               <div className="border-t border-border py-4">
                 <h3 className="flex items-center gap-2 font-medium text-foreground">
                   <Clock3 aria-hidden="true" className="h-4 w-4 text-primary" />
@@ -290,7 +293,11 @@ export function AppointmentRequestScreen() {
 
               <PortalWriteGateNotice gate={writeGate} />
 
-              <Button type="submit" disabled={submitting || !writeGate.canWrite} className="w-full">
+              <Button
+                type="submit"
+                disabled={submitting || !writeGate.canWrite}
+                className="h-auto w-full min-w-0 whitespace-normal [overflow-wrap:anywhere]"
+              >
                 <Send aria-hidden="true" className="h-4 w-4" />
                 {submitting ? 'Sending request…' : 'Submit appointment request'}
               </Button>
