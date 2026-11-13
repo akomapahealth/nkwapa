@@ -969,10 +969,19 @@ data keys. `RoleHome` draws every role but the volunteer (W4 owns that home):
 - **Also on your plate**: other roles' waiting work as one line each, a count sentence and one link
   (`workRows` shared with Needs you now), never their sections, directly under the strip (waiting
   work before trends). Nothing waiting, no section.
-- **"Today at a glance" no longer leads** any staff home; it stays on the volunteer's until W4.
+- **"Today at a glance" no longer leads** any staff home; it is also removed from the volunteer home in W4.
 - **Wait and service per station**: a ruled list, wait (`--chart-2`) then service (`--chart-1`) as
   bars on one scale, both minutes written beside the name, "Longest wait" tag. Bars grow once from
   their start (`.station-time-bar`, 600 ms ease-out, transform only; reduced motion at rest).
+
+### Volunteer home (W4)
+
+The volunteer's greeting retains the shift actions and Refresh, then the compact W1 station line
+and "Your clinic day". The line reuses the Stations `station-workspace` cache shape, pending shift
+overlay and polling; it remains keyboard-scrollable on narrow screens. The checklist names the
+real shift state, worklist destination and draft count. HAP drafts retain their own count and
+patient links when present. Clinic-wide figures and charts are off this home. Other main roles
+retain W2 precedence and "Also on your plate"; a volunteer has no lower-role work to list.
 
 ### Lists (W3)
 

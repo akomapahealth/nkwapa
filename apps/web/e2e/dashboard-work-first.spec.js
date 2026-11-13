@@ -40,7 +40,7 @@ test.describe('volunteer', () => {
   test.use({ storageState: storageStateFor('volunteer') });
 
   // A phone is a touch device; Desktop Chrome at 390px would still report a mouse pointer.
-  test('sees their own work in the first screen on a phone', async ({ browser }) => {
+  test('shows the line and own work before clinic metrics on a phone', async ({ browser }) => {
     const context = await browser.newContext({
       hasTouch: true,
       storageState: storageStateFor('volunteer'),
@@ -49,36 +49,46 @@ test.describe('volunteer', () => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/dashboard');
-    const section = await needsSection(page);
-    await expectWorkFirst(page);
+    const section = await needsSection(page, 'Your clinic day');
+    await expect(page.getByRole('heading', { name: 'Today at a glance' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'The line', exact: true })).toBeVisible();
 
     const ownWork = section.getByText(/^Today you added/);
-    await expect(ownWork).toBeInViewport();
+    await expect(ownWork).toBeVisible();
 
     // The next patient lives on the volunteer's worklist; the row goes there.
-    const worklist = section.getByRole('link', { name: /^Open (Stations|My assigned)$/ });
+    const worklist = section.getByRole('link', { name: /^Open (stations|My assigned)$/ });
     await expect(worklist).toHaveAttribute('href', /^\/(stations|my\/assigned)$/);
+    await worklist.scrollIntoViewIfNeeded();
     await expect(worklist).toBeInViewport();
     const box = await worklist.boundingBox();
     expect(box.height).toBeGreaterThanOrEqual(44);
     await context.close();
   });
 
-  test('can read each chart as a table and back', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
+  test('shows the actual draft count and keeps clinic charts off the volunteer home', async ({
+    page,
+  }) => {
+    const response = page.waitForResponse((r) =>
+      /\/clinics\/[^/]+\/dashboard(?:\?|$)/.test(r.url()),
+    );
     await page.goto('/dashboard');
-    await needsSection(page);
-
-    const toggle = page.getByRole('button', { name: 'Show table' }).first();
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    await toggle.click();
-    const table = page.locator('main table').first();
-    await expect(table).toBeVisible();
-    await expect(table.getByRole('row')).not.toHaveCount(0);
-    const pressed = page.getByRole('button', { name: 'Show chart' }).first();
-    await expect(pressed).toHaveAttribute('aria-pressed', 'true');
-    await pressed.click();
-    await expect(page.locator('main table')).toHaveCount(0);
+    const data = await (await response).json();
+    const section = await needsSection(page, 'Your clinic day');
+    const count = data.volunteer.pendingSubmissions;
+    if (count > 0) {
+      await expect(
+        section.getByText(`${count} ${count === 1 ? 'draft visit' : 'draft visits'} to submit`, {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(section.getByRole('link', { name: 'Open drafts' })).toHaveAttribute(
+        'href',
+        '/queues?tab=drafts',
+      );
+    } else await expect(section.getByText('No draft visits to submit')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Show table', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Today at a glance' })).toHaveCount(0);
   });
 });
 

@@ -58,10 +58,17 @@ for (const viewport of viewports) {
     const chatPanel = page.getByTestId('chat-panel');
     await expect(chatPanel).toBeVisible();
 
+    if (viewport.width < 600)
+      await expect.poll(async () => Math.round((await chatPanel.boundingBox()).y)).toBe(0);
     const bounds = await chatPanel.boundingBox();
     expect(bounds).not.toBeNull();
-    expect(bounds.width).toBeLessThanOrEqual(viewport.width - 8);
-    expect(bounds.height).toBeLessThanOrEqual(viewport.height - 40);
+    if (viewport.width < 600) {
+      expect(bounds.width).toBe(viewport.width);
+      expect(bounds.height).toBe(viewport.height);
+    } else {
+      expect(bounds.width).toBeLessThanOrEqual(viewport.width - 8);
+      expect(bounds.height).toBeLessThanOrEqual(viewport.height - 40);
+    }
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
 

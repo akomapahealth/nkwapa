@@ -15,6 +15,7 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { VolunteerDashboard } from '@/components/dashboard/VolunteerDashboard';
+import { VolunteerClinicDay } from '@/components/dashboard/VolunteerClinicDay';
 import { VolunteerWelcome } from '@/components/dashboard/VolunteerWelcome';
 import { NeedsYouNow } from '@/components/dashboard/NeedsYouNow';
 import { RoleHome, type DashboardData } from '@/components/dashboard/RoleHome';
@@ -166,6 +167,28 @@ export default function DashboardPage() {
           onZoneFilterChange={setZoneFilter}
           isRefreshing={loading}
         />
+      </RouteGuard>
+    );
+  }
+
+  if (mainRole === 'VOLUNTEER') {
+    return (
+      <RouteGuard requiredPermission="DASHBOARD.READ">
+        <div className="space-y-6">
+          <VolunteerWelcome
+            actions={refreshAction}
+            summary="Start your shift, choose a station and take the next patient."
+          />
+          {status}
+          {data ? (
+            <VolunteerClinicDay
+              key={clinicId}
+              clinicId={clinicId}
+              volunteer={data.volunteer}
+              worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
+            />
+          ) : null}
+        </div>
       </RouteGuard>
     );
   }

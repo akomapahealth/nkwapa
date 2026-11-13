@@ -133,7 +133,10 @@ export function VolunteerWelcome({
         )}
         {!solo && stationWorkflow && canReadShift ? (
           // Refresh shares the shift row, level with End shift, rather than sitting alone below it.
-          <div className={`${styles.controls} flex items-end gap-2`}>
+          <div
+            id="volunteer-shift-controls"
+            className={`${styles.controls} flex scroll-mt-24 items-end gap-2`}
+          >
             <div className="min-w-0 flex-1">
               <DashboardShiftControls key={`${clinicId}:${bootstrap?.userId}`} />
             </div>

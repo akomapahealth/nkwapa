@@ -138,10 +138,10 @@ test.describe('volunteer refresh', () => {
         .boundingBox();
       expect(startBox.y + startBox.height).toBeLessThanOrEqual(navBox.y);
       await capture(page, `volunteer-text-controls-${theme}`);
-      const final = page.getByRole('link', { name: 'Open queues', exact: true }).last();
+      const final = page.getByRole('link', { name: 'Open stations', exact: true }).last();
       await final.scrollIntoViewIfNeeded();
       await final.click();
-      await expect(page).toHaveURL(/\/queues/);
+      await expect(page).toHaveURL(/\/stations/);
     });
     test(`server-confirmed start/end, keyboard and once-only animation: ${theme}`, async ({
       page,

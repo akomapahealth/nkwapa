@@ -28,19 +28,19 @@ Track each relevant route and role, not merely each module.
 
 | Screen family                   | Desktop | Tablet | Phone | QA   |
 | ------------------------------- | ------- | ------ | ----- | ---- |
-| Staff application shell         | —       | —      | —     | —    |
-| Volunteer dashboard             | —       | —      | —     | —    |
-| Stations                        | —       | —      | —     | —    |
-| Queues                          | —       | —      | —     | —    |
-| Patient registry                | —       | —      | —     | —    |
+| Staff application shell         | PASS    | PASS   | PASS  | PASS |
+| Volunteer dashboard             | PASS    | PASS   | PASS  | PASS |
+| Stations                        | PASS    | PASS   | PASS  | PASS |
+| Queues                          | PASS    | PASS   | PASS  | PASS |
+| Patient registry                | PASS    | PASS   | PASS  | PASS |
 | New patient form                | —       | —      | —     | —    |
 | Patient profile                 | —       | —      | —     | —    |
 | Vitals and trends               | —       | —      | —     | —    |
 | Clinical encounters             | —       | —      | —     | —    |
 | Appointments                    | —       | —      | —     | —    |
-| Doctor and preceptor workspaces | —       | —      | —     | —    |
-| Manager operations              | —       | —      | —     | —    |
-| Director and admin workspaces   | —       | —      | —     | —    |
+| Doctor and preceptor workspaces | PASS    | PASS   | PASS  | PASS |
+| Manager operations              | PASS    | PASS   | PASS  | PASS |
+| Director and admin workspaces   | PASS    | PASS   | PASS  | PASS |
 | Patient portal                  | —       | —      | —     | —    |
 | Authentication                  | —       | —      | —     | —    |
 | Public pages                    | PASS    | PASS   | PASS  | PASS |
@@ -1395,6 +1395,22 @@ first pass found heading-order (phone row h3 with no h2) and a duplicate "Audit 
 both fixed; re-run **12/12, 228 rows, 0 violations, 0 minor, 0 overflow, one h1 everywhere**.
 Captures of the eight list tabs at 1440/1024/744/390/320 in both themes, 0 overflow (audit DB, not
 committed). Local commit only; no push.
+
+## W4 Volunteer home (2026-11-12)
+
+Greeting and shift controls, compact W1 station line, then "Your clinic day" with real work and
+counts. Shared clinic charts are removed from the volunteer home. W2 role precedence, permissions,
+refresh/error handling and the existing Stations offline view contract stay intact. The screen
+matrix above now reflects W1 Stations, W2 role homes and W3 registry/queues, using their review
+notes plus W4's current six-role home checks. Details: `ui-refresh/W4-REVIEW.md`.
+
+Validation: production build, standalone TypeScript, changed-file ESLint/Prettier; Jest 100 suites,
+1,073 tests, two workers. Initial focused Chromium 80/83; three stale UI expectations corrected,
+then 9/9 passed (the three affected checks plus six-role evidence). Thirty role/theme/width home
+cases: zero axe findings, zero overflow, one h1. Volunteer 1440/1024/744/390/320 both themes, 320px
+at 200% text. Full route coverage continues directly in R8.1, avoiding a duplicate full walk.
+
+Next: `ui-refresh/HANDOFF-R8.1.md`.
 
 ## W3 Patients and Queues to the pilot tables (2026-11-12)
 
