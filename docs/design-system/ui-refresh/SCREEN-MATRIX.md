@@ -4,6 +4,13 @@ Every App Router page in `apps/web/app` as of `57e138a9` (2026-11-07). Update a 
 
 Legend: `—` not reviewed, `WIP` in progress, `PASS` verified, `FAIL` needs correction, `N/A` not applicable. Phase is the refresh phase that owns the screen.
 
+R8.2 device/breakpoint coverage is tracked separately in `R8.2-DEFERRED-CHECKS.md` and
+`R8.2-REVIEW.md`. The new matrix covers six role homes, registration, encounter Vitals/HTN/DM,
+interview sections/Review, a seeded station visit, portal forms, More/sync/chat and keyboard
+traversal. All eleven requested widths, both themes, mouse/emulated touch, 200% root text and
+short landscape are scheduled. These are pending until the final post-commit browser pass;
+no PASS cells are inferred from test source or prior normal-route evidence.
+
 | Route                                              | Primary roles                            | Phase                       | Desktop | Tablet | Phone | Dark | QA  |
 | -------------------------------------------------- | ---------------------------------------- | --------------------------- | ------- | ------ | ----- | ---- | --- |
 | `/dashboard`                                       | all staff                                | R3 (volunteer), R4 (others) | —       | —      | —     | —    | —   |

@@ -5,6 +5,7 @@ const { requireAuditDatabase } = require('./device-matrix.cjs');
 requireAuditDatabase();
 module.exports = {
   ...base,
+  testDir: path.join(__dirname, '../e2e'),
   workers: 1,
   retries: 0,
   outputDir: process.env.R82_RESULTS_DIR || path.join(__dirname, '../test-results/r82'),

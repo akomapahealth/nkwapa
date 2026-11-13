@@ -1,5 +1,17 @@
 # Nkwapa UI Refresh — Progress Tracker
 
+## R8.2 device matrix (2026-11-13, verification pending)
+
+Built a guarded Chromium device/breakpoint matrix in three local units: six role homes,
+clinical/portal forms, then More/sync/chat and keyboard traversal. All eleven requested widths,
+both themes and mouse/emulated touch are represented, with 200% root text and short landscape.
+Fast TypeScript, changed-file ESLint/Prettier and related Jest checks precede each unit commit.
+Browser work is deferred until all units are committed, followed by one build and one combined
+Playwright invocation with one worker. Exact status lives in `ui-refresh/R8.2-DEFERRED-CHECKS.md`
+and `ui-refresh/R8.2-REVIEW.md`. Prior R8.1 and W4 evidence is retained, not repeated or extended
+by inference. Hardware, screen readers, local-HTTP WebKit auth and dedicated auth/root-fault/
+conditional workflow states remain explicit gaps. No push, deployment or conflict dialog.
+
 **Direction:** Layered Clinical Workspace  
 **Base branch:** `release/dev`  
 **Program:** Frontend-only visual refinement  
