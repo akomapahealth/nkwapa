@@ -134,7 +134,7 @@ export function BottomNav({
               className={cn(tabClass, (moreActive || open) && 'font-semibold text-primary')}
             >
               <MoreHorizontal aria-hidden="true" className="size-5 shrink-0" />
-              <span>More</span>
+              <span className="w-full [overflow-wrap:anywhere]">More</span>
             </button>
           </SheetTrigger>
         </div>

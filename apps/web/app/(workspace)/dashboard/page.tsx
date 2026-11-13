@@ -103,26 +103,31 @@ export default function DashboardPage() {
   const mainRole = pickMainRole(roles, data);
 
   const refreshAction = clinicId ? (
-    <Button
-      type="button"
-      variant={mainRole === 'VOLUNTEER' ? 'outline' : 'ghost'}
-      onClick={() => void fetchDashboard(true)}
-      disabled={loading}
-    >
-      <RefreshCw
-        aria-hidden="true"
-        className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
-      />
-      {/*
+    <>
+      <Button
+        type="button"
+        aria-label="Refresh"
+        variant={mainRole === 'VOLUNTEER' ? 'outline' : 'ghost'}
+        onClick={() => void fetchDashboard(true)}
+        disabled={loading}
+      >
+        <RefreshCw
+          aria-hidden="true"
+          className={loading ? 'animate-spin motion-reduce:animate-none' : ''}
+        />
+        {/*
         The label stays put. Swapping it for "Refreshing" grew the button by 19px, measured, which
         moved everything beside it every time someone refreshed (MASTER 11). The spinner carries
         the state visually and the live region carries it for assistive technology.
       */}
-      <span className="sr-only compact:not-sr-only">Refresh</span>
+        <span className="sr-only compact:not-sr-only">Refresh</span>
+      </Button>
+      {/* Keep the live region outside the button: modal hide-others preserves live regions,
+          which otherwise leaves the button exposed while hiding its label. */}
       <span aria-live="polite" className="sr-only">
         {loading ? 'Refreshing the dashboard' : ''}
       </span>
-    </Button>
+    </>
   ) : null;
 
   const status = (
