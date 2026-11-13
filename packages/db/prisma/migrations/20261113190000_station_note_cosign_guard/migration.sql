@@ -1,7 +1,7 @@
 -- Station review volunteers submit for any doctor to cosign. The original state check
 -- required a manager-assigned doctor, causing these submissions to fail with HTTP 500.
 -- Keep every content/signature invariant and require actual review ownership for this path.
-ALTER TABLE "ClinicalNote" DROP CONSTRAINT "ClinicalNote_state_check";
+ALTER TABLE "ClinicalNote" DROP CONSTRAINT IF EXISTS "ClinicalNote_state_check";
 ALTER TABLE "ClinicalNote" ADD CONSTRAINT "ClinicalNote_state_check" CHECK (
     (
       "status" = 'DRAFT'
@@ -42,12 +42,15 @@ ALTER TABLE "ClinicalNote" ADD CONSTRAINT "ClinicalNote_state_check" CHECK (
     )
   );
 
-CREATE FUNCTION app.guard_station_note_submission()
+-- Re-runnable: Prisma does not wrap a migration in one transaction.
+CREATE OR REPLACE FUNCTION app.guard_station_note_submission()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF NEW."status" = 'PENDING_COSIGN' AND NEW."assignedDoctorId" IS NULL THEN
+  -- Checked at submission only, so later edits are not refused if the visit moves on.
+  IF NEW."status" = 'PENDING_COSIGN' AND NEW."assignedDoctorId" IS NULL
+     AND (TG_OP = 'INSERT' OR OLD."status" IS DISTINCT FROM NEW."status") THEN
     IF NOT EXISTS (
       SELECT 1 FROM "PatientStationVisit" visit
       JOIN "ClinicStation" station ON station."id" = visit."stationId"
@@ -69,6 +72,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS "ClinicalNote_station_submission_guard" ON "ClinicalNote";
 CREATE TRIGGER "ClinicalNote_station_submission_guard"
 BEFORE INSERT OR UPDATE ON "ClinicalNote"
 FOR EACH ROW EXECUTE FUNCTION app.guard_station_note_submission();
