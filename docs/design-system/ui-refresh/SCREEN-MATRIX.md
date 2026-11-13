@@ -4,27 +4,15 @@ Every App Router page in `apps/web/app` as of `57e138a9` (2026-11-07). Update a 
 
 Legend: `—` not reviewed, `WIP` in progress, `PASS` verified, `FAIL` needs correction, `N/A` not applicable. Phase is the refresh phase that owns the screen.
 
-R8.2 remains **WIP**, with exact results and remaining checks in `R8.2-REVIEW.md` and
-`R8.2-DEFERRED-CHECKS.md`. The single original-build invocation finished 46 passed / 36 failed
-(including six setup passes). New matrix captures: 384 homes, 64 registration, 48 self-report,
-12 overlays. Early home captures sometimes show loading. The later encounter/station/appointment
-matrix chains were not reached; existing clinical specs cover only their own declared cases.
-Targeted corrections are committed but not browser-verified. No route cells below are upgraded
-from failed, loading or unreached evidence.
-
-| R8.2 screen group                                                 |             Captures | Result / gap                                                                                        |
-| ----------------------------------------------------------------- | -------------------: | --------------------------------------------------------------------------------------------------- |
-| Six role homes                                                    |                  384 | All W/T/L conditions captured; 19 overflow observations, some early loading; post-fix rerun pending |
-| Registration                                                      |                   64 | 320px/200% main overflow; required-ID fixture blocked encounter entry                               |
-| Self-report                                                       |                   48 | All normal widths plus 320px/200%; submit clipping blocked later conditions                         |
-| Encounter Vitals/HTN/DM, interview sections/Review, station visit |      0 in new matrix | Not reached; existing HTN/DM/vitals specs do not fill every matrix combination                      |
-| Appointment request                                               |      0 in new matrix | Not reached after self-report failure                                                               |
-| More/sync/chat                                                    |                   12 | 320 × 640 in four contexts; axe failure prevented other conditions                                  |
-| Registration keyboard at 200%                                     | 0 completed captures | Original focus locator failed; corrected harness unverified                                         |
-
-W = all eleven widths × 900; T = 320/600/840/1200 × 900 at 200% root text; L = 744 × 360.
-Both themes and mouse/emulated touch apply separately. Details and hardware exclusions are in
-the deferred list. Contact-sheet review is not full-resolution inspection or physical-device QA.
+R8.2 verification remains **WIP for form-chain coverage**, not an all-green matrix. Fresh-server
+invocation: 89 passed / 35 failed; affected-spec rerun: 58 passed / 8 failed (six setup passes
+in each). Homes pass 24/24 across 384 existing cases; overlays pass 8/8; focused role audit
+passes 6/6. The enlarged-text interview rail was fixed after the rerun and DOM-checked, without
+another spec invocation. Four portal landscape failures are classified harness, not product
+(strong inference from isolated reachability checks). Later interview/station/appointment
+branches remain unreached. Details: `R8.2-REVIEW.md`, `R8.2-DEFERRED-CHECKS.md`.
+No new matrix cases or contact-sheet reviews were added. Route cells below are not upgraded
+from unreached or failed evidence. Hardware and dedicated-state exclusions remain open.
 
 | Route                                              | Primary roles                            | Phase                       | Desktop | Tablet | Phone | Dark | QA  |
 | -------------------------------------------------- | ---------------------------------------- | --------------------------- | ------- | ------ | ----- | ---- | --- |

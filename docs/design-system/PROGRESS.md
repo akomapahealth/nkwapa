@@ -1587,3 +1587,17 @@ complete run. Details and original failures: `ui-refresh/R8.1-REVIEW.md`.
 Root `global-error` fault/font behavior, valid one-off auth lifecycles, conditional finalization
 forms, physical devices, screen readers, virtual keyboards and field performance remain open.
 Next: `ui-refresh/HANDOFF-R8.2.md`. Local commit only; no push.
+
+## R8.2 fresh-server verification (2026-11-13)
+
+Rebuilt API/web and refused server reuse. One complete unchecked-spec invocation: 89 passed /
+35 failed; one affected-spec rerun: 58 passed / 8 failed, one worker, #197 excluded, six setup
+passes included in each. Fixed home overflow, wrapping header/form actions, vitals correction
+hydration race and container-sized interview navigation. Homes24/24, overlays8/8, focused
+role audit6/6, clinical save/correction characterization1/1. Fresh API applies and drains
+all HTN/DM/vitals initial saves and corrections with baseUpdatedAt on corrections.
+Actual old API blocks rejected HTN/vitals metadata; DM is accepted. Retry compatibility fix
+proposed only, not built. Final interview correction passes isolated DOM checks, not a third
+spec run. Sequential portal landscape harness failures and unreached later form branches
+remain documented. No contact-sheet review, new matrix cases, R8.3 work or push.
+See `ui-refresh/R8.2-REVIEW.md` and `ui-refresh/R8.2-DEFERRED-CHECKS.md` for exact scope/counts.
