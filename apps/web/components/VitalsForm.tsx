@@ -531,6 +531,30 @@ export function VitalsForm({
   );
 
   const handleButtonSave = async (markTobaccoReviewed: boolean) => {
+    // An empty first save still writes a record, and the next step then looks done. Ask first.
+    const nothingEntered =
+      !markTobaccoReviewed &&
+      !localVitals &&
+      Object.entries(vitals).every(
+        ([field, value]) =>
+          typeof value !== 'string' ||
+          field === 'temperatureUnit' ||
+          field === 'bodyUnit' ||
+          !value.trim(),
+      ) &&
+      (sections !== undefined || Object.values(tobacco).every((v) => v === 'NOT_ASSESSED'));
+    if (
+      nothingEntered &&
+      !(await confirmAction({
+        title: 'No measurements entered',
+        description:
+          'Nothing has been entered for this visit yet. Saving now records the measurements as not taken.',
+        confirmLabel: 'Save without measurements',
+        cancelLabel: 'Enter measurements',
+        destructive: false,
+      }))
+    )
+      return;
     try {
       await handleSave(markTobaccoReviewed);
     } catch (error) {
