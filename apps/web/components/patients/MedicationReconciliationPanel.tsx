@@ -1084,7 +1084,7 @@ export function MedicationReconciliationPanel({
             </ul>
           ) : (
             <div className="py-4">
-              <Building2 className="mx-auto h-8 w-8 text-muted-foreground" />
+              <Building2 className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
               <h3 className="mt-3 font-semibold">No pharmacy history recorded</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 Add a pharmacy without affecting medication orders or dispensing.
@@ -1096,9 +1096,9 @@ export function MedicationReconciliationPanel({
 
       <Card>
         <CardHeader>
-          <h2 className="type-section-title">Linked prescription history</h2>
+          <h2 className="type-section-title">Prescriptions from visits</h2>
           <p className="text-sm text-muted-foreground">
-            Read-only encounter orders shown only as context.
+            Written at this patient&apos;s visits. Change them from the visit itself.
           </p>
         </CardHeader>
         <CardContent>
@@ -1228,9 +1228,9 @@ function MedicationList({
                   <h3 className="font-semibold">{revision.medicationName}</h3>
                   <Badge variant={status.variant}>{status.label}</Badge>
                   {revision.drug ? (
-                    <Badge variant="outline">Catalog linked</Badge>
+                    <Badge variant="outline">In drug catalog</Badge>
                   ) : (
-                    <Badge variant="outline">External / uncatalogued</Badge>
+                    <Badge variant="outline">Not in drug catalog</Badge>
                   )}
                 </div>
                 <p className="mt-2 text-sm">

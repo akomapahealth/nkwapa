@@ -84,6 +84,7 @@ export function ResearchSchedulesPanel({
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<ResearchSchedule | 'new' | null>(null);
+  const [showRevoked, setShowRevoked] = useState(false);
   const [reasonPrompt, setReasonPrompt] = useState<ReasonPrompt | null>(null);
 
   /** One schedule mutation: a toast either way, and a refresh when it worked. */
@@ -232,25 +233,43 @@ export function ResearchSchedulesPanel({
                   </p>
                 </div>
               ) : (
-                <ul className="grid gap-x-6 lg:grid-cols-2">
-                  {context.items.map((schedule) => (
-                    <ScheduleCard
-                      key={schedule.id}
-                      schedule={schedule}
-                      context={context}
-                      busy={busyId === schedule.id}
-                      canRequest={canRequest}
-                      canApprove={canApprove}
-                      onEdit={() => setEditing(schedule)}
-                      onRunNow={() => void runNow(schedule)}
-                      onPause={() => void pause(schedule)}
-                      onResume={() => void resume(schedule)}
-                      onApprove={() => void approve(schedule, context)}
-                      onReject={() => askReason(schedule, 'reject')}
-                      onRevoke={() => askReason(schedule, 'revoke')}
-                    />
-                  ))}
-                </ul>
+                <>
+                  <ul className="grid gap-x-6 lg:grid-cols-2">
+                    {/* Revoked schedules are history: kept for the record, folded away by default. */}
+                    {context.items
+                      .filter((schedule) => showRevoked || schedule.status !== 'REVOKED')
+                      .map((schedule) => (
+                        <ScheduleCard
+                          key={schedule.id}
+                          schedule={schedule}
+                          context={context}
+                          busy={busyId === schedule.id}
+                          canRequest={canRequest}
+                          canApprove={canApprove}
+                          onEdit={() => setEditing(schedule)}
+                          onRunNow={() => void runNow(schedule)}
+                          onPause={() => void pause(schedule)}
+                          onResume={() => void resume(schedule)}
+                          onApprove={() => void approve(schedule, context)}
+                          onReject={() => askReason(schedule, 'reject')}
+                          onRevoke={() => askReason(schedule, 'revoke')}
+                        />
+                      ))}
+                  </ul>
+                  {context.items.some((schedule) => schedule.status === 'REVOKED') ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="mt-2"
+                      aria-expanded={showRevoked}
+                      onClick={() => setShowRevoked((shown) => !shown)}
+                    >
+                      {showRevoked
+                        ? 'Hide revoked schedules'
+                        : `Show revoked schedules (${context.items.filter((schedule) => schedule.status === 'REVOKED').length})`}
+                    </Button>
+                  ) : null}
+                </>
               )}
 
               <ResearchScheduleDialog
@@ -308,7 +327,12 @@ function ScheduleCard({
   const live = status !== 'REVOKED';
   const facts: Array<[string, string | null]> = [
     ['Publishes to', DESTINATION_LABELS[schedule.destination]],
-    ['Covers from', schedule.coverageStartDate],
+    [
+      'Covers from',
+      schedule.coverageStartDate
+        ? formatDay(`${schedule.coverageStartDate.slice(0, 10)}T12:00:00Z`)
+        : null,
+    ],
     ['Next run', status === 'ACTIVE' ? formatWhen(schedule.nextRunAt) : null],
     ['Review by', formatDay(schedule.reviewBy)],
     ['Approved by', schedule.approvedBy?.displayName ?? null],

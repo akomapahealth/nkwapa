@@ -1,3 +1,5 @@
+import { formatOpsDay } from './ops';
+
 export const MEDICAL_HISTORY_CATEGORIES = [
   'CONDITION',
   'ALLERGY',
@@ -63,13 +65,78 @@ export interface MedicalHistoryRecord {
   updatedAt: string;
 }
 
+// Clinical reading order: what can harm the patient today, then what they live with, then context.
+const CATEGORY_ORDER: MedicalHistoryCategory[] = [
+  'ALLERGY',
+  'CONDITION',
+  'SURGERY_PROCEDURE',
+  'FAMILY_HISTORY',
+  'SOCIAL_HISTORY',
+];
+
 export function sortMedicalHistory(records: MedicalHistoryRecord[]) {
   return [...records].sort((left, right) => {
     const activeOrder =
       Number(left.currentRevision.status !== 'ACTIVE') -
       Number(right.currentRevision.status !== 'ACTIVE');
-    return activeOrder || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+    const categoryOrder =
+      CATEGORY_ORDER.indexOf(left.category) - CATEGORY_ORDER.indexOf(right.category);
+    return (
+      activeOrder ||
+      categoryOrder ||
+      new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+    );
   });
+}
+
+const SOCIAL_LABELS: Record<string, string> = {
+  TOBACCO: 'Tobacco use',
+  ALCOHOL: 'Alcohol use',
+  SUBSTANCE_USE: 'Substance use',
+  OCCUPATION: 'Occupation',
+  LIVING_SITUATION: 'Living situation',
+  OTHER: 'Social history',
+};
+
+const SEVERITY_LABELS: Record<string, string> = {
+  MILD: 'Mild',
+  MODERATE: 'Moderate',
+  SEVERE: 'Severe',
+};
+
+/** Calendar dates from the form, read as the day written (noon UTC, so no zone moves the day). */
+function day(date: string | null | undefined) {
+  return date ? formatOpsDay(`${date.slice(0, 10)}T12:00:00Z`) : null;
+}
+
+/** The clinical detail a row needs at a glance: severity and reaction, dates, a description. */
+export function medicalHistoryDetail(record: MedicalHistoryRecord): string | null {
+  const revision = record.currentRevision;
+  const details = revision.details;
+  const text = (key: string) =>
+    typeof details[key] === 'string' && details[key] ? String(details[key]) : null;
+  const parts: Array<string | null> = [];
+  switch (record.category) {
+    case 'ALLERGY':
+      if (details.kind !== 'NO_KNOWN_ALLERGIES') {
+        parts.push(SEVERITY_LABELS[String(details.severity)] ?? null, text('reaction'));
+      }
+      break;
+    case 'CONDITION':
+      parts.push(revision.onsetDate ? `Since ${day(revision.onsetDate)}` : null);
+      break;
+    case 'SURGERY_PROCEDURE':
+      parts.push(day(revision.occurrenceDate));
+      break;
+    case 'SOCIAL_HISTORY':
+      parts.push(text('description'));
+      break;
+    case 'FAMILY_HISTORY':
+      break;
+  }
+  parts.push(revision.resolvedDate ? `Resolved ${day(revision.resolvedDate)}` : null);
+  const shown = parts.filter(Boolean);
+  return shown.length ? shown.join(' · ') : null;
 }
 
 export function medicalHistoryLabel(record: MedicalHistoryRecord): string {
@@ -86,7 +153,7 @@ export function medicalHistoryLabel(record: MedicalHistoryRecord): string {
     case 'FAMILY_HISTORY':
       return `${String(details.relationship ?? 'Family')}: ${String(details.familyCondition ?? 'Condition')}`;
     case 'SOCIAL_HISTORY':
-      return String(details.socialType ?? 'Social history').replaceAll('_', ' ');
+      return SOCIAL_LABELS[String(details.socialType)] ?? 'Social history';
   }
 }
 

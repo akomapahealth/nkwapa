@@ -12,6 +12,7 @@ import {
   MailWarning,
   MessageSquare,
   Send,
+  Settings2,
   UserCheck,
   UserPlus,
   type LucideIcon,
@@ -127,6 +128,12 @@ export default function NotificationsPage() {
                 </Link>
               </Button>
             ) : null}
+            <Button asChild variant="ghost">
+              <Link href="/account#notifications">
+                <Settings2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                Alert settings
+              </Link>
+            </Button>
             <Button variant="outline" onClick={() => markRead()} disabled={unread === 0}>
               <CheckCheck className="mr-2 h-4 w-4" aria-hidden="true" />
               Mark all read

@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
-import { formatOpsDateTime, hasPermission } from '@/lib/ops';
+import { formatOpsDateTime, formatOpsDay, hasPermission } from '@/lib/ops';
 import { getActiveBootstrapClinic } from '@/lib/bootstrap-clinics';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -88,8 +88,10 @@ function minusDays(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+/** Calendar days, read at noon UTC so no time zone moves them. */
 function formatRange(fromDate: string, toDate: string) {
-  return `${fromDate} to ${toDate}`;
+  const day = (date: string) => formatOpsDay(`${date.slice(0, 10)}T12:00:00Z`);
+  return `${day(fromDate)} to ${day(toDate)}`;
 }
 
 export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {

@@ -51,7 +51,7 @@ test('a staff message survives the round trip to the server', async ({ page }) =
     .first()
     .click();
 
-  const composer = page.getByPlaceholder('Type a message...');
+  const composer = page.getByPlaceholder('Write a message…');
   await expect(composer).toBeVisible();
   await composer.fill(body);
   await page.getByRole('button', { name: 'Send message' }).click();
@@ -138,12 +138,12 @@ test('two people chat live: presence, typing and the message, with no reload', a
     .getByTestId('chat-conversation-row')
     .filter({ hasText: staffUser.displayName });
   await expect(row).toBeVisible({ timeout: 20_000 });
-  await staff.page.getByPlaceholder('Type a message...').pressSequentially('Are you');
+  await staff.page.getByPlaceholder('Write a message…').pressSequentially('Are you');
   await expect(row).toContainText('is typing', { timeout: 10_000 });
 
   await row.click();
   const body = `Live ${randomUUID().slice(0, 8)}`;
-  await staff.page.getByPlaceholder('Type a message...').fill(body);
+  await staff.page.getByPlaceholder('Write a message…').fill(body);
   await staff.page.getByRole('button', { name: 'Send message' }).click();
   await expect(doctor.page.getByText(body)).toBeVisible({ timeout: 15_000 });
   // Read while open: going back shows no unread badge for it.
@@ -184,7 +184,7 @@ test('a group reaches every member live, and a message reaches them all', async 
   await doctor.page.getByTestId('chat-conversation-row').filter({ hasText: groupName }).click();
   await volunteer.page.getByTestId('chat-conversation-row').filter({ hasText: groupName }).click();
   const body = `Group ${randomUUID().slice(0, 8)}`;
-  await volunteer.page.getByPlaceholder('Type a message...').fill(body);
+  await volunteer.page.getByPlaceholder('Write a message…').fill(body);
   await volunteer.page.getByRole('button', { name: 'Send message' }).click();
   await expect(doctor.page.getByText(body)).toBeVisible({ timeout: 15_000 });
   await expect(staff.page.getByText(body)).toBeVisible({ timeout: 15_000 });

@@ -517,16 +517,32 @@ export function ChatConversation({
       <div className="flex flex-1 flex-col-reverse overflow-y-auto px-3 py-2">
         <div ref={messagesEndRef} />
         {/* Newest first in the DOM (the column is reversed), so a day's label follows its oldest message. */}
+        {messages.length === 0 && !loading && !hasMore ? (
+          <p className="m-auto max-w-[16rem] text-center text-sm text-muted-foreground">
+            No messages yet. Write the first one below.
+          </p>
+        ) : null}
         {messages.map((msg, index) => {
           const older = messages[index + 1];
+          const newer = messages[index - 1];
           const firstOfDay =
             !older || formatOpsDay(older.createdAt) !== formatOpsDay(msg.createdAt);
+          // A run: same sender, same day, each message within five minutes of the last.
+          const sameRun = (a?: ChatMessageView, b?: ChatMessageView) =>
+            !!a &&
+            !!b &&
+            a.senderUserId === b.senderUserId &&
+            formatOpsDay(a.createdAt) === formatOpsDay(b.createdAt) &&
+            Math.abs(new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) <
+              5 * 60_000;
           return (
             <Fragment key={msg.id}>
               <ChatMessageBubble
                 message={msg}
                 isMine={msg.senderUserId === currentUserId}
                 onRetry={handleRetry}
+                showSender={group && !sameRun(older, msg)}
+                showTime={!sameRun(msg, newer)}
               />
               {firstOfDay ? <ChatDayLabel value={msg.createdAt} /> : null}
             </Fragment>
@@ -566,7 +582,8 @@ export function ChatConversation({
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder="Write a message…"
+            aria-label="Message"
             rows={1}
             className="max-h-32 min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />

@@ -981,7 +981,9 @@ function PatientChartWorkspace() {
                   <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">
                       {hasGrantedResearchConsent
-                        ? 'Research consent is currently granted.'
+                        ? researchConsent?.grantedAt
+                          ? `Granted on ${formatOpsDay(researchConsent.grantedAt)}. De-identified data from this patient's visits can be used in research exports.`
+                          : "Granted. De-identified data from this patient's visits can be used in research exports."
                         : researchConsent?.status === 'REVOKED'
                           ? 'Research consent has been revoked.'
                           : 'Research consent has not been recorded yet.'}

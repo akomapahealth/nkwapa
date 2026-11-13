@@ -8,7 +8,6 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import type { ClinicalNoteSummary } from '@/lib/clinical-notes';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { ClinicalNoteStatusBadge } from './ClinicalNoteStatusBadge';
 import {
   ChartSectionEmpty,
@@ -68,7 +67,18 @@ export function PatientClinicalNotesPanel({
   if (loading) return <ChartSectionLoading label="clinical notes" />;
 
   return (
-    <div className="space-y-4">
+    <section
+      aria-labelledby="clinical-notes-heading"
+      className="space-y-4 border-t-2 border-rule-strong pt-4"
+    >
+      <div>
+        <h2 id="clinical-notes-heading" className="type-section-title">
+          Clinical notes
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          History, assessment and plan notes from this patient&apos;s visits, newest first.
+        </p>
+      </div>
       {error ? (
         <ChartSectionError
           title="Unable to load clinical notes"
@@ -79,38 +89,52 @@ export function PatientClinicalNotesPanel({
       {error && !notes.length ? null : !notes.length ? (
         <ChartSectionEmpty
           title="No clinical notes recorded"
-          description="HAP notes created from this patient's encounters will appear here."
+          description="Notes written at this patient's visits will appear here."
         />
       ) : (
-        <ol className="space-y-3">
-          {notes.map((note) => (
-            <li key={note.id}>
-              <Card>
-                <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" aria-hidden="true" />
-                      <p className="font-medium">Encounter {formatOpsDay(note.createdAt)}</p>
-                      <ClinicalNoteStatusBadge status={note.status} />
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {note.author.displayName} · {note.authorRole.toLowerCase()}
-                      {note._count.addenda ? ` · ${note._count.addenda} addenda` : ''}
-                    </p>
+        <ol aria-label="Clinical notes" className="divide-y divide-rule border-y border-rule">
+          {notes.map((note) => {
+            const facts = [
+              `${note.author.displayName}, ${note.authorRole === 'DOCTOR' ? 'doctor' : 'volunteer'}`,
+              note.cosignedAt
+                ? `Cosigned ${formatOpsDay(note.cosignedAt)}`
+                : note.submittedAt
+                  ? `Submitted ${formatOpsDay(note.submittedAt)}`
+                  : null,
+              note.status === 'PENDING_COSIGN' && note.assignedDoctor
+                ? `Waiting on ${note.assignedDoctor.displayName}`
+                : null,
+              note._count.addenda === 1
+                ? '1 addendum'
+                : note._count.addenda
+                  ? `${note._count.addenda} addenda`
+                  : null,
+            ].filter(Boolean);
+            return (
+              <li
+                key={note.id}
+                className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    <h3 className="font-medium">Visit note, {formatOpsDay(note.createdAt)}</h3>
+                    <ClinicalNoteStatusBadge status={note.status} />
                   </div>
-                  <Button asChild variant="outline">
-                    <Link
-                      href={`/clinics/${clinicId}/encounters/${note.encounterId}?tab=clinical-note`}
-                    >
-                      Open note
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </li>
-          ))}
+                  <p className="mt-1.5 text-sm text-muted-foreground">{facts.join(' · ')}</p>
+                </div>
+                <Button asChild variant="outline" className="shrink-0">
+                  <Link
+                    href={`/clinics/${clinicId}/encounters/${note.encounterId}?tab=clinical-note`}
+                  >
+                    Open note
+                  </Link>
+                </Button>
+              </li>
+            );
+          })}
         </ol>
       )}
-    </div>
+    </section>
   );
 }

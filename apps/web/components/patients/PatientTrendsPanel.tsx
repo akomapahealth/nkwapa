@@ -126,11 +126,10 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
       <Card className={styles.workspace}>
         <CardHeader className="space-y-4">
           <div className="space-y-2">
-            <h2 className="type-section-title">Trend view for clinic and home readings</h2>
-            <CardDescription className="max-w-3xl text-sm md:text-base">
-              Blood pressure and glucose combine patient-entered logs with encounter data for this
-              clinic. Staff views include in-progress encounter readings so the timeline stays
-              useful during the visit.
+            <h2 className="type-section-title">Trends</h2>
+            <CardDescription className="max-w-3xl text-sm">
+              Clinic readings and the patient&apos;s home readings on one timeline. A visit&apos;s
+              readings appear as soon as they are saved, before the visit is finalized.
             </CardDescription>
           </div>
         </CardHeader>
@@ -208,8 +207,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
             </section>
           )}
 
-          <section className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="min-w-0 lg:col-span-2">
+          <section className="grid min-w-0 grid-cols-1 gap-4">
+            <div className="min-w-0">
               <MeasurementTrendChart
                 staffRecord
                 title="Blood pressure trend"
@@ -232,24 +231,6 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}
               data={glucoseTrend}
             />
-            <Card className={styles.workspace}>
-              <CardHeader>
-                <h3 className="font-body text-base font-semibold">How to read this panel</h3>
-                <CardDescription>
-                  Use this trend view to compare clinic intake readings with patient logs before or
-                  after the visit.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="flex items-start gap-3 border-b border-rule py-3">
-                  <Activity className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                  <p>
-                    Encounter readings appear as soon as the visit data exists in this clinic,
-                    including draft and review-stage encounters.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
           </section>
         </>
       )}

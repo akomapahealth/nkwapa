@@ -50,7 +50,7 @@ export function NotificationsCard({ audience }: { audience: 'staff' | 'patient' 
   };
 
   return (
-    <RecordSection>
+    <RecordSection id="notifications" className="scroll-mt-24">
       <RecordSectionHeader>
         <RecordSectionTitle className="flex items-center gap-2">
           <Bell className="h-4 w-4 text-muted-foreground" aria-hidden="true" />

@@ -14,6 +14,7 @@ import { formatOpsDateTime, formatOpsDay, readApiError } from '@/lib/ops';
 import {
   MEDICAL_HISTORY_CATEGORIES,
   MEDICAL_HISTORY_STATUSES,
+  medicalHistoryDetail,
   medicalHistoryLabel,
   sortMedicalHistory,
   type AllergySummary,
@@ -433,9 +434,9 @@ export function MedicalHistoryPanel({
         <CardHeader className={ruled ? 'gap-4 px-0 pb-3 pt-4' : 'gap-4'}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="type-section-title">Longitudinal medical history</h2>
+              <h2 className="type-section-title">Medical history</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Active information appears first. Prior revisions remain recoverable.
+                Active entries first, allergies at the top. Every earlier version is kept.
               </p>
             </div>
             {canWrite && !loadError ? (
@@ -520,7 +521,12 @@ export function MedicalHistoryPanel({
                           </Badge>
                           <Badge variant="outline">{categoryLabels[record.category]}</Badge>
                         </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
+                        {medicalHistoryDetail(record) ? (
+                          <p className="mt-1.5 text-sm text-foreground">
+                            {medicalHistoryDetail(record)}
+                          </p>
+                        ) : null}
+                        <p className="mt-1.5 text-sm text-muted-foreground">
                           Updated {formatOpsDay(record.updatedAt)} · Revision{' '}
                           {record.currentRevision.revisionNumber}
                           {record.currentRevision.authoredBy?.displayName

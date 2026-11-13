@@ -41,7 +41,7 @@ test('medication reconciliation covers clinical, pharmacy, validation, and respo
   await dialog.getByRole('button', { name: 'Add medication' }).click();
 
   await expect(page.getByRole('heading', { name: 'Metformin from home' })).toBeVisible();
-  await expect(page.getByText('External / uncatalogued')).toBeVisible();
+  await expect(page.getByText('Not in drug catalog')).toBeVisible();
   await expect(page.getByText(/Recorded by E2E Staff/)).toBeVisible();
   await page.getByRole('button', { name: 'Reconcile list' }).click();
   await expect(page.getByText(/Last reconciled/).first()).toBeVisible();
