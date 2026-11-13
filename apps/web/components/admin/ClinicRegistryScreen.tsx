@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, MapPinned, Map, ShieldAlert } from 'lucide-react';
+import { Building2, MapPinned, Map, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
@@ -186,6 +186,12 @@ export function ClinicRegistryScreen() {
 
   const activeCount = rows.filter((clinic) => clinic.isActive).length;
   const attentionCount = rows.filter(clinicNeedsAttention).length;
+  // Warnings never count as attention (they never block reporting) but still show amber badges.
+  const warningOnlyCount = rows.filter(
+    (clinic) =>
+      !clinicNeedsAttention(clinic) &&
+      clinic.metadataIssues.some((issue) => issue.severity === 'warning'),
+  ).length;
 
   // Says which of the two filters emptied the list, because "no clinic matches this view" sends
   // an operator looking at the wrong control when it was the zone that did it.
@@ -354,6 +360,13 @@ export function ClinicRegistryScreen() {
           value={clinics.data ? attentionCount : '…'}
           icon={ShieldAlert}
           detail="Clinics whose location metadata organization reporting cannot rely on."
+        />
+
+        <AppMetricCard
+          title="With warnings"
+          value={clinics.data ? warningOnlyCount : '…'}
+          icon={TriangleAlert}
+          detail="Clinics with only warnings, such as no zone code. Worth fixing, but they never block reporting, so they do not count as needing attention."
         />
 
         <AppMetricCard
