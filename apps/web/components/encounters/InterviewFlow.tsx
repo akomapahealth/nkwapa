@@ -309,6 +309,26 @@ export function InterviewFlow({
     }
   };
 
+  /*
+    Save when the screen goes away: a locked phone, a switched app, a closed lid. That is usually
+    what happens just before a device is put down or runs out of battery, and a save goes to this
+    device first, so it survives a power cut and syncs later. A sudden power loss with the screen
+    still on can still lose the section being filled; every earlier section is already saved.
+  */
+  const hiddenSave = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    hiddenSave.current = () => {
+      if (canEdit && unsaved > 0 && !save.saving) void saveThen();
+    };
+  });
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') hiddenSave.current();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, []);
+
   const status = save.saving
     ? 'Saving…'
     : save.error

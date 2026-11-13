@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, LogOut, Pencil, Send, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -10,6 +10,7 @@ import {
   type ChatMessage,
 } from '@/lib/chat-context';
 import { apiFetch } from '@/lib/api';
+import { formatOpsDay } from '@/lib/ops';
 import { getChatSocket } from '@/lib/chat-socket';
 import { ChatMessageBubble, type ChatMessageView } from './ChatMessageBubble';
 import { ChatAvatar, ChatGroupAvatar } from './ChatAvatar';
@@ -76,6 +77,24 @@ function reconcileIncomingMessage(messages: ChatMessageView[], incoming: ChatMes
   }
 
   return messages.map((message, index) => (index === optimisticIndex ? incoming : message));
+}
+
+/** "Today", "Yesterday" or the date, in clinic time, between one day's messages and the next. */
+function ChatDayLabel({ value }: { value: string }) {
+  const day = formatOpsDay(value);
+  // Read once per mount, as RelativeTime does, so a re-render never changes the label.
+  const [now] = useState(Date.now);
+  const label =
+    day === formatOpsDay(new Date(now).toISOString())
+      ? 'Today'
+      : day === formatOpsDay(new Date(now - 86_400_000).toISOString())
+        ? 'Yesterday'
+        : day;
+  return (
+    <p className="my-2 self-center rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+      {label}
+    </p>
+  );
 }
 
 function TypingDots() {
@@ -497,14 +516,22 @@ export function ChatConversation({
       {/* Messages */}
       <div className="flex flex-1 flex-col-reverse overflow-y-auto px-3 py-2">
         <div ref={messagesEndRef} />
-        {messages.map((msg) => (
-          <ChatMessageBubble
-            key={msg.id}
-            message={msg}
-            isMine={msg.senderUserId === currentUserId}
-            onRetry={handleRetry}
-          />
-        ))}
+        {/* Newest first in the DOM (the column is reversed), so a day's label follows its oldest message. */}
+        {messages.map((msg, index) => {
+          const older = messages[index + 1];
+          const firstOfDay =
+            !older || formatOpsDay(older.createdAt) !== formatOpsDay(msg.createdAt);
+          return (
+            <Fragment key={msg.id}>
+              <ChatMessageBubble
+                message={msg}
+                isMine={msg.senderUserId === currentUserId}
+                onRetry={handleRetry}
+              />
+              {firstOfDay ? <ChatDayLabel value={msg.createdAt} /> : null}
+            </Fragment>
+          );
+        })}
         {hasMore && (
           <button
             onClick={() => fetchMessages(cursor)}

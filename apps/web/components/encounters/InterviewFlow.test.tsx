@@ -128,3 +128,23 @@ test('counts answers not saved from the first change, and asks before a link lea
   await act(async () => button(/Next: Second section/).click());
   expect(status()).toBe('');
 });
+
+test('saves unsaved answers when the screen is hidden, and not when nothing changed', async () => {
+  const hide = async () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  };
+  await hide();
+  expect(onSave).not.toHaveBeenCalled();
+
+  const flow = container.querySelector<HTMLElement>('[data-interview-flow]')!;
+  await act(async () => {
+    flow.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+  });
+  await renderFlow('No');
+  await hide();
+  expect(onSave).toHaveBeenCalledTimes(1);
+});

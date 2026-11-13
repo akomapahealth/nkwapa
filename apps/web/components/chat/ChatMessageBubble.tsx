@@ -1,16 +1,12 @@
 'use client';
 
 import type { ChatMessage } from '@/lib/chat-context';
+import { formatOpsTime } from '@/lib/ops';
 
 export type ChatMessageView = ChatMessage & {
   optimisticId?: string;
   deliveryState?: 'pending' | 'failed';
 };
-
-function formatTime(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
 
 export function ChatMessageBubble({
   message,
@@ -52,7 +48,7 @@ export function ChatMessageBubble({
               isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'
             }`}
           >
-            {isPending ? 'Sending...' : formatTime(message.createdAt)}
+            {isPending ? 'Sending…' : formatOpsTime(message.createdAt)}
           </p>
         )}
       </div>
