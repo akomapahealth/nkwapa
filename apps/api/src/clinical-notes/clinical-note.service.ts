@@ -61,7 +61,16 @@ export class ClinicalNoteService {
   async listPatientNotes(clinicId: string, patientId: string, actor: ClinicalActor) {
     this.requireClinicalRole(actor, clinicId);
     await this.assertPatient(clinicId, patientId);
-    return this.repository.findPatientNotes(clinicId, patientId);
+    const notes = await this.repository.findPatientNotes(clinicId, patientId);
+    return notes.map(({ assessment, history, ...summary }) => {
+      const content = (assessment.trim() || history).replace(/\s+/g, ' ').trim();
+      // Return only the short excerpt, never the full narrative or addenda.
+      const prefix = content.slice(0, 160);
+      const boundary = prefix.lastIndexOf(' ');
+      const preview =
+        content.length <= 160 ? content : `${prefix.slice(0, boundary > 0 ? boundary : 160)}…`;
+      return { ...summary, preview };
+    });
   }
 
   async pendingForDoctor(clinicId: string, actor: ClinicalActor) {

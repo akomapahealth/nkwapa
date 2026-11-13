@@ -4,6 +4,7 @@ const { chooseAnswer, question } = require('../playwright/interview');
 
 const { storageStateFor } = require('../playwright/roles');
 test.use({ storageState: storageStateFor('staff') });
+const encounterPatients = new Map();
 
 async function createEncounter(page) {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
@@ -25,6 +26,7 @@ async function createEncounter(page) {
   expect(response.ok()).toBeTruthy();
   const encounter = await response.json();
   await page.getByRole('button', { name: 'Continue to vitals' }).click();
+  encounterPatients.set(encounter.id, `/clinics/${encounter.clinicId}/patients/${patientId}`);
   return encounter.id;
 }
 
@@ -52,6 +54,29 @@ test('doctor authors, signs, amends, and securely loses note access offline', as
   await expect(page.getByText('Cosigned', { exact: true })).toBeVisible();
   await expect(page.getByText('Note signed. Its content is now immutable.')).toBeVisible();
   await expect(page.getByLabel('History')).toHaveCount(0);
+
+  await page.goto(`${encounterPatients.get(encounterId)}?tab=notes`);
+  await page.getByRole('tab', { name: 'Notes', exact: true }).click();
+  await expect(
+    page
+      .locator('li')
+      .filter({ hasText: 'Visit note,' })
+      .getByText('Stable examination with no red-flag symptoms.', { exact: true }),
+  ).toBeVisible();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((t) => {
+      document.documentElement.classList.toggle('dark', t === 'dark');
+    }, theme);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({
+        path: test.info().outputPath(`unit2-notes-${theme}-${width}.png`),
+        fullPage: true,
+      });
+    }
+  }
+  await page.goto(`/encounters/${encounterId}?tab=clinical-note`);
+  await page.getByRole('tab', { name: 'Clinical note' }).click();
 
   await page.getByRole('button', { name: 'Add addendum' }).click();
   const addendum = page.getByRole('dialog', { name: 'Append an addendum' });

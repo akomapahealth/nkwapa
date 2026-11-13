@@ -121,6 +121,11 @@ export function PatientClinicalNotesPanel({
                     <h3 className="font-medium">Visit note, {formatOpsDay(note.createdAt)}</h3>
                     <ClinicalNoteStatusBadge status={note.status} />
                   </div>
+                  {note.preview ? (
+                    <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">
+                      {note.preview}
+                    </p>
+                  ) : null}
                   <p className="mt-1.5 text-sm text-muted-foreground">{facts.join(' · ')}</p>
                 </div>
                 <Button asChild variant="outline" className="shrink-0">
