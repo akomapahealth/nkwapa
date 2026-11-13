@@ -20,7 +20,9 @@ const DENIED = {
 };
 
 async function loaded(page) {
-  await expect(page.locator('main h1')).toHaveCount(1);
+  await expect(page.locator('main')).toBeVisible();
+  // Portal's shared page heading sits in its labelled region above main.
+  await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
   await expect(page.locator('main')).not.toContainText(
     /You don't have access|Checking your access|couldn't confirm your access|Something went wrong/,
@@ -118,13 +120,20 @@ for (const role of [...Object.keys(EXPECTED), 'patient']) {
         if (DENIED[role]) {
           await page.goto(DENIED[role]);
           await expect(page.getByRole('heading', { name: /You don't have access/ })).toBeVisible();
-          await page
-            .getByRole('link', {
-              name: role === 'patient' ? 'Go to your portal' : 'Go to dashboard',
-              exact: true,
-            })
-            .click();
-          await expect(page).toHaveURL(new RegExp(`${home}$`));
+          const recovery = page.getByRole('link', {
+            name:
+              role === 'patient'
+                ? 'Go to your portal'
+                : role === 'director'
+                  ? 'Go to Duplicate review'
+                  : 'Go to dashboard',
+            exact: true,
+          });
+          await expect(recovery).toBeVisible();
+          await recovery.click();
+          await expect(page).toHaveURL(
+            new RegExp(`${role === 'director' ? '/admin/duplicates' : home}$`),
+          );
           await loaded(page);
         }
         await page.screenshot({
