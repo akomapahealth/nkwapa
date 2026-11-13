@@ -14,6 +14,18 @@ branches remain unreached. Details: `R8.2-REVIEW.md`, `R8.2-DEFERRED-CHECKS.md`.
 No new matrix cases or contact-sheet reviews were added. Route cells below are not upgraded
 from unreached or failed evidence. Hardware and dedicated-state exclusions remain open.
 
+R8.3 adds navigation evidence, not blanket route-cell upgrades: one final invocation,
+48 passed / 8 failed (six setup passes included). All five staff shell presentations and existing
+patient portal shell checks pass; eight new staff/doctor/volunteer/manager traversal cases pass.
+Four director/patient traversal harness failures were corrected after the run without rerunning.
+All four R8.2 staff form chains pass, including later DM/Review and the ended station fixture;
+four portal landscape harness failures persist and appointment matrix branches remain unreached.
+596 geometry observations report no document/main overflow; 19 individual PNGs were reviewed,
+without contact sheets. Actual old API HTN/vitals correction resends apply and drain after removing
+baseUpdatedAt. Full details and capture-state limits: `R8.3-REVIEW.md` and
+`R8.3-DEFERRED-CHECKS.md`. These results supersede the affected R8.2 gaps above while retaining
+historical counts and hardware/state exclusions.
+
 | Route                                              | Primary roles                            | Phase                       | Desktop | Tablet | Phone | Dark | QA  |
 | -------------------------------------------------- | ---------------------------------------- | --------------------------- | ------- | ------ | ----- | ---- | --- |
 | `/dashboard`                                       | all staff                                | R3 (volunteer), R4 (others) | —       | —      | —     | —    | —   |

@@ -1,5 +1,15 @@
 # Nkwapa UI Refresh — Progress Tracker
 
+## Current: R8.3 built, verification gaps (2026-11-13)
+
+Handoff and each test unit committed locally. Single final run: **48 passed / 8 failed**,
+zero skipped, one worker, #197 excluded. All four R8.2 staff form chains and actual old-API
+HTN/vitals compatibility resends pass. Four carried portal landscape harness failures remain;
+four new director/patient harness failures were corrected after the run without browser rerun.
+TypeScript, lint/format and affected Jest pass. Nineteen individual captures reviewed, no contact
+sheets. See `ui-refresh/R8.3-REVIEW.md` and `ui-refresh/R8.3-DEFERRED-CHECKS.md` for exact results,
+open coverage and next steps. No push. The older R8.2 summary below is historical.
+
 ## R8.2 device matrix (2026-11-13, incomplete verification)
 
 Three local implementation units added the guarded six-role home, clinical/portal form and
@@ -29,18 +39,18 @@ remain gaps. No conflict dialog, push, deployment or GitHub issue. Finish R8.2 b
 
 ## Phase Status
 
-| Phase | Workstream                             | Status                |
-| ----- | -------------------------------------- | --------------------- |
-| R0    | Current UI audit and design pilot      | Completed             |
-| R1    | Design tokens and shared components    | In review             |
-| R2    | Desktop, tablet, and mobile app shells | In review             |
-| R3    | Volunteer and clinical workflows       | In progress           |
-| R4    | Clinical review and oversight          | Not started           |
-| R5    | Patient portal and authentication      | In progress           |
-| R6    | Supporting public experience           | In review             |
-| R7    | Motion and visual polish               | Completed             |
-| W     | Role workspaces (pilot layout parity)  | In progress           |
-| R8    | Final QA and release readiness         | Not started (after W) |
+| Phase | Workstream                             | Status      |
+| ----- | -------------------------------------- | ----------- |
+| R0    | Current UI audit and design pilot      | Completed   |
+| R1    | Design tokens and shared components    | In review   |
+| R2    | Desktop, tablet, and mobile app shells | In review   |
+| R3    | Volunteer and clinical workflows       | In progress |
+| R4    | Clinical review and oversight          | Not started |
+| R5    | Patient portal and authentication      | In progress |
+| R6    | Supporting public experience           | In review   |
+| R7    | Motion and visual polish               | Completed   |
+| W     | Role workspaces (pilot layout parity)  | In progress |
+| R8    | Final QA and release readiness         | In progress |
 
 Allowed statuses: `Not started`, `In progress`, `Blocked`, `In review`, `Completed`.
 
@@ -1601,3 +1611,32 @@ proposed only, not built. Final interview correction passes isolated DOM checks,
 spec run. Sequential portal landscape harness failures and unreached later form branches
 remain documented. No contact-sheet review, new matrix cases, R8.3 work or push.
 See `ui-refresh/R8.2-REVIEW.md` and `ui-refresh/R8.2-DEFERRED-CHECKS.md` for exact scope/counts.
+
+## R8.3 Role-based navigation tests (2026-11-13)
+
+Scope taken from the R8 plan's third bullet; handoff committed first (`7d0f931f`). Added
+six-role desktop/light and phone/dark link traversal using independent seeded-role expectations,
+active destination/More closure, account utilities, alias/deep-link history and cross-role
+refusal/recovery (`929be507`). Old-API regression now requires rejection, resend without
+baseUpdatedAt, APPLIED and an empty outbox (`8b894653`). No application/permission changes.
+
+One final Chromium invocation, one worker, zero retries, #197 excluded: **48 passed / 8 failed**,
+zero skipped, including six authentication passes. Existing shell13/13, portal-shell8/8,
+bottom-navigation4/4, clinical role-access4/4; new traversal8/12. Four new failures are confirmed
+harness assumptions (director recovery link and patient heading location), corrected afterward
+in `bd36032a`; no browser rerun, so those four sequences remain unverified. TypeScript,
+changed-file lint/format and affected Jest pass (35 navigation/access tests, 41 sync/outbox/guard
+tests, two workers; 35 repeated after the harness correction).
+
+All four R8.2 staff form chains now pass, including later DM/interview/Review/station fixture
+branches. Four portal landscape chains still fail the carried sequential viewport assertion
+(harness-only, strong inference); appointment matrix remains unreached. Actual old API
+`42df2606`, before `6a1344c0`: HTN and vitals corrections are refused with baseUpdatedAt, resent
+without it, APPLIED and drained with unchanged clinical values and mutation identity; DM applies
+immediately. This verifies `e46e5fc9` and supersedes R8.2's old blocked-outbox result for this fix.
+
+Fresh API/web builds pass; 596 matrix observations have no measured main/document overflow.
+Reviewed 19 individual full-size captures, no contact sheets. Ended station fixture, saved-copy
+volunteer state, crowded manager chart axis and transient/scrolled captures limit visual claims.
+R8.3 is built with verification gaps, not a clean release sign-off. Details and remaining work:
+`ui-refresh/R8.3-REVIEW.md`, `ui-refresh/R8.3-DEFERRED-CHECKS.md`. Local commits only, never pushed.
