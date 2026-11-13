@@ -184,6 +184,9 @@ export default function EncounterDetailPage() {
   const handleTabChange = useCallback(
     async (newValue: string) => {
       if (newValue === activeTab) return;
+      const focused = document.activeElement;
+      const keyboardTablist =
+        focused?.getAttribute('role') === 'tab' ? focused.closest('[role="tablist"]') : null;
       const saveFns: Record<string, (() => Promise<void>) | null> = {
         vitals: vitalsSaveRef.current,
         diabetes: diabetesSaveRef.current,
@@ -233,6 +236,17 @@ export default function EncounterDetailPage() {
         }
       }
       setActiveTab(newValue);
+      // Autosave temporarily disables the focused tab, which sends focus to body. Restore
+      // the selected tab after React commits, unless the person has moved focus elsewhere.
+      if (keyboardTablist) {
+        requestAnimationFrame(() => {
+          if (document.activeElement === document.body) {
+            keyboardTablist
+              .querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+              ?.focus();
+          }
+        });
+      }
     },
     [activeTab],
   );
