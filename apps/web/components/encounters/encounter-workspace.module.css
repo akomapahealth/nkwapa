@@ -70,12 +70,23 @@
   overflow-wrap: anywhere;
 }
 
+/* The phone copy of Submit for review, at the foot of the page. */
+.phoneSubmit {
+  display: none;
+}
+
 @media (max-width: 599px) {
-  .actions {
-    flex: 1 1 100%;
+  .actions[data-placement='header'] {
+    display: none;
   }
 
-  .actions > * {
+  .phoneSubmit {
+    display: flex;
+    border-top: 1px solid hsl(var(--rule));
+    padding-top: 1rem;
+  }
+
+  .phoneSubmit > * {
     flex: 1 1 100%;
   }
 }

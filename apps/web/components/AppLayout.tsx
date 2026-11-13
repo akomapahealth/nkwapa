@@ -96,7 +96,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background px-safe [--workspace-bottom-nav-height:3.75rem] compact:[--workspace-bottom-nav-height:0px] [:root[data-keyboard]_&]:[--workspace-bottom-nav-height:var(--keyboard-inset)]">
+    <div
+      data-app-shell=""
+      className="min-h-screen bg-background px-safe [--workspace-bottom-nav-height:3.75rem] compact:[--workspace-bottom-nav-height:0px] [:root[data-keyboard]_&]:[--workspace-bottom-nav-height:var(--keyboard-inset)]"
+    >
       <NavigationProgress />
       {/*
         First thing in the tab order, hidden until focused. Without it a keyboard or screen reader

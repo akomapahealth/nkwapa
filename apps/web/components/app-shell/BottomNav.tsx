@@ -75,6 +75,7 @@ export function BottomNav({
     <Sheet open={open} onOpenChange={setOpen}>
       <nav
         aria-label={portal ? 'Patient portal' : 'Primary'}
+        data-bottom-nav=""
         className="safe-edges-x fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] compact:hidden"
       >
         <div

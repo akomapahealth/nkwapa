@@ -359,7 +359,12 @@ export default function EncounterDetailPage() {
               </div>
             </div>
             {canSubmit ? (
-              <div role="group" aria-label="Encounter actions" className={styles.actions}>
+              <div
+                role="group"
+                aria-label="Encounter actions"
+                data-placement="header"
+                className={styles.actions}
+              >
                 <Button onClick={() => doTransition('submit')} disabled={transitioning}>
                   Submit for review
                 </Button>
@@ -618,6 +623,15 @@ export default function EncounterDetailPage() {
             isFinalized={isFinalized}
             showAllergySafety={medicalHistoryEnabled}
           />
+        ) : null}
+
+        {/* On a phone, submitting waits below the work it sends on, not above it. */}
+        {canSubmit ? (
+          <div role="group" aria-label="Encounter actions" className={styles.phoneSubmit}>
+            <Button onClick={() => doTransition('submit')} disabled={transitioning}>
+              Submit for review
+            </Button>
+          </div>
         ) : null}
 
         {isFinalized && (

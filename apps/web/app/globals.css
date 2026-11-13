@@ -889,3 +889,23 @@ html:has([data-landing]) {
   overflow-x: clip;
   overflow-y: visible;
 }
+
+/*
+  A phone working through an interview needs the screen for the question: while the interview has
+  focus, the bottom nav and the chat button step aside and its footer drops to the bottom edge.
+*/
+@media (max-width: 599.98px) {
+  :root:has([data-interview-flow]:focus-within) [data-bottom-nav],
+  :root:has([data-interview-flow]:focus-within) [data-chat-widget] {
+    display: none;
+  }
+  :root:has([data-interview-flow]:focus-within) [data-app-shell] {
+    --workspace-bottom-nav-height: 0px;
+  }
+  :root[data-keyboard]:has([data-interview-flow]:focus-within) [data-app-shell] {
+    --workspace-bottom-nav-height: var(--keyboard-inset);
+  }
+  [data-interview-flow]:focus-within [data-interview-actions] {
+    padding-right: 0;
+  }
+}
