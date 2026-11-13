@@ -391,6 +391,8 @@ export function HypertensionInterviewForm({
         encounterId,
         clinicId,
         ...toHypertensionPayload(values, claimed.createdAt ?? now),
+        // Lets the API flag a save that replaces someone else's newer one.
+        baseUpdatedAt: claimed.baseUpdatedAt,
         repeatPromptShown: promptRepeat || values.repeatPromptShown,
       };
 

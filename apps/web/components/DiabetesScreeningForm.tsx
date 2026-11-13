@@ -41,6 +41,7 @@ import {
 import { GlucoseUnitSelect } from '@/components/GlucoseUnitSelect';
 import { isFullySynced } from '@/lib/sync';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
+import { baseVersion } from '@/lib/encounter-record';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 
 const GLUCOSE_CONTEXTS: Array<{ value: DiabetesGlucoseType; label: string }> = [
@@ -172,6 +173,7 @@ export function DiabetesScreeningForm({
       symptoms: Array.from(symptoms),
       notes: notes.trim() || null,
       collectedAt: new Date(collectedAt).toISOString(),
+      baseUpdatedAt: baseVersion(initialData),
     };
     const record: DiabetesScreeningRecord = {
       id: screeningId.current,
@@ -187,6 +189,7 @@ export function DiabetesScreeningForm({
       legacySymptomsUnmapped: false,
       createdAt: initialData?.createdAt ?? now,
       updatedAt: now,
+      baseUpdatedAt: payload.baseUpdatedAt,
     };
 
     try {
@@ -225,7 +228,7 @@ export function DiabetesScreeningForm({
     glucoseUnit,
     hba1cText,
     hba1cUnit,
-    initialData?.createdAt,
+    initialData,
     storedGlucoseMgDl,
     storedHba1cPercent,
     isOnline,

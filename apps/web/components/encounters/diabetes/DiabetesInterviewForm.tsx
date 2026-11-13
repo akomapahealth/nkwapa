@@ -288,6 +288,8 @@ export function DiabetesInterviewForm({
         encounterId,
         clinicId,
         ...toDiabetesPayload(values, claimed.createdAt ?? now),
+        // Lets the API flag a save that replaces someone else's newer one.
+        baseUpdatedAt: claimed.baseUpdatedAt,
       };
 
       const record: DiabetesScreeningRecord = {

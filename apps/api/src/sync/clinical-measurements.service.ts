@@ -39,6 +39,7 @@ import {
 } from './dto/encounter-vitals-bundle.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import type { RequestMetadata, UserWithId } from './sync.service';
+import { auditOverwrite, overwroteNewerSave } from './overwrite-conflict';
 
 type NormalizedVitals = {
   systolicBp: number | null;
@@ -97,7 +98,9 @@ export class ClinicalMeasurementsService {
     payload: Record<string, unknown>;
     metadata?: RequestMetadata;
     legacy?: boolean;
-  }): Promise<void> {
+    /** `updatedAt` of the vitals row the device edited; see overwrite-conflict.ts. */
+    baseUpdatedAt?: string;
+  }): Promise<{ overwrote: boolean }> {
     // Scoped to the target clinic: a volunteer seat at another clinic must not authorize a
     // measurement write here. SyncService gates this too; this is the service-level backstop.
     assertPermissionAtClinic(
@@ -114,6 +117,7 @@ export class ClinicalMeasurementsService {
 
     let severeBefore = false;
     let severeReading: string | null = null;
+    let overwrittenUserId: string | null | undefined;
     await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: bundle.encounterId },
@@ -138,6 +142,32 @@ export class ClinicalMeasurementsService {
       ]);
 
       severeBefore = isSeverelyElevated(existingVitals?.systolicBp, existingVitals?.diastolicBp);
+      if (
+        existingVitals &&
+        params.baseUpdatedAt &&
+        overwroteNewerSave(existingVitals, params.baseUpdatedAt)
+      ) {
+        // Vitals has no author column; the last audited writer is who gets overwritten.
+        const lastWrite = await tx.auditEvent.findFirst({
+          where: { entityType: 'Vitals', entityId: existingVitals.id },
+          orderBy: { createdAt: 'desc' },
+          select: { actorUserId: true },
+        });
+        // Saving over your own earlier save (two devices, or two offline saves) is not a conflict.
+        if (lastWrite?.actorUserId !== params.actorUserId) {
+          overwrittenUserId = lastWrite?.actorUserId ?? null;
+          await auditOverwrite(tx, {
+            clinicId: params.clinicId,
+            actorUserId: params.actorUserId,
+            entityType: 'Vitals',
+            entityId: existingVitals.id,
+            overwrittenUserId,
+            overwrittenAt: existingVitals.updatedAt,
+            baseUpdatedAt: params.baseUpdatedAt,
+            requestId: params.mutation.idempotencyKey,
+          });
+        }
+      }
       const vitals = await tx.vitals.upsert({
         where: { encounterId: bundle.encounterId },
         create: {
@@ -237,6 +267,16 @@ export class ClinicalMeasurementsService {
         findings: [severeReading],
       });
     }
+    if (overwrittenUserId !== undefined) {
+      this.push?.alertOverwritten({
+        clinicId: params.clinicId,
+        encounterId: bundle.encounterId,
+        actorUserId: params.actorUserId,
+        overwrittenUserId,
+        record: 'vitals',
+      });
+    }
+    return { overwrote: overwrittenUserId !== undefined };
   }
 
   async validateAndNormalize(

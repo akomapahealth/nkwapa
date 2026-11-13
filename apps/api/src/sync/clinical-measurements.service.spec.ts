@@ -170,6 +170,40 @@ describe('ClinicalMeasurementsService', () => {
     });
   });
 
+  it('applies a stale replay but audits and reports the overwrite', async () => {
+    const { tx, prisma } = createHarness();
+    const push = { alertClinicians: jest.fn(), alertOverwritten: jest.fn() };
+    const service = new ClinicalMeasurementsService(prisma as never, push as never);
+    tx.vitals.findUnique.mockResolvedValue({
+      id: IDS.vitals,
+      updatedAt: new Date('2026-09-13T12:00:00.000Z'),
+    });
+    (tx.auditEvent as Record<string, jest.Mock>).findFirst = jest
+      .fn()
+      .mockResolvedValue({ actorUserId: 'someone-else' });
+
+    const result = await service.applyBundle({
+      clinicId: IDS.clinic,
+      actorUserId: IDS.user,
+      user: {
+        user: { id: IDS.user },
+        roles: [{ clinicId: IDS.clinic, role: UserRole.VOLUNTEER }],
+      } as never,
+      mutation: { entityType: 'encounter_vitals_bundle', idempotencyKey: 'key-1' } as never,
+      payload: payload(),
+      baseUpdatedAt: '2026-09-13T11:00:00.000Z',
+    });
+
+    expect(result).toEqual({ overwrote: true });
+    expect(tx.vitals.upsert).toHaveBeenCalled();
+    expect(tx.auditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'CONFLICT_OVERWRITTEN', entityType: 'Vitals' }),
+    });
+    expect(push.alertOverwritten).toHaveBeenCalledWith(
+      expect.objectContaining({ overwrittenUserId: 'someone-else', record: 'vitals' }),
+    );
+  });
+
   it('requires screening write permission', async () => {
     const { service } = createHarness();
     await expect(

@@ -33,6 +33,11 @@ import {
   UpsertHypertensionClinicianPlanDto,
 } from './dto/hypertension-assessment.dto';
 import { screeningCompletionDate, toDateOnly } from '../common/screening-completion';
+import {
+  auditOverwrite,
+  overwroteNewerSave,
+  type OverwriteCheck,
+} from '../sync/overwrite-conflict';
 
 const MAX_FUTURE_COLLECTION_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 25;
@@ -62,7 +67,7 @@ export interface HypertensionRequestMetadata {
   requestId?: string;
   ipAddress?: string;
   userAgent?: string;
-  syncMutation?: { entityType: string; entityId: string; idempotencyKey: string };
+  syncMutation?: { entityType: string; entityId: string; idempotencyKey: string } & OverwriteCheck;
 }
 
 @Injectable()
@@ -146,6 +151,7 @@ export class HypertensionAssessmentService {
     this.assertPayloadsValid([...lifestyle.issues, ...substances.issues]);
 
     let priorFindings: string[] = [];
+    let overwrittenUserId: string | null | undefined;
     const saved = await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: encounterId },
@@ -271,6 +277,26 @@ export class HypertensionAssessmentService {
 
       const existing = await tx.hypertensionAssessment.findUnique({ where: { encounterId } });
       priorFindings = existing?.urgentReviewReasons ?? [];
+      const sync = metadata.syncMutation;
+      if (
+        existing &&
+        sync?.baseUpdatedAt &&
+        existing.authoredByUserId !== actor.userId &&
+        overwroteNewerSave(existing, sync.baseUpdatedAt)
+      ) {
+        await auditOverwrite(tx, {
+          clinicId,
+          actorUserId: actor.userId,
+          entityType: 'HypertensionAssessment',
+          entityId: existing.id,
+          overwrittenUserId: existing.authoredByUserId,
+          overwrittenAt: existing.updatedAt,
+          baseUpdatedAt: sync.baseUpdatedAt,
+          requestId: metadata.requestId,
+        });
+        sync.overwrote = true;
+        overwrittenUserId = existing.authoredByUserId;
+      }
       const record = await tx.hypertensionAssessment.upsert({
         where: { encounterId },
         create: { id: assessmentId ?? randomUUID(), clinicId, encounterId, ...writable },
@@ -298,6 +324,15 @@ export class HypertensionAssessmentService {
       after: saved.urgentReviewReasons,
       labels: HYPERTENSION_ESCALATION_REASON_LABELS,
     });
+    if (overwrittenUserId !== undefined) {
+      this.push?.alertOverwritten({
+        clinicId,
+        encounterId,
+        actorUserId: actor.userId,
+        overwrittenUserId,
+        record: 'hypertension assessment',
+      });
+    }
     return this.toResponse(saved, actor.roles, clinicId);
   }
 

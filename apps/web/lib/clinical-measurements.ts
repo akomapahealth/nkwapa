@@ -15,6 +15,7 @@ import {
 } from './measurement-entry';
 import { db, type TobaccoScreeningRecord, type VitalsRecord } from './db';
 import { buildOutboxMutation, SYNC_OPERATION } from './outbox';
+import { baseVersion } from './encounter-record';
 
 export const BP_SITES = ['LEFT_ARM', 'RIGHT_ARM', 'LEFT_LEG', 'RIGHT_LEG', 'OTHER'] as const;
 export const PATIENT_POSITIONS = ['SITTING', 'STANDING', 'SUPINE', 'OTHER'] as const;
@@ -253,6 +254,7 @@ export async function saveClinicalMeasurementsOffline(params: {
     params.existingTobacco.readinessToQuit !== params.tobacco.readinessToQuit ||
     params.existingTobacco.counselingGiven !== params.tobacco.counselingGiven;
 
+  const baseUpdatedAt = baseVersion(params.existingVitals);
   const fullVitalsRecord: VitalsRecord = {
     id: params.vitalsId,
     clinicId: params.clinicId,
@@ -277,6 +279,7 @@ export async function saveClinicalMeasurementsOffline(params: {
     notes: params.vitals.notes.trim() || undefined,
     createdAt: params.existingVitals?.createdAt ?? now,
     updatedAt: now,
+    baseUpdatedAt,
   };
   const tobaccoRecord: TobaccoScreeningRecord = {
     id: params.tobaccoScreeningId,
@@ -331,6 +334,7 @@ export async function saveClinicalMeasurementsOffline(params: {
     payloadJson: sections
       ? {
           schemaVersion: 2,
+          baseUpdatedAt,
           sections,
           encounterId: params.encounterId,
           vitalsId: params.vitalsId,
@@ -338,6 +342,7 @@ export async function saveClinicalMeasurementsOffline(params: {
         }
       : {
           schemaVersion: 1,
+          baseUpdatedAt,
           encounterId: params.encounterId,
           vitalsId: params.vitalsId,
           tobaccoScreeningId: params.tobaccoScreeningId,
@@ -411,5 +416,6 @@ function pickIdentity(record: VitalsRecord) {
     encounterId: record.encounterId,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+    baseUpdatedAt: record.baseUpdatedAt,
   };
 }

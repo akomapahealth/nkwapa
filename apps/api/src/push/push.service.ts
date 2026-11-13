@@ -155,6 +155,56 @@ export class PushService {
   }
 
   /**
+   * Tell someone a replayed save replaced theirs. The save already applied; this is the warning.
+   * Skipped when the same person saved from two devices.
+   */
+  alertOverwritten(params: {
+    clinicId: string;
+    encounterId: string;
+    actorUserId: string;
+    overwrittenUserId: string | null;
+    /** Lower-case record name, e.g. "hypertension assessment". */
+    record: string;
+  }): void {
+    const target = params.overwrittenUserId;
+    if (!target || target === params.actorUserId) return;
+    this.prisma.detachFromRlsContext(() => {
+      void this.prisma
+        .withSystemContext({ systemReason: 'Warn about an overwritten save' }, (client) =>
+          Promise.all([
+            client.user.findUnique({
+              where: { id: params.actorUserId },
+              select: { displayName: true },
+            }),
+            client.encounter.findUnique({
+              where: { id: params.encounterId },
+              select: { patient: { select: { firstName: true, lastName: true } } },
+            }),
+          ]),
+        )
+        .then(([actor, encounter]) => {
+          const who = actor?.displayName || 'Someone';
+          const patient = encounter
+            ? `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim()
+            : '';
+          this.notify([target], {
+            title: 'A save replaced yours',
+            body: 'Open Nkwapa to review it.',
+            url: `/clinics/${params.clinicId}/encounters/${params.encounterId}`,
+            tag: `overwrite-${params.encounterId}`,
+            kind: 'ASSIGNMENT',
+            clinicId: params.clinicId,
+            inbox: {
+              title: `${who}'s offline save replaced your ${params.record}`,
+              body: `${patient || 'This patient'}: review it.`,
+            },
+          });
+        })
+        .catch((error) => this.logger.warn(`Overwrite alert failed: ${errorText(error)}`));
+    });
+  }
+
+  /**
    * Alert only on findings this save added, so re-saving an already urgent screen stays quiet
    * and a second, different finding on the same visit still gets through.
    */

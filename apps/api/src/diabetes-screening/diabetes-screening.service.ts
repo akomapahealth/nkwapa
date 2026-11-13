@@ -34,6 +34,11 @@ import {
   UpsertDiabetesScreeningDto,
 } from './dto/diabetes-screening.dto';
 import { screeningCompletionDate, toDateOnly } from '../common/screening-completion';
+import {
+  auditOverwrite,
+  overwroteNewerSave,
+  type OverwriteCheck,
+} from '../sync/overwrite-conflict';
 
 const MAX_FUTURE_COLLECTION_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 25;
@@ -59,7 +64,7 @@ export interface DiabetesRequestMetadata {
     entityType: string;
     entityId: string;
     idempotencyKey: string;
-  };
+  } & OverwriteCheck;
 }
 
 export interface DiabetesCompatibilityInput {
@@ -129,6 +134,7 @@ export class DiabetesScreeningService {
     this.assertPayloadsValid(nutrition.issues);
 
     let priorFindings: string[] = [];
+    let overwrittenUserId: string | null | undefined;
     const screening = await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: encounterId },
@@ -216,6 +222,26 @@ export class DiabetesScreeningService {
 
       const existing = await tx.diabetesScreening.findUnique({ where: { encounterId } });
       priorFindings = existing?.urgentReviewReasons ?? [];
+      const sync = metadata.syncMutation;
+      if (
+        existing &&
+        sync?.baseUpdatedAt &&
+        existing.authoredByUserId !== actor.userId &&
+        overwroteNewerSave(existing, sync.baseUpdatedAt)
+      ) {
+        await auditOverwrite(tx, {
+          clinicId,
+          actorUserId: actor.userId,
+          entityType: 'DiabetesScreening',
+          entityId: existing.id,
+          overwrittenUserId: existing.authoredByUserId,
+          overwrittenAt: existing.updatedAt,
+          baseUpdatedAt: sync.baseUpdatedAt,
+          requestId: metadata.requestId,
+        });
+        sync.overwrote = true;
+        overwrittenUserId = existing.authoredByUserId;
+      }
       const saved = await tx.diabetesScreening.upsert({
         where: { encounterId },
         create: {
@@ -287,6 +313,15 @@ export class DiabetesScreeningService {
       after: screening.urgentReviewReasons,
       labels: DIABETES_ESCALATION_REASON_LABELS,
     });
+    if (overwrittenUserId !== undefined) {
+      this.push?.alertOverwritten({
+        clinicId,
+        encounterId,
+        actorUserId: actor.userId,
+        overwrittenUserId,
+        record: 'diabetes screening',
+      });
+    }
     return this.toResponse(screening, actor.roles, clinicId);
   }
 

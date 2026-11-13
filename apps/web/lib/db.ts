@@ -65,6 +65,8 @@ export interface VitalsRecord {
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Server `updatedAt` this device's unsynced edit started from; see lib/encounter-record.ts. */
+  baseUpdatedAt?: string;
 }
 
 export interface TobaccoScreeningRecord {
@@ -100,6 +102,8 @@ export interface DiabetesScreeningRecord {
   encounterStatus?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Server `updatedAt` this device's unsynced edit started from; see lib/encounter-record.ts. */
+  baseUpdatedAt?: string;
   // Guided interview (#114).
   diabetesStatus?: string;
   diabetesType?: string;
@@ -225,6 +229,8 @@ export interface HypertensionAssessmentRecord {
   collectedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Server `updatedAt` this device's unsynced edit started from; see lib/encounter-record.ts. */
+  baseUpdatedAt?: string;
 }
 
 export interface CarePlanRecord {

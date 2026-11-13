@@ -110,6 +110,7 @@ export function HypertensionForm({
       suspected,
       confirmed,
       notes: notes.trim() || null,
+      baseUpdatedAt: claimed.baseUpdatedAt,
     };
 
     const record = {
@@ -123,6 +124,7 @@ export function HypertensionForm({
       // Preserved, not restamped: an update is not a creation.
       createdAt: claimed.createdAt ?? now,
       updatedAt: now,
+      baseUpdatedAt: claimed.baseUpdatedAt,
     };
 
     try {

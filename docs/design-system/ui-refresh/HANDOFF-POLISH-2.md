@@ -184,6 +184,18 @@ copy that pattern.
   (applies plus notifies); one e2e with two browser contexts editing the same screening.
 - Update the `InterviewFlow` hide-save path so a 409 there surfaces the same dialog on return.
 
+**Review note (done, scoped down with the owner, 2026-11-13).** The web forms never save over REST:
+HTN, DM and vitals always write to the outbox and sync replays them, so an online save and an
+offline replay are the same path and no 409 dialog is possible without blocking replays. Built
+instead: each outbox payload carries `baseUpdatedAt` (`baseVersion()` in `lib/encounter-record.ts`);
+the sync handler strips it before the strict DTOs (`sync/overwrite-conflict.ts`). When the row was
+saved by someone else after that base, the save still applies, a `CONFLICT_OVERWRITTEN` audit event
+is written, `PushService.alertOverwritten` sends an `ASSIGNMENT` inbox notice, and the result's
+`conflictType` makes the telemetry `conflicts` counter count it. Saving over your own save is never
+flagged. Not built: the dialog, the InterviewFlow hook and the two-browser e2e. Known false
+positive: a clinician plan bumps `updatedAt`, so an edit based on a version before the plan can be
+flagged against the screening's author.
+
 ## 6. Staging auth memory (infra, optional, no deploys)
 
 Prod API and prod Keycloak are on paid instances. `release/dev` staging is still on the free tier,
@@ -195,6 +207,11 @@ and `nkwapa-auth-staging` (Keycloak) fails with "memory limit exceeded" (512 MB)
   clustering), and `KC_METRICS_ENABLED=false` / `KC_HEALTH_ENABLED=true` for staging only.
 - Keep the prod settings unchanged unless measured. Document how to verify (container RSS after a
   login burst) and the Render env vars to set. Do not touch Render yourself.
+
+**Review note (done 2026-11-13).** `--cache` is a runtime option and `--metrics-enabled` is
+build-time (checked with `kc.sh build --help` on 26.6.2), so the Dockerfile takes
+`KC_METRICS_ENABLED` as a build arg (default `true`) and the rest are staging env vars. Steps and
+verification are in `docs/OPERATIONS.md`, "Staging Keycloak memory". Not deployed or measured.
 
 ## 7. For your review note (no action)
 

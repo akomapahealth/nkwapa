@@ -166,6 +166,79 @@ describe('HypertensionAssessmentService', () => {
     return tx.hypertensionAssessment.upsert.mock.calls[0][0].create;
   }
 
+  describe('a replay whose base version is stale', () => {
+    // Another volunteer saved at 12:00; this device edited the version from 11:30.
+    const otherVolunteer = {
+      userId: 'user-2',
+      roles: [{ clinicId: 'clinic-1', role: 'VOLUNTEER' }],
+    } as never;
+    const sync = (baseUpdatedAt?: string) => ({
+      entityType: 'hypertension_assessment',
+      entityId: 'assessment-1',
+      idempotencyKey: 'key-1',
+      baseUpdatedAt,
+    });
+
+    function setupWithPush() {
+      const harness = setup();
+      const push = { alertOnNewFindings: jest.fn(), alertOverwritten: jest.fn() };
+      harness.tx.hypertensionAssessment.findUnique.mockResolvedValue(saved());
+      return {
+        ...harness,
+        push,
+        service: new HypertensionAssessmentService(harness.prisma as never, push as never),
+      };
+    }
+    const overwriteAudits = (tx: ReturnType<typeof setup>['tx']) =>
+      tx.auditEvent.create.mock.calls.filter(
+        ([arg]) => (arg as { data: { action: string } }).data.action === 'CONFLICT_OVERWRITTEN',
+      );
+
+    it('still applies, audits CONFLICT_OVERWRITTEN and tells the person overwritten', async () => {
+      const { service, tx, push } = setupWithPush();
+      const metadata = { syncMutation: sync('2026-09-13T11:30:00.000Z') };
+      await service.upsert('clinic-1', 'encounter-1', otherVolunteer, dto as never, metadata);
+
+      expect(tx.hypertensionAssessment.upsert).toHaveBeenCalled();
+      expect(overwriteAudits(tx)).toHaveLength(1);
+      expect(metadata.syncMutation).toMatchObject({ overwrote: true });
+      expect(push.alertOverwritten).toHaveBeenCalledWith(
+        expect.objectContaining({
+          overwrittenUserId: 'user-1',
+          actorUserId: 'user-2',
+          record: 'hypertension assessment',
+        }),
+      );
+    });
+
+    it('is quiet when the base matches the current version', async () => {
+      const { service, tx, push } = setupWithPush();
+      await service.upsert('clinic-1', 'encounter-1', otherVolunteer, dto as never, {
+        syncMutation: sync('2026-09-13T12:00:00.000Z'),
+      });
+      expect(overwriteAudits(tx)).toHaveLength(0);
+      expect(push.alertOverwritten).not.toHaveBeenCalled();
+    });
+
+    it('keeps last-write-wins for an older client that sends no base', async () => {
+      const { service, tx, push } = setupWithPush();
+      await service.upsert('clinic-1', 'encounter-1', otherVolunteer, dto as never, {
+        syncMutation: sync(undefined),
+      });
+      expect(tx.hypertensionAssessment.upsert).toHaveBeenCalled();
+      expect(overwriteAudits(tx)).toHaveLength(0);
+      expect(push.alertOverwritten).not.toHaveBeenCalled();
+    });
+
+    it('does not flag someone saving over their own earlier save', async () => {
+      const { service, tx } = setupWithPush();
+      await service.upsert('clinic-1', 'encounter-1', volunteer, dto as never, {
+        syncMutation: sync('2026-09-13T11:30:00.000Z'),
+      });
+      expect(overwriteAudits(tx)).toHaveLength(0);
+    });
+  });
+
   describe('the server derives, the client does not', () => {
     /*
       Today's reading is never copied onto this record.

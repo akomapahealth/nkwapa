@@ -34,7 +34,10 @@ function describeSyncPush(result: unknown): Record<string, unknown> {
   return {
     mutations: results.length,
     applied: results.filter((row) => row.status === 'APPLIED').length,
-    conflicts: results.filter((row) => row.status === 'CONFLICT').length,
+    // Includes applied replays that overwrote a newer save (offline work still wins).
+    conflicts: results.filter(
+      (row) => row.status === 'CONFLICT' || row.conflictType === 'CONFLICT_OVERWRITTEN',
+    ).length,
     errors: results.filter((row) => row.status === 'ERROR').length,
     retryable: results.filter((row) => row.status !== 'APPLIED' && row.retryable === true).length,
   };
