@@ -4,7 +4,14 @@ import type { Table } from 'dexie';
 import { db, type OutboxRecord } from './db';
 import type { SyncPullResponseDto } from './sync-types';
 import { applyAdherencePull } from './medication-adherence';
-import { currentOutboxRevision, isOwnedBy, outboxFailureUpdate, outboxSyncState } from './outbox';
+import {
+  currentOutboxRevision,
+  isOwnedBy,
+  outboxFailureUpdate,
+  outboxSyncState,
+  requeueWithPayload,
+  withoutRejectedBaseVersion,
+} from './outbox';
 import { describeSyncTransportFailure, type SyncTransportFailure } from './sync-conflicts';
 import { notifyStatus } from './sync-status';
 
@@ -164,6 +171,12 @@ async function pushOutbox(
       if (!row) continue;
       if (result.status === 'APPLIED') {
         await db.outbox.delete(row.id);
+        continue;
+      }
+      const compatible = withoutRejectedBaseVersion(row.payloadJson, result);
+      if (compatible) {
+        // An older API refused only the overwrite-check field; resend without it.
+        await requeueWithPayload(db, row, compatible);
         continue;
       }
       // The row is always kept so a clinician's entry is never silently discarded.

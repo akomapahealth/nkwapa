@@ -274,6 +274,45 @@ export function outboxFailureUpdate(
 }
 
 /**
+ * The payload without `baseUpdatedAt`, when that field is all the server refused; null otherwise.
+ *
+ * An API older than the overwrite check (a deploy where the web app lands first, or a rollback)
+ * rejects the unknown field. Blocking the save would strand clinical work behind a Retry button,
+ * so the change is resent as plain last-write-wins, which is what that API did anyway.
+ */
+export function withoutRejectedBaseVersion(
+  payloadJson: string,
+  failure: Pick<OutboxFailure, 'conflictType' | 'conflictDetails'>,
+): string | null {
+  if (failure.conflictType !== 'VALIDATION_ERROR') return null;
+  const fieldErrors = failure.conflictDetails?.fieldErrors;
+  if (!Array.isArray(fieldErrors) || fieldErrors.length === 0) return null;
+  const onlyBase = fieldErrors.every((entry) =>
+    /(^|\.)baseUpdatedAt$/.test(String((entry as { field?: unknown })?.field ?? '')),
+  );
+  if (!onlyBase) return null;
+  try {
+    const payload: unknown = JSON.parse(payloadJson);
+    if (!payload || typeof payload !== 'object' || !('baseUpdatedAt' in payload)) return null;
+    const rest = { ...(payload as Record<string, unknown>) };
+    delete rest.baseUpdatedAt;
+    return JSON.stringify(rest);
+  } catch {
+    return null;
+  }
+}
+
+/** Requeue a change with the payload `withoutRejectedBaseVersion` produced. */
+export async function requeueWithPayload(
+  dbInstance: NkwapaDb,
+  row: Pick<OutboxRecord, 'id' | 'clinicId'>,
+  payloadJson: string,
+): Promise<void> {
+  await dbInstance.outbox.update(row.id, { payloadJson, syncState: 'pending' });
+  markOutboxChanged(row.clinicId);
+}
+
+/**
  * Put a blocked or retrying change back in line for the next pass. The last failure is kept so
  * the card can still say what happened until the server answers again.
  */
