@@ -47,9 +47,11 @@ export function ChartFrame({
 
   return (
     <section className="min-w-0 border-t-2 border-rule-strong pt-3" data-chart-frame>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2 pt-2.5">
-          <Title className="type-label leading-snug text-foreground">{title}</Title>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 max-w-full items-start gap-2 pt-2.5">
+          <Title className="type-label min-w-0 leading-snug text-foreground [overflow-wrap:anywhere]">
+            {title}
+          </Title>
           {hint ? <InfoHint label={hint} size="sm" /> : null}
         </div>
         {hasData ? (

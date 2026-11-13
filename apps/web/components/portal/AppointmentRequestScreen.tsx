@@ -162,7 +162,12 @@ export function AppointmentRequestScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.WRITE_SELF_REPORT">
       <div className="space-y-6">
-        <Button asChild variant="ghost" size="default">
+        <Button
+          asChild
+          variant="ghost"
+          size="default"
+          className="h-auto max-w-full whitespace-normal text-left"
+        >
           <Link href="/portal/appointments">
             <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />
             Back to appointments

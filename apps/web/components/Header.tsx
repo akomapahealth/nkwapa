@@ -352,7 +352,7 @@ export function Header({
           {clinicSwitcher}
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-[4px] compact:gap-2">
+        <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center gap-[4px] compact:gap-2">
           <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
           {/*
             Header icons with their names in a tooltip. The notifications bell is on every screen

@@ -190,7 +190,11 @@ export function RegisterPatientScreen({
 
   return (
     <div ref={workspace} className={styles.workspace}>
-      <Button variant="ghost" asChild className="w-fit">
+      <Button
+        variant="ghost"
+        asChild
+        className="h-auto w-fit max-w-full whitespace-normal text-left"
+      >
         <Link href={registryHref}>
           <ArrowLeft className="h-4 w-4" />
           Back to patients

@@ -159,7 +159,7 @@ export function OverviewPortalScreen() {
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
                       <Icon aria-hidden="true" className="h-5 w-5" />
                     </span>
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
                       <span className="block font-medium text-foreground">{title}</span>
                       <span className="block text-sm leading-5 text-muted-foreground">{hint}</span>
                     </span>
@@ -232,7 +232,11 @@ export function OverviewPortalScreen() {
                       description="Send a request and your clinic will confirm a time for you."
                     />
                   )}
-                  <Button asChild variant="outline" className="w-full sm:w-auto">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="h-auto w-full whitespace-normal sm:w-auto"
+                  >
                     <Link href="/portal/appointments">See all appointments</Link>
                   </Button>
                 </PortalPanel>

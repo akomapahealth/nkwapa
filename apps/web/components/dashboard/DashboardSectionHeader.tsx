@@ -20,7 +20,9 @@ export function DashboardSectionHeader({ title, subtitle, hint }: DashboardSecti
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <h2 className="type-section-title text-foreground">{title}</h2>
+        <h2 className="type-section-title min-w-0 text-foreground [overflow-wrap:anywhere]">
+          {title}
+        </h2>
         {hint ? <InfoHint label={hint} /> : null}
       </div>
       {subtitle && <p className="type-body max-w-2xl text-muted-foreground">{subtitle}</p>}
