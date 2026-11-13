@@ -4,6 +4,14 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
 
+// /stations only exists with the station workflow on, which the smoke build leaves off; CI runs
+// this file in its station step.
+test.skip(
+  process.env.FEATURE_STATION_WORKFLOW_ENABLED !== 'true' ||
+    process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED !== 'true',
+  'Station workflow must be on in both API and web build.',
+);
+
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
 const shiftPanel = (page) => page.getByTestId('station-shift');
 const picker = (page) => page.getByRole('button', { name: /^(Choose station|Station )/ });

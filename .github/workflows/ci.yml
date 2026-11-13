@@ -258,8 +258,15 @@ jobs:
   # E2E Smoke (Docker-backed)
   # ──────────────────────────────────────────────
   e2e:
-    name: E2E Smoke
+    name: E2E Smoke (${{ matrix.suite }})
     runs-on: ubuntu-latest
+    # One worker against one database is what keeps the specs from racing each other, so the suite
+    # is split across jobs instead: each slice gets its own database, Keycloak and Mailpit. Setup is
+    # about 3 minutes; the single job had grown to 47 minutes of tests.
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ['1/4', '2/4', '3/4', '4/4', station]
     env:
       DATABASE_URL: postgresql://nkwapa:nkwapa@localhost:5433/nkwapa
       # Migrations run as the owner; the API runs as the unprivileged role that row level security
@@ -449,20 +456,23 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright smoke suite
-        run: npm run e2e --workspace=@nkwapa/web
+        if: matrix.suite != 'station'
+        run: npm run e2e --workspace=@nkwapa/web -- --shard=${{ matrix.suite }}
 
       # The station line (#167) replaces manager assignment while its flag is on, so it cannot
       # share a build with the assignment specs above. NEXT_PUBLIC_* flags are inlined at build
       # time: rebuild the web app with the flag on, then run only the station spec, which skips
       # itself everywhere else.
       - name: Build @nkwapa/web with the station workflow on
+        if: matrix.suite == 'station'
         run: npm run build --workspace=@nkwapa/web
         env:
           NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
 
       # The screened registry filter (#224) seeds a completed Review visit, so it needs this build.
       - name: Run the station workflow spec
-        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js e2e/patient-registry-screened.spec.js e2e/station-redesign.spec.js
+        if: matrix.suite == 'station'
+        run: npm run e2e --workspace=@nkwapa/web -- e2e/station-workflow.spec.js e2e/patient-registry-screened.spec.js e2e/station-redesign.spec.js e2e/stations-workspace-refresh.spec.js e2e/patient-registry-workspace.spec.js
         env:
           FEATURE_STATION_WORKFLOW_ENABLED: true
           NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED: true
@@ -471,7 +481,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-artifacts
+          name: playwright-artifacts-${{ strategy.job-index }}
           path: |
             apps/web/playwright-report/
             apps/web/test-results/

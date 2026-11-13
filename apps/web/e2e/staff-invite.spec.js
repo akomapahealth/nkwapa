@@ -214,6 +214,17 @@ test('the name step holds them until they save, then lets them in', async () => 
 });
 
 test('invitations keep status and search on separate tablet rows', async ({ page }) => {
+  // Search only appears above six invitations; pad the real list so a fresh database has enough.
+  await page.route(/\/clinics\/[^/]+\/staff-invites(\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    const body = await response.json();
+    const items = [...body.items];
+    for (let i = 0; items.length > 0 && items.length < 8; i += 1) {
+      items.push({ ...items[0], id: `synthetic-${i}`, email: `synthetic.${i}@nkwapa.local` });
+    }
+    await route.fulfill({ response, json: { ...body, items } });
+  });
   await openInvitations(page);
   for (const width of [600, 744, 840, 1024]) {
     await page.setViewportSize({ width, height: 900 });

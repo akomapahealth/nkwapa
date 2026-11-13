@@ -52,6 +52,7 @@ export function ServiceWorkerAndSyncProvider({
   currentUserId,
   currentUserName,
   knownClinics,
+  canSync = true,
 }: {
   children: React.ReactNode;
   getAccessToken?: () => Promise<string | null>;
@@ -61,6 +62,12 @@ export function ServiceWorkerAndSyncProvider({
   currentUserName?: string | null;
   /** The clinics this account can open, so each queued change records its clinic's name. */
   knownClinics?: ReadonlyArray<{ clinicId: string; clinicName: string }>;
+  /**
+   * Whether this account may push and pull at the active clinic. Without it (a patient in the
+   * portal) no automatic pass runs: the API would refuse every one, the pill would read "Sync
+   * failed" for something the person cannot act on, and the retry would never stop.
+   */
+  canSync?: boolean;
 }) {
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -153,9 +160,9 @@ export function ServiceWorkerAndSyncProvider({
     changes, and without an account there is no owner to send for.
   */
   useEffect(() => {
-    if (!isOnline || !activeClinicId || !currentUserId) return;
+    if (!isOnline || !activeClinicId || !currentUserId || !canSync) return;
     void doSyncNow(activeClinicId);
-  }, [activeClinicId, currentUserId, doSyncNow, isOnline]);
+  }, [activeClinicId, canSync, currentUserId, doSyncNow, isOnline]);
 
   /*
     Send what was just queued at this clinic. Many forms queue a change and leave the sending to
@@ -163,7 +170,7 @@ export function ServiceWorkerAndSyncProvider({
     tick so a form that syncs straight after queueing starts its own pass first, which this joins.
   */
   useEffect(() => {
-    if (!isOnline || !activeClinicId || !currentUserId) return;
+    if (!isOnline || !activeClinicId || !currentUserId || !canSync) return;
     let timer: number | undefined;
     const unsubscribe = onOutboxChange((clinicId) => {
       if (clinicId !== activeClinicId) return;
@@ -176,7 +183,7 @@ export function ServiceWorkerAndSyncProvider({
       unsubscribe();
       window.clearTimeout(timer);
     };
-  }, [activeClinicId, currentUserId, getAccessToken, isOnline]);
+  }, [activeClinicId, canSync, currentUserId, getAccessToken, isOnline]);
 
   /*
     Follow a failed or partly refused pass with another, backing off, so the queue drains on its
@@ -188,14 +195,14 @@ export function ServiceWorkerAndSyncProvider({
     if (syncStatus === 'syncing') return;
     const delay = automaticSyncRetryDelay(syncStatus, automaticRetries.current);
     if (delay === null) automaticRetries.current = 0;
-    if (delay === null || !isOnline || !activeClinicId) return;
+    if (delay === null || !isOnline || !activeClinicId || !canSync) return;
 
     const timer = window.setTimeout(() => {
       automaticRetries.current += 1;
       void doSyncNow(activeClinicId);
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [activeClinicId, doSyncNow, isOnline, syncStatus]);
+  }, [activeClinicId, canSync, doSyncNow, isOnline, syncStatus]);
 
   const value = useMemo(
     () => ({

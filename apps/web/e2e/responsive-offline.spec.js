@@ -266,9 +266,9 @@ for (const role of ['doctor', 'volunteer', 'manager', 'director']) {
       await page.setViewportSize({ width: 390, height: 900 });
       await page.goto('/dashboard');
       // Each role's home (W2) leads with its own work rows: "Needs attention" for the clinic's
-      // managers and directors, "Needs you now" otherwise.
+      // managers and directors, "Your clinic day" for volunteers (W4), "Needs you now" otherwise.
       await expect(
-        page.getByRole('heading', { name: /^Needs (you now|attention)$/ }),
+        page.getByRole('heading', { name: /^(Needs (you now|attention)|Your clinic day)$/ }),
       ).toBeVisible();
       // This heading is rendered only with loaded dashboard data. Background polling and
       // chat can keep the network active indefinitely, so networkidle is not a ready signal.

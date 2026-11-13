@@ -73,6 +73,9 @@ for (const reduced of [false, true]) {
     await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/patients/new');
+    // Wait for the shell to hydrate. A click that lands earlier is replayed by React after the
+    // pointer tracker mounts, so the open is taken for a keyboard one and (correctly) skips motion.
+    await expect(page.locator('html')).toHaveAttribute('data-overlay-input', /.+/);
     const user = page.getByRole('button', { name: 'User menu' });
     await user.click();
     const menu = await checkPointerPair(

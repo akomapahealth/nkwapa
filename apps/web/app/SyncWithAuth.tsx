@@ -127,6 +127,11 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const syncPermissions = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canSync =
+    syncPermissions.includes('*') ||
+    (syncPermissions.includes('SYNC.PUSH') && syncPermissions.includes('SYNC.PULL'));
+
   return (
     <ServiceWorkerAndSyncProvider
       getAccessToken={getToken}
@@ -134,6 +139,7 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
       currentUserId={bootstrap?.userId}
       currentUserName={bootstrap?.displayName}
       knownClinics={knownClinics}
+      canSync={canSync}
     >
       {isDisabledAccount ? (
         <FullscreenStatus

@@ -346,6 +346,9 @@ test('real registry check-in queues offline and replays once without removing th
   await expect(
     page.getByText(/already checked in today, so they were not added again/),
   ).toBeVisible();
+  // The station board is the only place an arrival can be counted, and it needs the station
+  // workflow, which the smoke build leaves off. The refusal message above covers that build.
+  if (process.env.FEATURE_STATION_WORKFLOW_ENABLED !== 'true') return;
   const board = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, {
     clinicId,
   });

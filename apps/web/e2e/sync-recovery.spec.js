@@ -306,7 +306,8 @@ test('a second user stale save applies and sends the first user an overwrite inb
       { count: 1 },
     ]);
     await page.goto('/notifications');
-    const tile = page.getByRole('button').filter({ hasText: notice.title });
+    // A retry or a reused database leaves an older notice with the same title; newest is first.
+    const tile = page.getByRole('button').filter({ hasText: notice.title }).first();
     await expect(tile).toBeVisible();
     await tile.click();
     await expect(page).toHaveURL(new RegExp(`${url}$`));
