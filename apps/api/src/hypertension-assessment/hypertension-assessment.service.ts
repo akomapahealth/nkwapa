@@ -35,6 +35,7 @@ import {
 import { screeningCompletionDate, toDateOnly } from '../common/screening-completion';
 import {
   auditOverwrite,
+  findOverwrittenSave,
   overwroteNewerSave,
   type OverwriteCheck,
 } from '../sync/overwrite-conflict';
@@ -278,24 +279,31 @@ export class HypertensionAssessmentService {
       const existing = await tx.hypertensionAssessment.findUnique({ where: { encounterId } });
       priorFindings = existing?.urgentReviewReasons ?? [];
       const sync = metadata.syncMutation;
-      if (
-        existing &&
-        sync?.baseUpdatedAt &&
-        existing.authoredByUserId !== actor.userId &&
-        overwroteNewerSave(existing, sync.baseUpdatedAt)
-      ) {
+      const overwritten =
+        existing && sync?.baseUpdatedAt && overwroteNewerSave(existing, sync.baseUpdatedAt)
+          ? await findOverwrittenSave(tx, {
+              clinicId,
+              entityType: 'HypertensionAssessment',
+              entityId: existing.id,
+              // Clinician plans are separate fields this save does not touch.
+              actions: ['HYPERTENSION_ASSESSMENT.CREATE', 'HYPERTENSION_ASSESSMENT.UPSERT'],
+              actorUserId: actor.userId,
+              baseUpdatedAt: sync.baseUpdatedAt,
+            })
+          : null;
+      if (existing && sync?.baseUpdatedAt && overwritten) {
         await auditOverwrite(tx, {
           clinicId,
           actorUserId: actor.userId,
           entityType: 'HypertensionAssessment',
           entityId: existing.id,
-          overwrittenUserId: existing.authoredByUserId,
-          overwrittenAt: existing.updatedAt,
+          overwrittenUserId: overwritten.userId,
+          overwrittenAt: overwritten.savedAt,
           baseUpdatedAt: sync.baseUpdatedAt,
           requestId: metadata.requestId,
         });
         sync.overwrote = true;
-        overwrittenUserId = existing.authoredByUserId;
+        overwrittenUserId = overwritten.userId;
       }
       const record = await tx.hypertensionAssessment.upsert({
         where: { encounterId },

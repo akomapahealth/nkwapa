@@ -179,10 +179,31 @@ describe('HypertensionAssessmentService', () => {
       baseUpdatedAt,
     });
 
-    function setupWithPush() {
+    // The audit trail behind the current row: user-1's screening save at 12:00.
+    const screeningSave = {
+      action: 'HYPERTENSION_ASSESSMENT.UPSERT',
+      actorUserId: 'user-1',
+      afterJson: JSON.stringify({ updatedAt: '2026-09-13T12:00:00.000Z' }),
+    };
+    const planSave = {
+      action: 'HYPERTENSION_ASSESSMENT.CLINICIAN_PLAN',
+      actorUserId: 'doctor-1',
+      afterJson: JSON.stringify({ updatedAt: '2026-09-13T12:00:00.000Z' }),
+    };
+
+    function setupWithPush(events: Array<typeof screeningSave> = [screeningSave]) {
       const harness = setup();
       const push = { alertOnNewFindings: jest.fn(), alertOverwritten: jest.fn() };
       harness.tx.hypertensionAssessment.findUnique.mockResolvedValue(saved());
+      // Applies the two filters that matter here: which actions, and not the caller's own.
+      (harness.tx.auditEvent as Record<string, jest.Mock>).findMany = jest.fn(
+        ({ where }: { where: { action: { in: string[] }; actorUserId: { not: string } } }) =>
+          Promise.resolve(
+            events.filter(
+              (e) => where.action.in.includes(e.action) && e.actorUserId !== where.actorUserId.not,
+            ),
+          ),
+      );
       return {
         ...harness,
         push,
@@ -226,6 +247,16 @@ describe('HypertensionAssessmentService', () => {
         syncMutation: sync(undefined),
       });
       expect(tx.hypertensionAssessment.upsert).toHaveBeenCalled();
+      expect(overwriteAudits(tx)).toHaveLength(0);
+      expect(push.alertOverwritten).not.toHaveBeenCalled();
+    });
+
+    it('ignores a clinician plan added since the base', async () => {
+      // user-1 authored the screening long ago; only the doctor's plan is newer than the base.
+      const { service, tx, push } = setupWithPush([planSave]);
+      await service.upsert('clinic-1', 'encounter-1', otherVolunteer, dto as never, {
+        syncMutation: sync('2026-09-13T11:30:00.000Z'),
+      });
       expect(overwriteAudits(tx)).toHaveLength(0);
       expect(push.alertOverwritten).not.toHaveBeenCalled();
     });

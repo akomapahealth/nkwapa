@@ -35,6 +35,61 @@ export function overwroteNewerSave(
   return Number.isFinite(base) && current.updatedAt.getTime() > base;
 }
 
+// Audit rows are stamped by the database clock and rows by the API's; this window absorbs skew.
+const CLOCK_SKEW_MS = 10 * 60 * 1000;
+
+/**
+ * Who made a save, of one of `actions`, that the device never saw.
+ *
+ * `updatedAt` alone cannot answer this: a clinician plan or anything else that touches the row
+ * bumps it too. Each save's audit event holds the row it wrote, so this compares that row's
+ * `updatedAt` (the same clock as the base) and ignores the caller's own saves.
+ */
+export async function findOverwrittenSave(
+  tx: Prisma.TransactionClient,
+  params: {
+    clinicId: string;
+    entityType: string;
+    entityId: string;
+    actions: string[];
+    actorUserId: string;
+    baseUpdatedAt: string;
+  },
+): Promise<{ userId: string; savedAt: Date } | null> {
+  const base = Date.parse(params.baseUpdatedAt);
+  if (!Number.isFinite(base)) return null;
+  const events = await tx.auditEvent.findMany({
+    where: {
+      clinicId: params.clinicId,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      action: { in: params.actions },
+      actorUserId: { not: params.actorUserId },
+      createdAt: { gte: new Date(base - CLOCK_SKEW_MS) },
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { actorUserId: true, afterJson: true },
+  });
+  for (const event of events) {
+    const savedAt = savedUpdatedAt(event.afterJson);
+    if (savedAt !== null && savedAt > base) {
+      return { userId: event.actorUserId, savedAt: new Date(savedAt) };
+    }
+  }
+  return null;
+}
+
+function savedUpdatedAt(afterJson: string | null): number | null {
+  if (!afterJson) return null;
+  try {
+    const row = JSON.parse(afterJson) as { updatedAt?: unknown };
+    const at = typeof row.updatedAt === 'string' ? Date.parse(row.updatedAt) : NaN;
+    return Number.isFinite(at) ? at : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function auditOverwrite(
   tx: Prisma.TransactionClient,
   params: {

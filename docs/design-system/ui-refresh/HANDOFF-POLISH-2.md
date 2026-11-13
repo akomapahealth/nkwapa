@@ -192,9 +192,9 @@ the sync handler strips it before the strict DTOs (`sync/overwrite-conflict.ts`)
 saved by someone else after that base, the save still applies, a `CONFLICT_OVERWRITTEN` audit event
 is written, `PushService.alertOverwritten` sends an `ASSIGNMENT` inbox notice, and the result's
 `conflictType` makes the telemetry `conflicts` counter count it. Saving over your own save is never
-flagged. Not built: the dialog, the InterviewFlow hook and the two-browser e2e. Known false
-positive: a clinician plan bumps `updatedAt`, so an edit based on a version before the plan can be
-flagged against the screening's author.
+flagged. Not built: the dialog, the InterviewFlow hook and the two-browser e2e. An overwrite is confirmed from the audit trail
+(`findOverwrittenSave`): only a screening save by someone else whose row is newer than the base
+counts, so a clinician plan added since the base no longer flags.
 
 ## 6. Staging auth memory (infra, optional, no deploys)
 

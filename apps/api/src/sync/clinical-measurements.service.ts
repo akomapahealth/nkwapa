@@ -39,7 +39,7 @@ import {
 } from './dto/encounter-vitals-bundle.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import type { RequestMetadata, UserWithId } from './sync.service';
-import { auditOverwrite, overwroteNewerSave } from './overwrite-conflict';
+import { auditOverwrite, findOverwrittenSave, overwroteNewerSave } from './overwrite-conflict';
 
 type NormalizedVitals = {
   systolicBp: number | null;
@@ -147,22 +147,23 @@ export class ClinicalMeasurementsService {
         params.baseUpdatedAt &&
         overwroteNewerSave(existingVitals, params.baseUpdatedAt)
       ) {
-        // Vitals has no author column; the last audited writer is who gets overwritten.
-        const lastWrite = await tx.auditEvent.findFirst({
-          where: { entityType: 'Vitals', entityId: existingVitals.id },
-          orderBy: { createdAt: 'desc' },
-          select: { actorUserId: true },
+        const overwritten = await findOverwrittenSave(tx, {
+          clinicId: params.clinicId,
+          entityType: 'Vitals',
+          entityId: existingVitals.id,
+          actions: ['VITALS.CREATE', 'VITALS.UPSERT'],
+          actorUserId: params.actorUserId,
+          baseUpdatedAt: params.baseUpdatedAt,
         });
-        // Saving over your own earlier save (two devices, or two offline saves) is not a conflict.
-        if (lastWrite?.actorUserId !== params.actorUserId) {
-          overwrittenUserId = lastWrite?.actorUserId ?? null;
+        if (overwritten) {
+          overwrittenUserId = overwritten.userId;
           await auditOverwrite(tx, {
             clinicId: params.clinicId,
             actorUserId: params.actorUserId,
             entityType: 'Vitals',
             entityId: existingVitals.id,
             overwrittenUserId,
-            overwrittenAt: existingVitals.updatedAt,
+            overwrittenAt: overwritten.savedAt,
             baseUpdatedAt: params.baseUpdatedAt,
             requestId: params.mutation.idempotencyKey,
           });

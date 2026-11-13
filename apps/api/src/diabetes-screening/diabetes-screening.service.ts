@@ -36,6 +36,7 @@ import {
 import { screeningCompletionDate, toDateOnly } from '../common/screening-completion';
 import {
   auditOverwrite,
+  findOverwrittenSave,
   overwroteNewerSave,
   type OverwriteCheck,
 } from '../sync/overwrite-conflict';
@@ -223,24 +224,35 @@ export class DiabetesScreeningService {
       const existing = await tx.diabetesScreening.findUnique({ where: { encounterId } });
       priorFindings = existing?.urgentReviewReasons ?? [];
       const sync = metadata.syncMutation;
-      if (
-        existing &&
-        sync?.baseUpdatedAt &&
-        existing.authoredByUserId !== actor.userId &&
-        overwroteNewerSave(existing, sync.baseUpdatedAt)
-      ) {
+      const overwritten =
+        existing && sync?.baseUpdatedAt && overwroteNewerSave(existing, sync.baseUpdatedAt)
+          ? await findOverwrittenSave(tx, {
+              clinicId,
+              entityType: 'DiabetesScreening',
+              entityId: existing.id,
+              // Clinician plans are separate fields this save does not touch.
+              actions: [
+                'DIABETES_SCREENING.CREATE',
+                'DIABETES_SCREENING.UPSERT',
+                'DIABETES_SCREENING.GLUCOSE_READING',
+              ],
+              actorUserId: actor.userId,
+              baseUpdatedAt: sync.baseUpdatedAt,
+            })
+          : null;
+      if (existing && sync?.baseUpdatedAt && overwritten) {
         await auditOverwrite(tx, {
           clinicId,
           actorUserId: actor.userId,
           entityType: 'DiabetesScreening',
           entityId: existing.id,
-          overwrittenUserId: existing.authoredByUserId,
-          overwrittenAt: existing.updatedAt,
+          overwrittenUserId: overwritten.userId,
+          overwrittenAt: overwritten.savedAt,
           baseUpdatedAt: sync.baseUpdatedAt,
           requestId: metadata.requestId,
         });
         sync.overwrote = true;
-        overwrittenUserId = existing.authoredByUserId;
+        overwrittenUserId = overwritten.userId;
       }
       const saved = await tx.diabetesScreening.upsert({
         where: { encounterId },

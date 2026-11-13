@@ -178,9 +178,12 @@ describe('ClinicalMeasurementsService', () => {
       id: IDS.vitals,
       updatedAt: new Date('2026-09-13T12:00:00.000Z'),
     });
-    (tx.auditEvent as Record<string, jest.Mock>).findFirst = jest
-      .fn()
-      .mockResolvedValue({ actorUserId: 'someone-else' });
+    (tx.auditEvent as Record<string, jest.Mock>).findMany = jest.fn().mockResolvedValue([
+      {
+        actorUserId: 'someone-else',
+        afterJson: JSON.stringify({ updatedAt: '2026-09-13T12:00:00.000Z' }),
+      },
+    ]);
 
     const result = await service.applyBundle({
       clinicId: IDS.clinic,
