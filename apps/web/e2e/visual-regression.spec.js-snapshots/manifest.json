@@ -1,0 +1,415 @@
+{
+  "capturedAt": "2026-11-13",
+  "applicationRevision": "f3ff7ab9",
+  "browser": "Chromium bundled with Playwright 1.62.1",
+  "theme": "light",
+  "mode": "fullPage",
+  "masked": ["time", "[data-testid=sync-status]"],
+  "limitations": [
+    "Current synthetic audit DB and live clock; data drift creates real diffs.",
+    "No later comparison or post-fix browser run performed.",
+    "Known station-flow axis label crowding retained."
+  ],
+  "screenshots": [
+    {
+      "file": "director-audit-1440.png",
+      "role": "director",
+      "width": 1440,
+      "height": 1190,
+      "sha256": "e5c609d695e8f321a018b0ae2fe889600561992cbad3c1cccc6ed6f1de8efcd0",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "director-audit-390.png",
+      "role": "director",
+      "width": 390,
+      "height": 7285,
+      "sha256": "27d10934ebf39fa7269a42af0c6eab22d3204d93ae5cc388c20dec1a82d3c92d",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "director-dashboard-1440.png",
+      "role": "director",
+      "width": 1440,
+      "height": 4450,
+      "sha256": "eebc2ac3ba4fe5fee64fe59f3df67879410e8b8ed5f760fb058c9d12a98a53c8",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "director-dashboard-390.png",
+      "role": "director",
+      "width": 390,
+      "height": 6361,
+      "sha256": "e5969b937082d71088551163db1796d22bcc656ab09481f1ccf9c137ebba60c2",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "director-metrics-1440.png",
+      "role": "director",
+      "width": 1440,
+      "height": 2190,
+      "sha256": "119e2f112c3c991cbc49d13a61359ebf6b5a49b02516194bee605d42844d150f",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "director-metrics-390.png",
+      "role": "director",
+      "width": 390,
+      "height": 3621,
+      "sha256": "9a11f45d7d77f8477bb334873ab6af012960e161b323faea1836b4b89626eaef",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "doctor-dashboard-1440.png",
+      "role": "doctor",
+      "width": 1440,
+      "height": 2903,
+      "sha256": "2cf28c0a79b054981767b619c08de6718ef422dd52974e4438b4a9851c5f445c",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "doctor-dashboard-390.png",
+      "role": "doctor",
+      "width": 390,
+      "height": 3695,
+      "sha256": "a31bca7c608d2cc479043c2359653908d1d2859d43afe17d2d4b7706c8753f98",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "doctor-my-assigned-1440.png",
+      "role": "doctor",
+      "width": 1440,
+      "height": 1061,
+      "sha256": "b646496c16fbbdd810fac9678ea34c9f2d0d49165a9a21c9ca38112dc5d9593b",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "doctor-my-assigned-390.png",
+      "role": "doctor",
+      "width": 390,
+      "height": 1557,
+      "sha256": "001fd84e8e114e001e86781186bb3940b990bb8317a30f7829a4101b3d07a4f6",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "doctor-patients-1440.png",
+      "role": "doctor",
+      "width": 1440,
+      "height": 1090,
+      "sha256": "de65723a98caa8be1d1c98ed64b2bb4d3fc2cb92e2656609bc66e166537b926b",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "doctor-patients-390.png",
+      "role": "doctor",
+      "width": 390,
+      "height": 1744,
+      "sha256": "16b08ee4daee16b1886afef7c63919d4b9929d70717ffe0c1d2dca1738d806ed",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "doctor-queues-1440.png",
+      "role": "doctor",
+      "width": 1440,
+      "height": 900,
+      "sha256": "783f920ff4a75408e61c2d7ca00ab53d6e27d16dc4c0a5a380d8024168b90774",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "doctor-queues-390.png",
+      "role": "doctor",
+      "width": 390,
+      "height": 844,
+      "sha256": "d851d06a1aec18ca3fb68ee7e2d6a3423ce7f610bb9db3ce7add48507e122e20",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "manager-dashboard-1440.png",
+      "role": "manager",
+      "width": 1440,
+      "height": 2313,
+      "sha256": "02a8b271d71c27a032dfac18b4c7926466589f0c4081256756a4ef476b4673b3",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "manager-dashboard-390.png",
+      "role": "manager",
+      "width": 390,
+      "height": 3290,
+      "sha256": "c1192c05b6866f27cb1e4504233f2bbf32e4b4a09ec1a41155e0fc6c9548098b",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "manager-queues-1440.png",
+      "role": "manager",
+      "width": 1440,
+      "height": 1072,
+      "sha256": "1553ad69253ff0908c3f143e5453ad3131242aeb656c9a7b68300dd0d4a34917",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "manager-queues-390.png",
+      "role": "manager",
+      "width": 390,
+      "height": 1713,
+      "sha256": "f3c3808d01db02efbffde169eeeac691c0107fb8917f94248997021f81fa382d",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "manager-stations-1440.png",
+      "role": "manager",
+      "width": 1440,
+      "height": 900,
+      "sha256": "38a205a57a78d27f1d2ece9453b94f4a57813c0ecf04690f1a8c44f83c3ac508",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "manager-stations-390.png",
+      "role": "manager",
+      "width": 390,
+      "height": 844,
+      "sha256": "19a63889731a902ce94deaaaf500afbdc30483d97b9d3f1f00e036e9556c66a5",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "manager-today-1440.png",
+      "role": "manager",
+      "width": 1440,
+      "height": 1890,
+      "sha256": "bd0ce687043789aacdf0b25db2e087dfe25e70bea2a7066e2796c120e5176462",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "manager-today-390.png",
+      "role": "manager",
+      "width": 390,
+      "height": 2641,
+      "sha256": "bbd4c71eaad684625b60170cf5267a4c857f014024e8dbdf43b35c770e466404",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "patient-portal-1440.png",
+      "role": "patient",
+      "width": 1440,
+      "height": 1417,
+      "sha256": "a910938424a2ede853b99d85519c160edb7be1b28545e79f9f99609b68d90cd5",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "patient-portal-390.png",
+      "role": "patient",
+      "width": 390,
+      "height": 1699,
+      "sha256": "88d67ac97cf5227466fff33bbe1768e27de3451af6d6099156c10bb1a88f54d3",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "patient-portal-appointments-1440.png",
+      "role": "patient",
+      "width": 1440,
+      "height": 28782,
+      "sha256": "ab74b15533dcdee755aa358e147ac7197c563c7bd9ec99865294214161ee0f3e",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "patient-portal-appointments-390.png",
+      "role": "patient",
+      "width": 390,
+      "height": 35475,
+      "sha256": "130cf5e1f66c9cdff84e75c00ac15f6902d41da61ca0d8b2c7b060af5b3091c0",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "patient-portal-health-1440.png",
+      "role": "patient",
+      "width": 1440,
+      "height": 1393,
+      "sha256": "5991180541a9e6f537298920005843400808588771ea5ca3d849f3ecf77cfc82",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "patient-portal-health-390.png",
+      "role": "patient",
+      "width": 390,
+      "height": 1880,
+      "sha256": "8413af0e34a2b74b4d34cccf50b0ddbfa9afb0b2e1a5724c9c52a2ed69b4dfaa",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "patient-portal-self-reports-new-1440.png",
+      "role": "patient",
+      "width": 1440,
+      "height": 1184,
+      "sha256": "6f69e8fe819ed68177f8c55760fc5d2dfa2039393497ecb618a57f72e43b2235",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "patient-portal-self-reports-new-390.png",
+      "role": "patient",
+      "width": 390,
+      "height": 2103,
+      "sha256": "94e7bb3fba0275d0a16ed9166697140c0cebf5c2c24dbcea2b287368f2e5ecdb",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-appointments-1440.png",
+      "role": "staff",
+      "width": 1440,
+      "height": 2881,
+      "sha256": "211d8e1afda0fd0afad609dd97d08415515b2f88f849c96390178c98733bb329",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-appointments-390.png",
+      "role": "staff",
+      "width": 390,
+      "height": 4752,
+      "sha256": "85c0877a1db32809ba0914b6f2f530a8ade7b8859e589f97cea80fe51ba0b56c",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-dashboard-1440.png",
+      "role": "staff",
+      "width": 1440,
+      "height": 3447,
+      "sha256": "01b2e3a799c6a1f8047e53977ed0044f59572b931ed1e87be156e81226a5b501",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "staff-dashboard-390.png",
+      "role": "staff",
+      "width": 390,
+      "height": 4512,
+      "sha256": "78489f6e7cbb95543681575482ca54fef076c6399dc1a1103956c047e28ed670",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "staff-patients-1440.png",
+      "role": "staff",
+      "width": 1440,
+      "height": 1090,
+      "sha256": "35a2b5989acb206ca68eb1e3853ef2d25e165d80b262e6833cba620ceb0ac8b5",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-patients-390.png",
+      "role": "staff",
+      "width": 390,
+      "height": 1744,
+      "sha256": "3fa449028c87cf35bcdf38a9f121d3dc01cbdba85b317f809a9f13d53903de3d",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-patients-new-1440.png",
+      "role": "staff",
+      "width": 1440,
+      "height": 1363,
+      "sha256": "53ceae0ea1773e404e02b7e0d644679fe6db2b18f62d826988073ce3a5f76839",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-patients-new-390.png",
+      "role": "staff",
+      "width": 390,
+      "height": 2227,
+      "sha256": "7736b0279e27e85d06fbc9300cebc0b4c904b79c5ee6f7f2813425d58d9baabd",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-stations-1440.png",
+      "role": "staff",
+      "width": 1440,
+      "height": 1579,
+      "sha256": "cf83f63ba00ea4e47f1023ece8299b4e4eb7ad478334a69f3d350163fee7faf1",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-stations-390.png",
+      "role": "staff",
+      "width": 390,
+      "height": 2711,
+      "sha256": "c398170367c8985dcdf19012a32fe58449cecd9e5b154cd2bed6f2a83bedb620",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-today-1440.png",
+      "role": "staff",
+      "width": 1440,
+      "height": 1890,
+      "sha256": "25123a7834131941d9b1b0e63cee3e863789fc24e2d652ea02a3b85dc2164b22",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "staff-today-390.png",
+      "role": "staff",
+      "width": 390,
+      "height": 2641,
+      "sha256": "2ee539522563af7905dcd5a36404ab9199d3fdbb9938aed605ba73618c1ff8f8",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "volunteer-dashboard-1440.png",
+      "role": "volunteer",
+      "width": 1440,
+      "height": 1299,
+      "sha256": "77ad8cd4d54f43dc126657ec72918682b75696b507bc72c6a70ce95e6fc31668",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "volunteer-dashboard-390.png",
+      "role": "volunteer",
+      "width": 390,
+      "height": 1628,
+      "sha256": "1d1ea8992ef884b631d28958295c3cd29403a401f7f3aba9baeef30a00d10695",
+      "individuallyReviewed": true
+    },
+    {
+      "file": "volunteer-my-assigned-1440.png",
+      "role": "volunteer",
+      "width": 1440,
+      "height": 1065,
+      "sha256": "53c5023841e0d9f69ee636b5d40f2723dfc8054fedcaccee66babf5adb223eac",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "volunteer-my-assigned-390.png",
+      "role": "volunteer",
+      "width": 390,
+      "height": 1616,
+      "sha256": "e6739aff38ffc1b7c28e038ea1211326fbc5dd815a4d886cb06a6479cb18c49f",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "volunteer-patients-new-1440.png",
+      "role": "volunteer",
+      "width": 1440,
+      "height": 1363,
+      "sha256": "a1b16c7ec97c3bcbb8a3a713a2f43546997fe45a98cd0a1f18e2d95c968d1313",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "volunteer-patients-new-390.png",
+      "role": "volunteer",
+      "width": 390,
+      "height": 2227,
+      "sha256": "6470a33c3e162fe78c6f41a5f530119edca1363c4913f72808cf998f22999180",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "volunteer-stations-1440.png",
+      "role": "volunteer",
+      "width": 1440,
+      "height": 1465,
+      "sha256": "e26b233e798024ceaf172bf1a0040f7db19118a6916edc0bd5e8df9974f5cb52",
+      "individuallyReviewed": false
+    },
+    {
+      "file": "volunteer-stations-390.png",
+      "role": "volunteer",
+      "width": 390,
+      "height": 3053,
+      "sha256": "fadcf67145df5ff9e8c47e22c48e2d4073246f739746223bee00da7aadfe62b7",
+      "individuallyReviewed": false
+    }
+  ]
+}
