@@ -112,7 +112,8 @@ export function RegisterPatientScreen({
     firstName: '',
     lastName: '',
     dob: '',
-    sex: 'UNKNOWN',
+    // Unset until chosen, so "Unknown" is never a choice nobody made; it still saves as UNKNOWN.
+    sex: undefined,
     phoneE164: '',
     email: '',
     nationalIdType: 'OTHER',
@@ -143,6 +144,7 @@ export function RegisterPatientScreen({
         // A patient with no ID document has no number to send (#214).
         nationalId: noId ? undefined : form.nationalId,
         dob: form.dob || undefined,
+        sex: form.sex ?? 'UNKNOWN',
         phoneE164: form.phoneE164 || undefined,
         email: form.email || undefined,
         ...toResidentialLocationPayload(location),
@@ -337,7 +339,7 @@ export function RegisterPatientScreen({
                 <div className="space-y-2">
                   <Label htmlFor="sex">Sex</Label>
                   <Select
-                    value={form.sex}
+                    value={form.sex ?? ''}
                     onValueChange={(value) =>
                       setForm((current) => ({
                         ...current,
@@ -346,7 +348,7 @@ export function RegisterPatientScreen({
                     }
                   >
                     <SelectTrigger id="sex">
-                      <SelectValue />
+                      <SelectValue placeholder="Not recorded" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="UNKNOWN">Unknown</SelectItem>
@@ -358,43 +360,6 @@ export function RegisterPatientScreen({
                 </div>
               </div>
             </FormSectionCard>
-
-            <FormSectionCard
-              title="Contact details"
-              description="Add the best follow-up channels your team can use after today’s visit."
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="patient-phone">Phone (Ghana)</Label>
-                  <PhoneInput
-                    id="patient-phone"
-                    value={form.phoneE164}
-                    onChange={(value) => setForm((current) => ({ ...current, phoneE164: value }))}
-                    placeholder="024 123 4567"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    {...validation.fieldProps('email')}
-                    type="email"
-                    value={form.email}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setForm((current) => ({ ...current, email: value }));
-                    }}
-                  />
-                  <FieldError
-                    reserveSpace={validation.submitted}
-                    id="email"
-                    message={validation.fieldMessage('email')}
-                  />
-                </div>
-              </div>
-            </FormSectionCard>
-
-            <ResidentialLocationFields value={location} onChange={setLocation} />
 
             <FormSectionCard
               title="National ID"
@@ -454,6 +419,43 @@ export function RegisterPatientScreen({
                 )}
               </div>
             </FormSectionCard>
+
+            <FormSectionCard
+              title="Contact details"
+              description="Add the best follow-up channels your team can use after today’s visit."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="patient-phone">Phone (Ghana)</Label>
+                  <PhoneInput
+                    id="patient-phone"
+                    value={form.phoneE164}
+                    onChange={(value) => setForm((current) => ({ ...current, phoneE164: value }))}
+                    placeholder="024 123 4567"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    {...validation.fieldProps('email')}
+                    type="email"
+                    value={form.email}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setForm((current) => ({ ...current, email: value }));
+                    }}
+                  />
+                  <FieldError
+                    reserveSpace={validation.submitted}
+                    id="email"
+                    message={validation.fieldMessage('email')}
+                  />
+                </div>
+              </div>
+            </FormSectionCard>
+
+            <ResidentialLocationFields value={location} onChange={setLocation} />
           </div>
           <div
             className={styles.actions}

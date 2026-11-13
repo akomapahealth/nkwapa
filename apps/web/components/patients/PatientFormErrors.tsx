@@ -2,6 +2,15 @@
 
 import { useState, type FormEvent } from 'react';
 
+/** Say which field and what to do; the browser's "Please fill out this field." names neither. */
+function messageFor(field: HTMLInputElement | HTMLTextAreaElement, label: string): string {
+  if (field.validity.valueMissing)
+    return `Enter the ${label.charAt(0).toLowerCase()}${label.slice(1)}.`;
+  if (field.validity.typeMismatch && field.type === 'email')
+    return 'Enter an email address like name@example.com.';
+  return field.validationMessage;
+}
+
 interface NativeFieldError {
   id: string;
   label: string;
@@ -15,11 +24,10 @@ export function usePatientFormErrors() {
   const readErrors = (form: HTMLFormElement) =>
     Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'))
       .filter((field) => field.id && field.willValidate && !field.validity.valid)
-      .map((field) => ({
-        id: field.id,
-        label: field.labels?.[0]?.textContent?.trim() || field.id,
-        message: field.validationMessage,
-      }));
+      .map((field) => {
+        const label = field.labels?.[0]?.textContent?.trim() || field.id;
+        return { id: field.id, label, message: messageFor(field, label) };
+      });
   return {
     errors,
     submitted,
@@ -45,7 +53,9 @@ export function usePatientFormErrors() {
       // The form's bubbling change runs after the control's own onChange. Capture-phase
       // state changes can restore an old controlled value before that handler reads it.
       const id = field.id;
-      const message = field.validity.valid ? undefined : field.validationMessage;
+      const message = field.validity.valid
+        ? undefined
+        : messageFor(field, field.labels?.[0]?.textContent?.trim() || field.id);
       setErrors((current) =>
         current.flatMap((error) => {
           if (error.id !== id) return [error];
