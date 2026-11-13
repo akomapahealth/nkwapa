@@ -66,8 +66,8 @@ test.describe('as staff', () => {
       await expect(total(/Sync pushes/)).not.toHaveText('0', { timeout: 3_000 });
     }).toPass({ timeout: 40_000 });
 
-    await page.getByRole('button', { name: '7 days' }).click();
-    await expect(page.getByRole('button', { name: '7 days' })).toHaveAttribute(
+    await page.getByRole('button', { name: '7 days', exact: true }).click();
+    await expect(page.getByRole('button', { name: '7 days', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );

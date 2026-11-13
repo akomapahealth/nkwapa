@@ -51,7 +51,10 @@ test.describe('volunteer', () => {
     await page.goto('/dashboard');
     const section = await needsSection(page, 'Your clinic day');
     await expect(page.getByRole('heading', { name: 'Today at a glance' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'The line', exact: true })).toBeVisible();
+    // The line belongs to the station workflow, which the smoke build leaves off.
+    await expect(page.getByRole('heading', { name: 'The line', exact: true })).toHaveCount(
+      process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true' ? 1 : 0,
+    );
 
     const ownWork = section.getByText(/^Today you added/);
     await expect(ownWork).toBeVisible();
