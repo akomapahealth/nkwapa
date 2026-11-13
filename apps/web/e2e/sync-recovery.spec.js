@@ -193,11 +193,16 @@ test('a blocked change survives reload and an explicit retry applies it', async 
   await center.getByRole('button', { name: 'Retry', exact: true }).click();
   await waitForOutboxDrain(page, expect, { entityType: 'patient', clinicId });
   expect(attempts).toBe(2);
-  const patient = await apiRequestAs('staff', 'get', `/patients/${patientId}`, {
-    clinicId,
-  });
+  const patient = await apiRequestAs(
+    'staff',
+    'get',
+    `/patients/${patientId}?clinicId=${clinicId}`,
+    {
+      clinicId,
+    },
+  );
   expect(patient.ok()).toBeTruthy();
-  expect(patient.json().firstName).toBe('Recovered blocked save');
+  expect(patient.json().patient.firstName).toBe('Recovered blocked save');
 });
 
 // Polish 2 unit 5: stale work still applies, while the other author gets a durable notice.
