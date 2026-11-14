@@ -402,7 +402,9 @@ jobs:
       - name: Build @nkwapa/api
         run: npm run build --workspace=@nkwapa/api
 
+      # The station suite builds web once, further down, with its flag on.
       - name: Build @nkwapa/web
+        if: matrix.suite != 'station'
         run: npm run build --workspace=@nkwapa/web
 
       - name: Start local infra
