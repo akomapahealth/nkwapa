@@ -11,7 +11,8 @@ export type InboxKind =
   | 'HEALTH_ALERT'
   | 'APPOINTMENT_REQUEST'
   | 'INVITE'
-  | 'REMINDER_FAILED';
+  | 'REMINDER_FAILED'
+  | 'ACCESS_CHANGE';
 
 export interface InboxItem {
   id: string;
@@ -34,6 +35,8 @@ export interface InboxPage {
 
 /** Fired after this tab marks something read, so the bell updates without waiting for a poll. */
 export const INBOX_CHANGED_EVENT = 'nkwapa:inbox-changed';
+/** Fired with `{ unreadCount }` each time the bell reads its number, so others need not poll. */
+export const INBOX_UNREAD_EVENT = 'nkwapa:inbox-unread';
 const POLL_MS = 60_000;
 
 type GetToken = ReturnType<typeof useAuth>;
@@ -76,7 +79,11 @@ export function useUnreadNotificationCount(): number {
         getToken,
         skipClinicHeader: true,
       });
-      if (response.ok) setCount(((await response.json()) as { unreadCount: number }).unreadCount);
+      if (response.ok) {
+        const { unreadCount } = (await response.json()) as { unreadCount: number };
+        setCount(unreadCount);
+        window.dispatchEvent(new CustomEvent(INBOX_UNREAD_EVENT, { detail: { unreadCount } }));
+      }
     } catch {
       // The bell is a courtesy: a failed read keeps the last count.
     }

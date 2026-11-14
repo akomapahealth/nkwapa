@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CheckCheck,
   FileSignature,
+  KeyRound,
   MailWarning,
   MessageSquare,
   Send,
@@ -38,6 +39,7 @@ const KIND: Record<InboxKind, { icon: LucideIcon; label: string; many: string }>
   APPOINTMENT_REQUEST: { icon: CalendarClock, label: 'Appointment request', many: 'requests' },
   INVITE: { icon: UserPlus, label: 'Invitation', many: 'updates' },
   REMINDER_FAILED: { icon: MailWarning, label: 'Reminder not sent', many: 'reminders' },
+  ACCESS_CHANGE: { icon: KeyRound, label: 'Your access', many: 'changes' },
 };
 
 type Filter = 'all' | 'unread';

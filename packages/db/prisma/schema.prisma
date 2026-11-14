@@ -2869,6 +2869,8 @@ enum InboxNotificationKind {
   APPOINTMENT_REQUEST
   INVITE
   REMINDER_FAILED
+  /// The reader's own role was granted or removed (#329).
+  ACCESS_CHANGE
 }
 
 model InboxNotification {
