@@ -244,6 +244,9 @@ test('the agreement holds a volunteer until they sign with their own name', asyn
   // Signed once: the account page says when, and the step does not come back.
   await inviteePage.goto('/account');
   await expect(inviteePage.getByText(/confidentiality agreement signed on/i)).toBeVisible();
+  // Leave the workspace as the next test expects to find it: it opens /account from the menu,
+  // and already being there lets it type while that menu is still closing.
+  await inviteePage.goto('/dashboard');
 });
 
 test('invitations keep status and search on separate tablet rows', async ({ page }) => {
