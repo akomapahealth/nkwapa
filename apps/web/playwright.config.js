@@ -30,6 +30,8 @@ module.exports = defineConfig({
   // fails at /login and buries the real cause (#233: 3.2 h). Bounded by time, not by a failure
   // count, so one broken file cannot hide failures in the files after it. A shard takes ~10 min.
   globalTimeout: isCI ? 25 * 60_000 : 0,
+  // A build broken everywhere stops here rather than spending the full 25 minutes on each shard.
+  maxFailures: isCI ? 40 : 0,
   reporter: isCI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
