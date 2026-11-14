@@ -43,6 +43,10 @@ test.describe('staff settings', () => {
     await openSettings(page);
     await expect(page.getByRole('heading', { name: 'Install the app' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'This device' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Manage notifications' })).toHaveAttribute(
+      'href',
+      '/account#notifications',
+    );
     await expect(page.getByRole('link', { name: 'Manage profile' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
   });

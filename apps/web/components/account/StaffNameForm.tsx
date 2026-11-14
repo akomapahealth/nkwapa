@@ -15,6 +15,7 @@ import {
 import { getErrorMessage } from '@/lib/api';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import {
   FieldError,
@@ -209,18 +210,12 @@ export function StaffNameForm({
 
       <RequiredLegend />
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+      <FormActions>
         {secondaryAction}
-        <Button
-          type="submit"
-          size="lg"
-          className="w-full sm:w-auto"
-          disabled={saving || !isOnline}
-          aria-busy={saving}
-        >
+        <Button type="submit" disabled={saving || !isOnline} aria-busy={saving}>
           {saving ? 'Saving…' : submitLabel}
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }

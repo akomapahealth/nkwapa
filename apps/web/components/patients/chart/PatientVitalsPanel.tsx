@@ -1,5 +1,7 @@
 'use client';
 
+import styles from '@/components/vitals-workspace.module.css';
+import { cn } from '@/lib/utils';
 import { useClinicUnits } from '@/lib/bootstrap-context';
 import { formatHeight, formatWeight } from '@nkwapa/db/measurement-units';
 
@@ -11,6 +13,7 @@ import {
   RecordSectionContent as CardContent,
   RecordSectionHeader as CardHeader,
 } from '@/components/patients/RecordSection';
+import { BloodPressureSignal } from '@/components/patients/BloodPressureSignal';
 import { PatientTrendsPanel } from '@/components/patients/PatientTrendsPanel';
 import {
   buildEncounterHref,
@@ -30,6 +33,17 @@ function formatBloodPressure(record: ChartVitalsRecord): string | null {
 function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; clinicId: string }) {
   const { bodyUnit } = useClinicUnits(clinicId);
   const bloodPressure = formatBloodPressure(record);
+  const measurements = (
+    [
+      ['Pulse', record.pulseBpm, ' bpm'],
+      ['Temperature', record.temperatureCelsius, ' °C'],
+      ['Respiratory rate', record.respiratoryRate, '/min'],
+      ['SpO₂', record.spo2Percent, '%'],
+      ['Weight', formatWeight(record.weightKg, bodyUnit), undefined],
+      ['Height', formatHeight(record.heightCm, bodyUnit), undefined],
+      ['BMI', record.bmi, undefined],
+    ] as const
+  ).filter(([, value]) => value !== null && value !== undefined && value !== '');
   return (
     <ChartRecordCard
       title={bloodPressure ? `Blood pressure ${bloodPressure} mmHg` : 'Measurements recorded'}
@@ -56,17 +70,21 @@ function VitalsRecordCard({ record, clinicId }: { record: ChartVitalsRecord; cli
         </Link>
       }
     >
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        <ChartMeasurement label="Pulse" value={record.pulseBpm} suffix=" bpm" />
-        <ChartMeasurement label="Temperature" value={record.temperatureCelsius} suffix=" °C" />
-        <ChartMeasurement label="Respiratory rate" value={record.respiratoryRate} suffix="/min" />
-        <ChartMeasurement label="SpO₂" value={record.spo2Percent} suffix="%" />
-        <ChartMeasurement label="Weight" value={formatWeight(record.weightKg, bodyUnit)} />
-        <ChartMeasurement label="Height" value={formatHeight(record.heightCm, bodyUnit)} />
-        <ChartMeasurement label="BMI" value={record.bmi} />
-      </dl>
+      <BloodPressureSignal systolic={record.systolicBp} diastolic={record.diastolicBp} compact />
+      {/* Only what was measured: seven "Not recorded" rows buried the one reading taken. */}
+      {measurements.length ? (
+        <dl className={styles.measurements}>
+          {measurements.map(([label, value, suffix]) => (
+            <ChartMeasurement key={label} label={label} value={value} suffix={suffix} />
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">No other measurements recorded.</p>
+      )}
       {record.notes ? (
-        <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{record.notes}</p>
+        <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+          {record.notes}
+        </p>
       ) : null}
     </ChartRecordCard>
   );
@@ -92,8 +110,8 @@ export function PatientVitalsPanel({
   });
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className={cn(styles.workspace, 'flex min-w-0 flex-col gap-6')}>
+      <Card className={styles.workspace}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <HeartPulse className="h-5 w-5 text-muted-foreground" aria-hidden="true" />

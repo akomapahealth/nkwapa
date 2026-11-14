@@ -6,10 +6,14 @@ import {
   HYPERTENSION_REVIEW_REASON_LABELS,
   HYPERTENSION_STATUS_LABELS,
   HYPERTENSION_SYMPTOM_LABELS,
-} from '@nkwapa/db';
+} from '@nkwapa/db/hypertension-interview';
 import { db, type HypertensionAssessmentRecord } from '@/lib/db';
-import { HYPERTENSION_LABELS, type HypertensionClassification } from '@/lib/hypertension';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import {
+  HYPERTENSION_BADGE_VARIANTS,
+  HYPERTENSION_LABELS,
+  type HypertensionClassification,
+} from '@/lib/hypertension';
+import { Badge } from '@/components/ui/badge';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import {
   ScreeningHistoryCard,
@@ -53,16 +57,6 @@ const COPY: ScreeningHistoryCopy = {
     'A chronological history will appear after staff save hypertension assessments in encounters.',
   offlineDescription:
     'This history could not be refreshed from the server, so it may be missing recent assessments recorded elsewhere.',
-};
-
-/** Severity reads the same way here as on the dashboard; not classified is neutral, not a finding. */
-const CLASSIFICATION_VARIANT: Record<HypertensionClassification, BadgeProps['variant']> = {
-  NORMAL: 'finalized',
-  ELEVATED: 'warning',
-  STAGE1: 'destructive',
-  STAGE2: 'destructive',
-  CRISIS: 'destructive',
-  UNKNOWN: 'draft',
 };
 
 function classificationOf(value: string | null): HypertensionClassification {
@@ -152,7 +146,7 @@ export function HypertensionHistoryPanel({
             current={current}
             badges={
               <>
-                <Badge variant={CLASSIFICATION_VARIANT[classification]}>
+                <Badge variant={HYPERTENSION_BADGE_VARIANTS[classification]}>
                   {HYPERTENSION_LABELS[classification]}
                 </Badge>
                 {item.confirmed ? (

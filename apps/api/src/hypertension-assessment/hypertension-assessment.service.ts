@@ -4,12 +4,14 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { EncounterStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { plainToInstance } from 'class-transformer';
 import { validate, type ValidationError } from 'class-validator';
 import {
+  HYPERTENSION_ESCALATION_REASON_LABELS,
   classifyBloodPressure,
   deriveHypertensionEscalation,
   parseHypertensionLifestyle,
@@ -18,6 +20,7 @@ import {
   type PayloadIssue,
 } from '@nkwapa/db';
 import { PERMISSIONS } from '../auth/constants/permissions';
+import { PushService } from '../push/push.service';
 import {
   assertPermissionAtClinic,
   hasPermissionAtClinic,
@@ -30,6 +33,12 @@ import {
   UpsertHypertensionClinicianPlanDto,
 } from './dto/hypertension-assessment.dto';
 import { screeningCompletionDate, toDateOnly } from '../common/screening-completion';
+import {
+  auditOverwrite,
+  findOverwrittenSave,
+  overwroteNewerSave,
+  type OverwriteCheck,
+} from '../sync/overwrite-conflict';
 
 const MAX_FUTURE_COLLECTION_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 25;
@@ -59,12 +68,15 @@ export interface HypertensionRequestMetadata {
   requestId?: string;
   ipAddress?: string;
   userAgent?: string;
-  syncMutation?: { entityType: string; entityId: string; idempotencyKey: string };
+  syncMutation?: { entityType: string; entityId: string; idempotencyKey: string } & OverwriteCheck;
 }
 
 @Injectable()
 export class HypertensionAssessmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly push?: PushService,
+  ) {}
 
   async list(
     clinicId: string,
@@ -139,6 +151,8 @@ export class HypertensionAssessmentService {
     const substances = parseHypertensionSubstanceDetails(dto.substanceDetails ?? null);
     this.assertPayloadsValid([...lifestyle.issues, ...substances.issues]);
 
+    let priorFindings: string[] = [];
+    let overwrittenUserId: string | null | undefined;
     const saved = await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: encounterId },
@@ -263,6 +277,34 @@ export class HypertensionAssessmentService {
       };
 
       const existing = await tx.hypertensionAssessment.findUnique({ where: { encounterId } });
+      priorFindings = existing?.urgentReviewReasons ?? [];
+      const sync = metadata.syncMutation;
+      const overwritten =
+        existing && sync?.baseUpdatedAt && overwroteNewerSave(existing, sync.baseUpdatedAt)
+          ? await findOverwrittenSave(tx, {
+              clinicId,
+              entityType: 'HypertensionAssessment',
+              entityId: existing.id,
+              // Clinician plans are separate fields this save does not touch.
+              actions: ['HYPERTENSION_ASSESSMENT.CREATE', 'HYPERTENSION_ASSESSMENT.UPSERT'],
+              actorUserId: actor.userId,
+              baseUpdatedAt: sync.baseUpdatedAt,
+            })
+          : null;
+      if (existing && sync?.baseUpdatedAt && overwritten) {
+        await auditOverwrite(tx, {
+          clinicId,
+          actorUserId: actor.userId,
+          entityType: 'HypertensionAssessment',
+          entityId: existing.id,
+          overwrittenUserId: overwritten.userId,
+          overwrittenAt: overwritten.savedAt,
+          baseUpdatedAt: sync.baseUpdatedAt,
+          requestId: metadata.requestId,
+        });
+        sync.overwrote = true;
+        overwrittenUserId = overwritten.userId;
+      }
       const record = await tx.hypertensionAssessment.upsert({
         where: { encounterId },
         create: { id: assessmentId ?? randomUUID(), clinicId, encounterId, ...writable },
@@ -282,6 +324,23 @@ export class HypertensionAssessmentService {
       return record;
     });
 
+    this.push?.alertOnNewFindings({
+      clinicId,
+      encounterId,
+      actorUserId: actor.userId,
+      before: priorFindings,
+      after: saved.urgentReviewReasons,
+      labels: HYPERTENSION_ESCALATION_REASON_LABELS,
+    });
+    if (overwrittenUserId !== undefined) {
+      this.push?.alertOverwritten({
+        clinicId,
+        encounterId,
+        actorUserId: actor.userId,
+        overwrittenUserId,
+        record: 'hypertension assessment',
+      });
+    }
     return this.toResponse(saved, actor.roles, clinicId);
   }
 

@@ -91,7 +91,10 @@ export function MeasurementTrendChart({
             <YAxis
               tick={TABULAR_TICK}
               stroke="hsl(var(--muted-foreground))"
-              domain={['auto', 'auto']}
+              domain={[
+                (min: number) => Math.floor(min - Math.max(Math.abs(min) * 0.05, 1)),
+                (max: number) => Math.ceil(max + Math.max(Math.abs(max) * 0.05, 1)),
+              ]}
             />
             <Tooltip
               formatter={(value, key) => {

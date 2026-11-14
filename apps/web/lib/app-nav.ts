@@ -18,14 +18,15 @@ import {
   Stethoscope,
   UserCog,
   Users,
+  Bell,
 } from 'lucide-react';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
 import { isWebFeatureEnabled, type WebFeatureFlag } from '@/lib/feature-flags';
 
 /**
- * Where the shell shows an item. Most live in the sidebar rail; message delivery is a header icon
- * and clinic settings sits in the account menu (#267). One list and one filter either way, so a
+ * Where the shell shows an item. Most live in the sidebar rail; notifications is the header bell,
+ * and clinic settings and message delivery sit in the account menu (#267). One list and one filter either way, so a
  * permission or flag gates an item identically wherever it is drawn.
  */
 export type AppNavPlacement = 'sidebar' | 'header' | 'profile';
@@ -33,6 +34,8 @@ export type AppNavPlacement = 'sidebar' | 'header' | 'profile';
 export interface AppNavItem {
   href: string;
   label: string;
+  /** One-word phone label; accessible names and wider navigation retain label. */
+  shortLabel?: string;
   description: string;
   icon: LucideIcon;
   permission?: string;
@@ -67,6 +70,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/dashboard',
         label: 'Dashboard',
+        shortLabel: 'Home',
         description: 'Snapshot and trends.',
         icon: LayoutDashboard,
       },
@@ -74,11 +78,12 @@ const NAV_SECTIONS: AppNavSection[] = [
   },
   {
     id: 'care',
-    label: 'Care Delivery',
+    label: 'Care delivery',
     items: [
       {
         href: '/today',
-        label: 'Today Board',
+        label: 'Today board',
+        shortLabel: 'Today',
         description: 'Check-ins and assignments.',
         icon: CalendarDays,
         permission: 'OPS.CHECKIN.READ',
@@ -87,6 +92,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/stations',
         label: 'Stations',
+        shortLabel: 'Stations',
         description: 'Take the next patient at your station.',
         icon: ListOrdered,
         permission: 'OPS.STATION.WORK',
@@ -95,7 +101,8 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/my/assigned',
-        label: 'My Assigned',
+        label: 'My assigned',
+        shortLabel: 'Assigned',
         description: 'Your next tasks.',
         icon: Stethoscope,
         permission: 'OPS.ASSIGNMENT.READ_SELF',
@@ -106,6 +113,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/queues',
         label: 'Queues',
+        shortLabel: 'Queues',
         description: 'Drafts, reviews, sign-off.',
         icon: ClipboardList,
         anyOf: ['ENCOUNTER.READ', 'ENCOUNTER.CREATE', 'ENCOUNTER.REVIEW', 'DOCTOR.FINALIZE'],
@@ -114,6 +122,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/patients',
         label: 'Patients',
+        shortLabel: 'Patients',
         description: 'Find and open records.',
         icon: Users,
         permission: 'PATIENT.SEARCH',
@@ -122,6 +131,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       {
         href: '/appointments',
         label: 'Appointments',
+        shortLabel: 'Visits',
         description: 'Schedule by day or week.',
         icon: CalendarDays,
         permission: 'APPOINTMENT.READ',
@@ -129,7 +139,7 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/patients/new',
-        label: 'New Patient',
+        label: 'New patient',
         description: 'Add a new patient.',
         icon: FileEdit,
         permission: 'PATIENT.CREATE',
@@ -175,13 +185,21 @@ const NAV_SECTIONS: AppNavSection[] = [
       },
       {
         href: '/notifications',
-        // A delivery ledger, not an inbox: no unread badge, because nothing is unread.
+        // The bell: messages, urgent findings, requests and invitations for this person.
+        label: 'Notifications',
+        description: 'What happened for you, in plain English.',
+        icon: Bell,
+        placement: 'header',
+      },
+      {
+        href: '/notifications/delivery',
+        // A delivery ledger, not an inbox: lives in the account menu beside clinic settings.
         label: 'Message delivery',
         description: 'Outbound message delivery.',
         icon: Send,
         permission: 'REMINDER.READ',
         requiresClinic: true,
-        placement: 'header',
+        placement: 'profile',
       },
       {
         href: '/research',

@@ -24,7 +24,7 @@ test('medical history supports empty, validation, active, historical, revision, 
   page,
 }) => {
   await createPatient(page);
-  await page.getByRole('tab', { name: 'Medical History' }).click();
+  await page.getByRole('tab', { name: 'Medical history' }).click();
 
   await expect(page.getByRole('heading', { name: 'Allergy status not recorded' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No matching history records' })).toBeVisible();
@@ -43,7 +43,11 @@ test('medical history supports empty, validation, active, historical, revision, 
   await expect(
     page.getByRole('heading', { name: 'Active allergies or adverse reactions' }),
   ).toBeVisible();
-  await expect(page.getByText(/Peanut.*Severe.*Hives/)).toBeVisible();
+  await expect(
+    page.getByRole('listitem').filter({ hasText: /^Peanut.*Severe.*Hives$/ }),
+  ).toBeVisible();
+  // The history row carries the same detail, so a reader never has to open the record for it.
+  await expect(page.locator('p').filter({ hasText: /^Severe · Hives$/ })).toBeVisible();
 
   await page.getByRole('button', { name: 'Revise' }).click();
   dialog = page.getByRole('dialog', { name: 'Revise history record' });
@@ -70,7 +74,7 @@ test('medical history supports empty, validation, active, historical, revision, 
       () => document.documentElement.scrollWidth > window.innerWidth + 1,
     );
     expect(hasViewportOverflow).toBeFalsy();
-    await expect(page.getByRole('tab', { name: 'Medical History' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Medical history' })).toBeVisible();
   }
 });
 
@@ -79,12 +83,16 @@ test('medical history shows cached empty state when the device is offline', asyn
   context,
 }) => {
   await createPatient(page);
-  await expect(page.getByRole('tab', { name: 'Medical History' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Medical history' })).toBeVisible();
   await context.setOffline(true);
-  await page.getByRole('tab', { name: 'Medical History' }).click();
+  await page.getByRole('tab', { name: 'Medical history' }).click();
 
   await expect(page.getByText(/Showing history saved on this device/)).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'No matching history records' })).toBeVisible();
+  // Offline and empty must not read as "no history" (R7.5).
+  await expect(
+    page.getByRole('heading', { name: 'No history saved on this device' }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No matching history records' })).toHaveCount(0);
 
   await context.setOffline(false);
 });

@@ -54,7 +54,7 @@ test.afterAll(async () => {
 
 async function openInvitations(page) {
   await page.goto('/admin/users');
-  const card = page.getByRole('heading', { name: 'Staff invitations' });
+  const card = page.getByRole('heading', { name: 'Invitations', exact: true });
   await expect(card).toBeVisible({ timeout: 30_000 });
   return page.getByRole('table', { name: 'Staff invitations' });
 }
@@ -113,6 +113,8 @@ async function expectMenuName(page, displayName) {
   await page.getByRole('button', { name: 'User menu' }).click();
   await expect(page.getByRole('menu').getByText(displayName, { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
+  // A closing Radix menu still owns the page; typing before it unmounts is dropped.
+  await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
 test('a director-level admin invites a volunteer, and an account is created', async ({ page }) => {
@@ -211,6 +213,38 @@ test('the name step holds them until they save, then lets them in', async () => 
   await expectMenuName(inviteePage, 'Ama K. Mensah');
 });
 
+test('invitations keep status and search on separate tablet rows', async ({ page }) => {
+  // Search only appears above six invitations; pad the real list so a fresh database has enough.
+  await page.route(/\/clinics\/[^/]+\/staff-invites(\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    const body = await response.json();
+    const items = [...body.items];
+    for (let i = 0; items.length > 0 && items.length < 8; i += 1) {
+      items.push({ ...items[0], id: `synthetic-${i}`, email: `synthetic.${i}@nkwapa.local` });
+    }
+    await route.fulfill({ response, json: { ...body, items } });
+  });
+  await openInvitations(page);
+  for (const width of [600, 744, 840, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    const status = page.getByRole('group', { name: 'Show invitations', exact: true });
+    const search = page.getByRole('searchbox', {
+      name: 'Search invitations by name or email',
+      exact: true,
+    });
+    const groupBox = await status.boundingBox();
+    const searchBox = await search.boundingBox();
+    expect(searchBox.y).toBeGreaterThanOrEqual(groupBox.y + groupBox.height);
+    expect(Math.abs(groupBox.width - searchBox.width)).toBeLessThanOrEqual(2);
+    const tops = await status
+      .getByRole('button')
+      .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  }
+});
+
 test('the profile page edits the name and phone, and the header follows without signing in again', async () => {
   await inviteePage.getByRole('button', { name: 'User menu' }).click();
   await inviteePage.getByRole('menuitem', { name: 'Manage profile' }).click();
@@ -298,7 +332,7 @@ test('a cancelled invitation stays visible and stops granting anything', async (
   await cancelled;
 
   // Under its own filter, and removable from the list once it will not be resent.
-  await page.getByRole('button', { name: /^Cancelled \d+$/ }).click();
+  await page.getByRole('button', { name: 'Cancelled', exact: true }).click();
   await expect(row).toBeVisible();
   const removed = page.waitForResponse(
     (response) => /\/staff-invites\/[^/]+\/remove$/.test(response.url()) && response.ok(),
@@ -310,7 +344,7 @@ test('a cancelled invitation stays visible and stops granting anything', async (
   await expect(row).toHaveCount(0);
   await removed;
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Staff invitations' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Invitations', exact: true })).toBeVisible({
     timeout: 30_000,
   });
   await expect(list.getByRole('row').filter({ hasText: CANCELLED_EMAIL })).toHaveCount(0);

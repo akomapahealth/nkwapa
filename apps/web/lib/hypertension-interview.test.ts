@@ -2,6 +2,8 @@ import {
   HYPERTENSION_FIELD_ORDER,
   emptyHypertensionInterview,
   fromHypertensionRecord,
+  showsHomeReadings,
+  showsRepeatReadings,
   toHypertensionPayload,
   validateHypertensionInterview,
   type HypertensionInterviewValues,
@@ -312,5 +314,27 @@ describe('fromHypertensionRecord', () => {
     expect(restored.currentSymptoms).toEqual(['CHEST_PAIN']);
     expect(restored.lifestyle.saltAtTable).toBe('NOT_ASSESSED');
     expect(restored.yearDiagnosed).toBe('');
+  });
+});
+
+describe('interview skip logic', () => {
+  it('shows the repeat readings only once a repeat was taken, or when they already hold a value', () => {
+    expect(showsRepeatReadings(values())).toBe(false);
+    expect(showsRepeatReadings(values({ repeatPerformed: 'NO' }))).toBe(false);
+    expect(showsRepeatReadings(values({ repeatPerformed: 'YES' }))).toBe(true);
+    // A value is never hidden, even when the answer above it changed.
+    expect(showsRepeatReadings(values({ repeatPerformed: 'NO', repeatSystolicBp: '150' }))).toBe(
+      true,
+    );
+  });
+
+  it('shows the home readings only for someone who checks at home, or when they already hold a value', () => {
+    expect(showsHomeReadings(values())).toBe(false);
+    expect(showsHomeReadings(values({ homeCheckFrequency: 'NEVER' }))).toBe(false);
+    expect(showsHomeReadings(values({ homeCheckFrequency: 'DAILY' }))).toBe(true);
+    expect(
+      showsHomeReadings(values({ homeCheckFrequency: 'NEVER', homeReadingsUnknown: true })),
+    ).toBe(true);
+    expect(showsHomeReadings(values({ homeReadingSource: 'PATIENT_RECALL' }))).toBe(true);
   });
 });

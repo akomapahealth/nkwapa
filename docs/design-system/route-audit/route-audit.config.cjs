@@ -2,6 +2,9 @@
 // 1440 and 390 with axe. Read-only. From apps/web, after a build with the CI e2e env and flags:
 //   WEB_DIR=$PWD EVIDENCE_DIR=<abs dir> npx playwright test -c ../../docs/design-system/route-audit/route-audit.config.cjs --workers=1
 // It writes EVIDENCE_DIR/route-audit.json. AUDIT_ROLES=staff,manager limits the identities.
+// SHOTS_DIR=<abs dir> saves both themes. AUDIT_FIXTURES supplies guarded synthetic detail ids.
+// Against a throwaway database, override APP_DATABASE_URL as well as DATABASE_URL: the API serves
+// requests through APP_DATABASE_URL (the RLS role), so DATABASE_URL alone still renders the main DB.
 const path = require('path');
 const web = process.env.WEB_DIR;
 if (!web || !process.env.EVIDENCE_DIR) throw new Error('Set WEB_DIR and EVIDENCE_DIR.');
@@ -19,6 +22,13 @@ module.exports = {
       name: 'audit',
       testDir: __dirname,
       testMatch: /route-audit\.spec\.js/,
+      dependencies: ['setup'],
+      use: { browserName: 'chromium' },
+    },
+    {
+      name: 'states',
+      testDir: path.join(web, 'e2e'),
+      testMatch: /route-audit-states\.spec\.js/,
       dependencies: ['setup'],
       use: { browserName: 'chromium' },
     },

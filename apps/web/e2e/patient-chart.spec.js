@@ -13,9 +13,9 @@ const ALL_TABS = [
   'Overview',
   'Vitals',
   'Medications',
-  'Diabetes',
   'Hypertension',
-  'Medical History',
+  'Diabetes',
+  'Medical history',
   'Notes',
   'Visits',
   'Patient-reported',
@@ -244,7 +244,8 @@ for (const reducedMotion of ['reduce', 'no-preference']) {
       if (title === 'Blood pressure trend') {
         // Two readings on one day must both survive in the literal table.
         await expect(table.getByRole('row')).toHaveCount(4);
-        await expect(table.getByRole('rowheader', { name: '10/1', exact: true })).toHaveCount(2);
+        // formatTrendLabel prints en-GB in the clinic's time zone, whatever the browser locale.
+        await expect(table.getByRole('rowheader', { name: '1 Oct', exact: true })).toHaveCount(2);
       }
       for (const column of expectedColumns) {
         await expect(table.getByRole('columnheader', { name: column, exact: true })).toBeVisible();

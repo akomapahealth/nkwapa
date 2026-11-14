@@ -18,15 +18,15 @@ Contemporary editorial healthcare: plain sentences about real clinic work, real 
 
 ## 3. Brand: source of truth
 
-From `docs/design-system/MASTER.md` and `app/globals.css`, unchanged:
+From `docs/design-system/MASTER.md` and `app/globals.css`, retinted by UI refresh R1.1 (`docs/design-system/ui-refresh/R0-AUDIT.md` section 4):
 
-| Use                     | Token                        | Value                          |
-| ----------------------- | ---------------------------- | ------------------------------ |
-| Canvas (warm off-white) | `--background`               | `54 63% 97%`                   |
-| Teal band, buttons      | `--primary`                  | `188 100% 27%` (logo teal, AA) |
-| Gold highlight          | `--secondary`                | `47 100% 55%` (logo gold)      |
-| Pale gold band          | `--accent`                   | `47 60% 92%`                   |
-| Dark product band       | `.dark` scope on the section | `--background 200 25% 8%`      |
+| Use                  | Token                        | Value                          |
+| -------------------- | ---------------------------- | ------------------------------ |
+| Canvas (teal-tinted) | `--background`               | `180 23.8% 95.9%` (`#F2F7F7`)  |
+| Teal band, buttons   | `--primary`                  | `188 100% 27%` (logo teal, AA) |
+| Gold highlight       | `--secondary`                | `47 100% 55%` (logo gold)      |
+| Pale teal band       | `--accent`                   | `186.3 46.3% 92%` (`#E1F2F4`)  |
+| Dark product band    | `.dark` scope on the section | `--background 192 29.4% 6.7%`  |
 
 **Typography.** Source Serif 4 for display headlines (the product's heading face) and IBM Plex Sans for everything else. The landing page no longer uses Poppins or Circular Std, so both font requests are gone. The public brand and the clinical workspace now share one type system, and the serif becomes the recognisable part of it. Headline scale and alignment change from section to section on purpose.
 
@@ -65,7 +65,7 @@ The CTAs are `mailto:info@akomapa.org` and `https://akomapa.org`, both confirmed
 - **GSAP (`components/landing/LandingMotion.tsx`):** `useGSAP` scoped to the page wrapper, inside `gsap.matchMedia()`, so everything reverts on unmount and under reduced motion. It drives:
   - Section reveals (`[data-reveal]`, `gsap.from`, play once). Content is visible in the server HTML and is hidden only by JavaScript that will also reveal it.
   - The clinic day: on `lg` and wider, the section pins and scrubs through its five steps. Each step's photo or screenshot wipes up over the last (`clip-path`), the text crossfades, and a progress line fills. `LandingMotion` sets `data-journey-pinned`, which stacks the steps in one grid cell (`globals.css`); without it, or under reduced motion, the same markup is a plain ordered list. Arriving from `/privacy` or `/terms` with a `#hash` re-scrolls once the pin spacer exists.
-  - The role deck (`[data-deck]`): on `lg` and wider, Who it's for pins and stacks one dashboard card per role. Each scroll step flings the top card aside and tucks it under the rest while the role text crossfades; scrolling snaps to a settled role. The cards show `desktop.png` as a placeholder until each role's dashboard is captured (`DECK` in `CareTeamSection.tsx`; pass `src` and `alt` to `DesktopFrame`).
+  - The role deck (`[data-deck]`): on `lg` and wider, Who it's for pins and stacks one dashboard card per role. Each scroll step flings the top card aside and tucks it under the rest while the role text crossfades; scrolling snaps to a settled role. Each card is that role's own screen from `public/product/` (`DECK` in `CareTeamSection.tsx`; pass `src` and `alt` to `DesktopFrame`). R6.1 recaptured every product screenshot from a synthetic screening day; see MASTER "Public site frame and product screenshots (R6.1)".
   - Scroll cue: a pulse travels down a heartbeat trace under the hero copy (CSS, `lg` only), and fades out over the first 160px of scroll.
   - Section headlines (`[data-split]`) rise line by line from behind a mask (GSAP `SplitText`, bundled with gsap). The hero `h1` keeps its CSS entrance so it never waits on JavaScript.
   - The problem statement (`[data-scrub-words]`) reads itself in word by word as it scrolls past.

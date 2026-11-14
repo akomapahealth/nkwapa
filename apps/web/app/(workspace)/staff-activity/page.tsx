@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { apiFetch, readApiError } from '@/lib/api';
-import { getTodayInTimeZone } from '@/lib/ops';
+import { formatOpsDate, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import {
   describeRecord,
@@ -32,20 +32,28 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const formatAt = (iso: string, timeZone: string) =>
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
+const formatRange = (from: string, to: string, timeZone: string) =>
+  from === to
+    ? formatOpsDate(from, timeZone)
+    : `${formatOpsDate(from, timeZone)} to ${formatOpsDate(to, timeZone)}`;
+
+/** Keeps the name column in view while a phone scrolls the counts sideways. */
+const STICKY_CELL = 'sticky left-0 z-[1] bg-card';
 
 function StaffActivityContent() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const [range, setRange] = useState(() => lastSevenDays(getTodayInTimeZone()));
   const [selected, setSelected] = useState<string | null>(null);
+  // Whose name to put focus back on after "All staff", so the reader keeps their place.
+  const [returnTo, setReturnTo] = useState<string | null>(null);
+  // Stable callback refs: focus once, when the element mounts, not on every render.
+  const focusOnMount = useCallback((element: HTMLElement | null) => element?.focus(), []);
+  const focusReturn = useCallback((element: HTMLElement | null) => {
+    if (!element) return;
+    element.focus();
+    setReturnTo(null);
+  }, []);
 
   const overview = useAsyncResource<StaffActivityOverview>({
     resourceKey: `${clinicId}:${range.from}:${range.to}`,
@@ -81,9 +89,9 @@ function StaffActivityContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Oversight"
         title="Staff activity"
-        description="Who did what work at this clinic, and when. Listed by name, not ranked."
+        description="Who did what work here, and when."
+        hint="Listed by name, not ranked."
         helpTitle="What these numbers are"
         helpText="Each figure counts the records a person worked on, from the audit trail: a form saved several times counts once. It shows workload, not performance, and leaves out time spent with patients that does not produce a record. No patient is named here."
         actions={
@@ -129,19 +137,31 @@ function StaffActivityContent() {
         >
           {(detail) => (
             <div className="space-y-6">
-              <Button variant="ghost" onClick={() => setSelected(null)}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setReturnTo(selected);
+                  setSelected(null);
+                }}
+              >
                 <ArrowLeft aria-hidden="true" />
                 All staff
               </Button>
               <RecordSection>
                 <RecordSectionHeader>
-                  <RecordSectionTitle>
+                  {/* A plain h2 (RecordSectionTitle's styles): focus lands here on opening a person. */}
+                  <h2
+                    ref={focusOnMount}
+                    tabIndex={-1}
+                    className="type-section-title focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     {detail.person?.displayName ?? 'Unknown person'}
-                  </RecordSectionTitle>
+                  </h2>
                   <RecordSectionDescription>
                     {formatRoles(detail.person?.roles ?? [])}
-                    {detail.person && !detail.person.active ? ' · Deactivated' : ''} · {detail.from}{' '}
-                    to {detail.to}, clinic time ({detail.timezone})
+                    {detail.person && !detail.person.active ? ' · Deactivated' : ''} ·{' '}
+                    {formatRange(detail.from, detail.to, detail.timezone)}, clinic time (
+                    {detail.timezone})
                   </RecordSectionDescription>
                 </RecordSectionHeader>
                 <RecordSectionContent
@@ -175,7 +195,7 @@ function StaffActivityContent() {
                         {detail.days.map((day) => (
                           <tr key={day.day} className="border-b border-rule last:border-0">
                             <th scope="row" className="py-2 pr-3 text-left font-medium">
-                              {day.day}
+                              {formatOpsDate(day.day, detail.timezone)}
                             </th>
                             {detail.categories.map((category) => (
                               <td key={category.key} className="py-2 pr-3 text-right">
@@ -215,7 +235,9 @@ function StaffActivityContent() {
                               <span className="text-muted-foreground"> · {category}</span>
                             </span>
                             <span className="flex items-center gap-3 text-muted-foreground">
-                              {formatAt(record.at, detail.timezone)}
+                              <time dateTime={record.at} className="tabular-nums">
+                                {formatOpsDateTime(record.at, detail.timezone)}
+                              </time>
                               {record.href ? (
                                 <Link
                                   className="inline-flex min-h-11 items-center text-primary underline-offset-4 hover:underline"
@@ -246,7 +268,7 @@ function StaffActivityContent() {
             <RecordSection>
               <RecordSectionHeader>
                 <RecordSectionTitle>
-                  {data.from} to {data.to}
+                  {formatRange(data.from, data.to, data.timezone)}
                 </RecordSectionTitle>
                 <RecordSectionDescription>
                   Clinic time ({data.timezone}). Choose a name to see that person&apos;s days and
@@ -271,7 +293,7 @@ function StaffActivityContent() {
                     </caption>
                     <thead>
                       <tr className="border-b border-rule text-left text-xs text-muted-foreground">
-                        <th scope="col" className="py-2 pr-3 font-medium">
+                        <th scope="col" className={`${STICKY_CELL} py-2 pr-3 font-medium`}>
                           Name
                         </th>
                         <th scope="col" className="py-2 pr-3 text-right font-medium">
@@ -291,8 +313,12 @@ function StaffActivityContent() {
                     <tbody className="tabular-nums">
                       {data.staff.map((row) => (
                         <tr key={row.userId} className="border-b border-rule last:border-0">
-                          <th scope="row" className="py-2 pr-3 text-left font-normal">
+                          <th
+                            scope="row"
+                            className={`${STICKY_CELL} py-2 pr-3 text-left font-normal`}
+                          >
                             <button
+                              ref={row.userId === returnTo ? focusReturn : undefined}
                               type="button"
                               className="inline-flex min-h-11 items-center text-left font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               onClick={() => setSelected(row.userId)}
@@ -322,7 +348,10 @@ function StaffActivityContent() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-rule-strong text-xs text-muted-foreground">
-                        <th scope="row" className="py-2 pr-3 text-left font-medium">
+                        <th
+                          scope="row"
+                          className={`${STICKY_CELL} py-2 pr-3 text-left font-medium`}
+                        >
                           Clinic total
                         </th>
                         <td className="py-2 pr-3" />

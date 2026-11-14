@@ -13,10 +13,12 @@ import {
   MEDICATION_SUPPLY_STATUS_LABELS,
   NKWAPA_ANSWERS,
   NKWAPA_ANSWER_LABELS,
+} from '@nkwapa/db/clinical-vocabulary';
+import {
   ADHERENCE_PROBLEMS_OTHER_MAX_LENGTH,
   isAdherenceEntryAnswered,
   type MedicationAdherenceEntry,
-} from '@nkwapa/db';
+} from '@nkwapa/db/medication-adherence';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
 import {

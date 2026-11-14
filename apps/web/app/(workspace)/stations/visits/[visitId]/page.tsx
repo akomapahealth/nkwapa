@@ -11,7 +11,12 @@ import { apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
+import {
+  OPS_DEFAULT_TIMEZONE,
+  formatOpsDateTime,
+  getTodayInTimeZone,
+  formatOpsDay,
+} from '@/lib/ops';
 import { isFullySynced } from '@/lib/sync';
 import {
   cancelCheckIn,
@@ -37,6 +42,7 @@ import {
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { VitalsForm } from '@/components/VitalsForm';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
@@ -46,6 +52,7 @@ import { CounsellingForm } from '@/components/stations/CounsellingForm';
 import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
 import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
+import { IntakeInterviews } from '@/components/stations/IntakeInterviews';
 import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +78,8 @@ import {
 interface EncounterReadings {
   vitals: VitalsRecord | null;
   diabetes: DiabetesScreeningRecord | null;
+  /** The intake interview's record, for the hypertension interview to build on. */
+  hypertension: Record<string, unknown> | null;
   /** Online only: null offline, and before the eye station records. */
   eye: EyeScreeningRecord | null;
 }
@@ -104,12 +113,21 @@ export default function StationVisitPage() {
   const [readings, setReadings] = useState<EncounterReadings>({
     vitals: null,
     diabetes: null,
+    hypertension: null,
     eye: null,
   });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Edits typed into this station's form since its last save; hand-off asks before dropping them.
+  const [unsavedForm, setUnsavedForm] = useState(false);
+  // Intake's medical history saves per item and never reports it, so only the interviews count.
+  const markUnsaved = (target: EventTarget) => {
+    if (visit?.station.kind === 'INTAKE' && !(target as Element).closest?.('[data-interview-flow]'))
+      return;
+    setUnsavedForm(true);
+  };
   /** The caller's own shift, for who is really screening on this account (#227). */
   const [myShift, setMyShift] = useState<OnShiftStaff | null>(null);
   const [changingScreener, setChangingScreener] = useState(false);
@@ -144,19 +162,27 @@ export default function StationVisitPage() {
         const encounter = (await response.json()) as {
           vitals?: VitalsRecord | null;
           diabetesScreening?: DiabetesScreeningRecord | null;
+          hypertensionAssessment?: Record<string, unknown> | null;
         };
         setReadings({
           vitals: encounter.vitals ?? null,
           diabetes: encounter.diabetesScreening ?? null,
+          hypertension: encounter.hypertensionAssessment ?? null,
           eye: await loadEyeScreening(encounterId),
         });
       } catch {
         // Offline or unreachable: this device's copy is what the forms build on.
-        const [vitals, diabetes] = await Promise.all([
+        const [vitals, diabetes, hypertension] = await Promise.all([
           db.vitals.where('encounterId').equals(encounterId).first(),
           db.diabetes_screenings.where('encounterId').equals(encounterId).first(),
+          db.hypertension_assessments.where('encounterId').equals(encounterId).first(),
         ]);
-        setReadings({ vitals: vitals ?? null, diabetes: diabetes ?? null, eye: null });
+        setReadings({
+          vitals: vitals ?? null,
+          diabetes: diabetes ?? null,
+          hypertension: (hypertension as unknown as Record<string, unknown>) ?? null,
+          eye: null,
+        });
       }
     },
     [getToken, clinicId, loadEyeScreening],
@@ -245,9 +271,9 @@ export default function StationVisitPage() {
         ) : (
           <>
             <AppPageHeader
-              eyebrow={visit.station.name}
+              context={visit.station.name}
               title={patientName(visit.patient)}
-              description={`${visit.patient.patientCode}${visit.patient.dob ? ` · born ${visit.patient.dob}` : ''} · checked in ${formatOpsDateTime(visit.checkedInAt, timezone)}`}
+              description={`${visit.patient.patientCode}${visit.patient.dob ? ` · born ${formatOpsDay(`${visit.patient.dob.slice(0, 10)}T12:00:00Z`)}` : ''} · checked in ${formatOpsDateTime(visit.checkedInAt, timezone)}`}
               actions={
                 <Badge variant={mine ? 'default' : 'secondary'}>
                   {STATUS_LABELS[visit.status]}
@@ -259,8 +285,9 @@ export default function StationVisitPage() {
             />
 
             <section aria-labelledby="visit-needs" className="border-t-2 border-rule-strong pt-4">
+              {/* Not "Needs you now": elsewhere that heading lists work to act on, here it explains. */}
               <h2 id="visit-needs" className="type-section-title">
-                Needs you now
+                At this station
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 {mine
@@ -305,7 +332,7 @@ export default function StationVisitPage() {
                   type="button"
                   variant="link"
                   size="sm"
-                  className="min-h-11 px-2 text-info-ink"
+                  className="px-2 text-info-ink"
                   aria-label="Change who is screening"
                   aria-expanded={changingScreener}
                   onClick={() => setChangingScreener((open) => !open)}
@@ -345,15 +372,38 @@ export default function StationVisitPage() {
             />
 
             {mine && visit.encounterId ? (
-              <StationForm
-                visit={visit}
-                clinicId={clinicId}
-                userId={userId}
-                isDoctor={isDoctor}
-                readings={readings}
-                timezone={timezone}
-                onSaved={() => void loadReadings(visit.encounterId!)}
-              />
+              /*
+                shortcut: edits are seen as native input/change events and checkbox or radio
+                clicks, so a dropdown pick (rendered in a portal) is missed, and only stations
+                whose form reports onSaved are guarded (not intake history or the review note).
+                At intake only the interviews count; with both open, saving one clears the flag.
+                Give each form a dirty flag if those need guarding too.
+              */
+              <div
+                onInput={(event) => markUnsaved(event.target)}
+                onChange={(event) => markUnsaved(event.target)}
+                onClick={(event) => {
+                  if (
+                    (event.target as Element).closest(
+                      '[role="checkbox"],[role="radio"],[role="switch"]',
+                    )
+                  )
+                    markUnsaved(event.target);
+                }}
+              >
+                <StationForm
+                  visit={visit}
+                  clinicId={clinicId}
+                  userId={userId}
+                  isDoctor={isDoctor}
+                  readings={readings}
+                  timezone={timezone}
+                  onSaved={() => {
+                    setUnsavedForm(false);
+                    void loadReadings(visit.encounterId!);
+                  }}
+                />
+              </div>
             ) : visit.status === 'IN_PROGRESS' && !mine ? (
               <InlineNotice tone="info" live={false}>
                 {visit.claimedBy?.displayName ?? 'Someone'} is seeing this patient at{' '}
@@ -367,7 +417,20 @@ export default function StationVisitPage() {
                 stations={stations}
                 busy={busy}
                 isOnline={isOnline}
-                onComplete={(body) =>
+                onComplete={async (body) => {
+                  if (
+                    unsavedForm &&
+                    GUARDED_STATION_KINDS.has(visit.station.kind) &&
+                    !(await confirmAction({
+                      title: `${visit.station.name} is not saved`,
+                      description:
+                        'This station has answers that were typed but not saved. Handing the patient on now leaves them out of the record.',
+                      confirmLabel: 'Hand on without saving',
+                      cancelLabel: 'Go back and save',
+                      destructive: true,
+                    }))
+                  )
+                    return;
                   void run(
                     async () => {
                       // The next station reads what this one recorded, so it must reach the
@@ -389,8 +452,8 @@ export default function StationVisitPage() {
                       );
                     },
                     () => router.push('/stations'),
-                  )
-                }
+                  );
+                }}
                 onRelease={(reason) =>
                   void run(
                     () => releaseStationVisit(clinicId, visit.id, reason, getToken!),
@@ -490,6 +553,15 @@ function Timeline({
   );
 }
 
+/** Stations whose form calls onSaved, so a cleared flag means the readings were saved. */
+const GUARDED_STATION_KINDS = new Set([
+  'INTAKE',
+  'BLOOD_PRESSURE',
+  'ANTHROPOMETRY',
+  'GLUCOSE',
+  'EYE',
+]);
+
 function StationForm({
   visit,
   clinicId,
@@ -511,13 +583,26 @@ function StationForm({
   switch (visit.station.kind) {
     case 'INTAKE':
       return (
-        <MedicalHistoryPanel
-          ruled
-          clinicId={clinicId}
-          patientId={visit.patient.id}
-          userId={userId}
-          canWrite
-        />
+        <div className="space-y-6">
+          <MedicalHistoryPanel
+            ruled
+            clinicId={clinicId}
+            patientId={visit.patient.id}
+            userId={userId}
+            canWrite
+          />
+          {isWebFeatureEnabled('guidedChronicTabs') ? (
+            <IntakeInterviews
+              clinicId={clinicId}
+              encounterId={encounterId}
+              patientId={visit.patient.id}
+              vitals={readings.vitals}
+              hypertension={readings.hypertension}
+              diabetes={readings.diabetes}
+              onSaved={onSaved}
+            />
+          ) : null}
+        </div>
       );
     case 'BLOOD_PRESSURE':
       return (

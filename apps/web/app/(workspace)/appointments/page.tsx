@@ -15,11 +15,10 @@ import {
   Clock3,
   MoreHorizontal,
   RefreshCw,
-  Search,
   UserRound,
   UserX,
 } from 'lucide-react';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
+import { ListFilters, ListSearch } from '@/components/app-shell/ListToolbar';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
@@ -50,6 +49,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { focusField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -187,7 +187,7 @@ function AppointmentReminderStatus({
   const summary = appointment.reminderSummary;
   if (!summary || summary.total === 0) {
     return (
-      <Badge variant="outline" className="w-fit gap-1 rounded-full bg-background/80">
+      <Badge variant="outline" className="w-fit gap-1">
         <BellRing className="h-3.5 w-3.5" />
         No reminders
       </Badge>
@@ -211,7 +211,7 @@ function AppointmentReminderStatus({
 
   return (
     <div className="flex flex-col gap-1">
-      <Badge variant={variant} className="w-fit gap-1 rounded-full">
+      <Badge variant={variant} className="w-fit gap-1">
         <BellRing className="h-3.5 w-3.5" />
         {label}
       </Badge>
@@ -274,7 +274,7 @@ function AppointmentActions({
           type="button"
           variant="outline"
           size="icon"
-          className="h-11 w-11 cursor-pointer rounded-full"
+          className="w-11 cursor-pointer rounded-full"
           disabled={disabled}
         >
           <MoreHorizontal className="h-4 w-4" />
@@ -374,7 +374,7 @@ function AppointmentRow({
           <p className="text-sm font-semibold text-foreground">
             <AppointmentTime appointment={appointment} timezone={timezone} />
           </p>
-          <p className="mt-1 truncate text-base font-medium text-foreground">
+          <p className="mt-1 text-base font-medium text-foreground [overflow-wrap:anywhere]">
             {appointment.patient.displayName}
           </p>
           <p className="text-sm text-muted-foreground">{appointment.patient.patientCode}</p>
@@ -609,10 +609,12 @@ export default function StaffAppointmentsPage() {
         const endsAt = fromClinicDateTimeLocal(rescheduleEndsAt, timezone);
         if (!startsAt || !endsAt) {
           setLifecycleError('Choose valid start and end times.');
+          focusField(startsAt ? 'reschedule-ends-at' : 'reschedule-starts-at');
           return;
         }
         if (new Date(endsAt) <= new Date(startsAt)) {
           setLifecycleError('End time must be after start time.');
+          focusField('reschedule-ends-at');
           return;
         }
         await rescheduleStaffAppointment(clinicId, appointment.id, getToken, {
@@ -624,6 +626,7 @@ export default function StaffAppointmentsPage() {
         const reason = lifecycleReason.trim();
         if (!reason) {
           setLifecycleError('Add a cancellation reason before continuing.');
+          focusField('lifecycle-reason');
           return;
         }
         await cancelStaffAppointment(clinicId, appointment.id, getToken, { reason });
@@ -664,7 +667,6 @@ export default function StaffAppointmentsPage() {
     <RouteGuard requiredPermission="APPOINTMENT.READ">
       <div className="space-y-8">
         <AppPageHeader
-          eyebrow="Appointment schedule"
           title="Appointments"
           description="Requests from patients come first, then the schedule by day or week."
           hint={
@@ -676,7 +678,7 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={() => void loadSchedule({ background: true })}
               disabled={filtersBusy}
             >
@@ -684,7 +686,7 @@ export default function StaffAppointmentsPage() {
                 className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
                 aria-hidden="true"
               />
-              Refresh
+              <span className="sr-only compact:not-sr-only">Refresh</span>
             </Button>
           }
         />
@@ -701,7 +703,7 @@ export default function StaffAppointmentsPage() {
         <RecordSection aria-labelledby="appointment-range-title">
           <RecordSectionHeader className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-1.5">
-              <p className="text-eyebrow text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {viewMode === 'day' ? 'Day schedule' : 'Week schedule'}
               </p>
               <RecordSectionTitle id="appointment-range-title">{rangeLabel}</RecordSectionTitle>
@@ -715,7 +717,7 @@ export default function StaffAppointmentsPage() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-11 w-11 cursor-pointer"
+                className="w-11 cursor-pointer"
                 onClick={() => shiftRange(-1)}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -724,7 +726,7 @@ export default function StaffAppointmentsPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 cursor-pointer"
+                className="cursor-pointer"
                 onClick={() => setSelectedDate(getTodayInTimeZone())}
               >
                 Today
@@ -733,7 +735,7 @@ export default function StaffAppointmentsPage() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-11 w-11 cursor-pointer"
+                className="w-11 cursor-pointer"
                 onClick={() => shiftRange(1)}
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -743,7 +745,7 @@ export default function StaffAppointmentsPage() {
                 label="Schedule range"
                 value={viewMode}
                 onChange={setViewMode}
-                className="w-[260px] p-1"
+                className="w-[260px]"
                 options={[
                   { value: 'day', label: 'Day', description: 'Show one day of appointments.' },
                   { value: 'week', label: 'Week', description: 'Show one week of appointments.' },
@@ -763,131 +765,17 @@ export default function StaffAppointmentsPage() {
             />
           ) : null}
 
-          <div className="grid gap-4 border-t border-border py-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="space-y-2">
-              <Label htmlFor="appointment-date">Go to date</Label>
-              <Input
-                id="appointment-date"
-                type="date"
-                value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value || getTodayInTimeZone())}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-status">Status</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as StatusFilter)}
-              >
-                <SelectTrigger id="appointment-status">
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_FILTERS.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {getStatusLabel(status)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-doctor">Doctor</Label>
-              <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-                <SelectTrigger id="appointment-doctor">
-                  <SelectValue placeholder="All doctors" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All doctors</SelectItem>
-                  {staffOptions.doctors.map((doctor) => (
-                    <SelectItem key={doctor.id} value={doctor.id}>
-                      {doctor.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-volunteer">Volunteer</Label>
-              <Select value={volunteerFilter} onValueChange={setVolunteerFilter}>
-                <SelectTrigger id="appointment-volunteer">
-                  <SelectValue placeholder="All volunteers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All volunteers</SelectItem>
-                  {staffOptions.volunteers.map((volunteer) => (
-                    <SelectItem key={volunteer.id} value={volunteer.id}>
-                      {volunteer.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="appointment-patient-search">Patient</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="appointment-patient-search"
-                  type="search"
-                  value={patientSearch}
-                  onChange={(event) => setPatientSearch(event.target.value)}
-                  placeholder="Name or code"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-          </div>
-
-          <ActiveFilterSummary
-            items={[
-              {
-                label: 'Status',
-                value: statusFilter === 'ALL' ? null : getStatusLabel(statusFilter),
-              },
-              {
-                label: 'Doctor',
-                value:
-                  doctorFilter === 'ALL'
-                    ? null
-                    : staffOptions.doctors.find((doctor) => doctor.id === doctorFilter)
-                        ?.displayName,
-              },
-              {
-                label: 'Volunteer',
-                value:
-                  volunteerFilter === 'ALL'
-                    ? null
-                    : staffOptions.volunteers.find((volunteer) => volunteer.id === volunteerFilter)
-                        ?.displayName,
-              },
-              { label: 'Patient', value: debouncedPatientSearch || null },
-            ]}
-            emptyLabel="Showing every appointment in this range"
-          />
-
-          <AppMetricGroup className="mt-4 sm:grid-cols-2 xl:grid-cols-4">
-            <AppMetricCard
-              title="Scheduled"
-              value={summary.total}
-              icon={CalendarDays}
-              detail={`Appointments in ${viewMode === 'day' ? 'this day' : 'this week'}.`}
-            />
-            <AppMetricCard
-              title="Confirmed"
-              value={summary.confirmed}
-              icon={CalendarClock}
-              detail="Upcoming or active confirmed visits."
-            />
-            <AppMetricCard
-              title="Completed"
-              value={summary.completed}
-              icon={UserRound}
-              detail={`${summary.cancelled} cancelled, ${summary.noShow} no-show in this range.`}
-            />
+          <AppMetricGroup variant="strip" className="mt-4">
             <AppMetricCard
               title="Next visit"
-              value={nextAppointment ? formatOpsTime(nextAppointment.startsAt, timezone) : 'None'}
+              tone="calm"
+              value={
+                appointmentsData
+                  ? nextAppointment
+                    ? formatOpsTime(nextAppointment.startsAt, timezone)
+                    : 'None'
+                  : '…'
+              }
               icon={Clock3}
               detail={
                 nextAppointment
@@ -898,7 +786,141 @@ export default function StaffAppointmentsPage() {
                   : 'No confirmed visit in the current filters.'
               }
             />
+
+            <AppMetricCard
+              title="Scheduled"
+              onActivate={() => setStatusFilter('ALL')}
+              actionLabel="Show scheduled appointments"
+              value={appointmentsData ? summary.total : '…'}
+              icon={CalendarDays}
+              detail={`Appointments in ${viewMode === 'day' ? 'this day' : 'this week'}.`}
+            />
+            <AppMetricCard
+              title="Confirmed"
+              onActivate={() => setStatusFilter('CONFIRMED')}
+              actionLabel="Show confirmed appointments"
+              value={appointmentsData ? summary.confirmed : '…'}
+              icon={CalendarClock}
+              detail="Upcoming or active confirmed visits."
+            />
+            <AppMetricCard
+              title="Completed"
+              onActivate={() => setStatusFilter('COMPLETED')}
+              actionLabel="Show completed appointments"
+              value={appointmentsData ? summary.completed : '…'}
+              icon={UserRound}
+              detail={`${summary.cancelled} cancelled, ${summary.noShow} no-show in this range.`}
+            />
           </AppMetricGroup>
+
+          <div className="space-y-3">
+            <ListSearch
+              id="appointment-patient-search"
+              label="Patient"
+              placeholder="Name or code"
+              value={patientSearch}
+              onChange={setPatientSearch}
+            />
+            <ListFilters
+              groupLabel="Appointment filters"
+              sheetTitle="Filter appointments"
+              chips={[
+                {
+                  label: 'Status',
+                  value: statusFilter === 'ALL' ? null : getStatusLabel(statusFilter),
+                  onRemove: () => setStatusFilter('ALL'),
+                },
+                {
+                  label: 'Doctor',
+                  value:
+                    doctorFilter === 'ALL'
+                      ? null
+                      : staffOptions.doctors.find((d) => d.id === doctorFilter)?.displayName,
+                  onRemove: () => setDoctorFilter('ALL'),
+                },
+                {
+                  label: 'Volunteer',
+                  value:
+                    volunteerFilter === 'ALL'
+                      ? null
+                      : staffOptions.volunteers.find((d) => d.id === volunteerFilter)?.displayName,
+                  onRemove: () => setVolunteerFilter('ALL'),
+                },
+              ]}
+              onClearAll={() => {
+                setStatusFilter('ALL');
+                setDoctorFilter('ALL');
+                setVolunteerFilter('ALL');
+              }}
+              trailing={
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-date">Go to date</Label>
+                  <Input
+                    id="appointment-date"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) =>
+                      setSelectedDate(event.target.value || getTodayInTimeZone())
+                    }
+                  />
+                </div>
+              }
+            >
+              <div className="space-y-4">
+                {' '}
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-status">Status</Label>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+                  >
+                    <SelectTrigger id="appointment-status">
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_FILTERS.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {getStatusLabel(status)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-doctor">Doctor</Label>
+                  <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+                    <SelectTrigger id="appointment-doctor">
+                      <SelectValue placeholder="All doctors" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All doctors</SelectItem>
+                      {staffOptions.doctors.map((doctor) => (
+                        <SelectItem key={doctor.id} value={doctor.id}>
+                          {doctor.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="appointment-volunteer">Volunteer</Label>
+                  <Select value={volunteerFilter} onValueChange={setVolunteerFilter}>
+                    <SelectTrigger id="appointment-volunteer">
+                      <SelectValue placeholder="All volunteers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All volunteers</SelectItem>
+                      {staffOptions.volunteers.map((volunteer) => (
+                        <SelectItem key={volunteer.id} value={volunteer.id}>
+                          {volunteer.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </ListFilters>
+          </div>
         </RecordSection>
 
         {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
@@ -1066,7 +1088,7 @@ export default function StaffAppointmentsPage() {
           if (!open) closeLifecycleDialog();
         }}
       >
-        <DialogContent className="max-w-xl rounded-lg border-border/80">
+        <DialogContent variant="form" className="max-w-xl rounded-lg border-border/80">
           <DialogHeader>
             <DialogTitle className="font-heading text-2xl">
               {lifecycleDialog ? getActionLabel(lifecycleDialog.action) : 'Update appointment'}
@@ -1195,11 +1217,11 @@ export default function StaffAppointmentsPage() {
             </div>
           ) : null}
 
-          <DialogFooter className="mt-2 gap-2 sm:gap-0">
+          <DialogFooter className="mt-2">
             <Button
               type="button"
               variant="outline"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={closeLifecycleDialog}
               disabled={lifecycleSubmitting}
             >
@@ -1208,7 +1230,7 @@ export default function StaffAppointmentsPage() {
             <Button
               type="button"
               variant={lifecycleDialog?.action === 'cancel' ? 'destructive' : 'default'}
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={() => void submitLifecycleAction()}
               disabled={lifecycleSubmitting}
             >

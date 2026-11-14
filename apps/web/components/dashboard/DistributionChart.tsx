@@ -18,12 +18,13 @@ import { ChartFrame } from './ChartFrame';
 import { hasRenderableDistributionData, toDistributionChartData } from './chart-utils';
 
 /** A clinical reading of a category, for the charts where one exists. */
-export type DistributionTone = 'neutral' | 'success' | 'warning' | 'destructive';
+export type DistributionTone = 'neutral' | 'success' | 'warning' | 'severe' | 'destructive';
 
 const TONE_FILL: Record<DistributionTone, string> = {
   neutral: 'hsl(var(--muted-foreground))',
   success: 'hsl(var(--success))',
   warning: 'hsl(var(--warning))',
+  severe: 'hsl(var(--severe))',
   destructive: 'hsl(var(--destructive))',
 };
 
@@ -53,6 +54,7 @@ interface DistributionChartProps {
   tones?: Readonly<Record<string, DistributionTone>>;
   /** Horizontal bars keep long category names readable instead of truncating them to 12 chars. */
   layout?: 'vertical' | 'horizontal';
+  titleAs?: 'h2' | 'h3';
 }
 
 export function DistributionChart({
@@ -63,6 +65,7 @@ export function DistributionChart({
   order,
   tones,
   layout = 'vertical',
+  titleAs,
 }: DistributionChartProps) {
   const unordered = toDistributionChartData(data);
   const chartData = order
@@ -95,6 +98,7 @@ export function DistributionChart({
   return (
     <ChartFrame
       title={title}
+      titleAs={titleAs}
       hint={hint}
       columns={['Category', 'Count']}
       rows={displayData.map((entry) => ({ label: entry.label, values: [entry.value] }))}

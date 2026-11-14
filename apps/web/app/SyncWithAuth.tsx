@@ -96,9 +96,8 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     if (!isLoginRoute) {
       return (
         <FullscreenStatus
-          eyebrow="Session check"
-          title="Secure sign in required"
-          description="Your session is no longer active, so we are sending you to secure sign in before anything sensitive loads."
+          title="Taking you to sign in"
+          description="Your session has ended. Sign in again to continue; nothing is shown until you do."
         />
       );
     }
@@ -128,6 +127,11 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const syncPermissions = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canSync =
+    syncPermissions.includes('*') ||
+    (syncPermissions.includes('SYNC.PUSH') && syncPermissions.includes('SYNC.PULL'));
+
   return (
     <ServiceWorkerAndSyncProvider
       getAccessToken={getToken}
@@ -135,10 +139,10 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
       currentUserId={bootstrap?.userId}
       currentUserName={bootstrap?.displayName}
       knownClinics={knownClinics}
+      canSync={canSync}
     >
       {isDisabledAccount ? (
         <FullscreenStatus
-          eyebrow="Account status"
           title="Access has been disabled"
           description="This account has been deactivated by an administrator. Clinical and portal access stay blocked until the clinic restores the account."
           tone="danger"

@@ -35,6 +35,7 @@ import {
   type PatientChartSectionId,
   type PatientChartSummary,
 } from '@/lib/patient-chart';
+import styles from './patient-profile.module.css';
 import { ChartLockedBadge, ChartStatusBadge } from './ChartStatusBadge';
 
 function SummaryCard({
@@ -51,7 +52,7 @@ function SummaryCard({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <h3 className="type-label font-body font-semibold">{title}</h3>
@@ -127,7 +128,7 @@ function PendingActionRow({
       }
       action={
         action.encounterId ? (
-          <Button asChild variant="outline" className="min-h-11">
+          <Button asChild variant="outline">
             <Link href={buildEncounterHref(clinicId, action.encounterId)}>
               Open visit
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -236,7 +237,7 @@ export function PatientChartOverview({
         </CardContent>
       </Card>
 
-      <section aria-label="Current clinical summary" className="grid gap-3 md:grid-cols-2">
+      <section aria-label="Current clinical summary" className={styles.summary}>
         {summary?.vitals ? (
           <SummaryCard
             icon={HeartPulse}
@@ -271,42 +272,6 @@ export function PatientChartOverview({
               </div>
             ) : (
               <NotRecorded>No vitals recorded yet.</NotRecorded>
-            )}
-          </SummaryCard>
-        ) : null}
-
-        {summary?.diabetes ? (
-          <SummaryCard
-            icon={Activity}
-            title="Latest diabetes screening"
-            action={
-              <SectionLink
-                clinicId={clinicId}
-                patientId={patientId}
-                section="diabetes"
-                onNavigate={onNavigate}
-              >
-                View
-              </SectionLink>
-            }
-          >
-            {latestDiabetes ? (
-              <div className="space-y-1">
-                <p className="type-data">
-                  {latestDiabetes.glucoseMgDl !== null
-                    ? `Glucose ${formatGlucose(latestDiabetes.glucoseMgDl, units.glucoseUnit)}`
-                    : 'Glucose not recorded'}
-                  {latestDiabetes.hba1cPercent !== null
-                    ? ` · HbA1c ${formatHba1c(latestDiabetes.hba1cPercent, units.hba1cUnit)}`
-                    : ''}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatOpsDateTime(latestDiabetes.collectedAt)}
-                  {latestDiabetes.recordedBy ? ` · ${latestDiabetes.recordedBy.displayName}` : ''}
-                </p>
-              </div>
-            ) : (
-              <NotRecorded>No screening recorded yet.</NotRecorded>
             )}
           </SummaryCard>
         ) : null}
@@ -348,6 +313,42 @@ export function PatientChartOverview({
               </div>
             ) : (
               <NotRecorded>No assessment recorded yet.</NotRecorded>
+            )}
+          </SummaryCard>
+        ) : null}
+
+        {summary?.diabetes ? (
+          <SummaryCard
+            icon={Activity}
+            title="Latest diabetes screening"
+            action={
+              <SectionLink
+                clinicId={clinicId}
+                patientId={patientId}
+                section="diabetes"
+                onNavigate={onNavigate}
+              >
+                View
+              </SectionLink>
+            }
+          >
+            {latestDiabetes ? (
+              <div className="space-y-1">
+                <p className="type-data">
+                  {latestDiabetes.glucoseMgDl !== null
+                    ? `Glucose ${formatGlucose(latestDiabetes.glucoseMgDl, units.glucoseUnit)}`
+                    : 'Glucose not recorded'}
+                  {latestDiabetes.hba1cPercent !== null
+                    ? ` · HbA1c ${formatHba1c(latestDiabetes.hba1cPercent, units.hba1cUnit)}`
+                    : ''}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatOpsDateTime(latestDiabetes.collectedAt)}
+                  {latestDiabetes.recordedBy ? ` · ${latestDiabetes.recordedBy.displayName}` : ''}
+                </p>
+              </div>
+            ) : (
+              <NotRecorded>No screening recorded yet.</NotRecorded>
             )}
           </SummaryCard>
         ) : null}

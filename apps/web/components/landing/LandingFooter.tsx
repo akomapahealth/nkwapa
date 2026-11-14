@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { StatusPanel } from './StatusPanel';
@@ -31,8 +31,7 @@ export function LandingFooter({
             href={`${base}#top`}
             className="inline-flex min-h-11 items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Image
-              src="/images/nkwapa-logo.png"
+            <BrandWordmark
               alt="Nkwapa home"
               width={1049}
               height={286}

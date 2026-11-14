@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Patient } from '@prisma/client';
-import { PatientService } from './patient.service';
+import { PatientService, rankByLastVisit } from './patient.service';
 import type { MatchingScreeningRow, PatientRepository } from './patient.repository';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -36,6 +36,7 @@ describe('PatientService.listRegistry - completed screening filter', () => {
     findIds: jest.Mock;
     findManyByIds: jest.Mock;
     findMatchingScreenings: jest.Mock;
+    findLastVisits: jest.Mock;
   };
   let clinicFindUnique: jest.Mock;
   let service: PatientService;
@@ -47,6 +48,7 @@ describe('PatientService.listRegistry - completed screening filter', () => {
       findIds: jest.fn().mockResolvedValue([]),
       findManyByIds: jest.fn().mockResolvedValue([]),
       findMatchingScreenings: jest.fn().mockResolvedValue([]),
+      findLastVisits: jest.fn().mockResolvedValue(new Map()),
     };
     clinicFindUnique = jest.fn().mockResolvedValue({ timezone: 'America/New_York' });
     const prisma = { clinic: { findUnique: clinicFindUnique } } as unknown as PrismaService;
@@ -205,5 +207,133 @@ describe('PatientService.listRegistry - completed screening filter', () => {
 
       expect(seen).toEqual(['p6', 'p5', 'p4', 'p3', 'p2', 'p1', 'p0']);
     });
+  });
+});
+
+describe('PatientService.listRegistry - last visit and location', () => {
+  const at = (iso: string) => new Date(iso);
+  let repo: {
+    findMany: jest.Mock;
+    count: jest.Mock;
+    findIds: jest.Mock;
+    findManyByIds: jest.Mock;
+    findMatchingScreenings: jest.Mock;
+    findLastVisits: jest.Mock;
+  };
+  let service: PatientService;
+
+  beforeEach(() => {
+    repo = {
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+      findIds: jest.fn().mockResolvedValue([]),
+      findManyByIds: jest.fn(async (ids: string[]) => [...ids].reverse().map(patient)),
+      findMatchingScreenings: jest.fn().mockResolvedValue([]),
+      findLastVisits: jest.fn().mockResolvedValue(new Map()),
+    };
+    const prisma = {
+      clinic: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Africa/Accra' }) },
+    } as unknown as PrismaService;
+    service = new PatientService(
+      repo as unknown as PatientRepository,
+      prisma,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+    );
+  });
+
+  it('gives every item its last visit at this clinic and its location, never the address note', async () => {
+    repo.findMany.mockResolvedValue([
+      {
+        ...patient('p1'),
+        residentialLocationStatus: 'RECORDED',
+        residentialRegion: 'CENTRAL',
+        residentialDistrict: 'Cape Coast Metropolitan',
+        residentialCommunity: 'Abura',
+        residentialAddressNote: 'Blue gate behind the school',
+      } as Patient,
+      patient('p2'),
+    ]);
+    repo.count.mockResolvedValue(2);
+    repo.findLastVisits.mockResolvedValue(new Map([['p1', at('2026-11-05T09:00:00Z')]]));
+
+    const page = await service.listRegistry('clinic-1', '', 1, 25);
+
+    expect(repo.findLastVisits).toHaveBeenCalledWith(['p1', 'p2'], 'clinic-1');
+    expect(page.items[0]).toMatchObject({
+      lastVisitAt: at('2026-11-05T09:00:00Z'),
+      residentialRegion: 'CENTRAL',
+      residentialDistrict: 'Cape Coast Metropolitan',
+      residentialCommunity: 'Abura',
+    });
+    expect(page.items[0]).not.toHaveProperty('residentialAddressNote');
+    expect(page.items[1].lastVisitAt).toBeNull();
+  });
+
+  it('sorts by last visit across the whole registry, not just one page', async () => {
+    repo.findIds.mockResolvedValue(['a', 'b', 'c', 'd']);
+    repo.findLastVisits.mockResolvedValue(
+      new Map([
+        ['a', at('2026-10-01T00:00:00Z')],
+        ['c', at('2026-11-01T00:00:00Z')],
+        ['d', at('2026-10-15T00:00:00Z')],
+      ]),
+    );
+
+    const page = await service.listRegistry('clinic-1', '', 1, 2, {
+      sort: { field: 'lastVisitAt', direction: 'desc' },
+    });
+
+    expect(page.items.map((item) => item.id)).toEqual(['c', 'd']);
+    expect(page.total).toBe(4);
+    expect(repo.findMany).not.toHaveBeenCalled();
+    expect(page).not.toHaveProperty('timezone');
+  });
+
+  it('keeps the screened dates when sorting by last visit with the screened filter on', async () => {
+    repo.findIds.mockResolvedValue(['a']);
+    repo.findMatchingScreenings.mockResolvedValue([
+      reviewRow('a', 'ca', '2026-10-10T10:00:00.000Z'),
+    ]);
+
+    const page = await service.listRegistry('clinic-1', '', 1, 25, {
+      sort: { field: 'lastVisitAt', direction: 'asc' },
+      screened: { from: '2026-10-10' },
+    });
+
+    expect(page.timezone).toBe('Africa/Accra');
+    expect(page.items[0].matchingScreenings?.map((s) => s.date)).toEqual(['2026-10-10']);
+  });
+
+  it('refuses a cursor with the last-visit sort', async () => {
+    await expect(
+      service.listRegistry('clinic-1', '', 1, 25, {
+        cursor: 'x',
+        sort: { field: 'lastVisitAt', direction: 'desc' },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('rankByLastVisit', () => {
+  const visits = new Map([
+    ['b', new Date('2026-10-01T00:00:00Z')],
+    ['c', new Date('2026-11-01T00:00:00Z')],
+    ['e', new Date('2026-11-01T00:00:00Z')],
+  ]);
+  const ids = ['e', 'a', 'd', 'c', 'b'];
+
+  it('puts never-seen patients last in both directions, ties on id', () => {
+    expect(rankByLastVisit(ids, visits, 'desc')).toEqual(['c', 'e', 'b', 'a', 'd']);
+    expect(rankByLastVisit(ids, visits, 'asc')).toEqual(['b', 'c', 'e', 'a', 'd']);
+  });
+
+  it('pages without duplicates or gaps', () => {
+    const ranked = rankByLastVisit(ids, visits, 'desc');
+    const pages = [ranked.slice(0, 2), ranked.slice(2, 4), ranked.slice(4)];
+    expect(pages.flat()).toEqual(ranked);
+    expect(new Set(pages.flat()).size).toBe(ids.length);
   });
 });

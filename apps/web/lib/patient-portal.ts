@@ -8,6 +8,7 @@ import {
 } from '@nkwapa/db/measurement-units';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
+import { OPS_DEFAULT_TIMEZONE } from '@/lib/ops';
 import { readTrendNumber } from '@/lib/patient-trends';
 
 export const PATIENT_PORTAL_LINK_MISSING = 'PATIENT_PORTAL_LINK_MISSING';
@@ -688,22 +689,24 @@ export async function fetchLegacySelfReports(clinicId: string, getToken: GetToke
 
 export function formatPortalDate(value: string | null | undefined) {
   if (!value) return 'Not set';
-  return new Date(value).toLocaleDateString(undefined, {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: OPS_DEFAULT_TIMEZONE,
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-  });
+  }).format(new Date(value));
 }
 
 export function formatPortalDateTime(value: string | null | undefined) {
   if (!value) return 'Not scheduled';
-  return new Date(value).toLocaleString(undefined, {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: OPS_DEFAULT_TIMEZONE,
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  });
+  }).format(new Date(value));
 }
 
 export function formatMeasurementLabel(type: MeasurementRecord['type'] | string) {

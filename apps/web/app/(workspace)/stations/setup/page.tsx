@@ -114,7 +114,7 @@ function StationSetupContent() {
     <div className="space-y-6">
       <AppPageHeader
         title="Station setup"
-        description="The order patients move through, and how many each station can see at once."
+        description="Station order, and how many each can see at once."
         helpTitle="What capacity means"
         helpText="How many patients a station can see at the same time: chairs, BP cuffs, consulting rooms. It is not how many staff are on it. When a station is full and patients still wait, the limit is equipment or space; when it has room and patients wait, the limit is staff."
         actions={
@@ -147,7 +147,9 @@ function StationSetupContent() {
               return (
                 <li
                   key={station.id}
-                  className="grid gap-3 py-3 lg:grid-cols-[auto_minmax(0,1fr)_8rem_auto_auto] sm:items-end"
+                  // Every row is its own grid, so the first column is fixed: with \`auto\` the kind tag's length
+                  // moved each row's Name field to a different x.
+                  className="grid gap-3 py-3 lg:grid-cols-[19rem_minmax(0,1fr)_8rem_auto_auto] sm:items-end"
                   data-testid="station-setup-row"
                 >
                   <div className="flex items-center gap-1">
@@ -194,17 +196,14 @@ function StationSetupContent() {
                     >
                       <ArrowDown aria-hidden="true" />
                     </Button>
+                    {/* The kind is fixed, so it identifies the row rather than labelling the name
+                        field; inside the label it read as a second label (R1.3 critique P2). */}
+                    <Badge variant="secondary" className="ml-1">
+                      {STATION_KIND_LABELS[station.kind] ?? station.kind}
+                    </Badge>
                   </div>
                   <div className="space-y-1">
-                    <Label
-                      htmlFor={`station-name-${station.id}`}
-                      className="flex items-center gap-2"
-                    >
-                      Name
-                      <Badge variant="secondary">
-                        {STATION_KIND_LABELS[station.kind] ?? station.kind}
-                      </Badge>
-                    </Label>
+                    <Label htmlFor={`station-name-${station.id}`}>Name</Label>
                     <Input
                       id={`station-name-${station.id}`}
                       value={draft.name}

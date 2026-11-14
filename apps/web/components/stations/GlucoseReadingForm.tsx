@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Droplet } from 'lucide-react';
-import { evaluateGlucoseSuspicion, isHypoglycemic } from '@nkwapa/db';
+import { evaluateGlucoseSuspicion, isHypoglycemic } from '@nkwapa/db/diabetes-thresholds';
 import type { GlucoseUnit } from '@nkwapa/db/measurement-units';
 import { useClinicUnits } from '@/lib/bootstrap-context';
 import {
@@ -22,6 +22,8 @@ import {
 } from '@/lib/glucose-reading';
 import type { DiabetesScreeningRecord } from '@/lib/db';
 import { Button } from '@/components/ui/button';
+import { STICKY_ACTIONS } from '@/components/ui/form-actions';
+import { cn } from '@/lib/utils';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -157,7 +159,7 @@ export function GlucoseReadingForm({
           <div className="space-y-2">
             <Label htmlFor="glucoseType">Timing</Label>
             <Select value={type} onValueChange={(next) => setType(next as GlucoseReadingType)}>
-              <SelectTrigger id="glucoseType" className="h-11">
+              <SelectTrigger id="glucoseType">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -181,7 +183,7 @@ export function GlucoseReadingForm({
           </InlineNotice>
         ) : null}
         {status ? <InlineNotice tone={status.tone}>{status.text}</InlineNotice> : null}
-        <div className="flex justify-end">
+        <div data-sticky-actions className={cn('flex justify-end', STICKY_ACTIONS)}>
           <Button type="button" onClick={() => void save()} disabled={saving || invalid}>
             {saving ? 'Saving…' : 'Save reading'}
           </Button>

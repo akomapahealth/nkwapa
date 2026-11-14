@@ -1,5 +1,5 @@
 import { apiFetch, type GetToken } from '@/lib/api';
-import { readApiError } from '@/lib/ops';
+import { OPS_DEFAULT_TIMEZONE, readApiError } from '@/lib/ops';
 import type { BadgeTone } from '@/lib/notification-delivery';
 
 /**
@@ -231,7 +231,9 @@ export function formatInviteDate(value: string | null): string {
   if (!value) return 'Not set';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Not set';
+  // The clinic's day, not the browser's: product times are shown in Africa/Accra.
   return parsed.toLocaleDateString(undefined, {
+    timeZone: OPS_DEFAULT_TIMEZONE,
     day: 'numeric',
     month: 'short',
     year: 'numeric',

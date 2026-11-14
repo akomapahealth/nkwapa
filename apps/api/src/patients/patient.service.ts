@@ -64,6 +64,12 @@ export interface PatientRegistryItem {
   phoneE164: string | null;
   email: string | null;
   nationalIdLast4: string | null;
+  residentialLocationStatus: Patient['residentialLocationStatus'];
+  residentialRegion: Patient['residentialRegion'];
+  residentialDistrict: string | null;
+  residentialCommunity: string | null;
+  /** The latest encounter at the registry's clinic, as on the chart; null when never seen there. */
+  lastVisitAt: Date | null;
   /** Present only when the screened date filter is active. */
   matchingScreenings?: MatchingScreening[];
 }
@@ -284,7 +290,11 @@ export class PatientService {
       }
     }
     const items = await this.patientRepository.findMany(filters);
-    return items.map((item) => this.toRegistryItem(item));
+    const lastVisits = await this.patientRepository.findLastVisits(
+      items.map((item) => item.id),
+      primaryClinicId,
+    );
+    return items.map((item) => this.toRegistryItem(item, lastVisits));
   }
 
   async listRegistry(
@@ -315,6 +325,12 @@ export class PatientService {
           message: 'Use page and pageSize when sorting by last screening.',
         });
       }
+    }
+    if (options?.sort?.field === 'lastVisitAt' && options.cursor) {
+      throw new BadRequestException({
+        code: 'CURSOR_UNSUPPORTED_FOR_SORT',
+        message: 'Use page and pageSize when sorting by last visit.',
+      });
     }
     const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
     const normalizedPageSize = Math.min(
@@ -375,6 +391,19 @@ export class PatientService {
       );
     }
 
+    if (options?.sort?.field === 'lastVisitAt') {
+      return this.listRegistryByLastVisit(
+        { ...filters, skip: undefined, take: undefined, sort: undefined },
+        primaryClinicId,
+        screenedDays && filters.screened
+          ? { filter: filters.screened, timezone: screenedDays.timezone }
+          : undefined,
+        options.sort.direction,
+        normalizedPage,
+        normalizedPageSize,
+      );
+    }
+
     const items = await this.patientRepository.findMany(filters);
     const total = options?.cursor
       ? undefined
@@ -385,7 +414,11 @@ export class PatientService {
           take: undefined,
         });
 
-    const mappedItems = items.map((item) => this.toRegistryItem(item));
+    const lastVisits = await this.patientRepository.findLastVisits(
+      items.map((item) => item.id),
+      primaryClinicId,
+    );
+    const mappedItems = items.map((item) => this.toRegistryItem(item, lastVisits));
     const effectivePageSize = options?.cursor ? normalizedLimit : normalizedPageSize;
     if (screenedDays && filters.screened) {
       const screenings = groupMatchingScreenings(
@@ -642,15 +675,66 @@ export class PatientService {
     const byId = new Map(
       (await this.patientRepository.findManyByIds(pageIds)).map((row) => [row.id, row]),
     );
+    const lastVisits = await this.patientRepository.findLastVisits(pageIds, screened.clinicId);
     const items = pageIds.flatMap((id) => {
       const row = byId.get(id);
       return row
-        ? [{ ...this.toRegistryItem(row), matchingScreenings: screenings.get(id) ?? [] }]
+        ? [
+            {
+              ...this.toRegistryItem(row, lastVisits),
+              matchingScreenings: screenings.get(id) ?? [],
+            },
+          ]
         : [];
     });
     return {
       items,
       timezone: timeZone,
+      total: ids.length,
+      page,
+      pageSize,
+      nextCursor: null,
+    };
+  }
+
+  /**
+   * The registry ordered by each patient's latest encounter at this clinic, ties on `id`. Never
+   * seen patients come last in both directions: "oldest visit first" means oldest of those seen.
+   * shortcut: ranks every matching id in memory (one clinic's registry, a groupBy over its
+   * encounters); move to a SQL lateral join inside the RLS transaction past ~20k patients.
+   */
+  private async listRegistryByLastVisit(
+    filters: PatientFindManyFilters,
+    clinicId: string,
+    screened: { filter: ScreenedFilter; timezone: string } | undefined,
+    direction: 'asc' | 'desc',
+    page: number,
+    pageSize: number,
+  ): Promise<PatientRegistryPage> {
+    const ids = await this.patientRepository.findIds(filters);
+    const lastVisits = await this.patientRepository.findLastVisits(ids, clinicId);
+    const pageIds = rankByLastVisit(ids, lastVisits, direction).slice(
+      (page - 1) * pageSize,
+      page * pageSize,
+    );
+    const byId = new Map(
+      (await this.patientRepository.findManyByIds(pageIds)).map((row) => [row.id, row]),
+    );
+    const screenings = screened
+      ? groupMatchingScreenings(
+          await this.patientRepository.findMatchingScreenings(pageIds, screened.filter),
+          screened.timezone,
+        )
+      : null;
+    const items = pageIds.flatMap((id) => {
+      const row = byId.get(id);
+      if (!row) return [];
+      const item = this.toRegistryItem(row, lastVisits);
+      return [screenings ? { ...item, matchingScreenings: screenings.get(id) ?? [] } : item];
+    });
+    return {
+      items,
+      ...(screened ? { timezone: screened.timezone } : {}),
       total: ids.length,
       page,
       pageSize,
@@ -666,7 +750,7 @@ export class PatientService {
     return clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
   }
 
-  private toRegistryItem(patient: Patient): PatientRegistryItem {
+  private toRegistryItem(patient: Patient, lastVisits: Map<string, Date>): PatientRegistryItem {
     return {
       id: patient.id,
       patientCode: patient.patientCode,
@@ -675,6 +759,12 @@ export class PatientService {
       phoneE164: patient.phoneE164,
       email: patient.email,
       nationalIdLast4: patient.nationalIdLast4,
+      // The address note stays on the chart: the list needs the place, not the directions.
+      residentialLocationStatus: patient.residentialLocationStatus,
+      residentialRegion: patient.residentialRegion,
+      residentialDistrict: patient.residentialDistrict,
+      residentialCommunity: patient.residentialCommunity,
+      lastVisitAt: lastVisits.get(patient.id) ?? null,
     };
   }
 
@@ -812,4 +902,23 @@ export class PatientService {
         : null,
     };
   }
+}
+
+/** Ids by last visit, never-seen last in both directions, ties on id so pages never overlap. */
+export function rankByLastVisit(
+  ids: string[],
+  lastVisits: Map<string, Date>,
+  direction: 'asc' | 'desc',
+): string[] {
+  const sign = direction === 'asc' ? 1 : -1;
+  return ids
+    .map((id) => ({ id, at: lastVisits.get(id)?.getTime() }))
+    .sort((a, b) => {
+      if (a.at === undefined || b.at === undefined) {
+        if (a.at !== b.at) return a.at === undefined ? 1 : -1;
+        return a.id.localeCompare(b.id);
+      }
+      return sign * (a.at - b.at) || a.id.localeCompare(b.id);
+    })
+    .map((entry) => entry.id);
 }

@@ -1,0 +1,212 @@
+/* R3.8 encounter workspace. Presentation only: the page's state, saves and gates are unchanged. */
+
+.header {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* The same quiet back link as the patient profile (R3.6): navigation, not an action. */
+.back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  text-underline-offset: 0.25rem;
+}
+
+.back:hover {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.back:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.identityRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+}
+
+.identity {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+  margin-top: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+}
+
+/* Right-aligned, primary last (MASTER section 8). On phones the actions take the full width. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* A clinical action label wraps at enlarged text rather than pushing past the screen edge. */
+.actions > * {
+  height: auto;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* The phone copy of Submit for review, at the foot of the page. */
+.phoneSubmit {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .actions[data-placement='header'] {
+    display: none;
+  }
+
+  .phoneSubmit {
+    display: flex;
+    border-top: 1px solid hsl(var(--rule));
+    padding-top: 1rem;
+  }
+
+  .phoneSubmit > * {
+    flex: 1 1 100%;
+  }
+}
+
+/* The review path as a ruled route: each step owns a segment of one line. */
+.progress {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 0.25rem;
+}
+
+/* Phones keep the four segments and one line of text; the step words stay in the list for
+   assistive technology, and the visible summary repeats them, so it is hidden from it. */
+.progressSummary {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 599px) {
+  .progress > .step {
+    padding-top: 0;
+  }
+
+  .progress > .step > * {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 600px) {
+  .progressSummary {
+    display: none;
+  }
+}
+
+.step {
+  position: relative;
+  min-width: 0;
+  border-top: 2px solid hsl(var(--rule));
+  padding-top: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+}
+
+.step[data-state='done'] {
+  border-top-color: hsl(var(--primary) / 0.45);
+}
+
+.step[data-state='current'] {
+  border-top-color: hsl(var(--primary));
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.stepState {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Sign-off is deliberate and irreversible, so it reads differently from routine saves. */
+.signoff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  border-block: 2px solid hsl(var(--warning));
+  padding-block: 1rem;
+}
+
+/* The preceptor's review band: the sign-off band's shape in routine teal. */
+.review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  border-block: 2px solid hsl(var(--primary));
+  padding-block: 1rem;
+}
+
+.signoffText {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 18rem;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+@media (max-width: 599px) {
+  .signoff > button,
+  .review > button {
+    flex: 1 1 100%;
+    height: auto;
+    white-space: normal;
+  }
+}
+
+/* The new-visit wizard's five steps share the same ruled route. */
+.wizardSteps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0 0.25rem;
+}
+
+.wizardSteps > .step {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+@media (min-width: 600px) {
+  .wizardSteps > .step {
+    font-size: 0.875rem;
+  }
+}

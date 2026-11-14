@@ -37,6 +37,7 @@ import { usePortalResource } from '@/components/portal/use-portal-resource';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FieldLabel, focusField, RequiredLegend } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -114,6 +115,17 @@ export function MeasurementComposerScreen() {
     states below; this is validation and save failures only.
   */
   const [error, setError] = useState<string | null>(null);
+  // The field the message is about, so it can be focused and marked invalid.
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const fail = (message: string, field: string | null = null) => {
+    setError(message);
+    setErrorField(field);
+    if (field) focusField(field);
+  };
+  const invalidProps = (id: string) =>
+    errorField === id
+      ? { 'aria-invalid': true as const, 'aria-describedby': 'measurement-error' }
+      : {};
 
   useEffect(() => {
     const requestedType = measurementTypeFromPreset(searchParams.get('type'));
@@ -145,13 +157,13 @@ export function MeasurementComposerScreen() {
     if (!writeGate.canWrite) return;
 
     if (!clinicId || !getToken) {
-      setError('An active clinic is required before you can save a reading.');
+      fail('An active clinic is required before you can save a reading.');
       return;
     }
 
     const parsedRecordedAt = recordedAt ? new Date(recordedAt) : new Date();
     if (Number.isNaN(parsedRecordedAt.getTime())) {
-      setError('Please enter a valid date and time for this reading.');
+      fail('Please enter a valid date and time for this reading.', 'recordedAt');
       return;
     }
 
@@ -159,7 +171,10 @@ export function MeasurementComposerScreen() {
 
     if (type === 'BP') {
       if (!systolic || !diastolic) {
-        setError('Please enter both systolic and diastolic values.');
+        fail(
+          'Please enter both systolic and diastolic values.',
+          systolic ? 'diastolic' : 'systolic',
+        );
         return;
       }
       payload = {
@@ -171,13 +186,13 @@ export function MeasurementComposerScreen() {
       }
     } else if (type === 'GLUCOSE') {
       if (!glucoseValue) {
-        setError('Please enter your glucose value.');
+        fail('Please enter your glucose value.', 'glucoseValue');
         return;
       }
       const glucoseError = glucoseEntryError(glucoseValue, glucoseUnit);
       const mgDl = glucoseTextToMgDl(glucoseValue, glucoseUnit);
       if (glucoseError || mgDl === null) {
-        setError(glucoseError ?? 'Please enter your glucose value.');
+        fail(glucoseError ?? 'Please enter your glucose value.', 'glucoseValue');
         return;
       }
       // Always mg/dL: the portal API stores one unit whatever the patient's meter reads.
@@ -189,7 +204,7 @@ export function MeasurementComposerScreen() {
       const kg = weightTextToKg(weight, units.bodyUnit);
       const weightError = weightEntryError(weight, units.bodyUnit);
       if (weightError || kg === null) {
-        setError(weightError ?? 'Please enter your weight.');
+        fail(weightError ?? 'Please enter your weight.', 'weightKg');
         return;
       }
       payload = { kg };
@@ -197,6 +212,7 @@ export function MeasurementComposerScreen() {
 
     setSubmitting(true);
     setError(null);
+    setErrorField(null);
 
     try {
       await createMeasurement(clinicId, getToken, {
@@ -216,7 +232,12 @@ export function MeasurementComposerScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.WRITE_SELF_REPORT">
       <div className="space-y-6">
-        <Button asChild variant="ghost" size="default">
+        <Button
+          asChild
+          variant="ghost"
+          size="default"
+          className="h-auto max-w-full whitespace-normal text-left"
+        >
           <Link href="/portal/health">
             <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />
             Back to health trends
@@ -247,11 +268,7 @@ export function MeasurementComposerScreen() {
                 <div className="flex items-center justify-between gap-3">
                   <Icon aria-hidden="true" className="h-5 w-5 text-primary" />
                   <span className="mr-auto font-medium text-foreground">{option.label}</span>
-                  {isActive && (
-                    <Badge variant="secondary" className="rounded-full">
-                      Selected
-                    </Badge>
-                  )}
+                  {isActive && <Badge variant="info">Selected</Badge>}
                 </div>
                 <p
                   className={cn(
@@ -281,13 +298,20 @@ export function MeasurementComposerScreen() {
           title="Measurement details"
           description="Record your reading and add notes if there is anything unusual your care team should know."
         >
-          <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
+          <form
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+          >
+            <div className="min-w-0 space-y-5">
+              <RequiredLegend />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="recordedAt">Date and time</Label>
+                  <FieldLabel htmlFor="recordedAt" required>
+                    Date and time
+                  </FieldLabel>
                   <Input
                     id="recordedAt"
+                    {...invalidProps('recordedAt')}
                     type="datetime-local"
                     className="tabular-nums"
                     value={recordedAt}
@@ -298,12 +322,16 @@ export function MeasurementComposerScreen() {
               </div>
 
               {type === 'BP' && (
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="systolic">Systolic (mmHg)</Label>
+                    <FieldLabel htmlFor="systolic" required>
+                      Systolic (mmHg)
+                    </FieldLabel>
                     <Input
                       id="systolic"
+                      {...invalidProps('systolic')}
                       type="number"
+                      inputMode="numeric"
                       className="tabular-nums"
                       min={50}
                       max={300}
@@ -313,10 +341,14 @@ export function MeasurementComposerScreen() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="diastolic">Diastolic (mmHg)</Label>
+                    <FieldLabel htmlFor="diastolic" required>
+                      Diastolic (mmHg)
+                    </FieldLabel>
                     <Input
                       id="diastolic"
+                      {...invalidProps('diastolic')}
                       type="number"
+                      inputMode="numeric"
                       className="tabular-nums"
                       min={30}
                       max={200}
@@ -326,10 +358,11 @@ export function MeasurementComposerScreen() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="pulse">Pulse in beats per minute (optional)</Label>
+                    <Label htmlFor="pulse">Pulse in beats per minute</Label>
                     <Input
                       id="pulse"
                       type="number"
+                      inputMode="numeric"
                       className="tabular-nums"
                       min={20}
                       max={250}
@@ -341,12 +374,15 @@ export function MeasurementComposerScreen() {
               )}
 
               {type === 'GLUCOSE' && (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="glucoseValue">Glucose ({glucoseUnitLabel(glucoseUnit)})</Label>
+                    <FieldLabel htmlFor="glucoseValue" required>
+                      Glucose ({glucoseUnitLabel(glucoseUnit)})
+                    </FieldLabel>
                     <div className="flex gap-2">
                       <Input
                         id="glucoseValue"
+                        {...invalidProps('glucoseValue')}
                         type="number"
                         inputMode={glucoseUnit === 'MMOL_L' ? 'decimal' : 'numeric'}
                         step={glucoseUnit === 'MMOL_L' ? '0.1' : '1'}
@@ -385,11 +421,14 @@ export function MeasurementComposerScreen() {
               )}
 
               {type === 'WEIGHT' && (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="weightKg">Weight ({weightUnitLabel(units.bodyUnit)})</Label>
+                    <FieldLabel htmlFor="weightKg" required>
+                      Weight ({weightUnitLabel(units.bodyUnit)})
+                    </FieldLabel>
                     <Input
                       id="weightKg"
+                      {...invalidProps('weightKg')}
                       type="number"
                       inputMode="decimal"
                       className="tabular-nums"
@@ -415,7 +454,7 @@ export function MeasurementComposerScreen() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               <div className="border-t border-border py-4">
                 <h3 className="flex items-center gap-2 font-medium text-foreground">
                   <Activity aria-hidden="true" className="h-4 w-4 text-primary" />
@@ -442,9 +481,13 @@ export function MeasurementComposerScreen() {
 
               <PortalWriteGateNotice gate={writeGate} />
 
-              <Button type="submit" disabled={submitting || !writeGate.canWrite} className="w-full">
+              <Button
+                type="submit"
+                disabled={submitting || !writeGate.canWrite}
+                className="h-auto w-full min-w-0 whitespace-normal [overflow-wrap:anywhere]"
+              >
                 {submitting
-                  ? 'Saving measurement...'
+                  ? 'Saving reading…'
                   : `Save ${activeOption.label.toLowerCase()} reading`}
               </Button>
             </div>

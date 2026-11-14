@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MedicationAdherenceEntry } from '@nkwapa/db';
+import type { MedicationAdherenceEntry } from '@nkwapa/db/medication-adherence';
 import { apiFetch, readApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/db';

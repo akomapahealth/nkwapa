@@ -705,6 +705,8 @@ export class StationService {
         body: visit.assignedBy ? `Assigned by ${visit.assignedBy.displayName}.` : undefined,
         url: '/stations',
         tag: 'assigned',
+        kind: 'ASSIGNMENT',
+        clinicId,
       });
     }
     return this.toVisit(visit);

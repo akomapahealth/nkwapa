@@ -99,7 +99,8 @@ export function showToast({
   title,
   description,
   tone = 'info',
-  durationMs = tone === 'loading' ? 0 : DEFAULT_DURATION_MS,
+  // A failure stays until it is dismissed (R7.5): a failed save must not vanish while unread.
+  durationMs = tone === 'loading' || tone === 'error' ? 0 : DEFAULT_DURATION_MS,
   action,
   id,
 }: ToastInput): string {

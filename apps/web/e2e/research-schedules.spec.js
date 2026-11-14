@@ -107,6 +107,8 @@ test.describe('as a director', () => {
       await page.getByRole('button', { name: 'Refresh' }).click();
       await expect(run.first()).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 90_000, intervals: [3_000] });
+    const details = run.first().locator('details');
+    await details.getByText('Run details').click();
     // The count line, not the changes sentence that repeats the number ("First run: ...").
     await expect(
       run.first().getByText(/^\d+ consented patients( · \d+ revoked since the last run)?$/),
@@ -117,8 +119,6 @@ test.describe('as a director', () => {
     await expect(run.first().getByText(/research\/v\d+\/clinic=/)).toBeVisible();
 
     // Its details give the checksums and the steps it went through, loaded when opened.
-    const details = run.first().locator('details');
-    await details.getByText('Run details').click();
     await expect(details.getByText('Content checksum')).toBeVisible();
     await expect(details.getByText('Completed', { exact: true })).toBeVisible({ timeout: 10_000 });
 

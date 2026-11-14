@@ -27,3 +27,7 @@ docs/security/patient-identity-matrix.md
 # `npm run docs:offline-job-matrix --workspace=@nkwapa/api`. A test asserts it matches byte for
 # byte, so reformatting it here would put the two checks permanently at odds.
 docs/security/offline-job-execution-matrix.md
+
+# Exported design concept mockups kept as references; one is not valid HTML, and they are
+# never edited by hand.
+docs/design-system/ui-refresh/references/

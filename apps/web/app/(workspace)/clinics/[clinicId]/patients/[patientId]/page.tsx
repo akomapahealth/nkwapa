@@ -10,9 +10,10 @@ import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
-import { hasPermission, readApiError } from '@/lib/ops';
+import { hasPermission, readApiError, formatOpsDay, formatOpsDateTime } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
-import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { PatientProfileHeader } from '@/components/patients/chart/PatientProfileHeader';
+import profileStyles from '@/components/patients/chart/patient-profile.module.css';
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
@@ -133,6 +134,7 @@ function PatientChartWorkspace() {
   const userId = bootstrap?.userId ?? '';
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const canScheduleReminder = hasPermission(perms, 'REMINDER.CREATE');
+  const canRecordConsent = hasPermission(perms, 'CONSENT.RECORD');
   const patientCheckIn = usePatientCheckIn(clinicId);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
@@ -532,8 +534,9 @@ function PatientChartWorkspace() {
   if (loading && !data) {
     return (
       <div className="space-y-6" role="status" aria-live="polite" aria-busy="true">
-        <span className="sr-only">Loading patient chart</span>
         <SectionSkeleton lines={6} />
+        {/* After the skeleton: see app/(workspace)/loading.tsx. */}
+        <span className="sr-only">Loading patient chart</span>
       </div>
     );
   }
@@ -596,26 +599,21 @@ function PatientChartWorkspace() {
   };
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        title={`${patient.firstName} ${patient.lastName}`}
-        description="Review clinic-scoped demographics, encounter history, portal access, and patient-reported updates from a single chart workspace."
+    <div className={`space-y-6 ${profileStyles.workspace}`}>
+      <PatientProfileHeader
+        name={`${patient.firstName} ${patient.lastName}`}
+        patientCode={patient.patientCode}
+        sex={
+          patient.sex && patient.sex !== 'UNKNOWN' ? statusLabel(patient.sex) : 'Sex not recorded'
+        }
+        clinicId={clinicId}
         badges={
           <>
-            <Badge variant="outline" className="tabular-nums">
-              {patient.patientCode}
-            </Badge>
-            {hasGrantedResearchConsent ? <Badge variant="finalized">Consent Granted</Badge> : null}
+            {hasGrantedResearchConsent ? <Badge variant="finalized">Consent granted</Badge> : null}
           </>
         }
         actions={
           <>
-            <Button asChild variant="ghost">
-              <Link href={`/clinics/${clinicId}/patients`}>
-                <ArrowLeft className="h-4 w-4" />
-                Back to Patient Search
-              </Link>
-            </Button>
             {canUpdatePatient ? (
               <Button asChild variant="outline">
                 <Link href={`/clinics/${clinicId}/patients/${patientId}/edit`}>
@@ -637,7 +635,7 @@ function PatientChartWorkspace() {
                 disabled={loading || patientCheckIn.isBusy || !patientCheckIn.canSubmit}
               >
                 <Stethoscope className="h-4 w-4" />
-                {patientCheckIn.isBusy ? 'Checking in...' : 'Check In Patient'}
+                {patientCheckIn.isBusy ? 'Checking in...' : 'Check in patient'}
               </Button>
             ) : null}
           </>
@@ -675,7 +673,7 @@ function PatientChartWorkspace() {
                   onRetry={loadSummary}
                   onNavigate={chartTabs.goToSection}
                 >
-                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className={profileStyles.details}>
                     <div className="space-y-4">
                       <Card>
                         <CardHeader>
@@ -702,14 +700,16 @@ function PatientChartWorkspace() {
                             </p>
                             <p className="mt-1 type-data text-foreground">
                               {patient.dob
-                                ? new Date(patient.dob).toLocaleDateString()
+                                ? formatOpsDay(`${patient.dob.slice(0, 10)}T12:00:00Z`)
                                 : 'Not recorded'}
                             </p>
                           </div>
                           <div className="border-b border-rule py-3">
                             <p className="type-label font-normal text-muted-foreground">Sex</p>
                             <p className="mt-1 type-data text-foreground">
-                              {statusLabel(patient.sex)}
+                              {patient.sex && patient.sex !== 'UNKNOWN'
+                                ? statusLabel(patient.sex)
+                                : 'Not recorded'}
                             </p>
                           </div>
                           {patient.nationalIdLast4 || patient.nationalIdType === 'NONE' ? (
@@ -720,7 +720,7 @@ function PatientChartWorkspace() {
                               <p className="mt-1 type-data text-foreground">
                                 {patient.nationalIdType === 'NONE'
                                   ? 'No ID document'
-                                  : `...${patient.nationalIdLast4}`}
+                                  : `…${patient.nationalIdLast4}`}
                               </p>
                             </div>
                           ) : null}
@@ -773,28 +773,10 @@ function PatientChartWorkspace() {
                           </CardContent>
                         </Card>
                       ) : null}
-
-                      <Card>
-                        <CardHeader>
-                          <h2 className="type-section-title">Next steps</h2>
-                        </CardHeader>
-                        <CardContent className="space-y-3 text-sm text-muted-foreground">
-                          <p>
-                            Open Vitals to review longitudinal readings and measurement changes.
-                          </p>
-                          <p>Use Visits to continue from prior visits or start chart review.</p>
-                          {canCreateOpsCheckIn ? (
-                            <p>
-                              Use Check In Patient to move this chart straight into today’s clinic
-                              workflow.
-                            </p>
-                          ) : null}
-                        </CardContent>
-                      </Card>
                     </div>
 
                     <Dialog open={portalLinkOpen} onOpenChange={setPortalLinkOpen}>
-                      <DialogContent>
+                      <DialogContent variant="form">
                         <DialogHeader>
                           <DialogTitle>Link portal account</DialogTitle>
                         </DialogHeader>
@@ -836,10 +818,7 @@ function PatientChartWorkspace() {
                                         {user.alreadyLinked ? ' · linked' : ''}
                                       </span>
                                       {user.isSuggestedMatch ? (
-                                        <Badge
-                                          variant="secondary"
-                                          className="rounded-full whitespace-nowrap"
-                                        >
+                                        <Badge variant="info" className="whitespace-nowrap">
                                           Suggested match
                                         </Badge>
                                       ) : null}
@@ -908,6 +887,7 @@ function PatientChartWorkspace() {
             case 'medical-history':
               return (
                 <MedicalHistoryPanel
+                  ruled
                   clinicId={clinicId}
                   patientId={patient.id}
                   userId={userId}
@@ -921,6 +901,11 @@ function PatientChartWorkspace() {
                   patientId={patientId}
                   userId={userId}
                   canWrite={canWriteMedicationReconciliation}
+                  onOpenMedicalHistory={
+                    chartSections.some((section) => section.id === 'medical-history')
+                      ? () => chartTabs.goToSection('medical-history')
+                      : undefined
+                  }
                   canReadPrescriptions={canReadPrescriptions}
                 />
               );
@@ -947,10 +932,12 @@ function PatientChartWorkspace() {
                     ) : !selfReportsLoaded ||
                       ((!isOnline || selfReportsError) &&
                         selfReports.length === 0) ? null : selfReports.length === 0 ? (
-                      <EmptyStateCard
-                        title="No patient-reported updates yet"
-                        description="Portal measurements and self-reports will appear here once the patient begins submitting them."
-                      />
+                      <div className="[&_p]:text-sm">
+                        <EmptyStateCard
+                          title="No patient-reported updates yet"
+                          description="Portal measurements and self-reports will appear here once the patient begins submitting them."
+                        />
+                      </div>
                     ) : (
                       <ul className="space-y-2">
                         {selfReports.map((report) => (
@@ -959,9 +946,11 @@ function PatientChartWorkspace() {
                             className="flex flex-col gap-1 border-b border-rule py-4 tabular-nums"
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-medium">{report.type.replace(/_/g, ' ')}</span>
+                              <span className="font-medium">
+                                {SELF_REPORT_LABELS[report.type] ?? report.type}
+                              </span>
                               <span className="text-sm text-muted-foreground">
-                                {new Date(report.recordedAt).toLocaleDateString()}
+                                {formatOpsDateTime(report.recordedAt)}
                               </span>
                             </div>
                             {report.systolicBp != null || report.diastolicBp != null ? (
@@ -994,30 +983,38 @@ function PatientChartWorkspace() {
                   <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">
                       {hasGrantedResearchConsent
-                        ? 'Research consent is currently granted.'
+                        ? researchConsent?.grantedAt
+                          ? `Granted on ${formatOpsDay(researchConsent.grantedAt)}. De-identified data from this patient's visits can be used in research exports.`
+                          : "Granted. De-identified data from this patient's visits can be used in research exports."
                         : researchConsent?.status === 'REVOKED'
                           ? 'Research consent has been revoked.'
                           : 'Research consent has not been recorded yet.'}
                     </p>
-                    <div className="flex gap-2">
-                      {hasGrantedResearchConsent ? (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => void handleRevoke()}
-                          disabled={loading}
-                        >
-                          Revoke Consent
-                        </Button>
-                      ) : (
-                        <Button asChild size="sm">
-                          <Link href={`/clinics/${clinicId}/patients/${patientId}/consent`}>
-                            <FileCheck className="mr-2 h-4 w-4" />
-                            Record Consent
-                          </Link>
-                        </Button>
-                      )}
-                    </div>
+                    {canRecordConsent ? (
+                      <div className="flex gap-2">
+                        {hasGrantedResearchConsent ? (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void handleRevoke()}
+                            disabled={loading}
+                          >
+                            Revoke consent
+                          </Button>
+                        ) : (
+                          <Button asChild size="sm">
+                            <Link href={`/clinics/${clinicId}/patients/${patientId}/consent`}>
+                              <FileCheck className="mr-2 h-4 w-4" />
+                              Record consent
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Your role can view consent but not record or revoke it.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -1029,6 +1026,13 @@ function PatientChartWorkspace() {
     </div>
   );
 }
+
+/** Never the stored code ("GLUCOSE") on screen. */
+const SELF_REPORT_LABELS: Record<string, string> = {
+  BP: 'Blood pressure',
+  GLUCOSE: 'Glucose',
+  WEIGHT: 'Weight',
+};
 
 export default function PatientDetailPage() {
   return (

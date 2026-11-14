@@ -2,6 +2,15 @@
 
 import { useState, type FormEvent } from 'react';
 
+/** Say which field and what to do; the browser's "Please fill out this field." names neither. */
+function messageFor(field: HTMLInputElement | HTMLTextAreaElement, label: string): string {
+  if (field.validity.valueMissing)
+    return `Enter the ${label.charAt(0).toLowerCase()}${label.slice(1)}.`;
+  if (field.validity.typeMismatch && field.type === 'email')
+    return 'Enter an email address like name@example.com.';
+  return field.validationMessage;
+}
+
 interface NativeFieldError {
   id: string;
   label: string;
@@ -15,11 +24,10 @@ export function usePatientFormErrors() {
   const readErrors = (form: HTMLFormElement) =>
     Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'))
       .filter((field) => field.id && field.willValidate && !field.validity.valid)
-      .map((field) => ({
-        id: field.id,
-        label: field.labels?.[0]?.textContent?.trim() || field.id,
-        message: field.validationMessage,
-      }));
+      .map((field) => {
+        const label = field.labels?.[0]?.textContent?.trim() || field.id;
+        return { id: field.id, label, message: messageFor(field, label) };
+      });
   return {
     errors,
     submitted,
@@ -28,8 +36,15 @@ export function usePatientFormErrors() {
       setErrors((current) => (id ? current.filter((error) => error.id !== id) : []));
     },
     onInvalidCapture: (event: FormEvent<HTMLFormElement>) => {
+      // R7.3: the message is already inline and in the summary; Chromium's bubble repeated it
+      // over the next field. Cancelling it also cancels the browser's focus move, so do that here.
+      event.preventDefault();
+      const next = readErrors(event.currentTarget);
       setSubmitted(true);
-      setErrors(readErrors(event.currentTarget));
+      setErrors(next);
+      if (next[0] && document.activeElement?.id !== next[0].id) {
+        document.getElementById(next[0].id)?.focus();
+      }
     },
     onChange: (event: FormEvent<HTMLFormElement>) => {
       const field = event.target;
@@ -38,7 +53,9 @@ export function usePatientFormErrors() {
       // The form's bubbling change runs after the control's own onChange. Capture-phase
       // state changes can restore an old controlled value before that handler reads it.
       const id = field.id;
-      const message = field.validity.valid ? undefined : field.validationMessage;
+      const message = field.validity.valid
+        ? undefined
+        : messageFor(field, field.labels?.[0]?.textContent?.trim() || field.id);
       setErrors((current) =>
         current.flatMap((error) => {
           if (error.id !== id) return [error];
@@ -76,7 +93,7 @@ export function PatientFormErrors({
             <li key={id}>
               <a
                 href={`#${id}`}
-                className="inline-flex min-h-11 items-center text-primary underline underline-offset-4"
+                className="inline-flex min-h-[var(--button-height)] items-center text-primary underline underline-offset-4"
                 onClick={(event) => {
                   event.preventDefault();
                   document.getElementById(id)?.focus();

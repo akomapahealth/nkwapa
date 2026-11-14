@@ -335,7 +335,11 @@ export class PatientChartService {
         grantedAt: consent?.grantedAt ?? null,
         revokedAt: consent?.revokedAt ?? null,
       };
-      if (consent?.status !== ConsentStatus.GRANTED) {
+      // Only someone who can act on it is told it is outstanding.
+      if (
+        consent?.status !== ConsentStatus.GRANTED &&
+        this.can(clinicId, actor, PERMISSIONS.CONSENT_RECORD)
+      ) {
         pendingActions.push({
           kind: 'RESEARCH_CONSENT_NOT_RECORDED',
           label: 'Research consent not granted',

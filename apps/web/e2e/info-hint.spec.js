@@ -22,10 +22,15 @@ function hintTriggers(page) {
   return page.getByRole('button', { name: /^Show help:/ });
 }
 
-async function openDashboard(page) {
+/** The role home's one h1: present for every role, and never a hint itself. */
+function pageHeading(page) {
+  return page.getByRole('heading', { level: 1 });
+}
+
+async function openDashboard(page, path = '/dashboard') {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/dashboard');
-  await expect(page.getByRole('heading', { name: /today at a glance/i })).toBeVisible({
+  await page.goto(path);
+  await expect(pageHeading(page)).toBeVisible({
     timeout: 15_000,
   });
   await expect(hintTriggers(page).first()).toBeVisible();
@@ -83,15 +88,17 @@ test('clicking outside closes the bubble', async ({ page }) => {
   await trigger.click();
   await expect(page.getByRole('tooltip')).toBeVisible();
 
-  await page.getByRole('heading', { name: /today at a glance/i }).click();
+  await pageHeading(page).click();
   await expect(page.getByRole('tooltip')).toHaveCount(0);
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('only one bubble is open at a time, including from the keyboard', async ({ page }) => {
-  await openDashboard(page);
+  // The staff home carries one hint since the role homes (W2); /metrics carries several.
+  await openDashboard(page, '/metrics');
   const triggers = hintTriggers(page);
-  expect(await triggers.count()).toBeGreaterThan(1);
+  // The figures, and their hints, arrive with the data.
+  await expect(triggers.nth(1)).toBeVisible();
 
   /*
     Opened with the keyboard on purpose.
@@ -114,7 +121,7 @@ test('only one bubble is open at a time, including from the keyboard', async ({ 
 
 test('opening a hint shifts nothing on the page', async ({ page }) => {
   await openDashboard(page);
-  const heading = page.getByRole('heading', { name: /today at a glance/i });
+  const heading = pageHeading(page);
   const before = await heading.boundingBox();
 
   await hintTriggers(page).first().click();

@@ -1,4 +1,4 @@
-import { evaluateGlucoseSuspicion } from '@nkwapa/db';
+import { evaluateGlucoseSuspicion } from '@nkwapa/db/diabetes-thresholds';
 import { generateClinicalId } from './clinical-measurements';
 import { db, type DiabetesScreeningRecord } from './db';
 import { claimEncounterRecord } from './encounter-record';

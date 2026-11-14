@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { answer, question, openSection } = require('../playwright/interview');
 const { waitForOutboxDrain } = require('../playwright/outbox');
 
 const { storageStateFor } = require('../playwright/roles');
@@ -29,12 +30,18 @@ async function createEncounter(page, patientId) {
   const encounter = await response.json();
   await page.goto(`/encounters/${encounter.id}`);
   await page.getByRole('tab', { name: 'Diabetes' }).click();
+  // The reading and its symptoms are in the Control section of the interview.
+  await section(page, 'Control');
   return encounter.id;
 }
 
+// The interview shows one section at a time; the rail moves between them.
+async function section(page, name) {
+  await openSection(page, 'Diabetes interview', new RegExp(name));
+}
+
 async function chooseContext(page, option) {
-  await page.getByLabel('When was the sample taken?').click();
-  await page.getByRole('option', { name: option, exact: true }).click();
+  await answer(page, 'When was the sample taken?', option);
 }
 
 async function saveAndSync(page) {
@@ -72,26 +79,37 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   await chooseContext(page, 'Fasting');
   // The value only appears once the status says one is known, which is what stops a record
   // holding both a number and "never checked".
-  await page.getByLabel('Most recent HbA1c').click();
-  await page.getByRole('option', { name: 'Value known', exact: true }).click();
+  await answer(page, 'Most recent HbA1c', 'Value known');
   await page.getByLabel('HbA1c (%)').fill('6.5');
   await page.getByLabel('Frequent urination').check();
+  await section(page, 'Actions and referral');
   await page.getByLabel('Notes').fill('First encounter screening');
   await saveAndSync(page);
 
   await expect(page.getByRole('button', { name: 'Save screening' })).toBeEnabled();
+  await section(page, 'Control');
   await page.getByLabel("Today's glucose (mmol/L)").focus();
   // The reading's own unit switch comes next, then the sample timing.
   await page.keyboard.press('Tab');
   await expect(page.getByRole('combobox', { name: 'Glucose unit' })).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('When was the sample taken?')).toBeFocused();
+  // A radio group takes focus on its picked answer.
+  await expect(
+    question(page, 'When was the sample taken?').getByRole('radio', {
+      name: 'Fasting',
+      exact: true,
+    }),
+  ).toBeFocused();
 
-  await page.getByRole('button', { name: 'Submit for Review' }).click();
-  await page.getByRole('button', { name: 'Mark Reviewed' }).click();
+  await page.getByRole('button', { name: 'Submit for review' }).click();
+  await page.getByRole('button', { name: 'Mark reviewed' }).click();
   await page.getByRole('button', { name: 'Finalize' }).click();
+  await page
+    .getByRole('dialog', { name: 'Finalize this visit?' })
+    .getByRole('button', { name: 'Finalize visit' })
+    .click();
   await page.getByRole('tab', { name: 'Diabetes' }).click();
-  await expect(page.getByText('This screening is read-only.')).toBeVisible();
+  await expect(page.getByText('This interview is read-only.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save screening' })).toHaveCount(0);
 
   const secondEncounterId = await createEncounter(page, patientId);
@@ -101,10 +119,12 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
   // classified, so storing one would record a number nobody can act on.
   await chooseContext(page, 'Random');
   await page.getByLabel('Fatigue').check();
+  await section(page, 'Actions and referral');
   await page.getByLabel('Notes').fill('Second encounter screening');
   await saveAndSync(page);
 
   await context.setOffline(true);
+  await section(page, 'Actions and referral');
   await page.getByLabel('Notes').fill('Second encounter screening updated offline');
   await page.getByRole('button', { name: 'Save screening' }).click();
   await expect(
@@ -167,6 +187,7 @@ test('a refetch landing mid-edit does not discard what was typed', async ({ page
 
   await page.getByLabel("Today's glucose (mmol/L)").fill('8.3');
   await chooseContext(page, 'Random');
+  await section(page, 'Actions and referral');
   await page.getByLabel('Notes').fill('Saved answer');
   await saveAndSync(page);
 
@@ -181,7 +202,9 @@ test('a refetch landing mid-edit does not discard what was typed', async ({ page
 
   // Save again so a refetch is in flight, then answer while it is.
   await page.getByRole('button', { name: 'Save screening' }).click();
+  await section(page, 'Actions and referral');
   await page.getByLabel('Notes').fill('Typed while the refetch was in flight');
+  await section(page, 'Control');
   await page.getByLabel("Today's glucose (mmol/L)").fill('8.6');
 
   release();
@@ -212,6 +235,7 @@ test('an urgent symptom escalates, and a past-month symptom does not', async ({ 
   await expect(notice).toBeVisible();
 
   await page.getByRole('button', { name: /add to the reasons for clinician review/i }).click();
+  await section(page, 'Actions and referral');
   await expect(page.getByRole('checkbox', { name: 'Hyperglycemia symptoms' })).toBeChecked();
 });
 
@@ -228,15 +252,14 @@ test('the PHQ-2 score appears only when the screen is complete, and alerts at th
   const patientId = await createPatient(page);
   await createEncounter(page, patientId);
 
+  await section(page, 'Mental health');
   await expect(page.getByText(/score appears once both questions are answered/i)).toBeVisible();
 
-  await page.getByLabel('Little interest or pleasure in doing things?').click();
-  await page.getByRole('option', { name: 'Nearly every day', exact: true }).click();
+  await answer(page, 'Little interest or pleasure in doing things?', 'Nearly every day');
   await expect(page.getByText(/score appears once both questions are answered/i)).toBeVisible();
   await expect(page.getByText(/PHQ-2 score/)).toBeHidden();
 
-  await page.getByLabel('Feeling down, depressed, or hopeless?').click();
-  await page.getByRole('option', { name: 'Several days', exact: true }).click();
+  await answer(page, 'Feeling down, depressed, or hopeless?', 'Several days');
 
   await expect(page.getByText('PHQ-2 score:')).toBeVisible();
   await expect(page.getByText('4 / 6')).toBeVisible();

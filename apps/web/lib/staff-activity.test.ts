@@ -9,7 +9,7 @@ describe('staff activity helpers (#33)', () => {
   it('describes a record by what it is, never by whose it is', () => {
     expect(describeRecord('Encounter')).toBe('Visit');
     expect(describeRecord('PatientStationVisit')).toBe('Station visit');
-    expect(describeRecord('HypertensionAssessment')).toBe('Hypertension Assessment');
+    expect(describeRecord('HypertensionAssessment')).toBe('Hypertension assessment');
   });
 
   it('defaults to the seven days ending today, across a month boundary', () => {

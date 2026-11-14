@@ -1,0 +1,37 @@
+.signal {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--surface-2));
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+.signal[data-category='STAGE1'] {
+  --muted-foreground: var(--warning-ink);
+  border-color: hsl(var(--warning-ink));
+  background: hsl(var(--warning-surface));
+}
+.signal[data-category='STAGE2'] {
+  --muted-foreground: var(--severe-ink);
+  border-color: hsl(var(--severe-ink));
+  background: hsl(var(--severe-surface));
+}
+.signal[data-category='CRISIS'] {
+  border-color: hsl(var(--destructive));
+}
+.bands {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5rem), 1fr));
+  gap: 0.5rem;
+}
+.bands > li {
+  min-width: 0;
+  border-bottom: 2px solid hsl(var(--border));
+  padding-block: 0.25rem;
+}
+.bands > li[aria-current] {
+  border-color: hsl(var(--foreground));
+}

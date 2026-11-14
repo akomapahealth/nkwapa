@@ -1,0 +1,122 @@
+/* Today Board (R4.2): patient flow is the main column, the shift and roster sit beside it. */
+.workGrid {
+  display: grid;
+  gap: 1.5rem 2.5rem;
+}
+
+@media (min-width: 1200px) {
+  .workGrid {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}
+
+.groupHeading,
+.summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.summary {
+  min-height: 2.75rem;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 4px;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+.chevron {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+  transition: transform 160ms var(--ease-out, ease-out);
+}
+
+.group[open] .chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
+/* One check-in: who, their pair, then the actions in one right-aligned column. */
+.row {
+  display: grid;
+  gap: 0.5rem 1.5rem;
+  border-bottom: 1px solid hsl(var(--rule));
+  padding-block: 0.75rem;
+}
+
+.rowPending {
+  background: hsl(var(--info) / 0.05);
+}
+
+/* Rows follow the column's width, not the window's: beside the roster it is much narrower. */
+.flow {
+  container: flow / inline-size;
+}
+
+@container flow (min-width: 44rem) {
+  .row {
+    grid-template-columns: minmax(12rem, 1.2fr) minmax(10rem, 1fr) auto;
+    align-items: center;
+  }
+}
+
+.spacer {
+  display: none;
+}
+
+@container flow (min-width: 44rem) {
+  .spacer {
+    display: block;
+  }
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.125rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.pair dt {
+  color: hsl(var(--muted-foreground));
+}
+
+.pair dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: hsl(var(--foreground));
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@container flow (min-width: 44rem) {
+  .rowActions {
+    justify-content: flex-end;
+  }
+}

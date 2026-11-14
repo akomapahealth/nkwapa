@@ -26,7 +26,12 @@ export function readThemes(css) {
   // New semantic roles must be deliberate in both themes, rather than inherited
   // accidentally when a developer adds a light-only surface.
   for (const [mode, tokens] of Object.entries({ light, dark })) {
-    for (const token of ['--rule', '--rule-strong', ...STATUS.map((s) => `--${s}-surface`)]) {
+    for (const token of [
+      '--rule',
+      '--rule-strong',
+      '--severe-surface',
+      ...STATUS.map((s) => `--${s}-surface`),
+    ]) {
       if (!tokens[token]) throw new Error(`${mode}: missing ${token}`);
     }
   }
@@ -78,6 +83,14 @@ export function auditTokens(css) {
   for (const [theme, tokens] of Object.entries(themes)) {
     const pairs = [
       ...STATUS.map((s) => [`--${s}-ink`, `--${s}-surface`, 4.5, 'status text and icon']),
+      ['--severe-ink', '--severe-surface', 4.5, 'Stage 2 blood pressure tag'],
+      ['--severe', '--card', 3, 'Stage 2 chart bar'],
+      ['--primary', '--selected', 4.5, 'info tag'],
+      ['--primary', '--card', 4.5, 'active segment label on its knob'],
+      ['--gold-ink', '--gold-surface', 4.5, 'gold "new" tag'],
+      ['--muted-foreground', '--surface-2', 4.5, 'neutral tag'],
+      ['--primary-foreground', '--primary', 4.5, 'primary button label'],
+      ['--primary-foreground', '--primary-hover', 4.5, 'primary button label on hover'],
       ...['--background', '--card'].flatMap((surface) => [
         ['--rule-strong', surface, 3, '2px group rule'],
         ['--rule', surface, null, 'decorative hairline; not a control boundary'],

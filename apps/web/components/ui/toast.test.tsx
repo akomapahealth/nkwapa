@@ -7,7 +7,11 @@ import { createRoot } from 'react-dom/client';
 jest.mock('@/components/ui/confirm-dialog', () => ({ ConfirmHost: () => null }));
 // The real Toaster resolves the root-hoisted React, not this workspace's; its UI is not under test.
 let nextId = 0;
-const show = (_title: unknown, options?: { id?: string | number }) => options?.id ?? `t${++nextId}`;
+const mockDurations: number[] = [];
+const show = (_title: unknown, options?: { id?: string | number; duration?: number }) => {
+  if (options?.duration !== undefined) mockDurations.push(options.duration);
+  return options?.id ?? `t${++nextId}`;
+};
 jest.mock('sonner', () => ({
   Toaster: () => null,
   toast: Object.assign(show, {
@@ -64,5 +68,12 @@ describe('toast announcements', () => {
     });
     expect(alerts(host)).toEqual([]);
     unmount();
+  });
+
+  it('keeps a failure on screen until it is dismissed, and lets confirmations time out', () => {
+    mockDurations.length = 0;
+    showToast({ tone: 'error', title: 'Not saved' });
+    showToast({ tone: 'success', title: 'Saved' });
+    expect(mockDurations).toEqual([Infinity, 4200]);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -109,6 +110,7 @@ export function HypertensionForm({
       suspected,
       confirmed,
       notes: notes.trim() || null,
+      baseUpdatedAt: claimed.baseUpdatedAt,
     };
 
     const record = {
@@ -122,6 +124,7 @@ export function HypertensionForm({
       // Preserved, not restamped: an update is not a creation.
       createdAt: claimed.createdAt ?? now,
       updatedAt: now,
+      baseUpdatedAt: claimed.baseUpdatedAt,
     };
 
     try {
@@ -161,7 +164,7 @@ export function HypertensionForm({
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-lg font-semibold">Hypertension Assessment</h2>
+        <h2 className="text-lg font-semibold">Hypertension assessment</h2>
       </CardHeader>
       <CardContent className="space-y-4">
         <fieldset disabled={!canEdit || saving} className="space-y-4 disabled:opacity-75">
@@ -229,9 +232,11 @@ export function HypertensionForm({
         </fieldset>
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
         {canEdit ? (
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Assessment'}
-          </Button>
+          <FormActions>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save assessment'}
+            </Button>
+          </FormActions>
         ) : (
           <p className="text-sm text-muted-foreground">This assessment is read-only.</p>
         )}

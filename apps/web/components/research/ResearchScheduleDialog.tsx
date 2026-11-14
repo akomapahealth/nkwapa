@@ -91,7 +91,7 @@ export function ResearchScheduleDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : undefined)}>
-      <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto rounded-lg border-border/80">
+      <DialogContent variant="form" className="max-w-xl rounded-lg border-border/80">
         {open ? (
           <ScheduleForm
             key={schedule?.id ?? 'new'}

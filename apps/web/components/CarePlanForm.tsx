@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -125,7 +126,7 @@ export function CarePlanForm({
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-lg font-semibold">Care Plan</h2>
+        <h2 className="text-lg font-semibold">Care plan</h2>
       </CardHeader>
       <CardContent className="space-y-4">
         <fieldset disabled={!canEdit || saving} className="space-y-4 disabled:opacity-75">
@@ -156,7 +157,7 @@ export function CarePlanForm({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes (optional)</Label>
+            <Label htmlFor="notes">Notes</Label>
             {/* Free clinical text, so a textarea: this was a single-line Input, alone among every
                 Notes field in the product. */}
             <Textarea
@@ -170,9 +171,11 @@ export function CarePlanForm({
         </fieldset>
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
         {canEdit ? (
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Care Plan'}
-          </Button>
+          <FormActions>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save care plan'}
+            </Button>
+          </FormActions>
         ) : (
           <p className="text-sm text-muted-foreground">This care plan is read-only.</p>
         )}

@@ -61,6 +61,7 @@ test('clinic settings only offers to save once something has changed', async ({ 
   const save = page.getByRole('button', { name: 'Save settings' });
   await expect(save).toBeVisible({ timeout: 30_000 });
   await expect(save).toBeDisabled();
+  await expect(page.getByText('No changes', { exact: true })).toBeVisible();
   await expect(page.getByText('You have unsaved changes.')).toHaveCount(0);
 
   await page.getByRole('checkbox', { name: /research enabled for clinic/i }).click();

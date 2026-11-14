@@ -1,4 +1,4 @@
-import { HYPERTENSION_LABELS } from '@/lib/hypertension';
+import { HYPERTENSION_BADGE_VARIANTS, HYPERTENSION_LABELS } from '@/lib/hypertension';
 
 // Presentation only. Keep enum values unchanged in requests, saved data, guards,
 // sorting and filters; translate them only where a person reads them.
@@ -26,14 +26,16 @@ export function statusLabel(value: string | null | undefined): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-export type StatusVariant = 'draft' | 'review' | 'finalized' | 'warning' | 'destructive';
+export type StatusVariant = 'draft' | 'review' | 'finalized' | 'warning' | 'severe' | 'destructive';
 
 export function statusVariant(value: string | null | undefined): StatusVariant {
   if (['FINALIZED', 'COSIGNED', 'SENT', 'DELIVERED', 'COMPLETED'].includes(value ?? ''))
     return 'finalized';
   if (['IN_REVIEW', 'PENDING_COSIGN', 'IN_PROGRESS', 'QUEUED'].includes(value ?? ''))
     return 'review';
-  if (['FAILED', 'CRISIS', 'STAGE1', 'STAGE2'].includes(value ?? '')) return 'destructive';
+  if (value && Object.hasOwn(HYPERTENSION_BADGE_VARIANTS, value))
+    return HYPERTENSION_BADGE_VARIANTS[value as keyof typeof HYPERTENSION_BADGE_VARIANTS];
+  if (value === 'FAILED') return 'destructive';
   if (['AMENDED', 'HELD', 'UNSYNCED', 'RETRYING'].includes(value ?? '')) return 'warning';
   return 'draft';
 }

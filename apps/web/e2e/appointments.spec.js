@@ -48,10 +48,10 @@ test.describe('staff schedule', () => {
     await expect(page.getByText('Next visit', { exact: true })).toBeVisible();
 
     // A patient search that matches nothing must reach the empty state, not a blank panel.
-    await page.getByLabel('Patient').fill('zzz-no-such-patient');
+    await page.getByRole('searchbox', { name: 'Patient', exact: true }).fill('zzz-no-such-patient');
     await expect(page.getByText('No appointments found')).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel('Patient').fill('');
+    await page.getByRole('searchbox', { name: 'Patient', exact: true }).fill('');
     await expect(page.getByText('No appointments found')).toBeHidden({ timeout: 15_000 });
   });
 
@@ -86,20 +86,59 @@ test.describe('patient request triage', () => {
   }) => {
     const request = await createTriageRequest();
     await page.goto('/appointments');
-    await expect(page.getByText('Patient requests')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Patient requests', exact: true }),
+    ).toBeVisible();
     const row = page
       .getByRole('listitem')
       .filter({ has: page.getByText(request.reason, { exact: true }) });
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.getByRole('button', { name: 'Decline', exact: true }).click();
+    await row.getByRole('button', { name: /^More actions for/ }).click();
+    await page.getByRole('menuitem', { name: 'Decline', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Decline request' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Decline request' }).click();
     await expect(page.getByRole('alert')).toContainText(/reason/i);
+    // R7.3: focus goes to the field the message names, not back to the button.
+    await expect(page.getByLabel('Reason', { exact: true })).toBeFocused();
+    await expect(page.getByLabel('Reason', { exact: true })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
 
     await page.getByRole('button', { name: 'Keep waiting' }).click();
     await expect(row).toBeVisible();
+    // A controlled dialog opened from a plain button returns focus to it (useReturnFocus).
+    await expect(row.getByRole('button', { name: /^More actions for/ })).toBeFocused();
+    const cleanup = await apiRequestAs(
+      'staff',
+      'post',
+      `/clinics/${request.clinicId}/appointment-requests/${request.id}/reject`,
+      { clinicId: request.clinicId, data: { reason: 'E2E fixture finished' } },
+    );
+    expect(cleanup.ok(), cleanup.text()).toBeTruthy();
+  });
+
+  test('confirming with an end before the start focuses the end time', async ({ page }) => {
+    const request = await createTriageRequest();
+    await page.goto('/appointments');
+    const row = page
+      .getByRole('listitem')
+      .filter({ has: page.getByText(request.reason, { exact: true }) });
+    const confirm = row.getByRole('button', { name: 'Confirm request', exact: true });
+    await expect(confirm).toBeVisible({ timeout: 20_000 });
+    await confirm.click();
+    await expect(page.getByRole('heading', { name: 'Confirm request' })).toBeVisible();
+
+    const start = await page.getByLabel('Start time').inputValue();
+    await page.getByLabel('End time').fill(start);
+    await page.getByRole('button', { name: 'Book appointment' }).click();
+    await expect(page.getByRole('alert')).toContainText(/after start time/i);
+    await expect(page.getByLabel('End time')).toBeFocused();
+
+    await page.getByRole('button', { name: 'Keep waiting' }).click();
+    await expect(confirm).toBeFocused();
     const cleanup = await apiRequestAs(
       'staff',
       'post',
@@ -112,7 +151,9 @@ test.describe('patient request triage', () => {
   test('confirming a request books the visit onto the schedule', async ({ page }) => {
     const request = await createTriageRequest();
     await page.goto('/appointments');
-    await expect(page.getByText('Patient requests')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Patient requests', exact: true }),
+    ).toBeVisible();
 
     // Wait for a request to actually be on screen before reading the count: the badge renders
     // "0 awaiting" while the fetch is still in flight.
@@ -122,7 +163,7 @@ test.describe('patient request triage', () => {
     const confirm = row.getByRole('button', { name: 'Confirm request', exact: true });
     await expect(confirm).toBeVisible({ timeout: 20_000 });
 
-    const awaiting = page.getByText(/\d+ awaiting/);
+    const awaiting = page.getByText('Awaiting a decision', { exact: true }).locator('..');
     const before = Number((await awaiting.textContent()).match(/\d+/)[0]);
     expect(before).toBeGreaterThan(0);
 
@@ -137,7 +178,7 @@ test.describe('patient request triage', () => {
     await expect(page.getByRole('heading', { name: 'Confirm request' })).toBeHidden({
       timeout: 20_000,
     });
-    await expect(awaiting).toContainText(`${before - 1} awaiting`, { timeout: 20_000 });
+    await expect(awaiting).toContainText(`${before - 1}`, { timeout: 20_000 });
     await expect(row).toHaveCount(0);
     const requests = await apiRequestAs('patient', 'get', '/patients/me/appointment-requests', {
       clinicId: request.clinicId,
@@ -166,6 +207,7 @@ test.describe('lifecycle actions', () => {
     await page.getByLabel('End time').fill(start);
     await page.getByRole('button', { name: 'Reschedule', exact: true }).last().click();
     await expect(page.getByRole('alert')).toContainText(/after start time/i);
+    await expect(page.getByLabel('End time')).toBeFocused();
 
     await page.getByRole('button', { name: 'Keep appointment' }).click();
   });
@@ -181,6 +223,7 @@ test.describe('lifecycle actions', () => {
     await expect(page.getByRole('heading', { name: 'Cancel' })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).last().click();
     await expect(page.getByRole('alert')).toContainText(/cancellation reason/i);
+    await expect(page.getByLabel('Cancellation reason')).toBeFocused();
 
     await page.getByRole('button', { name: 'Keep appointment' }).click();
   });
@@ -214,7 +257,9 @@ test.describe('a volunteer', () => {
     // Listing requests moved to APPOINTMENT.READ in this release, so a volunteer can now see what
     // is waiting. Acting on it stays with the roles that hold APPOINTMENT.WRITE.
     await page.goto('/appointments');
-    await expect(page.getByText('Patient requests')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Patient requests', exact: true }),
+    ).toBeVisible();
 
     await expect(page.getByRole('button', { name: 'Confirm request' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Decline' })).toHaveCount(0);
@@ -230,7 +275,9 @@ test.describe('a doctor', () => {
     await expect(
       page.getByRole('button', { name: 'Open appointment actions' }).first(),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('Patient requests')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Patient requests', exact: true }),
+    ).toBeVisible();
   });
 });
 

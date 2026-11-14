@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,7 +39,11 @@ export function ScreenedDateFilter({
   today,
   timeZone,
   error,
+  customChosen,
+  onCustomChosenChange,
 }: {
+  customChosen: boolean;
+  onCustomChosenChange: (custom: boolean) => void;
   value: ScreenedDateValue;
   onChange: (next: ScreenedDateValue) => void;
   today: string;
@@ -49,9 +52,8 @@ export function ScreenedDateFilter({
 }) {
   /*
     Choosing Custom shows the inputs even while the dates still read as a preset, or are empty,
-    which presetFor alone cannot tell. The parent remounts this when it clears the filter itself.
+    which presetFor alone cannot tell. The parent retains this choice when the filter Sheet closes.
   */
-  const [customChosen, setCustomChosen] = useState(false);
   const preset: ScreenedPreset = customChosen ? 'custom' : presetFor(value.from, value.to, today);
   const helpId = 'filter-screened-help';
   const errorId = 'filter-screened-error';
@@ -67,7 +69,7 @@ export function ScreenedDateFilter({
             value={preset}
             onValueChange={(next) => {
               const chosen = next as ScreenedPreset;
-              setCustomChosen(chosen === 'custom');
+              onCustomChosenChange(chosen === 'custom');
               // Custom keeps whatever range is showing, so it can be adjusted rather than retyped.
               if (chosen !== 'custom') onChange(presetRange(chosen, today));
             }}

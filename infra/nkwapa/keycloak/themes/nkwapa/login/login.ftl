@@ -11,11 +11,12 @@
                             <label for="username" class="nkwapa-label">
                                 <#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if>
                             </label>
-                            <input id="username" class="nkwapa-input" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="off"
+                            <input id="username" class="nkwapa-input" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="username" autocapitalize="none" spellcheck="false"
                                    aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
+                                   <#if messagesPerField.existsError('username','password')>aria-describedby="input-error"</#if>
                             />
                             <#if messagesPerField.existsError('username','password')>
-                                <span class="nkwapa-error" aria-live="polite">
+                                <span id="input-error" class="nkwapa-error" aria-live="polite">
                                     ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
                                 </span>
                             </#if>
@@ -26,6 +27,7 @@
                             <div class="nkwapa-password-wrap">
                                 <input id="password" class="nkwapa-input nkwapa-input--with-toggle" name="password" type="password" autocomplete="current-password"
                                        aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
+                                       <#if messagesPerField.existsError('username','password')>aria-describedby="input-error"</#if>
                                 />
                                 <@layout.passwordToggle targetId="password" />
                             </div>

@@ -10,7 +10,6 @@ import {
   Mail,
   MailPlus,
   RotateCw,
-  Search,
   Trash2,
   UserPlus,
   X,
@@ -23,7 +22,7 @@ import {
   validateStaffName,
   type StaffNameErrors,
 } from '@/lib/account-name';
-import { focusFirstInvalid } from '@/components/ui/field';
+import { FieldLabel, focusFirstInvalid, RequiredLegend } from '@/components/ui/field';
 import { StaffNameFields } from '@/components/account/StaffNameForm';
 import {
   describeInviteExpiry,
@@ -50,14 +49,21 @@ import {
   type StaffInviteFilter,
   type StaffInviteRole,
 } from '@/lib/staff-invite';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { ListSearch } from '@/components/app-shell/ListToolbar';
+import { InfoHint } from '@/components/ui/info-hint';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
 import {
-  RecordSection,
+  DataTable,
+  DataTableActions,
+  SHEET_GUTTER,
+  type DataTableColumn,
+} from '@/components/ui/data-table';
+import {
   RecordSectionContent,
-  RecordSectionDescription,
   RecordSectionHeader,
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
@@ -81,6 +87,7 @@ import {
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { removeWithUndo } from '@/lib/undoable';
+import { avatarToneProps } from '@/lib/avatar-tone';
 
 export interface StaffInvitesCardProps {
   clinicId: string;
@@ -103,11 +110,12 @@ const FILTERS: Array<{ value: StaffInviteFilter; label: string; description?: st
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
-const STATUS_DOT: Record<string, string> = {
-  PENDING: 'bg-primary',
-  ACCEPTED: 'bg-success',
-  CANCELLED: 'bg-muted-foreground/40',
-  EXPIRED: 'bg-warning',
+// Badges, like the roster's status beside it; this list was the one admin table using dots.
+const STATUS_BADGE: Record<string, 'info' | 'finalized' | 'secondary' | 'warning'> = {
+  PENDING: 'info',
+  ACCEPTED: 'finalized',
+  CANCELLED: 'secondary',
+  EXPIRED: 'warning',
 };
 
 function initialsOf(invite: StaffInvite) {
@@ -327,19 +335,23 @@ export function StaffInvitesCard({
   };
 
   return (
-    <RecordSection className="min-w-0">
+    <section className="min-w-0">
       <RecordSectionHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+        <div className="flex items-center gap-2">
           <RecordSectionTitle className="flex items-center gap-2 text-xl">
-            <MailPlus className="h-5 w-5 text-primary" aria-hidden="true" />
-            Staff invitations
+            <MailPlus className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            Invitations
           </RecordSectionTitle>
-          <RecordSectionDescription>
+          <InfoHint label="How invitations grant access">
             Invite a colleague to {clinicName ?? 'this clinic'} by email. They set their own
             password and get the role only once they accept.
-          </RecordSectionDescription>
+          </InfoHint>
         </div>
-        <Button onClick={openDialog} disabled={!getToken || invitableRoles.length === 0}>
+        <Button
+          className="w-full compact:w-auto"
+          onClick={openDialog}
+          disabled={!getToken || invitableRoles.length === 0}
+        >
           <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
           Invite a colleague
         </Button>
@@ -350,6 +362,22 @@ export function StaffInvitesCard({
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
 
+        {!loading && !loadError && invites.length > 0 ? (
+          <AppMetricGroup variant="strip">
+            <AppMetricCard
+              title="Open invitations"
+              value={counts.OPEN}
+              icon={MailPlus}
+              detail="Invitations that can still be accepted."
+            />
+            <AppMetricCard
+              title="Expired invitations"
+              value={counts.EXPIRED}
+              icon={MailPlus}
+              detail="Invitations past their acceptance deadline."
+            />
+          </AppMetricGroup>
+        ) : null}
         {loading ? (
           <SectionSkeleton lines={3} />
         ) : loadError ? (
@@ -364,39 +392,33 @@ export function StaffInvitesCard({
           </p>
         ) : (
           <DataTable
+            bleed
             caption="Staff invitations"
             columns={inviteColumns(busy, (invite, action) => void act(invite, action))}
             data={visible}
             getRowId={(invite) => invite.id}
             initialPageSize={10}
             toolbar={
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex w-full min-w-0 flex-col gap-3">
                 <SegmentedControl
                   label="Show invitations"
+                  scrollable
                   value={filter}
                   options={FILTERS.map((option) => ({
                     value: option.value,
-                    label: `${option.label} ${counts[option.value]}`,
+                    label: option.label,
                     description: option.description,
                   }))}
                   onChange={setFilter}
-                  className="sm:flex-1"
                 />
                 {invites.length > SEARCH_THRESHOLD ? (
-                  <div className="relative sm:w-64">
-                    <Search
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    <Input
-                      type="search"
-                      aria-label="Search invitations by name or email"
-                      placeholder="Search name or email"
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
+                  <ListSearch
+                    id="staff-invites-search"
+                    label="Search invitations by name or email"
+                    placeholder="Name or email…"
+                    value={query}
+                    onChange={setQuery}
+                  />
                 ) : null}
               </div>
             }
@@ -415,7 +437,7 @@ export function StaffInvitesCard({
       </RecordSectionContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>Invite a colleague</DialogTitle>
             <DialogDescription>
@@ -425,10 +447,9 @@ export function StaffInvitesCard({
           </DialogHeader>
 
           <div className="space-y-4">
+            <RequiredLegend />
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-foreground">
-                Their name <span className="font-normal text-muted-foreground">(optional)</span>
-              </legend>
+              <legend className="text-sm font-medium text-foreground">Their name</legend>
               <p className="text-xs text-muted-foreground">
                 Add it if you know it and they go straight in. Leave it blank and they are asked for
                 it when they first sign in.
@@ -448,9 +469,12 @@ export function StaffInvitesCard({
               />
             </fieldset>
             <div className="space-y-2">
-              <Label htmlFor="staff-invite-email">Email</Label>
+              <FieldLabel htmlFor="staff-invite-email" required>
+                Email
+              </FieldLabel>
               <Input
                 id="staff-invite-email"
+                required
                 type="email"
                 autoComplete="off"
                 value={email}
@@ -502,7 +526,7 @@ export function StaffInvitesCard({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Director and System Admin access is never sent by email; assign it by hand on this
+              Director and System admin access is never sent by email; assign it by hand on this
               page.
             </p>
 
@@ -527,7 +551,7 @@ export function StaffInvitesCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </RecordSection>
+    </section>
   );
 }
 
@@ -585,16 +609,9 @@ function InviteSetup({ invite }: { invite: StaffInvite }) {
 
 function InviteStatus({ invite }: { invite: StaffInvite }) {
   return (
-    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-      <span
-        aria-hidden="true"
-        className={cn(
-          'h-1.5 w-1.5 rounded-full',
-          STATUS_DOT[invite.status] ?? 'bg-muted-foreground',
-        )}
-      />
+    <Badge variant={STATUS_BADGE[invite.status] ?? 'secondary'}>
       {describeStaffInviteStatus(invite.status).label}
-    </span>
+    </Badge>
   );
 }
 
@@ -657,11 +674,16 @@ function inviteColumns(busy: Busy, onAct: OnAct): DataTableColumn<StaffInvite>[]
         const invite = row.original;
         return (
           <div className="flex min-w-0 flex-col py-1">
-            <span className="truncate font-medium text-foreground">
+            <span
+              className="truncate font-medium text-foreground"
+              title={invite.inviteeName ?? invite.email}
+            >
               {invite.inviteeName ?? invite.email}
             </span>
             {invite.inviteeName ? (
-              <span className="truncate text-xs text-muted-foreground">{invite.email}</span>
+              <span className="truncate text-xs text-muted-foreground" title={invite.email}>
+                {invite.email}
+              </span>
             ) : null}
             <InviteSetup invite={invite} />
           </div>
@@ -720,15 +742,18 @@ function InviteRow({
     <article
       aria-label={invite.inviteeName ?? invite.email}
       className={cn(
-        'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-lg border border-border bg-background px-4 py-3',
+        'grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-rule py-3',
+        SHEET_GUTTER,
         !isOpen && 'bg-muted/20',
       )}
     >
+      {/* A closed invitation stays grey: its colour would suggest a live person on the roster. */}
       <span
         aria-hidden="true"
+        {...(isOpen ? avatarToneProps(invite.inviteeName ?? invite.email) : {})}
         className={cn(
-          'flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold',
-          isOpen ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+          !isOpen && 'bg-muted text-muted-foreground',
         )}
       >
         {initialsOf(invite)}
@@ -738,7 +763,7 @@ function InviteRow({
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <p
             className={cn(
-              'truncate font-medium',
+              'font-medium [overflow-wrap:anywhere]',
               isOpen ? 'text-foreground' : 'text-muted-foreground',
             )}
           >
@@ -747,7 +772,7 @@ function InviteRow({
           <span className="text-sm text-muted-foreground">{formatStaffRole(invite.role)}</span>
         </div>
         {invite.inviteeName ? (
-          <p className="truncate text-sm text-muted-foreground">{invite.email}</p>
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{invite.email}</p>
         ) : null}
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
           <InviteStatus invite={invite} />

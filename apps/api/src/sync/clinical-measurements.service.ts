@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate, type ValidationError } from 'class-validator';
@@ -20,6 +21,7 @@ import {
 } from '@prisma/client';
 import {
   computeBmi,
+  isSeverelyElevated,
   toCelsius,
   VITALS_SECTION_FIELDS,
   VITALS_SECTION_INPUT_FIELDS,
@@ -28,6 +30,7 @@ import {
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { assertPermissionAtClinic } from '../auth/clinic-roles';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import {
   EncounterVitalsBundleDto,
   type TemperatureInputUnit,
@@ -36,6 +39,7 @@ import {
 } from './dto/encounter-vitals-bundle.dto';
 import type { SyncMutationDto } from './dto/sync-mutation.dto';
 import type { RequestMetadata, UserWithId } from './sync.service';
+import { auditOverwrite, findOverwrittenSave, overwroteNewerSave } from './overwrite-conflict';
 
 type NormalizedVitals = {
   systolicBp: number | null;
@@ -81,7 +85,10 @@ export type NormalizedEncounterVitalsBundle = {
 
 @Injectable()
 export class ClinicalMeasurementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly push?: PushService,
+  ) {}
 
   async applyBundle(params: {
     clinicId: string;
@@ -91,7 +98,9 @@ export class ClinicalMeasurementsService {
     payload: Record<string, unknown>;
     metadata?: RequestMetadata;
     legacy?: boolean;
-  }): Promise<void> {
+    /** `updatedAt` of the vitals row the device edited; see overwrite-conflict.ts. */
+    baseUpdatedAt?: string;
+  }): Promise<{ overwrote: boolean }> {
     // Scoped to the target clinic: a volunteer seat at another clinic must not authorize a
     // measurement write here. SyncService gates this too; this is the service-level backstop.
     assertPermissionAtClinic(
@@ -106,6 +115,9 @@ export class ClinicalMeasurementsService {
       : params.payload;
     const bundle = await this.validateAndNormalize(bundlePayload, !params.legacy);
 
+    let severeBefore = false;
+    let severeReading: string | null = null;
+    let overwrittenUserId: string | null | undefined;
     await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: bundle.encounterId },
@@ -129,6 +141,36 @@ export class ClinicalMeasurementsService {
           : Promise.resolve(null),
       ]);
 
+      severeBefore = isSeverelyElevated(existingVitals?.systolicBp, existingVitals?.diastolicBp);
+      if (
+        existingVitals &&
+        params.baseUpdatedAt &&
+        overwroteNewerSave(existingVitals, params.baseUpdatedAt)
+      ) {
+        const overwritten = await findOverwrittenSave(tx, {
+          clinicId: params.clinicId,
+          entityType: 'Vitals',
+          entityId: existingVitals.id,
+          actions: ['VITALS.CREATE', 'VITALS.UPSERT'],
+          actorUserId: params.actorUserId,
+          baseUpdatedAt: params.baseUpdatedAt,
+          // A sectioned save replaces only its own columns; a full save replaces them all.
+          fields: bundle.sections ? Object.keys(bundle.vitals) : undefined,
+        });
+        if (overwritten) {
+          overwrittenUserId = overwritten.userId;
+          await auditOverwrite(tx, {
+            clinicId: params.clinicId,
+            actorUserId: params.actorUserId,
+            entityType: 'Vitals',
+            entityId: existingVitals.id,
+            overwrittenUserId,
+            overwrittenAt: overwritten.savedAt,
+            baseUpdatedAt: params.baseUpdatedAt,
+            requestId: params.mutation.idempotencyKey,
+          });
+        }
+      }
       const vitals = await tx.vitals.upsert({
         where: { encounterId: bundle.encounterId },
         create: {
@@ -214,7 +256,30 @@ export class ClinicalMeasurementsService {
           status: SyncMutationStatus.APPLIED,
         },
       });
+      if (isSeverelyElevated(vitals.systolicBp, vitals.diastolicBp)) {
+        severeReading = `Blood pressure ${vitals.systolicBp ?? '?'}/${vitals.diastolicBp ?? '?'} mmHg`;
+      }
     });
+
+    // The vitals station is the first place a crisis reading appears; tell a clinician then.
+    if (severeReading && !severeBefore) {
+      this.push?.alertClinicians({
+        clinicId: params.clinicId,
+        encounterId: bundle.encounterId,
+        actorUserId: params.actorUserId,
+        findings: [severeReading],
+      });
+    }
+    if (overwrittenUserId !== undefined) {
+      this.push?.alertOverwritten({
+        clinicId: params.clinicId,
+        encounterId: bundle.encounterId,
+        actorUserId: params.actorUserId,
+        overwrittenUserId,
+        record: 'vitals',
+      });
+    }
+    return { overwrote: overwrittenUserId !== undefined };
   }
 
   async validateAndNormalize(

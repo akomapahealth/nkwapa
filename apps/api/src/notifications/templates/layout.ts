@@ -23,11 +23,13 @@ export interface LayoutInput {
   clinicName: string;
 }
 
-const BRAND = '#0f766e';
-const INK = '#111827';
-const MUTED = '#4b5563';
-const BORDER = '#e5e7eb';
-const SURFACE = '#f9fafb';
+// The app's tokens (docs/design-system/ui-refresh/R0-AUDIT.md section 4); infra/nkwapa/keycloak/
+// themes/nkwapa/email/html/*.ftl mirrors these, so change both together.
+const BRAND = '#00778a'; // --primary, white on it 5.24:1
+const INK = '#19282e'; // --foreground
+const MUTED = '#55666d'; // --muted-foreground, 5.99:1 on white
+const BORDER = '#dbe4e6'; // --border
+const SURFACE = '#f2f7f7'; // --background
 
 /**
  * The single branded shell every message renders through.
@@ -56,7 +58,7 @@ ${input.details
     : '';
 
   const callToAction = input.callToAction
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr><td style="border-radius:8px;background:${BRAND}"><a href="${escapeHtml(input.callToAction.url)}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;color:#ffffff;text-decoration:none">${escapeHtml(input.callToAction.label)}</a></td></tr></table>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr><td style="border-radius:6px;background:${BRAND}"><a href="${escapeHtml(input.callToAction.url)}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;color:#ffffff;text-decoration:none">${escapeHtml(input.callToAction.label)}</a></td></tr></table>`
     : '';
 
   const footnotes = (input.footnotes ?? [])

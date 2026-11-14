@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FieldError, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
+import { DialogFooter } from '@/components/ui/dialog';
+import {
+  FieldError,
+  FieldLabel,
+  fieldErrorProps,
+  focusFirstInvalid,
+  RequiredLegend,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -102,10 +109,14 @@ export function EventForm({
 
   return (
     <form noValidate onSubmit={submit} className="space-y-4 border-t-2 border-rule-strong pt-5">
+      <RequiredLegend />
       <div className="space-y-1">
-        <Label htmlFor="event-title">Title</Label>
+        <FieldLabel htmlFor="event-title" required>
+          Title
+        </FieldLabel>
         <Input
           id="event-title"
+          required
           value={title}
           maxLength={160}
           onChange={(event) => setTitle(event.target.value)}
@@ -114,9 +125,12 @@ export function EventForm({
         <FieldError id="event-title" message={errors.title} reserveSpace={submitted} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="event-starts">Starts ({timezone})</Label>
+        <FieldLabel htmlFor="event-starts" required>
+          Starts ({timezone})
+        </FieldLabel>
         <Input
           id="event-starts"
+          required
           type="datetime-local"
           value={startsAt}
           onChange={(event) => setStartsAt(event.target.value)}
@@ -125,9 +139,12 @@ export function EventForm({
         <FieldError id="event-starts" message={errors.startsAt} reserveSpace={submitted} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="event-ends">Ends ({timezone})</Label>
+        <FieldLabel htmlFor="event-ends" required>
+          Ends ({timezone})
+        </FieldLabel>
         <Input
           id="event-ends"
+          required
           type="datetime-local"
           value={endsAt}
           min={startsAt || undefined}
@@ -137,9 +154,12 @@ export function EventForm({
         <FieldError id="event-ends" message={errors.endsAt} reserveSpace={submitted} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="event-site">Site</Label>
+        <FieldLabel htmlFor="event-site" required>
+          Site
+        </FieldLabel>
         <Input
           id="event-site"
+          required
           value={siteName}
           maxLength={160}
           onChange={(event) => setSiteName(event.target.value)}
@@ -148,7 +168,7 @@ export function EventForm({
         <FieldError id="event-site" message={errors.siteName} reserveSpace={submitted} />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="event-address">Address (optional)</Label>
+        <Label htmlFor="event-address">Address</Label>
         <Input
           id="event-address"
           value={siteAddress}
@@ -157,7 +177,7 @@ export function EventForm({
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="event-notes">Notes for volunteers (optional)</Label>
+        <Label htmlFor="event-notes">Notes for volunteers</Label>
         <Textarea
           id="event-notes"
           value={notes}
@@ -185,14 +205,14 @@ export function EventForm({
           </Label>
         </div>
       ) : null}
-      <div className="flex flex-col-reverse gap-2 border-t border-rule pt-4 sm:flex-row sm:justify-end">
+      <DialogFooter className="border-t border-rule pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={saving || disabled}>
           {saving ? 'Saving…' : submitLabel}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

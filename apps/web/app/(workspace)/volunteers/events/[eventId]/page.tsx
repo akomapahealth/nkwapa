@@ -373,7 +373,7 @@ function EventContent() {
           />
 
           <Dialog open={editing} onOpenChange={setEditing}>
-            <DialogContent className="max-h-[90dvh] overflow-y-auto">
+            <DialogContent variant="form">
               <DialogHeader>
                 <DialogTitle>Edit screening day</DialogTitle>
                 <DialogDescription>Times are in clinic time ({timezone}).</DialogDescription>
@@ -509,7 +509,7 @@ function AddVolunteersDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
+      <DialogContent variant="form">
         <DialogHeader>
           <DialogTitle>Add volunteers</DialogTitle>
           <DialogDescription>Active volunteers from the directory.</DialogDescription>
@@ -598,7 +598,7 @@ function CancelDialog({
   const [error, setError] = useState<string | undefined>();
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Cancel this screening day?</DialogTitle>
           <DialogDescription>It can&apos;t be reopened afterwards.</DialogDescription>
@@ -678,7 +678,7 @@ function RemoveDialog({
         }
       }}
     >
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Remove {row?.volunteerContact.displayName} from the roster?</DialogTitle>
           <DialogDescription>You can add them back later.</DialogDescription>

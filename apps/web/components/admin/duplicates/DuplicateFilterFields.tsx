@@ -1,23 +1,23 @@
 'use client';
 
-import { DUPLICATE_MATCH_REASONS } from '@nkwapa/db';
+import { DUPLICATE_MATCH_REASONS } from '@nkwapa/db/patient-duplicates';
 import {
   DUPLICATE_CONFIDENCE_LABELS,
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_REVIEW_STATUS_LABELS,
   duplicateFiltersAreDefault,
+  DEFAULT_DUPLICATE_FILTERS,
   type DuplicateConfidenceFilter,
   type DuplicateFilters,
   type DuplicateReasonFilter,
   type DuplicateStatusFilter,
 } from '@/lib/patient-duplicates';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ListSearch, ListFilters } from '@/components/app-shell/ListToolbar';
 import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -38,11 +38,11 @@ const CONFIDENCE_OPTIONS: { value: DuplicateConfidenceFilter; label: string }[] 
 ];
 
 /**
- * The decision, strength, reason and search controls both duplicate screens filter by.
+ * The search, decision, strength and reason controls both duplicate screens filter by, as a list
+ * toolbar: search, a Filter chip and removable selections. One shared Sheet owns the selects,
+ * preserving ids and labels across sizes without duplicate hidden controls.
  *
- * `idPrefix` keeps label associations unique if two of these ever share a page, and `extraSummary`
- * lets a screen add a filter of its own -- the investigation's clinic pair -- to the same summary
- * line rather than describing it somewhere else.
+ * `idPrefix` keeps label associations unique if two of these ever share a page.
  */
 export function DuplicateFilterFields({
   idPrefix,
@@ -50,119 +50,88 @@ export function DuplicateFilterFields({
   onChange,
   onReset,
   resetDisabled,
-  extraSummary = [],
-  emptyLabel,
 }: {
   idPrefix: string;
   filters: DuplicateFilters;
   onChange: (next: DuplicateFilters) => void;
   onReset: () => void;
   resetDisabled?: boolean;
-  extraSummary?: { label: string; value: string | null | undefined }[];
-  emptyLabel: string;
 }) {
   const update = (patch: Partial<DuplicateFilters>) => onChange({ ...filters, ...patch });
+  const selects = [
+    {
+      key: 'status' as const,
+      label: 'Decision',
+      value: filters.status,
+      onChange: (value: string) => update({ status: value as DuplicateStatusFilter }),
+      options: DUPLICATE_STATUS_OPTIONS,
+    },
+    {
+      key: 'confidence' as const,
+      label: 'Match strength',
+      value: filters.confidence,
+      onChange: (value: string) => update({ confidence: value as DuplicateConfidenceFilter }),
+      options: CONFIDENCE_OPTIONS,
+    },
+    {
+      key: 'reason' as const,
+      label: 'Why it matched',
+      value: filters.reason,
+      onChange: (value: string) => update({ reason: value as DuplicateReasonFilter }),
+      options: [
+        { value: 'ALL', label: 'Any reason' },
+        ...DUPLICATE_MATCH_REASONS.map((reason) => ({
+          value: reason,
+          label: DUPLICATE_MATCH_REASON_LABELS[reason],
+        })),
+      ],
+    },
+  ];
 
   return (
-    <>
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-status`}>Decision</Label>
-        <Select
-          value={filters.status}
-          onValueChange={(value) => update({ status: value as DuplicateStatusFilter })}
-        >
-          <SelectTrigger id={`${idPrefix}-status`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DUPLICATE_STATUS_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-confidence`}>Match strength</Label>
-        <Select
-          value={filters.confidence}
-          onValueChange={(value) => update({ confidence: value as DuplicateConfidenceFilter })}
-        >
-          <SelectTrigger id={`${idPrefix}-confidence`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CONFIDENCE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-reason`}>Why it matched</Label>
-        <Select
-          value={filters.reason}
-          onValueChange={(value) => update({ reason: value as DuplicateReasonFilter })}
-        >
-          <SelectTrigger id={`${idPrefix}-reason`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Any reason</SelectItem>
-            {DUPLICATE_MATCH_REASONS.map((reason) => (
-              <SelectItem key={reason} value={reason}>
-                {DUPLICATE_MATCH_REASON_LABELS[reason]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-search`}>Name, chart code or clinic</Label>
-        <Input
-          id={`${idPrefix}-search`}
-          value={filters.q}
-          placeholder="Mensah, or NKP-2026-000001"
-          onChange={(event) => update({ q: event.target.value })}
-        />
-      </div>
-
-      <Button
-        variant="outline"
-        className="w-full"
-        disabled={resetDisabled ?? duplicateFiltersAreDefault(filters)}
-        onClick={onReset}
-      >
-        Reset filters
-      </Button>
-
-      <ActiveFilterSummary
-        items={[
-          {
-            label: 'Decision',
-            value: DUPLICATE_STATUS_OPTIONS.find((option) => option.value === filters.status)
-              ?.label,
-          },
-          {
-            label: 'Strength',
-            value:
-              filters.confidence === 'ALL' ? null : DUPLICATE_CONFIDENCE_LABELS[filters.confidence],
-          },
-          {
-            label: 'Reason',
-            value: filters.reason === 'ALL' ? null : DUPLICATE_MATCH_REASON_LABELS[filters.reason],
-          },
-          { label: 'Search', value: filters.q.trim() || null },
-          ...extraSummary,
-        ]}
-        emptyLabel={emptyLabel}
+    <div className="space-y-3">
+      <ListSearch
+        id={`${idPrefix}-search`}
+        label="Name, chart code or clinic"
+        value={filters.q}
+        placeholder="Name, chart code or clinic…"
+        onChange={(q) => update({ q })}
       />
-    </>
+      <ListFilters
+        groupLabel="Duplicate filters"
+        sheetTitle="Filter duplicates"
+        sheetBreakpoint={840}
+        chips={selects.map((select) => ({
+          label: select.label,
+          value:
+            select.value !== DEFAULT_DUPLICATE_FILTERS[select.key]
+              ? (select.options.find((option) => option.value === select.value)?.label ??
+                select.value)
+              : null,
+          onRemove: () => update({ [select.key]: DEFAULT_DUPLICATE_FILTERS[select.key] }),
+        }))}
+        onClearAll={(resetDisabled ?? duplicateFiltersAreDefault(filters)) ? undefined : onReset}
+      >
+        {selects.map((select) => (
+          <div key={select.key} className="flex flex-col gap-2">
+            <Label htmlFor={`${idPrefix}-${select.key}`}>{select.label}</Label>
+            <Select value={select.value} onValueChange={select.onChange}>
+              <SelectTrigger id={`${idPrefix}-${select.key}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {select.options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </ListFilters>
+    </div>
   );
 }

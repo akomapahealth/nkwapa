@@ -1,4 +1,4 @@
-import { claimEncounterRecord, type EncounterScopedRecord } from './encounter-record';
+import { baseVersion, claimEncounterRecord, type EncounterScopedRecord } from './encounter-record';
 
 function fakeTable(rows: EncounterScopedRecord[]) {
   const deleted: string[] = [];
@@ -34,6 +34,7 @@ describe('claimEncounterRecord', () => {
       { id: 'aaa', encounterId: 'enc-1', createdAt: 'T0', updatedAt: 'T1' },
     ]);
     expect(await claimEncounterRecord(table, 'enc-1', generate)).toEqual({
+      baseUpdatedAt: 'T1',
       id: 'aaa',
       createdAt: 'T0',
       removedDuplicates: 0,
@@ -52,6 +53,7 @@ describe('claimEncounterRecord', () => {
       { id: 'mmm', encounterId: 'enc-1', createdAt: 'T1', updatedAt: 'T5' },
     ]);
     expect(await claimEncounterRecord(table, 'enc-1', generate)).toEqual({
+      baseUpdatedAt: 'T9',
       id: 'zzz',
       createdAt: 'T2',
       removedDuplicates: 2,
@@ -146,5 +148,17 @@ describe('claimEncounterRecord', () => {
       throw new Error('generateId must not be called when a record exists');
     });
     expect(claimed.id).toBe('existing');
+  });
+});
+
+describe('baseVersion', () => {
+  it('uses the server version a pull wrote', () => {
+    expect(baseVersion({ updatedAt: 'server-T1' })).toBe('server-T1');
+  });
+  it('keeps the first base across later local saves', () => {
+    expect(baseVersion({ updatedAt: 'local-T5', baseUpdatedAt: 'server-T1' })).toBe('server-T1');
+  });
+  it('has none for a row this device never had', () => {
+    expect(baseVersion(undefined)).toBeUndefined();
   });
 });

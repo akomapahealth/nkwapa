@@ -121,7 +121,7 @@ describe('welcomeTourSteps', () => {
     const start = (b: WhoAmIResponse, stationWorkflow: boolean) =>
       welcomeTourSteps(b, { stationWorkflow }).find((step) => step.id === 'start')?.title;
 
-    expect(start(bootstrap(), false)).toMatch(/My Assigned/);
+    expect(start(bootstrap(), false)).toMatch(/My assigned/);
     expect(start(bootstrap(), true)).toMatch(/Stations/);
     expect(
       start(bootstrap({ effectivePermissionsForActiveClinic: ['OPS.CHECKIN.READ'] }), true),

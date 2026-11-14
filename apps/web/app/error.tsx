@@ -12,12 +12,10 @@ export default function Error({
 }) {
   return (
     <FullscreenStatus
-      eyebrow="Application error"
       title="This page ran into a problem"
-      description={
-        error.message ||
-        'A page error interrupted the current workflow. You can retry the page without leaving your current clinic context.'
-      }
+      description={`Something went wrong while building this page. Nothing you had already saved is affected.${
+        error.digest ? ` Quote reference ${error.digest} if you report it.` : ''
+      }`}
       tone="danger"
       primaryAction={<Button onClick={reset}>Try again</Button>}
       secondaryAction={

@@ -256,7 +256,7 @@ export function MergePatientDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent variant="form" className="sm:max-w-3xl">
         <DialogHeader>
           <p className="text-eyebrow text-muted-foreground">
             Step {stepIndex + 1} of {STEP_ORDER.length}

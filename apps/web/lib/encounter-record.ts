@@ -21,6 +21,7 @@ export interface EncounterScopedRecord {
   encounterId: string;
   createdAt?: string;
   updatedAt?: string;
+  baseUpdatedAt?: string;
   /**
    * Set when the domain says one row per encounter *and* something else.
    *
@@ -46,6 +47,8 @@ export interface ClaimedEncounterRecord {
   createdAt?: string;
   /** How many duplicate rows were collapsed. Zero on a healthy encounter. */
   removedDuplicates: number;
+  /** The server version this edit starts from, sent so the API can flag an overwrite. */
+  baseUpdatedAt?: string;
 }
 
 /**
@@ -90,5 +93,23 @@ export async function claimEncounterRecord<T extends EncounterScopedRecord>(
     await table.bulkDelete(duplicates.map((record) => record.id));
   }
 
-  return { id: keep.id, createdAt: keep.createdAt, removedDuplicates: duplicates.length };
+  return {
+    id: keep.id,
+    createdAt: keep.createdAt,
+    removedDuplicates: duplicates.length,
+    baseUpdatedAt: baseVersion(keep),
+  };
+}
+
+/**
+ * The server `updatedAt` a local edit is based on.
+ *
+ * A pull replaces the row with the server's, so its `updatedAt` is the server version until this
+ * device edits it; local saves then keep the first base in `baseUpdatedAt` so several offline
+ * saves still report the version the clinician actually loaded.
+ */
+export function baseVersion(
+  record: { updatedAt?: string; baseUpdatedAt?: string } | null | undefined,
+): string | undefined {
+  return record?.baseUpdatedAt ?? record?.updatedAt;
 }

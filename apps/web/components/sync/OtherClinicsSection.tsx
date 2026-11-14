@@ -107,7 +107,7 @@ export function OtherClinicsSection({
                     {queue.access === 'available' ? (
                       <Button
                         size="sm"
-                        className="h-auto min-h-11 max-w-full whitespace-normal break-words text-left"
+                        className="h-auto max-w-full whitespace-normal break-words text-left"
                         onClick={() => onSwitch(queue.clinicId)}
                       >
                         <span className="min-w-0 [overflow-wrap:anywhere]">
@@ -158,7 +158,7 @@ export function OtherClinicsSection({
               {error}
             </p>
           ) : null}
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDiscarding(null)} disabled={busy}>
               Keep them
             </Button>

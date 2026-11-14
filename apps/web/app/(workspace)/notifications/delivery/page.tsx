@@ -1,0 +1,651 @@
+'use client';
+
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
+
+import { StatusLabel } from '@/components/ui/status-label';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, CheckCheck, Clock3, SendHorizontal, Timer } from 'lucide-react';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { useAuth } from '@/lib/auth-context';
+import { apiFetch } from '@/lib/api';
+import { formatOpsDateTime, readApiError } from '@/lib/ops';
+import { RelativeTime } from '@/components/app-shell/RelativeTime';
+import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
+import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import { RouteGuard } from '@/components/RouteGuard';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { ProgressiveHelp } from '@/components/ui/progressive-help';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { EmptyStateCard, InlineNotice } from '@/components/ops/OpsShared';
+import {
+  NOTIFICATION_TYPE_FILTERS,
+  describeEmailAvailability,
+  deliveryLatencyMs,
+  explainFailure,
+  explainTerminalStatus,
+  formatDeliveryLatency,
+  formatFailureReason,
+  formatTemplateLabel,
+  getStatusVariant,
+  medianDeliveryLatencyMs,
+  type EmailAvailability,
+} from '@/lib/notification-delivery';
+import { DataTable, SHEET_GUTTER, type DataTableColumn } from '@/components/ui/data-table';
+import { ListFilters } from '@/components/app-shell/ListToolbar';
+import { removeWithUndo } from '@/lib/undoable';
+
+interface ReminderRow {
+  id: string;
+  clinicId: string | null;
+  patientId: string | null;
+  encounterId: string | null;
+  appointmentId: string | null;
+  channel: string;
+  toAddress: string;
+  templateKey: string;
+  scheduledAt: string;
+  sentAt: string | null;
+  status: string;
+  providerMessageId: string | null;
+  failureReason: string | null;
+  /** Set only on a reminder a staff member scheduled directly, the only kind staff can cancel. */
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Partially hide the recipient.
+ *
+ * Phone numbers and email addresses are patient contact details, and this page is a
+ * broad operator view rather than a chart. Enough is shown to recognise a row without
+ * putting a readable contact list on screen.
+ */
+function maskAddress(value: string) {
+  return value && value.length > 8 ? `${value.slice(0, 4)}***${value.slice(-4)}` : value;
+}
+
+export default function RemindersPage() {
+  const bootstrap = useBootstrap()?.bootstrap ?? null;
+  const getToken = useAuth();
+  const { isOnline } = useSync();
+  const clinicId = getBootstrapActiveClinicId(bootstrap);
+  // Staff lifecycle notices are withheld by the server from anyone without this (#116).
+  const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const seesStaffNotices = perms.includes('*') || perms.includes('REMINDER.READ_STAFF_NOTICES');
+  const canCancelAny = perms.includes('*') || perms.includes('REMINDER.CANCEL_ANY');
+  // Reminders cancelled on screen and waiting out their Undo window.
+  const [pendingCancelIds, setPendingCancelIds] = useState<ReadonlySet<string>>(new Set());
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const typeFilters = NOTIFICATION_TYPE_FILTERS.filter(
+    // Roster emails are USER notices too, withheld by the same rule.
+    (option) => seesStaffNotices || (option.value !== 'STAFF' && option.value !== 'ROSTER'),
+  );
+
+  const [status, setStatus] = useState('');
+  const [channel, setChannel] = useState('');
+  const [type, setType] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [emailStatus, setEmailStatus] = useState<EmailAvailability | null>(null);
+  const [rows, setRows] = useState<ReminderRow[]>([]);
+  const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchReminders = useCallback(
+    async (cursor?: string, append = false) => {
+      if (!clinicId || !getToken) return;
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (status) params.set('status', status);
+        if (channel) params.set('channel', channel);
+        if (type) params.set('type', type);
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (cursor) params.set('cursor', cursor);
+        params.set('limit', '50');
+        const res = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/reminders?${params.toString()}`,
+          { getToken },
+        );
+        if (!res.ok) throw new Error(await res.text());
+        const data = (await res.json()) as {
+          items: ReminderRow[];
+          nextCursor: string | null;
+        };
+        if (append) {
+          setRows((prev) => [...prev, ...data.items]);
+        } else {
+          setRows(data.items);
+        }
+        setNextCursor(data.nextCursor);
+        setHasLoadedMessages(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        if (!append) setRows([]);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [clinicId, getToken, status, channel, type, from, to],
+  );
+
+  /**
+   * Whether email can be delivered at all.
+   *
+   * Fetched separately from the ledger and deliberately non-blocking: if this probe
+   * fails the page still lists messages, it just cannot explain a configuration
+   * problem it could not read.
+   */
+  useEffect(() => {
+    if (!clinicId || !getToken) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/reminders/email-status`,
+          { getToken },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as EmailAvailability;
+        if (!cancelled) setEmailStatus(data);
+      } catch {
+        // Non-fatal: the ledger is still worth showing without the banner.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clinicId, getToken]);
+
+  useEffect(() => {
+    if (clinicId) fetchReminders();
+  }, [fetchReminders, clinicId]);
+
+  /** A queued reminder this person scheduled, or anyone's for a manager (#116). */
+  const canCancel = (row: ReminderRow) =>
+    row.status === 'QUEUED' &&
+    row.createdByUserId !== null &&
+    (canCancelAny || row.createdByUserId === bootstrap?.userId);
+
+  /*
+    A queued reminder that has not gone out costs nothing to cancel and can be rescheduled, so it
+    does not ask first: it shows as cancelled at once and is sent a few seconds later, with Undo.
+  */
+  const cancelReminder = (row: ReminderRow) => {
+    if (!clinicId || !getToken) return;
+    setCancelError(null);
+    const mark = (pending: boolean) =>
+      setPendingCancelIds((current) => {
+        const next = new Set(current);
+        if (pending) next.add(row.id);
+        else next.delete(row.id);
+        return next;
+      });
+    removeWithUndo({
+      message: 'Reminder cancelled',
+      hide: () => mark(true),
+      restore: () => mark(false),
+      commit: async () => {
+        const res = await apiFetch(
+          `/clinics/${encodeURIComponent(clinicId)}/reminders/${encodeURIComponent(row.id)}/cancel`,
+          { method: 'POST', getToken },
+        );
+        if (!res.ok) throw new Error(await readApiError(res));
+        await fetchReminders();
+        mark(false);
+      },
+      failureMessage: 'The reminder could not be cancelled, so it is still queued.',
+    });
+  };
+
+  const columns: DataTableColumn<ReminderRow>[] = [
+    {
+      id: 'createdAt',
+      accessorKey: 'createdAt',
+      header: 'Created',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? <RelativeTime value={v as string} /> : '';
+      },
+    },
+    {
+      id: 'scheduledAt',
+      accessorKey: 'scheduledAt',
+      header: 'Scheduled',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? formatOpsDateTime(v as string) : '';
+      },
+    },
+    {
+      id: 'sentAt',
+      accessorKey: 'sentAt',
+      header: 'Sent',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? <RelativeTime value={v as string} /> : '';
+      },
+    },
+    {
+      /*
+        Derived, not a stored column: `sentAt` already records the fact and this is the
+        arithmetic on it. Sorting works because the value is the number of milliseconds; the
+        formatter is only what an operator reads.
+      */
+      id: 'deliveryLatency',
+      accessorKey: 'deliveryLatency',
+      header: 'Time to send',
+      accessorFn: (row) => deliveryLatencyMs(row),
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return formatDeliveryLatency(typeof v === 'number' ? v : null);
+      },
+    },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ getValue }) => (
+        <StatusLabel variant={getStatusVariant(String(getValue()))} value={String(getValue())} />
+      ),
+    },
+    {
+      id: 'channel',
+      accessorKey: 'channel',
+      header: 'Channel',
+      cell: ({ getValue }) => (getValue() === 'SMS' ? 'SMS' : 'Email'),
+    },
+    {
+      id: 'templateKey',
+      accessorKey: 'templateKey',
+      header: 'Type',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return formatTemplateLabel(String(v));
+      },
+    },
+    {
+      id: 'appointmentId',
+      accessorKey: 'appointmentId',
+      header: 'Appointment',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? String(v).slice(0, 8) : '';
+      },
+    },
+    {
+      id: 'toAddress',
+      accessorKey: 'toAddress',
+      header: 'To',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return maskAddress(String(v));
+      },
+    },
+    {
+      id: 'failureReason',
+      accessorKey: 'failureReason',
+      header: 'Failure',
+      cell: ({ getValue }) => {
+        const explanation = explainFailure(getValue() ? String(getValue()) : null);
+        if (!explanation) return '';
+        // The detail and recovery are the point of the column; without them the code
+        // is just a restatement of "this failed".
+        return (
+          <span title={[explanation.detail, explanation.recovery].filter(Boolean).join(' ')}>
+            {explanation.label}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'updatedAt',
+      accessorKey: 'updatedAt',
+      header: 'Updated',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | number | null | undefined;
+        return v ? <RelativeTime value={v as string} /> : '';
+      },
+    },
+    {
+      id: 'actions',
+
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: 'right' },
+      cell: ({ row: params }) => {
+        const row = params.original;
+        if (pendingCancelIds.has(row.id)) {
+          return <span className="text-sm text-muted-foreground">Cancelled</span>;
+        }
+        if (!canCancel(row)) return null;
+        return (
+          <Button size="sm" variant="outline" className="h-9" onClick={() => cancelReminder(row)}>
+            Cancel
+          </Button>
+        );
+      },
+    },
+  ];
+
+  if (!clinicId) {
+    return (
+      <RouteGuard requiredPermission="REMINDER.READ">
+        <div className="p-4">
+          <p className="text-muted-foreground">Select a clinic to view reminders.</p>
+        </div>
+      </RouteGuard>
+    );
+  }
+
+  const queuedCount = rows.filter((row) => row.status === 'QUEUED').length;
+  const sentCount = rows.filter((row) => row.status === 'SENT').length;
+  const deliveredCount = rows.filter((row) => row.status === 'DELIVERED').length;
+  const failedCount = rows.filter((row) => row.status === 'FAILED').length;
+  const medianLatencyMs = medianDeliveryLatencyMs(rows);
+  const emailNotice = describeEmailAvailability(emailStatus);
+
+  return (
+    <RouteGuard requiredPermission="REMINDER.READ">
+      <div className="space-y-6">
+        <AppPageHeader
+          title="Message delivery"
+          description={
+            seesStaffNotices
+              ? 'Every message the clinic has sent, and where each stands.'
+              : 'Messages the clinic has sent to patients, and where each stands.'
+          }
+          hint={
+            seesStaffNotices
+              ? 'Reminders, portal invites, appointment updates and staff access notices.'
+              : 'Reminders, portal invites and appointment updates.'
+          }
+          helpTitle="How message delivery works"
+          helpText="Filter by status, channel, type, or date, then inspect queued, sent, delivered, or failed messages. Failed rows explain what went wrong and what to do about it."
+        />
+
+        {cancelError ? <InlineNotice tone="error">{cancelError}</InlineNotice> : null}
+
+        {emailNotice ? (
+          <InlineNotice tone={emailNotice.tone} live={false}>
+            <span className="font-semibold">{emailNotice.title}.</span> {emailNotice.detail}
+          </InlineNotice>
+        ) : null}
+
+        <AppMetricGroup variant="strip">
+          <AppMetricCard
+            title="Failed"
+            tone="danger"
+            onActivate={() => setStatus('FAILED')}
+            actionLabel="Show failed messages"
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : failedCount}
+            icon={AlertTriangle}
+            detail="Not delivered. Open a row to see why and what to do."
+          />
+
+          <AppMetricCard
+            title="Queued"
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : queuedCount}
+            icon={Clock3}
+            detail="Waiting to be processed or delivered."
+          />
+          <AppMetricCard
+            title="Sent"
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : sentCount}
+            icon={SendHorizontal}
+            detail="Accepted by the configured provider."
+          />
+          <AppMetricCard
+            title="Delivered"
+            value={!hasLoadedMessages || (error && rows.length === 0) ? '…' : deliveredCount}
+            icon={CheckCheck}
+            detail="Confirmed delivered by a provider callback. Only SMS reports this."
+          />
+
+          <AppMetricCard
+            title="Typical time to send"
+            value={
+              !hasLoadedMessages || (error && rows.length === 0)
+                ? '…'
+                : formatDeliveryLatency(medianLatencyMs)
+            }
+            icon={Timer}
+            detail="Median wait between a message becoming due and the provider accepting it, across the rows loaded here."
+          />
+        </AppMetricGroup>
+
+        <ListFilters
+          groupLabel="Message filters"
+          sheetTitle="Filter messages"
+          sheetDescription="Filters update the history immediately."
+          onClearAll={() => {
+            setStatus('');
+            setChannel('');
+            setType('');
+            setFrom('');
+            setTo('');
+          }}
+          chips={[
+            {
+              label: 'Status',
+              value: status
+                ? ((
+                    {
+                      QUEUED: 'Queued',
+                      SENT: 'Sent',
+                      DELIVERED: 'Delivered',
+                      FAILED: 'Failed',
+                    } as Record<string, string>
+                  )[status] ?? status)
+                : null,
+              onRemove: () => setStatus(''),
+            },
+            {
+              label: 'Channel',
+              value: channel ? (channel === 'SMS' ? 'SMS' : 'Email') : null,
+              onRemove: () => setChannel(''),
+            },
+            {
+              label: 'Type',
+              value:
+                NOTIFICATION_TYPE_FILTERS.find((option) => option.value === type)?.label ?? null,
+              onRemove: () => setType(''),
+            },
+            { label: 'From', value: from || null, onRemove: () => setFrom('') },
+            { label: 'To', value: to || null, onRemove: () => setTo('') },
+          ]}
+          trailing={
+            <span aria-live="polite" className="text-sm tabular-nums text-muted-foreground">
+              {rows.length === 1 ? '1 message' : `${rows.length} messages`} loaded
+            </span>
+          }
+        >
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={status || 'ALL'}
+                onValueChange={(value) => setStatus(value === 'ALL' ? '' : value)}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="QUEUED">Queued</SelectItem>
+                  <SelectItem value="SENT">Sent</SelectItem>
+                  <SelectItem value="DELIVERED">Delivered</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="channel">Channel</Label>
+              <Select
+                value={channel || 'ALL'}
+                onValueChange={(value) => setChannel(value === 'ALL' ? '' : value)}
+              >
+                <SelectTrigger id="channel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All channels</SelectItem>
+                  <SelectItem value="EMAIL">Email</SelectItem>
+                  <SelectItem value="SMS">SMS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type">Type</Label>
+              <Select
+                value={type || 'ALL'}
+                onValueChange={(value) => setType(value === 'ALL' ? '' : value)}
+              >
+                <SelectTrigger id="type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All types</SelectItem>
+                  {typeFilters.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="from">From</Label>
+              <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="to">To</Label>
+              <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+          </div>
+        </ListFilters>
+
+        {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
+        {error ? (
+          <InlineErrorState
+            description={error}
+            onRetry={() => void fetchReminders()}
+            retryLabel="Reload reminders"
+          />
+        ) : null}
+
+        <section aria-label="Reminder history" className="space-y-4 pb-20">
+          {loading && rows.length === 0 ? (
+            <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
+          ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
+            <EmptyStateCard
+              title="No reminders match the current filters"
+              description="Try a wider date range or a broader status filter to review reminder activity."
+            />
+          ) : (
+            <>
+              <div className="-mx-4 divide-y divide-border border-y border-border compact:-mx-6 md:hidden">
+                {rows.map((row) => (
+                  <article key={row.id} className={`py-4 ${SHEET_GUTTER}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="font-body text-sm font-semibold text-foreground">
+                          {row.templateKey}
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {formatOpsDateTime(row.scheduledAt)}
+                        </p>
+                      </div>
+                      <StatusLabel variant={getStatusVariant(row.status)} value={row.status} />
+                    </div>
+                    <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
+                      <p>
+                        {row.channel === 'SMS' ? 'SMS' : 'Email'} to {maskAddress(row.toAddress)}
+                      </p>
+                      {row.appointmentId ? (
+                        <p>Appointment {row.appointmentId.slice(0, 8)}</p>
+                      ) : null}
+                      {row.sentAt ? (
+                        <p>
+                          Sent {formatOpsDateTime(row.sentAt)} (
+                          {formatDeliveryLatency(deliveryLatencyMs(row))} after it was due)
+                        </p>
+                      ) : null}
+                    </div>
+                    {row.failureReason ? (
+                      <p className="mt-2 text-sm text-destructive">
+                        {formatFailureReason(row.failureReason)}
+                      </p>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+
+              <div className="hidden md:block">
+                <DataTable
+                  bleed
+                  keyboardScroll
+                  caption="Messages sent by the clinic"
+                  columns={columns}
+                  data={rows}
+                  isRefreshing={loading}
+                  pageSizeOptions={[25, 50]}
+                  initialPageSize={25}
+                />
+              </div>
+            </>
+          )}
+
+          {nextCursor && (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fetchReminders(nextCursor, true)}
+                disabled={loadingMore}
+                className="rounded-lg"
+              >
+                Load more
+                <span aria-live="polite" className="sr-only">
+                  {loadingMore ? 'Loading more results' : ''}
+                </span>
+              </Button>
+            </div>
+          )}
+          <ProgressiveHelp title="Reading delivery status">
+            Queued means the message is waiting to send, and Sent means the provider accepted it —
+            the Sent column and &ldquo;Time to send&rdquo; show when that happened and how long it
+            waited. Only SMS reports Delivered: {explainTerminalStatus('EMAIL')} So a message
+            reading Sent has left the clinic, and anything after that is the mail provider&rsquo;s
+            to answer for. Failed rows name the reason and what to do about it, so start there when
+            a patient says they heard nothing.
+          </ProgressiveHelp>
+        </section>
+      </div>
+    </RouteGuard>
+  );
+}

@@ -31,6 +31,8 @@ export class ClinicalNoteRepository {
       select: {
         id: true,
         encounterId: true,
+        assessment: true,
+        history: true,
         status: true,
         authorRole: true,
         createdAt: true,

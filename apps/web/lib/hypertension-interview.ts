@@ -15,11 +15,13 @@ import {
   BP_DIASTOLIC_MIN,
   BP_SYSTOLIC_MAX,
   BP_SYSTOLIC_MIN,
+} from '@nkwapa/db/bp-classification';
+import {
   emptyHypertensionLifestyle,
   parseHypertensionLifestyle,
   serializeHypertensionLifestyle,
   type HypertensionLifestylePayload,
-} from '@nkwapa/db';
+} from '@nkwapa/db/hypertension-interview';
 
 export type ClinicalFieldErrors = Record<string, string>;
 
@@ -242,6 +244,31 @@ function requireWholeNumberInRange(
  * a database CHECK; this layer exists so a volunteer finds out before the round trip, not instead
  * of it.
  */
+const unasked = (value: string) => value === '' || value === 'NOT_ASSESSED';
+
+/*
+  Skip logic for the read-aloud interview: a follow-up appears only when the answer before it
+  implies it. Hidden fields stay in the values and save exactly as before, and a group that holds
+  a value is never hidden, so validation can always point at what it rejects.
+*/
+export function showsRepeatReadings(values: HypertensionInterviewValues): boolean {
+  return (
+    values.repeatPerformed === 'YES' ||
+    values.repeatSystolicBp !== '' ||
+    values.repeatDiastolicBp !== ''
+  );
+}
+
+export function showsHomeReadings(values: HypertensionInterviewValues): boolean {
+  return (
+    (!unasked(values.homeCheckFrequency) && values.homeCheckFrequency !== 'NEVER') ||
+    values.homeSystolicAvg !== '' ||
+    values.homeDiastolicAvg !== '' ||
+    values.homeReadingsUnknown ||
+    !unasked(values.homeReadingSource)
+  );
+}
+
 export function validateHypertensionInterview(
   values: HypertensionInterviewValues,
 ): ClinicalFieldErrors {

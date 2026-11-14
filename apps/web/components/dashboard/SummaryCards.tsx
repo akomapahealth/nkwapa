@@ -52,7 +52,7 @@ export function SummaryCards({
   ];
 
   return (
-    <AppMetricGroup className="sm:grid-cols-2 lg:grid-cols-5">
+    <AppMetricGroup>
       {cards.map((card) => {
         return (
           <AppMetricCard

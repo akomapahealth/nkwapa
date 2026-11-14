@@ -28,6 +28,7 @@ export default function WorkspaceError({
     <div className="space-y-4">
       <InlineErrorState
         title="This page ran into a problem"
+        titleAs="h1"
         description={
           error.digest
             ? `Something went wrong while building this view. Nothing you had already saved is affected. Quote reference ${error.digest} if you report it.`

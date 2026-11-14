@@ -170,6 +170,43 @@ describe('ClinicalMeasurementsService', () => {
     });
   });
 
+  it('applies a stale replay but audits and reports the overwrite', async () => {
+    const { tx, prisma } = createHarness();
+    const push = { alertClinicians: jest.fn(), alertOverwritten: jest.fn() };
+    const service = new ClinicalMeasurementsService(prisma as never, push as never);
+    tx.vitals.findUnique.mockResolvedValue({
+      id: IDS.vitals,
+      updatedAt: new Date('2026-09-13T12:00:00.000Z'),
+    });
+    (tx.auditEvent as Record<string, jest.Mock>).findMany = jest.fn().mockResolvedValue([
+      {
+        actorUserId: 'someone-else',
+        afterJson: JSON.stringify({ updatedAt: '2026-09-13T12:00:00.000Z' }),
+      },
+    ]);
+
+    const result = await service.applyBundle({
+      clinicId: IDS.clinic,
+      actorUserId: IDS.user,
+      user: {
+        user: { id: IDS.user },
+        roles: [{ clinicId: IDS.clinic, role: UserRole.VOLUNTEER }],
+      } as never,
+      mutation: { entityType: 'encounter_vitals_bundle', idempotencyKey: 'key-1' } as never,
+      payload: payload(),
+      baseUpdatedAt: '2026-09-13T11:00:00.000Z',
+    });
+
+    expect(result).toEqual({ overwrote: true });
+    expect(tx.vitals.upsert).toHaveBeenCalled();
+    expect(tx.auditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'CONFLICT_OVERWRITTEN', entityType: 'Vitals' }),
+    });
+    expect(push.alertOverwritten).toHaveBeenCalledWith(
+      expect.objectContaining({ overwrittenUserId: 'someone-else', record: 'vitals' }),
+    );
+  });
+
   it('requires screening write permission', async () => {
     const { service } = createHarness();
     await expect(
@@ -336,6 +373,53 @@ describe('ClinicalMeasurementsService', () => {
         payload: body,
       });
     }
+
+    describe('a stale sectioned save', () => {
+      // Someone else saved after this device's 11:00 base; which columns they changed decides it.
+      function staleHarness(before: Record<string, unknown>, after: Record<string, unknown>) {
+        const { tx, prisma } = createHarness();
+        const push = { alertClinicians: jest.fn(), alertOverwritten: jest.fn() };
+        tx.vitals.findUnique.mockResolvedValue({
+          id: IDS.vitals,
+          updatedAt: new Date('2026-09-13T12:00:00.000Z'),
+        });
+        (tx.auditEvent as Record<string, jest.Mock>).findMany = jest.fn().mockResolvedValue([
+          {
+            actorUserId: 'someone-else',
+            beforeJson: JSON.stringify(before),
+            afterJson: JSON.stringify({ ...after, updatedAt: '2026-09-13T12:00:00.000Z' }),
+          },
+        ]);
+        const service = new ClinicalMeasurementsService(prisma as never, push as never);
+        const body = sectioned(['bloodPressure'], {
+          systolicBp: 130,
+          diastolicBp: 85,
+          bpSite: BloodPressureSite.LEFT_ARM,
+        });
+        const run = () =>
+          service.applyBundle({
+            clinicId: IDS.clinic,
+            actorUserId: IDS.user,
+            user: volunteer,
+            mutation: { entityType: 'encounter_vitals_bundle', idempotencyKey: 'k' } as never,
+            payload: body,
+            baseUpdatedAt: '2026-09-13T11:00:00.000Z',
+          });
+        return { run, push };
+      }
+
+      it('is not an overwrite when the newer save changed other sections only', async () => {
+        const { run, push } = staleHarness({ weightKg: 70 }, { weightKg: 72 });
+        await expect(run()).resolves.toEqual({ overwrote: false });
+        expect(push.alertOverwritten).not.toHaveBeenCalled();
+      });
+
+      it('is an overwrite when the newer save changed a column this save writes', async () => {
+        const { run, push } = staleHarness({ systolicBp: 120 }, { systolicBp: 150 });
+        await expect(run()).resolves.toEqual({ overwrote: true });
+        expect(push.alertOverwritten).toHaveBeenCalled();
+      });
+    });
 
     it('writes only the blood pressure columns', async () => {
       const { service, tx } = createHarness();

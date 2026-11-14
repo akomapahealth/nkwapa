@@ -46,6 +46,7 @@ export interface ClinicalNote {
 }
 
 export interface ClinicalNoteSummary {
+  preview: string;
   id: string;
   encounterId: string;
   status: ClinicalNoteStatus;

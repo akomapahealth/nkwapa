@@ -1,7 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarPlus, CheckCircle2, Inbox, RefreshCw, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  CalendarPlus,
+  CheckCircle2,
+  Inbox,
+  MoreHorizontal,
+  RefreshCw,
+  XCircle,
+} from 'lucide-react';
+import { ListSearch } from '@/components/app-shell/ListToolbar';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppointmentRequestStatusBadge } from '@/components/appointments/AppointmentStatusBadge';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
@@ -11,6 +20,12 @@ import {
   RecordSectionHeader,
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { focusField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -103,6 +119,8 @@ export function AppointmentRequestsPanel({
   onRequestResolved: () => void | Promise<void>;
 }) {
   const { showToast } = useToast();
+  const [query, setQuery] = useState('');
+  const dialogReturnFocus = useRef<HTMLButtonElement | null>(null);
   const [requests, setRequests] = useState<AppointmentRequestRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,7 +168,14 @@ export function AppointmentRequestsPanel({
     [requests],
   );
 
+  const visibleRequests = pending.filter((request) =>
+    `${patientName(request)} ${request.patient?.patientCode ?? ''}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
+  );
+
   function openDialog(action: TriageAction, request: AppointmentRequestRecord) {
+    if (action === 'confirm') dialogReturnFocus.current = null;
     const slot = defaultSlotFor(request, timezone);
     setDialog({ action, request });
     setStartsAt(slot.startsAt);
@@ -180,10 +205,12 @@ export function AppointmentRequestsPanel({
         const end = fromClinicDateTimeLocal(endsAt, timezone);
         if (!start || !end) {
           setDialogError('Choose valid start and end times.');
+          focusField(start ? 'confirm-ends-at' : 'confirm-starts-at');
           return;
         }
         if (new Date(end) <= new Date(start)) {
           setDialogError('End time must be after start time.');
+          focusField('confirm-ends-at');
           return;
         }
         await confirmStaffAppointmentRequest(clinicId, request.id, getToken, {
@@ -197,6 +224,7 @@ export function AppointmentRequestsPanel({
         const trimmed = reason.trim();
         if (!trimmed) {
           setDialogError('Add a reason so the patient knows why.');
+          focusField('reject-reason');
           return;
         }
         await rejectStaffAppointmentRequest(clinicId, request.id, getToken, { reason: trimmed });
@@ -226,25 +254,22 @@ export function AppointmentRequestsPanel({
 
   return (
     <RecordSection>
-      <RecordSectionHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1.5">
+      <RecordSectionHeader className="flex flex-row items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
           <RecordSectionTitle id="patient-requests-title" className="flex items-center gap-2">
             <Inbox className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             Patient requests
-            <span className="ml-1 font-sans text-base font-normal tabular-nums text-muted-foreground">
-              {pending.length} awaiting
-            </span>
           </RecordSectionTitle>
           <RecordSectionDescription>
             {canManage
-              ? 'Confirm a request to book the visit and schedule the reminder, or decline it with a reason the patient can read.'
+              ? 'Confirm to book the visit and its reminder, or decline with a reason the patient sees.'
               : 'Requests patients have sent this clinic. Acting on them requires appointment write access.'}
           </RecordSectionDescription>
         </div>
         <Button
           type="button"
           variant="outline"
-          className="h-11 shrink-0 cursor-pointer"
+          className="shrink-0 cursor-pointer"
           onClick={() => void load({ background: true })}
           disabled={loading || refreshing}
         >
@@ -252,10 +277,25 @@ export function AppointmentRequestsPanel({
             className={cn('h-4 w-4', refreshing && 'animate-spin motion-reduce:animate-none')}
             aria-hidden="true"
           />
-          Refresh requests
+          <span className="sr-only compact:not-sr-only">Refresh requests</span>
         </Button>
       </RecordSectionHeader>
-      <div className="pb-2">
+      <div className="space-y-3 pb-2">
+        <AppMetricGroup variant="strip">
+          <AppMetricCard
+            title="Awaiting a decision"
+            value={loading || error ? '…' : pending.length}
+            icon={Inbox}
+            detail="Patient requests still awaiting a clinic decision."
+          />
+        </AppMetricGroup>
+        <ListSearch
+          id="appointment-request-search"
+          label="Search patient requests"
+          placeholder="Patient name or code"
+          value={query}
+          onChange={setQuery}
+        />
         <div aria-live="polite" aria-busy={loading || refreshing}>
           {loading ? (
             <SectionSkeleton lines={3} />
@@ -273,75 +313,111 @@ export function AppointmentRequestsPanel({
               description="New visit, reschedule, and cancellation requests from patients appear here as soon as they are sent."
             />
           ) : (
-            <ul>
-              {pending.map((request) => (
-                <li key={request.id} className="border-t border-border py-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-medium text-foreground">
-                          {getAppointmentRequestTypeLabel(request.requestType)}
-                        </span>
-                        <AppointmentRequestStatusBadge status={request.status} />
-                      </div>
-                      <p className="truncate text-base font-medium text-foreground">
-                        {patientName(request)}
-                        {request.patient?.patientCode ? (
-                          <span className="ml-2 text-sm font-normal text-muted-foreground">
-                            {request.patient.patientCode}
+            <>
+              <p className="text-sm text-muted-foreground">
+                {visibleRequests.length === 0
+                  ? 'No requests match this search.'
+                  : query.trim()
+                    ? `Showing ${visibleRequests.length} of ${pending.length}`
+                    : ''}
+              </p>
+              <ul>
+                {visibleRequests.map((request) => (
+                  <li key={request.id} className="border-t border-border py-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium text-foreground">
+                            {getAppointmentRequestTypeLabel(request.requestType)}
                           </span>
-                        ) : null}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Preferred window: {requestWindow(request, timezone)}
-                      </p>
-                      {request.sourceAppointment ? (
+                          <AppointmentRequestStatusBadge status={request.status} />
+                        </div>
+                        <p className="text-base font-medium text-foreground [overflow-wrap:anywhere]">
+                          {patientName(request)}
+                          {request.patient?.patientCode ? (
+                            <span className="ml-2 text-sm font-normal text-muted-foreground">
+                              {request.patient.patientCode}
+                            </span>
+                          ) : null}
+                        </p>
                         <p className="text-sm text-muted-foreground">
-                          About the visit on{' '}
-                          {formatOpsDateTime(request.sourceAppointment.startsAt, timezone)}
+                          Preferred window: {requestWindow(request, timezone)}
                         </p>
-                      ) : null}
-                      {request.reason ? (
-                        <p className="border-l-2 border-border pl-3 text-sm text-foreground">
-                          {request.reason}
-                        </p>
-                      ) : null}
-                    </div>
-                    {canManage ? (
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          className="h-11 cursor-pointer"
-                          onClick={() => openDialog('confirm', request)}
-                        >
-                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                          Confirm request
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-11 cursor-pointer text-destructive hover:text-destructive"
-                          onClick={() => openDialog('reject', request)}
-                        >
-                          <XCircle className="h-4 w-4" aria-hidden="true" />
-                          Decline
-                        </Button>
+                        {request.sourceAppointment ? (
+                          <p className="text-sm text-muted-foreground">
+                            About the visit on{' '}
+                            {formatOpsDateTime(request.sourceAppointment.startsAt, timezone)}
+                          </p>
+                        ) : null}
+                        {request.reason ? (
+                          <p className="border-l-2 border-border pl-3 text-sm text-foreground">
+                            {request.reason}
+                          </p>
+                        ) : null}
                       </div>
-                    ) : (
-                      <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                        Read-only
-                      </span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                      {canManage ? (
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            className="cursor-pointer"
+                            onClick={() => openDialog('confirm', request)}
+                          >
+                            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                            Confirm request
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`More actions for ${patientName(request)}`}
+                                onPointerDownCapture={(event) => {
+                                  dialogReturnFocus.current = event.currentTarget;
+                                }}
+                                onKeyDownCapture={(event) => {
+                                  dialogReturnFocus.current = event.currentTarget;
+                                }}
+                              >
+                                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onSelect={() => setTimeout(() => openDialog('reject', request), 0)}
+                                className="text-destructive"
+                              >
+                                Decline
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      ) : (
+                        <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                          Read-only
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       </div>
 
       <Dialog open={Boolean(dialog)} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
-        <DialogContent className="max-w-lg rounded-lg">
+        <DialogContent
+          variant="form"
+          className="max-w-lg rounded-lg"
+          onCloseAutoFocus={(event) => {
+            const trigger = dialogReturnFocus.current;
+            dialogReturnFocus.current = null;
+            if (trigger?.isConnected) {
+              event.preventDefault();
+              trigger.focus({ preventScroll: true });
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {dialog?.action === 'confirm' ? 'Confirm request' : 'Decline request'}
@@ -476,7 +552,7 @@ export function AppointmentRequestsPanel({
             <Button
               type="button"
               variant="outline"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={closeDialog}
               disabled={submitting}
             >
@@ -484,7 +560,7 @@ export function AppointmentRequestsPanel({
             </Button>
             <Button
               type="button"
-              className="h-11 cursor-pointer"
+              className="cursor-pointer"
               onClick={() => void submit()}
               disabled={submitting}
             >

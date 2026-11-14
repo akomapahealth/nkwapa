@@ -7,7 +7,11 @@ import {
   type MergeRelationCount,
   type PatientMergePreview,
 } from './patient-merge';
-import { MERGE_BLOCKER_CODES, MERGE_FINDING_LABELS, MERGE_WARNING_CODES } from '@nkwapa/db';
+import {
+  MERGE_BLOCKER_CODES,
+  MERGE_FINDING_LABELS,
+  MERGE_WARNING_CODES,
+} from '@nkwapa/db/patient-merge';
 
 function relation(
   key: string,

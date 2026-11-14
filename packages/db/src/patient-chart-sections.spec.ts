@@ -23,8 +23,8 @@ describe('patient chart sections', () => {
       'overview',
       'vitals',
       'medications',
-      'diabetes',
       'hypertension',
+      'diabetes',
       'medical-history',
       'notes',
       'visits',
@@ -63,8 +63,8 @@ describe('patient chart sections', () => {
       expect(ids(['*'], [])).toEqual([
         'overview',
         'vitals',
-        'diabetes',
         'hypertension',
+        'diabetes',
         'visits',
         'self-reports',
         'consent',
@@ -72,7 +72,7 @@ describe('patient chart sections', () => {
     });
 
     it('shows diabetes and hypertension history together to a screening reader', () => {
-      expect(ids(['SCREENING.READ'])).toEqual(['diabetes', 'hypertension']);
+      expect(ids(['SCREENING.READ'])).toEqual(['hypertension', 'diabetes']);
     });
 
     it('exposes notes only to a CLINICAL_NOTE.READ holder', () => {

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatOpsDay } from '@/lib/ops';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -8,10 +9,14 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
+import { ageInYears } from '@/lib/stations';
+import { statusLabel } from '@/lib/status-presentation';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
+import styles from '@/components/encounters/encounter-workspace.module.css';
 import {
   RecordSection,
   RecordSectionContent,
@@ -24,6 +29,35 @@ import { HypertensionForm } from '@/components/HypertensionForm';
 import { DiabetesInterviewForm } from '@/components/encounters/diabetes/DiabetesInterviewForm';
 import { HypertensionInterviewForm } from '@/components/encounters/hypertension/HypertensionInterviewForm';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
+
+type WizardPatient = {
+  firstName: string;
+  lastName: string;
+  patientCode: string;
+  dob?: string | null;
+  sex?: string | null;
+  phoneE164?: string | null;
+  nationalIdType?: string | null;
+  nationalIdLast4?: string | null;
+};
+
+// The same identifiers the patient record shows, so a volunteer can tell two Ama Mensahs apart.
+function identityRows(patient: WizardPatient): Array<[string, string]> {
+  const age = ageInYears(patient.dob ?? null);
+  const rows: Array<[string, string]> = [
+    [
+      'Date of birth',
+      patient.dob
+        ? `${formatOpsDay(`${patient.dob.slice(0, 10)}T12:00:00Z`)}${age !== null ? ` (${age} yrs)` : ''}`
+        : 'Not recorded',
+    ],
+    ['Sex', patient.sex && patient.sex !== 'UNKNOWN' ? statusLabel(patient.sex) : 'Not recorded'],
+    ['Phone', patient.phoneE164 || 'No phone on file'],
+  ];
+  if (patient.nationalIdType === 'NONE') rows.push(['National ID', 'No ID document']);
+  else if (patient.nationalIdLast4) rows.push(['National ID', `…${patient.nationalIdLast4}`]);
+  return rows;
+}
 
 const STEPS = ['confirm', 'vitals', 'htn', 'diabetes', 'review'] as const;
 const STEP_LABELS: Record<(typeof STEPS)[number], string> = {
@@ -49,11 +83,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
 
   const [step, setStep] = useState(0);
   const [encounterId, setEncounterId] = useState<string | null>(null);
-  const [patient, setPatient] = useState<{
-    firstName: string;
-    lastName: string;
-    patientCode: string;
-  } | null>(null);
+  const [patient, setPatient] = useState<WizardPatient | null>(null);
   /*
     This wizard rendered the pre-interview forms unconditionally while the encounter page rendered
     the guided ones behind the flag. With the flag on, a volunteer creating a visit here answered
@@ -121,7 +151,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         );
         if (!patientRes.ok) throw new Error(await patientRes.text());
         const data = (await patientRes.json()) as {
-          patient: { firstName: string; lastName: string; patientCode: string };
+          patient: WizardPatient;
         };
         if (cancelled) return;
         setPatient(data.patient);
@@ -166,7 +196,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         <div className="space-y-4">
           <InlineErrorState title="We couldn't start this visit" description={error} />
           <Button asChild variant="outline">
-            <Link href={patientHref}>Back to Patient</Link>
+            <Link href={patientHref}>Back to patient</Link>
           </Button>
         </div>
       );
@@ -180,30 +210,36 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" asChild>
-          <Link href={patientHref}>
-            <ArrowLeft className="h-4 w-4" />
-            Back to Patient
-          </Link>
-        </Button>
-        <span className="text-sm text-muted-foreground">
-          Step {step + 1} of {STEPS.length}
-        </span>
-      </div>
+      <header className={styles.header}>
+        <Link className={styles.back} href={patientHref}>
+          <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Back to patient
+        </Link>
+        <div className={styles.identityRow}>
+          <div className={styles.identity}>
+            <p className="text-sm text-muted-foreground">New visit</p>
+            <h1 className="mt-1 type-page-title">
+              {patient.firstName} {patient.lastName}
+            </h1>
+            <div className={styles.metadata}>
+              <span className="font-mono tabular-nums" translate="no">
+                {patient.patientCode}
+              </span>
+              <span className="tabular-nums">
+                Step {step + 1} of {STEPS.length}
+              </span>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <ol aria-label="Visit steps" className="grid grid-cols-5 gap-2 border-t-2 border-rule-strong">
+      <ol aria-label="Visit steps" className={styles.wizardSteps}>
         {STEPS.map((s, i) => (
           <li
             key={s}
+            data-state={i < step ? 'done' : i === step ? 'current' : 'next'}
             aria-current={i === step ? 'step' : undefined}
-            className={`truncate border-t-2 pt-2 text-xs sm:text-sm ${
-              i === step
-                ? 'border-primary font-semibold text-foreground'
-                : i < step
-                  ? 'border-primary/40 text-muted-foreground'
-                  : 'border-transparent text-muted-foreground'
-            }`}
+            className={styles.step}
           >
             {STEP_LABELS[s]}
           </li>
@@ -215,16 +251,23 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
       {currentStep === 'confirm' && (
         <RecordSection aria-labelledby="new-visit-confirm">
           <RecordSectionHeader>
-            <RecordSectionTitle id="new-visit-confirm">Confirm Patient</RecordSectionTitle>
+            <RecordSectionTitle id="new-visit-confirm">Confirm patient</RecordSectionTitle>
           </RecordSectionHeader>
           <RecordSectionContent>
-            <p className="font-heading text-2xl">
-              {patient.firstName} {patient.lastName}
+            <p className="text-muted-foreground">
+              Check these details with the person in front of you before you record anything.
             </p>
-            <p className="font-mono text-sm text-muted-foreground">{patient.patientCode}</p>
-            <Button className="mt-4" onClick={() => setStep(1)}>
-              Continue to Vitals
-            </Button>
+            <dl className="mt-4 grid gap-x-6 compact:grid-cols-2">
+              {identityRows(patient).map(([term, detail]) => (
+                <div key={term} className="border-b border-rule py-3">
+                  <dt className="type-label font-normal text-muted-foreground">{term}</dt>
+                  <dd className="mt-1 type-data text-foreground">{detail}</dd>
+                </div>
+              ))}
+            </dl>
+            <FormActions sticky className="mt-4">
+              <Button onClick={() => setStep(1)}>Continue to vitals</Button>
+            </FormActions>
           </RecordSectionContent>
         </RecordSection>
       )}
@@ -309,20 +352,22 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
               Review the data in each section. You can go back to edit. When ready, submit for
               clinical review.
             </p>
-            <div className="flex gap-2">
+            <FormActions split sticky>
               <Button variant="outline" onClick={() => setStep(3)}>
-                Back to Diabetes
+                Back to diabetes
               </Button>
               <Button onClick={handleSubmitForReview} disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Submit for Clinical Review'}
+                {submitting ? 'Submitting…' : 'Submit for clinical review'}
               </Button>
-            </div>
+            </FormActions>
           </RecordSectionContent>
         </RecordSection>
       )}
 
+      {/* Its own row under the step's save row, at the start edge: the wizard's split layout. */}
       {!isLastStep && currentStep !== 'confirm' && currentStep !== 'review' && (
         <Button variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))}>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back
         </Button>
       )}

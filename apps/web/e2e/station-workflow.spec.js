@@ -4,6 +4,8 @@ const AxeBuilder = require('@axe-core/playwright').default;
 
 const { apiRequestAs } = require('../playwright/api-client');
 const { storageStateFor } = require('../playwright/roles');
+const { answer, question } = require('../playwright/interview');
+const { keyboardDialog } = require('../playwright/clinical-keyboard.cjs');
 
 /*
   Issue #167: the station line, end to end.
@@ -126,13 +128,20 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   await expect(volunteerPage.getByRole('heading', { name: 'Stations' })).toBeVisible({
     timeout: 20_000,
   });
-  const bpButton = volunteerPage.getByRole('button', { name: /^Blood pressure/ });
+  await volunteerPage.getByRole('button', { name: /^(Choose station|Station )/ }).click();
+  const bpButton = volunteerPage
+    .getByRole('dialog', { name: 'Choose your station' })
+    .getByRole('button', { name: /^Blood pressure/ });
+  // Selecting the current station clears it; close the sheet instead when already there.
   if ((await bpButton.getAttribute('aria-pressed')) !== 'true') await bpButton.click();
-  await expect(volunteerPage.getByText('Reports headaches this week.')).toBeVisible({
-    timeout: 20_000,
-  });
-  const row = volunteerPage.locator('div', { hasText: patient.name }).filter({
+  else await volunteerPage.keyboard.press('Escape');
+  // The next patient is the ticket (article); everyone after is a queue row (li).
+  const row = volunteerPage.locator('article, li', { hasText: patient.name }).filter({
     has: volunteerPage.getByRole('button', { name: 'Take patient' }),
+  });
+  // Scope to this run's patient; prior interrupted runs may leave the same handoff note.
+  await expect(row.last().getByText('Reports headaches this week.')).toBeVisible({
+    timeout: 20_000,
   });
   await row.last().getByRole('button', { name: 'Take patient' }).click();
   await volunteerPage.waitForURL(/\/stations\/visits\//, { timeout: 20_000 });
@@ -142,6 +151,12 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   await volunteerPage.getByRole('option', { name: /left arm/i }).click();
   // The station shows only its own groups.
   await expect(volunteerPage.getByLabel('Weight (kg)')).toHaveCount(0);
+  // Handing on before saving used to drop the typed reading; now it asks first.
+  await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
+  const unsaved = volunteerPage.getByRole('alertdialog').or(volunteerPage.getByRole('dialog'));
+  await expect(unsaved.getByText('Blood pressure is not saved')).toBeVisible();
+  await unsaved.getByRole('button', { name: 'Go back and save' }).click();
+  await expect(volunteerPage).toHaveURL(/\/stations\/visits\//);
   await volunteerPage.getByRole('button', { name: 'Save measurements' }).click();
   await expect(volunteerPage.getByText('Measurements saved and synced.')).toBeVisible({
     timeout: 20_000,
@@ -277,6 +292,30 @@ test('a patient moves through every station and reaches a doctor', async ({ page
     },
   );
   expect(counselling.ok(), counselling.text()).toBeTruthy();
+  // R8.4: the review volunteer's real note must reach a different doctor's cosign.
+  const notePath = `/clinics/${clinicId}/encounters/${encounterId}/clinical-note`;
+  const reviewContext = await browser.newContext({ storageState: storageStateFor('volunteer') });
+  const reviewPage = await reviewContext.newPage();
+  await reviewPage.goto(`/stations/visits/${review.at.visit.id}`);
+  await reviewPage.getByRole('button', { name: 'Start HAP note', exact: true }).click();
+  await reviewPage.getByLabel(/^History$/i).fill('Synthetic station history.');
+  await reviewPage
+    .getByLabel(/^Assessment$/i)
+    .fill('Elevated blood pressure and glucose require follow-up.');
+  await reviewPage.getByLabel(/^Plan$/i).fill('Review with the supervising clinician.');
+  await reviewPage.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(reviewPage.getByText('Draft saved.', { exact: true })).toBeVisible();
+  await keyboardDialog(
+    reviewPage,
+    reviewPage.getByRole('button', { name: 'Submit for cosign', exact: true }),
+    'Submit this HAP note?',
+    'Continue',
+  );
+  await expect(reviewPage.getByText('Pending cosign', { exact: true })).toBeVisible();
+  const submitted = await apiRequestAs('volunteer', 'get', notePath, { clinicId });
+  expect(submitted.json().status).toBe('PENDING_COSIGN');
+  expect(submitted.json().assignedDoctor).toBeNull();
+  await reviewContext.close();
   const done = await complete('volunteer', clinicId, review.at.visit.id);
   expect(done.ok(), done.text()).toBeTruthy();
   expect(done.json()).toMatchObject({ sessionCompleted: true, nextVisitId: null });
@@ -318,7 +357,101 @@ test('a patient moves through every station and reaches a doctor', async ({ page
     doctorPage.getByText('1 abnormal finding · diabetic signs · referral recommended'),
   ).toBeVisible();
   await expect(doctorPage.getByText(/recommended follow-up\s+within 1 month/)).toBeVisible();
+  await doctorPage.getByRole('tab', { name: 'Clinical note', exact: true }).click();
+  await keyboardDialog(
+    doctorPage,
+    doctorPage.getByRole('button', { name: 'Cosign note', exact: true }),
+    'Cosign this HAP note?',
+    'Cosign note',
+  );
+  await expect(doctorPage.getByRole('term').filter({ hasText: /^Cosigned$/ })).toBeVisible();
+  const signed = await apiRequestAs('doctor', 'get', notePath, { clinicId });
+  expect(signed.json().status).toBe('COSIGNED');
+
+  await doctorPage.getByRole('tab', { name: 'Hypertension', exact: true }).click();
+  await answer(doctorPage, 'Hypertension status', 'Newly elevated BP');
+  await doctorPage.getByRole('button', { name: 'Save assessment', exact: true }).click();
+  await expect(doctorPage.getByText(/saved and synced/i)).toBeVisible();
+  await doctorPage.getByLabel('BP goal systolic (mmHg)').fill('130');
+  await doctorPage.getByLabel('BP goal diastolic (mmHg)').fill('80');
+  await answer(doctorPage, 'Follow-up', 'Within 1 month');
+  await answer(doctorPage, 'Follow-up owner', 'Akomapa team');
+  await doctorPage.getByRole('button', { name: 'Save plan', exact: true }).click();
+  await expect(doctorPage.getByText('Plan saved.', { exact: true })).toBeVisible();
+  await doctorPage.getByRole('tab', { name: 'Diabetes', exact: true }).click();
+  await doctorPage.getByRole('button', { name: 'Save screening', exact: true }).click();
+  await expect(doctorPage.getByText(/saved and synced/i)).toBeVisible();
+  await doctorPage.getByRole('button', { name: 'Mark reviewed', exact: true }).click();
+  await keyboardDialog(
+    doctorPage,
+    doctorPage.getByRole('button', { name: 'Finalize', exact: true }),
+    'Finalize this visit?',
+    'Finalize visit',
+  );
+  await expect(doctorPage.getByRole('button', { name: 'Save screening', exact: true })).toHaveCount(
+    0,
+  );
+  const finalized = await apiRequestAs('doctor', 'get', `/encounters/${encounterId}`, { clinicId });
+  expect(finalized.json().status).toBe('FINALIZED');
+  expect(finalized.json().vitals.systolicBp).toBe(150);
+  expect(finalized.json().hypertensionAssessment.hypertensionStatus).toBe('NEWLY_ELEVATED_BP');
+  expect(finalized.json().diabetesScreening).toBeTruthy();
+  expect(finalized.json().carePlan.followUpDate).toBeTruthy();
   await doctorContext.close();
+});
+
+/*
+  The intake volunteer chooses which interviews to run, and an interview that already holds
+  answers opens by itself on the next visit to the station, so nothing recorded is hidden.
+*/
+test('intake runs the interviews the volunteer chooses, and reopens a saved one', async ({
+  page,
+}) => {
+  test.skip(
+    process.env.NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED !== 'true',
+    'The interviews run only with the guided chronic tabs flag on.',
+  );
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const intake = await boardVisit('staff', clinicId, checkIn.json().id);
+  const claim = await apiRequestAs(
+    'staff',
+    'post',
+    `/clinics/${clinicId}/station-visits/${intake.visit.id}/claim`,
+    { clinicId },
+  );
+  expect(claim.ok(), claim.text()).toBeTruthy();
+
+  await page.goto(`/stations/visits/${intake.visit.id}`);
+  const choices = page.getByRole('group', { name: 'Interviews to run' });
+  const hypertension = choices.getByRole('button', { name: 'Hypertension interview' });
+  const diabetes = choices.getByRole('button', { name: 'Diabetes interview' });
+  await expect(hypertension).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
+  await expect(diabetes).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('navigation', { name: 'Hypertension interview' })).toHaveCount(0);
+
+  await hypertension.click();
+  await answer(page, 'Hypertension status', 'Known hypertension');
+  await page.getByRole('button', { name: 'Save assessment' }).click();
+  await expect(page.getByText(/saved (and synced|on this device)/i)).toBeVisible();
+
+  // Back at the station later: the saved interview is open, the untouched one is not.
+  await page.reload();
+  await expect(hypertension).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
+  await expect(diabetes).toHaveAttribute('aria-pressed', 'false');
+  await expect(
+    question(page, 'Hypertension status').getByRole('radio', {
+      name: 'Known hypertension',
+      exact: true,
+    }),
+  ).toBeChecked();
 });
 
 test('manager assignment is refused while the station line runs', async ({ page }) => {
@@ -560,6 +693,14 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   expect(again.status()).toBe(400);
 
   await page.goto('/today');
+  await expect(page.getByRole('heading', { name: 'Station line' })).toBeVisible({
+    timeout: 20_000,
+  });
+  // A busy station folds patients past the first eight; this one queued last.
+  await expect(page.getByTestId('patient-wait-track').first()).toBeVisible({ timeout: 20_000 });
+  for (const more of await page.getByRole('button', { name: /^Show \d+ more$/ }).all()) {
+    await more.click();
+  }
   // The bar opens the patient's menu, which says who handed them over.
   await page.getByRole('button', { name: new RegExp(`^${patient.name}, With staff`) }).click();
   await expect(
@@ -624,8 +765,13 @@ test("a volunteer screening on someone else's account is named on each stop (#22
     await expect(volunteerPage.getByRole('heading', { name: 'Stations' })).toBeVisible({
       timeout: 20_000,
     });
-    const bpButton = volunteerPage.getByRole('button', { name: /^Blood pressure/ });
+    await volunteerPage.getByRole('button', { name: /^(Choose station|Station )/ }).click();
+    const bpButton = volunteerPage
+      .getByRole('dialog', { name: 'Choose your station' })
+      .getByRole('button', { name: /^Blood pressure/ });
+    // Selecting the current station clears it; close the sheet instead when already there.
     if ((await bpButton.getAttribute('aria-pressed')) !== 'true') await bpButton.click();
+    else await volunteerPage.keyboard.press('Escape');
     const holder = volunteerPage.getByRole('checkbox', { name: "I'm the one screening" });
     await expect(holder).toBeChecked({ timeout: 20_000 });
     await holder.click();
@@ -637,7 +783,9 @@ test("a volunteer screening on someone else's account is named on each stop (#22
       timeout: 20_000,
     });
 
-    const row = volunteerPage.locator('div', { hasText: patient.name }).filter({
+    // The next patient is the ticket (article); everyone after is a queue row (li).
+
+    const row = volunteerPage.locator('article, li', { hasText: patient.name }).filter({
       has: volunteerPage.getByRole('button', { name: 'Take patient' }),
     });
     await row.last().getByRole('button', { name: 'Take patient' }).click();
@@ -915,9 +1063,14 @@ test('closing a station clears it from the volunteer working there, who is told 
     await ensureShift('volunteer', clinicId);
     const page = await context.newPage();
     await page.goto('/stations');
-    const choice = page.getByRole('button', { name: new RegExp(`^${name}`) });
+    await page.getByRole('button', { name: /^(Choose station|Station )/ }).click();
+    const choice = page
+      .getByRole('dialog', { name: 'Choose your station' })
+      .getByRole('button', { name: new RegExp(`^${name}`) });
     await choice.click();
-    await expect(page.getByText(`You are working at ${name}.`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: `Station ${name}` })).toBeVisible({
+      timeout: 20_000,
+    });
 
     const closed = await close();
     expect(closed.ok(), closed.text()).toBeTruthy();

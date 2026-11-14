@@ -2,11 +2,9 @@
 
 import { UserPlus, ClipboardList, Stethoscope } from 'lucide-react';
 import { DashboardSectionHeader } from './DashboardSectionHeader';
-import { DashboardKpiCard } from './DashboardKpiCard';
 import { DashboardActionRow } from './DashboardActionRow';
 import { TrendChart } from './TrendChart';
 import { DistributionChart } from './DistributionChart';
-import { AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { HapDraftsList } from './HapDraftsList';
 
 interface VolunteerDashboardProps {
@@ -24,8 +22,6 @@ interface VolunteerDashboardProps {
 }
 
 export function VolunteerDashboard({
-  patientsRegisteredToday,
-  encountersCreatedToday,
   patientsRegisteredTrend,
   encountersCreatedTrend,
   statusBreakdown,
@@ -41,28 +37,23 @@ export function VolunteerDashboard({
         hint="Use this section to track your intake work and move patients to the next step."
       />
 
-      {/* Draft visits lead the page as a "Needs you now" row when there are any. */}
-      <AppMetricGroup className="sm:grid-cols-3">
-        {clinicalNotes ? (
-          <DashboardKpiCard
-            title="Your HAP notes"
-            value={clinicalNotes.drafts + clinicalNotes.pendingCosign}
-            hint={`${clinicalNotes.drafts} draft · ${clinicalNotes.pendingCosign} awaiting cosign`}
-          />
-        ) : null}
-        <DashboardKpiCard
-          title="Patients added today"
-          value={patientsRegisteredToday}
-          icon={UserPlus}
-          hint="Patients you registered today."
-        />
-        <DashboardKpiCard
-          title="Visits started today"
-          value={encountersCreatedToday}
-          icon={ClipboardList}
-          hint="Visits you created today."
-        />
-      </AppMetricGroup>
+      {/* Personal intake counts already appear in NeedsYouNow. HAP totals retain their scope. */}
+      {clinicalNotes ? (
+        <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-y border-rule py-4">
+          <div className="flex items-baseline gap-3">
+            <dt className="text-sm text-muted-foreground">Your HAP notes</dt>
+            <dd className="text-2xl font-semibold tabular-nums">
+              {clinicalNotes.drafts + clinicalNotes.pendingCosign}
+            </dd>
+          </div>
+          <div>
+            <dt className="sr-only">Note status</dt>
+            <dd className="text-sm text-muted-foreground">
+              {clinicalNotes.drafts} draft · {clinicalNotes.pendingCosign} awaiting cosign
+            </dd>
+          </div>
+        </dl>
+      ) : null}
 
       {clinicId && clinicalNotes && clinicalNotes.drafts > 0 ? (
         <HapDraftsList clinicId={clinicId} />

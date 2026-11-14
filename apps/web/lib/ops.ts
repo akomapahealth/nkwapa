@@ -153,12 +153,29 @@ export function formatOpsDate(date: string, timeZone = OPS_DEFAULT_TIMEZONE) {
   });
 }
 
+/** A moment's calendar day at the clinic, e.g. "Nov 5, 2026" (a last visit, not its time). */
+export function formatOpsDay(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+  return formatInTimeZone(value, timeZone, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export function formatOpsDateTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
   return formatInTimeZone(value, timeZone, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+  });
+}
+
+/** A record's exact moment, with year and seconds: audit entries are compared to the second. */
+export function formatOpsTimestamp(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+  return formatInTimeZone(value, timeZone, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
   });
 }
 

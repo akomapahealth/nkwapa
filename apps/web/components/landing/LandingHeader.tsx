@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import Link from 'next/link';
 import { ArrowUpRight, Menu, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
@@ -24,6 +24,23 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
   const { theme, setPreference } = useTheme();
   const nextTheme = theme === 'dark' ? 'light' : 'dark';
 
+  // In-page links glide when clicked or tapped. Tab focus and keyboard activation (a click with
+  // `detail` 0) stay instant: a CSS scroll-behavior on <html> animated every focus stop too.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest?.('a[href^="#"]');
+      const href = link?.getAttribute('href') ?? '';
+      const target = href.length > 1 && document.getElementById(href.slice(1));
+      if (!target || event.detail === 0 || event.defaultPrevented) return;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      event.preventDefault();
+      history.pushState(null, '', href);
+      target.scrollIntoView({ behavior: 'smooth' });
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-background">
       <div className="landing-container flex h-16 items-center justify-between gap-6">
@@ -31,8 +48,7 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
           href={`${base}#top`}
           className="relative flex min-h-11 w-[118px] items-center shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Image
-            src="/images/nkwapa-logo.png"
+          <BrandWordmark
             alt="Nkwapa home"
             width={118}
             height={32}
@@ -60,7 +76,6 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
           <Button
             variant="ghost"
             size="icon"
-            className="min-h-11 min-w-11"
             aria-label={`Switch to ${nextTheme} mode`}
             onClick={() => setPreference(nextTheme)}
           >
@@ -89,18 +104,13 @@ export function LandingHeader({ base = '' }: { base?: '' | '/' }) {
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="min-h-11 min-w-11 lg:hidden"
-                aria-label="Open menu"
-              >
+              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
                 <Menu className="h-5 w-5" aria-hidden />
               </Button>
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="w-[min(22rem,90vw)] overflow-y-auto border-l border-rule px-6 pb-8 pt-6 data-[state=open]:duration-200 data-[state=closed]:duration-150 [&>button]:flex [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:items-center [&>button]:justify-center"
+              className="w-[min(22rem,90vw)] overflow-y-auto border-l border-rule px-6 pb-8 pt-6 [&>button]:flex [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:items-center [&>button]:justify-center"
               aria-describedby={undefined}
               onCloseAutoFocus={(event) => {
                 if (!pendingHash.current) return;

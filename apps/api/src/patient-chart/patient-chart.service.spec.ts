@@ -168,11 +168,17 @@ describe('PatientChartService', () => {
   });
 
   describe('summary block gating', () => {
-    it('omits blocks the caller may not read rather than blanking them', async () => {
-      // A director does not hold CONSENT.RECORD, so the consent block must be absent.
-      const summary = await service.getSummary(CLINIC, PATIENT, actor(UserRole.DIRECTOR));
-      expect(summary.sections.map((s) => s.id)).not.toContain('consent');
-      expect(summary.consent).toBeNull();
+    it('shows consent status to a reader but only asks a recorder to act on it', async () => {
+      const director = await service.getSummary(CLINIC, PATIENT, actor(UserRole.DIRECTOR));
+      expect(director.sections.map((s) => s.id)).toContain('consent');
+      expect(director.consent).not.toBeNull();
+      expect(director.pendingActions.map((a) => a.kind)).not.toContain(
+        'RESEARCH_CONSENT_NOT_RECORDED',
+      );
+      const volunteer = await service.getSummary(CLINIC, PATIENT, actor(UserRole.VOLUNTEER));
+      expect(volunteer.pendingActions.map((a) => a.kind)).toContain(
+        'RESEARCH_CONSENT_NOT_RECORDED',
+      );
     });
 
     it('drops feature-flagged blocks when the flag is disabled', async () => {

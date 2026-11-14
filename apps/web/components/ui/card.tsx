@@ -16,7 +16,11 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
         // The surface is opaque. It was `bg-card/92`, which existed to let the shell's decorative
         // background gradient show through; that gradient is gone, so the alpha only cost contrast
         // on the text sitting on it.
-        'rounded-lg border border-border/80 bg-card text-card-foreground shadow-sm shadow-black/5',
+        //
+        // R1.3: the pilot panel. A bordered 8px panel on the one white sheet, with no shadow, so
+        // the edge alone separates it. Panels sit side by side or in sequence; never nest a Card
+        // inside a Card.
+        'rounded-lg border border-border bg-card text-card-foreground',
         className,
       )}
       {...props}

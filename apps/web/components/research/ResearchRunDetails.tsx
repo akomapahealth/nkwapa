@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { apiFetch, readApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { eventLabel, type ResearchExportItem, type ResearchRunEvent } from '@/lib/research';
+import { formatOpsDateTime } from '@/lib/ops';
 
 function signed(n: number): string {
   return n > 0 ? `+${n}` : String(n);
@@ -43,7 +44,7 @@ function RunEvents({ clinicId, exportId }: { clinicId: string; exportId: string 
               <span className="font-medium text-foreground">{eventLabel(event.action)}</span>
               <span className="text-muted-foreground">
                 {' '}
-                · {new Date(event.at).toLocaleString()} · {event.actor}
+                · {formatOpsDateTime(event.at)} · {event.actor}
               </span>
               {event.note ? <p className="mt-0.5 text-muted-foreground">“{event.note}”</p> : null}
             </li>
@@ -61,9 +62,11 @@ function RunEvents({ clinicId, exportId }: { clinicId: string; exportId: string 
 export function ResearchRunDetails({
   clinicId,
   item,
+  children,
 }: {
   clinicId: string;
   item: ResearchExportItem;
+  children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const deltas = item.changes?.rowCountDeltas ?? {};
@@ -88,51 +91,54 @@ export function ResearchRunDetails({
         Run details
       </summary>
       {open ? (
-        <div className="grid gap-5 border-t border-border/70 p-4 lg:grid-cols-2">
-          <div className="space-y-4">
-            {tables.length > 0 ? (
-              <table className="w-full text-sm">
-                <caption className="mb-2 text-left font-medium text-foreground">
-                  Rows per table
-                </caption>
-                <thead className="sr-only">
-                  <tr>
-                    <th>Table</th>
-                    <th>Rows</th>
-                    <th>Change since the previous run</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tables.map(([table, rows]) => (
-                    <tr key={table} className="border-t border-border/50">
-                      <td className="break-all py-1.5 pr-3 font-mono text-xs text-muted-foreground">
-                        {table}
-                      </td>
-                      <td className="py-1.5 text-right tabular-nums">{rows}</td>
-                      <td className="w-16 py-1.5 text-right text-xs tabular-nums text-muted-foreground">
-                        {deltas[table] ? signed(deltas[table]) : ''}
-                      </td>
+        <div className="space-y-5 border-t border-border/70 p-4">
+          {children}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="space-y-4">
+              {tables.length > 0 ? (
+                <table className="w-full text-sm">
+                  <caption className="mb-2 text-left font-medium text-foreground">
+                    Rows per table
+                  </caption>
+                  <thead className="sr-only">
+                    <tr>
+                      <th>Table</th>
+                      <th>Rows</th>
+                      <th>Change since the previous run</th>
                     </tr>
+                  </thead>
+                  <tbody>
+                    {tables.map(([table, rows]) => (
+                      <tr key={table} className="border-t border-border/50">
+                        <td className="break-all py-1.5 pr-3 font-mono text-xs text-muted-foreground">
+                          {table}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">{rows}</td>
+                        <td className="w-16 py-1.5 text-right text-xs tabular-nums text-muted-foreground">
+                          {deltas[table] ? signed(deltas[table]) : ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-sm text-muted-foreground">No tables have been generated yet.</p>
+              )}
+              <dl className="space-y-2 text-sm">
+                {facts
+                  .filter(([, value]) => value)
+                  .map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="font-medium text-foreground">{label}</dt>
+                      <dd className="break-all font-mono text-xs text-muted-foreground">{value}</dd>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-sm text-muted-foreground">No tables have been generated yet.</p>
-            )}
-            <dl className="space-y-2 text-sm">
-              {facts
-                .filter(([, value]) => value)
-                .map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="font-medium text-foreground">{label}</dt>
-                    <dd className="break-all font-mono text-xs text-muted-foreground">{value}</dd>
-                  </div>
-                ))}
-            </dl>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">Steps</p>
-            <RunEvents clinicId={clinicId} exportId={item.id} />
+              </dl>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Steps</p>
+              <RunEvents clinicId={clinicId} exportId={item.id} />
+            </div>
           </div>
         </div>
       ) : null}

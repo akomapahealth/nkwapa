@@ -2,17 +2,97 @@
 @tailwind components;
 @tailwind utilities;
 
+/* A real stop per station. Flow vertically until the available workspace can hold a route. */
+.station-route {
+  display: grid;
+  gap: 1.5rem;
+}
+.station-line {
+  container-type: inline-size;
+}
+.station-route li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.station-route-stop {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.375rem;
+  border: 2px solid hsl(var(--primary));
+  border-radius: 50%;
+  background: hsl(var(--card));
+}
+.station-route-stop-busy {
+  background: hsl(var(--primary));
+}
+/*
+  Role homes (W2): measured bars grow from their start once, on first paint, so the eye reads them
+  as lengths. Transform only; the global reduced-motion rule flattens it.
+*/
+.station-time-bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  transform-origin: left;
+  animation: station-time-grow 600ms var(--ease-out) backwards;
+}
+@keyframes station-time-grow {
+  from {
+    transform: scaleX(0.02);
+  }
+}
+.station-route-stop-mine {
+  border-color: hsl(var(--secondary));
+  background: hsl(var(--secondary));
+}
+.station-route li:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 0.3125rem;
+  top: 0.75rem;
+  bottom: -1.875rem;
+  width: 2px;
+  background: hsl(var(--mint-line));
+}
+@container (min-width: 48rem) {
+  .station-route {
+    display: flex;
+    gap: 0;
+  }
+  .station-route li {
+    flex: 1;
+    flex-direction: column;
+    padding-right: 1rem;
+  }
+  .station-route li:not(:last-child)::before {
+    left: 0.375rem;
+    right: -0.375rem;
+    top: 0.6875rem;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
+}
+
 @layer base {
   :root {
     /* app/layout.tsx loads each family as two faces; latin-ext only covers its unicode-range. */
     --font-body: var(--font-body-ext), var(--font-body-latin);
     --font-heading: var(--font-heading-ext), var(--font-heading-latin);
-    --background: 54 63% 97%;
-    --foreground: 200 25% 15%;
-    --card: 50 33% 98%;
-    --card-foreground: 200 25% 15%;
-    --popover: 50 33% 98%;
-    --popover-foreground: 200 25% 15%;
+    /* Layered Clinical Workspace (docs/design-system/ui-refresh/R0-AUDIT.md section 4): a
+       teal-tinted canvas (#F2F7F7) with one white sheet (#FFF) on it, ink #19282E. */
+    --background: 180 23.8% 95.9%;
+    --foreground: 197.1 29.6% 13.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 197.1 29.6% 13.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 197.1 29.6% 13.9%;
     /* Derived from the logo teal hsl(188 100% 32%) by the rule in docs/design-system/MASTER.md
        section 2: keep hue and saturation exactly, move lightness only, by the minimum needed to
        clear AA. The logo colour itself measures 3.91:1 with white and cannot be used as a fill.
@@ -21,18 +101,33 @@
        at 4.31:1. Previously 191 98% 30%, which was 9.7 deltaE from the logo. */
     --primary: 188 100% 27%;
     --primary-foreground: 0 0% 100%;
+    /* #006A7A, the R0 pilot primary hover: lightness only, darker so white text gains contrast. */
+    --primary-hover: 188 100% 24%;
     /* Exactly the logo gold. Dark ink on it measures 9.90:1, so no accessibility compromise is
        needed. Previously 43 84% 55%, which was 6.5 deltaE from the logo. */
     --secondary: 47 100% 55%;
-    --secondary-foreground: 200 25% 15%;
-    --muted: 45 30% 93%;
-    /* 40% rather than 45%: secondary text measured 4.51:1 on card and 4.09:1 on the muted fill,
-       either side of the 4.5:1 line depending on which surface it lands on. Five points darker
-       clears it on every surface the app actually uses. */
-    --muted-foreground: 200 10% 40%;
-    /* Hue moved 43 -> 47 to sit in the same family as the logo gold. */
-    --accent: 47 60% 92%;
-    --accent-foreground: 200 25% 15%;
+    --secondary-foreground: 197.1 29.6% 13.9%;
+    /* #F7FAFA, the recessed fill inside the sheet. */
+    --muted: 180 23.1% 97.5%;
+    /* #55666D: clears 4.5:1 on the canvas, the sheet and the muted fill. */
+    --muted-foreground: 197.5 12.4% 38%;
+    /* #E1F2F4, the selected/hover row tint. Gold now lives in --gold-surface. */
+    --accent: 186.3 46.3% 92%;
+    --accent-foreground: 197.1 29.6% 13.9%;
+    /* Extended palette from the R0 pilot, all derived from logo teal 188 and gold 47. */
+    --surface-2: 180 23.1% 97.5%;
+    --selected: 186.3 46.3% 92%;
+    --mint: 171.4 38.9% 92.9%;
+    --mint-line: 170 31.6% 85.1%;
+    /* The exact logo teal #008DA3: decoration and large marks only, never body text or fills
+       behind white text (3.91:1). */
+    --brand: 188.1 100% 32%;
+    --gold-surface: 46.7 100% 92.9%;
+    --gold-ink: 37.8 89.5% 26.1%;
+    --deep: 190.2 74.7% 17.1%;
+    --elevation-raised: 0 2px 8px hsl(var(--deep) / 0.06), inset 0 1px 0 hsl(var(--card) / 0.85);
+    /* #8A9BA1: placeholder and disabled text only; below 4.5:1 by design. */
+    --faint: 195.7 10.9% 58.6%;
     /* Success and warning are new. Warning is orange at hue 32 rather than amber, because
        --secondary is gold at hue 47: sharing a hue would make a warning badge indistinguishable
        from decorative brand furniture. Separation is 24.2 deltaE. White on success measures
@@ -40,7 +135,7 @@
     --success: 152 65% 30%;
     --success-foreground: 0 0% 100%;
     --warning: 32 90% 48%;
-    --warning-foreground: 200 25% 15%;
+    --warning-foreground: 197.1 29.6% 13.9%;
     /* Info carries the "awaiting review" workflow state, which is neither success, warning, nor
        destructive. It is not a brand colour and must not be used for actions. */
     --info: 200 60% 40%;
@@ -54,7 +149,8 @@
     --success-ink: 152 65% 26%;
     --warning-ink: 32 90% 28%;
     --info-ink: 200 60% 26%;
-    --destructive: 0 72% 51%;
+    /* 49% rather than 51%: on the teal canvas 51% fell to 4.44:1 as text; 49% measures 4.68:1. */
+    --destructive: 0 72% 49%;
     --destructive-foreground: 0 0% 100%;
     /* The fourth ink, and the one that was missing while the rule above already forbade its
        absence. --destructive is fine as text on a neutral surface (4.64:1 on the card) and fails
@@ -66,11 +162,10 @@
        "fix" this value. --input is NOT exempt, which is why it is now split away from --border:
        previously both were 45 20% 87%, so every text input, select, and textarea in the product
        had an effectively invisible boundary. At 200 15% 52% it measures 3.47:1. */
-    --border: 45 20% 87%;
-    /* Ruled Chart: decorative hairlines stay soft; the 2px group rule uses ink.
-       --rule-strong measures 14.30:1 on canvas and 14.31:1 on card. */
+    --border: 190.9 18% 88%;
     --rule: var(--border);
-    --rule-strong: var(--foreground);
+    /* A calm teal-grey group rule: still >= 3:1 non-text, no longer the loudest thing on a page (W3 polish). */
+    --rule-strong: 192 16% 50%;
     /* Opaque status surfaces, derived from a 12% fill over --card and rounded to
        0.1 HSL units. Paired -ink contrast: success 5.20, warning 5.90, info 7.29,
        destructive 6.02. Explicit surfaces stay predictable on any parent. */
@@ -78,18 +173,21 @@
     --warning-surface: 33.8 72.1% 92%;
     --info-surface: 192.4 25.7% 91%;
     --destructive-surface: 6 63% 92.4%;
+    /* R1.3 (audit A8): Stage 2 blood pressure, a stronger warning than Stage 1's amber and still
+       short of the filled destructive Crisis tag. Hue 20 sits between warning 32 and destructive 0.
+       Ink on surface 5.67:1. --severe is the chart bar fill, 4.34:1 on the card. */
+    --severe: 20 85% 44%;
+    --severe-ink: 20 88% 31%;
+    --severe-surface: 20 86% 89%;
     --input: 200 15% 52%;
     --ring: 188 100% 27%;
-    /* Pale sage nav rail. 88% is the shallowest tint that still reads as a separate panel
-       against the cream canvas (1.21:1); at 91% it drops to 1.14:1 and the surfaces merge,
-       failing issue #66. Lab hue sits 60 degrees from the logo teal, so it does not read as a
-       washed-out brand colour. At 88% the standard --muted-foreground lands at 4.49:1 and fails
-       by 0.01, so the sidebar carries its own muted ink at 6.13:1 instead of lightening the
-       panel. --sidebar-border is a decorative divider and is exempt from 1.4.11. */
-    --sidebar: 148 32% 88%;
-    --sidebar-border: 148 24% 70%;
-    --sidebar-muted-foreground: 200 14% 32%;
-    --radius: 0.625rem;
+    /* The nav rail sits on the canvas; the white sheet beside it is what separates the panels
+       (issue #66). --sidebar-border is a decorative divider and is exempt from 1.4.11. */
+    --sidebar: 180 23.8% 95.9%;
+    --sidebar-border: 190.9 18% 88%;
+    --sidebar-muted-foreground: 197.5 12.4% 38%;
+    /* 0.5rem gives the R0 radius scale: xl 12, lg 8, md 6, sm 4. No squircles. */
+    --radius: 0.5rem;
     /*
       Motion, per MASTER.md section 7: 150ms for colour and opacity, 200ms for position, nothing
       longer in a clinical view. The curves are stronger than the CSS keywords, which start too
@@ -101,6 +199,10 @@
     --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
     --duration-fast: 150ms;
     --duration-base: 200ms;
+    --duration-exit: 160ms;
+    --duration-fast-exit: 120ms;
+    --duration-sheet: 240ms;
+    --duration-sheet-exit: 190ms;
     /*
       Five series, derived and then measured -- see scripts/check-chart-palette.mjs, which runs
       these same checks in CI. The palette this replaced was two brand hues at two lightnesses
@@ -123,35 +225,96 @@
       ground while still reading as yellow. Every chart that uses it therefore names its series in
       a legend and labels the marks directly, so colour is never the only channel.
     */
+    /*
+      Control heights, MASTER section 8. Touch keeps the 44px floor; a mouse or trackpad does not
+      need it, and on the shared clinic laptops 44px controls read as oversized. Icon and small
+      buttons keep a 44px hit area through a pseudo-element on fine pointers too.
+    */
+    --button-height: 2.75rem;
+    --button-height-sm: 2.75rem;
+    --button-height-lg: 3rem;
+    --field-height: 2.75rem;
+    /* Select, dropdown and combobox rows, and tab triggers (48px under touch is set on Tabs). */
+    --menu-row-height: 2.75rem;
+    --tab-height: 2.75rem;
+
+    /*
+      Avatar tones (R7.5): eight hues, one per person, picked by `lib/avatar-tone.ts` from a stable
+      hash so a colleague keeps their colour on every surface. Red, green and amber are left out so a
+      tone never reads as a status. Initials measure 5.4:1 or better on each fill in both themes.
+    */
+    --avatar-1: 188 60% 88%;
+    --avatar-1-ink: 188 60% 25%;
+    --avatar-2: 208 60% 88%;
+    --avatar-2-ink: 208 60% 25%;
+    --avatar-3: 230 60% 88%;
+    --avatar-3-ink: 230 60% 25%;
+    --avatar-4: 255 60% 88%;
+    --avatar-4-ink: 255 60% 25%;
+    --avatar-5: 280 60% 88%;
+    --avatar-5-ink: 280 60% 25%;
+    --avatar-6: 305 60% 88%;
+    --avatar-6-ink: 305 60% 25%;
+    --avatar-7: 330 60% 88%;
+    --avatar-7-ink: 330 60% 25%;
+    --avatar-8: 50 75% 88%;
+    --avatar-8-ink: 50 75% 25%;
+  }
+
+  @media (pointer: fine) {
+    :root {
+      --button-height: 2.25rem;
+      --button-height-sm: 2rem;
+      --button-height-lg: 2.5rem;
+      --field-height: 2.5rem;
+      --menu-row-height: 2.25rem;
+      --tab-height: 2.5rem;
+    }
   }
 
   .dark {
-    --background: 200 25% 8%;
-    --foreground: 54 20% 92%;
-    --card: 200 20% 11%;
-    --card-foreground: 54 20% 92%;
-    --popover: 200 20% 11%;
-    --popover-foreground: 54 20% 92%;
+    --background: 192 29.4% 6.7%;
+    --foreground: 188.6 17.1% 92%;
+    --card: 195 23.1% 10.2%;
+    --card-foreground: 188.6 17.1% 92%;
+    --popover: 195 23.1% 10.2%;
+    --popover-foreground: 188.6 17.1% 92%;
     /* Dark mode keeps the fills bright so they read against the background, which means their
        text has to be dark rather than white: white measured 2.66:1 on primary and 2.22:1 on
        secondary. Hues moved to 188 and 47 to match the logo, per MASTER.md section 2. Dark ink
        now measures 7.77:1 on primary and 10.00:1 on secondary. */
     --primary: 188 80% 47%;
-    --primary-foreground: 200 25% 10%;
+    --primary-foreground: 192 29.4% 6.7%;
+    /* Lighter in dark, so the dark ink on it gains contrast. */
+    --primary-hover: 188 80% 56%;
     --secondary: 47 85% 52%;
-    --secondary-foreground: 200 25% 10%;
-    --muted: 200 15% 18%;
-    --muted-foreground: 200 10% 60%;
-    --accent: 200 15% 18%;
-    --accent-foreground: 54 20% 92%;
+    --secondary-foreground: 192 29.4% 6.7%;
+    --muted: 192.9 21.9% 12.5%;
+    /* R7.6: 65% (was 63.9%), because a warning notice's description measured 4.48:1 on
+       --warning-surface. Now 4.63:1 there, 5.25:1 on --selected, 7.27:1 on the card. */
+    --muted-foreground: 190 9.8% 65%;
+    --accent: 188.1 42.5% 17.1%;
+    --accent-foreground: 188.6 17.1% 92%;
+    --surface-2: 192.9 21.9% 12.5%;
+    --selected: 188.1 42.5% 17.1%;
+    --mint: 182.6 35.4% 12.7%;
+    --mint-line: 178.1 32% 19%;
+    --brand: 188.1 80% 47.1%;
+    --gold-surface: 42.6 40.3% 15.1%;
+    --gold-ink: 47.1 84.6% 72%;
+    /* Dark has no deeper teal to step down to; the band uses the selected tint instead. */
+    --deep: 188.1 42.5% 17.1%;
+    --elevation-raised:
+      0 1px 0 hsl(var(--border) / 0.5), inset 0 1px 0 hsl(var(--foreground) / 0.07);
+    --faint: 192.5 9.8% 48.2%;
     /* Dark ink measures 7.89:1 on success and 8.43:1 on warning. Warning stays clear of the
        gold secondary in dark as well. */
     --success: 152 55% 50%;
-    --success-foreground: 200 25% 10%;
+    --success-foreground: 192 29.4% 6.7%;
     --warning: 35 90% 58%;
-    --warning-foreground: 200 25% 10%;
+    --warning-foreground: 192 29.4% 6.7%;
     --info: 200 60% 58%;
-    --info-foreground: 200 25% 10%;
+    --info-foreground: 192 29.4% 6.7%;
     /* Dark inverts the badge: a dark tint of the hue carrying light ink. Measured on a 22% tint
        over the dark card: success 6.82:1, warning 6.74:1, info 6.49:1. */
     --success-ink: 152 40% 74%;
@@ -177,38 +340,110 @@
         text on --card         5.48:1
         text on its own 12% tint  4.67:1   (the InlineNotice error tone)
         --destructive-foreground on the fill  5.60:1
+
+      R7.6: 71% (was 66%). At 66% a destructive menu item on its hover and focus tint
+      (--accent, the same as --selected) measured 3.99:1, and 4.39:1 on --gold-surface. At 71%:
+      4.76:1 on --selected, 5.24:1 on --gold-surface, 6.60:1 on the card, 7.17:1 for the dark ink
+      on the fill.
     */
-    --destructive: 0 62% 66%;
-    --destructive-foreground: 200 25% 10%;
+    --destructive: 0 62% 71%;
+    --destructive-foreground: 192 29.4% 6.7%;
     /* Same split as light mode: --border stays a soft decorative divider, --input carries the
        3:1 control boundary and measures 4.74:1 against the dark canvas. */
-    --border: 200 15% 20%;
-    /* Same rule roles in dark: strong 15.66:1 on canvas, 14.50:1 on card.
-       Hairlines are decorative (1.47:1 on canvas), never control boundaries. */
+    --border: 198 20.8% 18.8%;
+    /* Hairlines are decorative, never control boundaries. */
     --rule: var(--border);
-    --rule-strong: var(--foreground);
+    --rule-strong: 190 12% 42%;
     /* 22% fill over --card, rounded to 0.1 HSL units. Paired -ink contrast:
        success 6.83, warning 6.75, info 6.37, destructive 6.66. */
     --success-surface: 161.2 37.8% 19%;
     --warning-surface: 38.9 30.9% 21.3%;
     --info-surface: 200 34% 21.3%;
     --destructive-surface: 350.2 15.5% 22.5%;
-    --input: 200 14% 50%;
+    /* Stage 2 in dark: ink on surface 6.72:1; the bar fill clears the card with room. */
+    --severe: 22 85% 62%;
+    --severe-ink: 22 85% 76%;
+    --severe-surface: 18 38% 22%;
+    --input: 192.4 11.8% 48%;
     --ring: 188 80% 47%;
-    /* Dark counterpart of the sage nav rail: 1.23:1 against the dark canvas, which reads as a
-       distinct panel at these luminances. Body ink measures 12.68:1 on it and the sidebar's own
-       muted ink 6.51:1. */
-    --sidebar: 155 20% 14%;
-    --sidebar-border: 155 18% 26%;
-    --sidebar-muted-foreground: 155 8% 66%;
+    --sidebar: 192 29.4% 6.7%;
+    --sidebar-border: 198 20.8% 18.8%;
+    --sidebar-muted-foreground: 190 9.8% 65%;
     /* Re-stepped for the dark card, not flipped from light: the band is narrower here
        (OKLCH L 0.48-0.67) and every slot clears 3:1 on this surface. */
     --chart-1: 188 100% 37%; /* #00A4BD teal    5.67:1 */
     --chart-2: 48 99% 35%; /* #B28E01 gold    5.44:1 */
+    /* 2.87:1 on --muted, so keep chart-3 on the card. R7.6 tried 48%: it cleared --muted but
+       took chart-3 vs chart-5 (tritan) to deltaE 5.3, below the CI floor. Its two charts are
+       single-series lines on the card. */
     --chart-3: 326 55% 46%; /* #B6357E magenta 3.06:1 */
     --chart-4: 246 96% 74%; /* #8A7DFC violet  5.17:1 */
     --chart-5: 20 96% 41%; /* #CD4704 rust    3.62:1 */
+    --avatar-1: 188 33% 26%;
+    --avatar-1-ink: 188 55% 86%;
+    --avatar-2: 208 33% 26%;
+    --avatar-2-ink: 208 55% 86%;
+    --avatar-3: 230 33% 26%;
+    --avatar-3-ink: 230 55% 86%;
+    --avatar-4: 255 33% 26%;
+    --avatar-4-ink: 255 55% 86%;
+    --avatar-5: 280 33% 26%;
+    --avatar-5-ink: 280 55% 86%;
+    --avatar-6: 305 33% 26%;
+    --avatar-6-ink: 305 55% 86%;
+    --avatar-7: 330 33% 26%;
+    --avatar-7-ink: 330 55% 86%;
+    --avatar-8: 50 42% 26%;
+    --avatar-8-ink: 50 70% 86%;
   }
+}
+
+/* Outside the layers so Tailwind never purges a tone it cannot see in a template literal. */
+[data-avatar-tone='1'] {
+  background-color: hsl(var(--avatar-1));
+  color: hsl(var(--avatar-1-ink));
+}
+[data-avatar-tone='2'] {
+  background-color: hsl(var(--avatar-2));
+  color: hsl(var(--avatar-2-ink));
+}
+[data-avatar-tone='3'] {
+  background-color: hsl(var(--avatar-3));
+  color: hsl(var(--avatar-3-ink));
+}
+[data-avatar-tone='4'] {
+  background-color: hsl(var(--avatar-4));
+  color: hsl(var(--avatar-4-ink));
+}
+[data-avatar-tone='5'] {
+  background-color: hsl(var(--avatar-5));
+  color: hsl(var(--avatar-5-ink));
+}
+[data-avatar-tone='6'] {
+  background-color: hsl(var(--avatar-6));
+  color: hsl(var(--avatar-6-ink));
+}
+[data-avatar-tone='7'] {
+  background-color: hsl(var(--avatar-7));
+  color: hsl(var(--avatar-7-ink));
+}
+[data-avatar-tone='8'] {
+  background-color: hsl(var(--avatar-8));
+  color: hsl(var(--avatar-8-ink));
+}
+
+/* Art drawn for one theme (BrandWordmark). */
+.dark .theme-light-only,
+html:not(.dark) .theme-dark-only {
+  display: none;
+}
+
+/* R7.6: a theme switch crossfades the page (lib/theme-context.tsx). Opacity only, so it also runs
+   under reduced motion; everything on screen changes, hence ease-in-out (MASTER 9.1 rule 1). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-in-out);
 }
 
 @layer base {
@@ -236,6 +471,38 @@
   li,
   figcaption {
     text-wrap: pretty;
+  }
+
+  /* R7.2: one focus indicator. Anything without its own ring gets the house teal instead of the
+     browser's blue, and nothing transitions it in: focus is a keyboard event (MASTER 9.1). */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* R7.3: Chromium's date and time calendar button is its own tab stop, drawn with the browser's
+     blue. A pseudo-element cannot take :focus, but the host then matches :focus-within and not
+     :focus, so that state draws the house ring on the button (the field rings on focus-within). */
+  input::-webkit-calendar-picker-indicator {
+    border-radius: 2px;
+    outline: none;
+  }
+  input:focus-within:not(:focus)::-webkit-calendar-picker-indicator {
+    background-color: hsl(var(--ring) / 0.16);
+    box-shadow: 0 0 0 2px hsl(var(--ring));
+  }
+
+  /* WCAG 2.4.11: a control that focus scrolls into view clears the sticky header, and on phones
+     the bottom nav and the chat button above it (8rem together); from 600px only the chat
+     button. Without this, Skip to main content then Tab put the first control under the header. */
+  html:has(#main-content) {
+    scroll-padding-top: calc(4.5rem + env(safe-area-inset-top));
+    scroll-padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 600px) {
+    html:has(#main-content) {
+      scroll-padding-bottom: 5rem;
+    }
   }
 }
 
@@ -328,47 +595,6 @@
   .landing-container {
     @apply mx-auto w-full max-w-[76rem] px-5 sm:px-8;
   }
-
-  /* Long-form text on /privacy and /terms. */
-  .legal-prose {
-    @apply max-w-[68ch] text-base leading-relaxed text-foreground/85;
-  }
-  .legal-prose h2 {
-    @apply mt-14 scroll-mt-20 border-t border-border pt-8 font-heading text-2xl font-semibold text-foreground sm:text-3xl;
-  }
-  /* Section numbers, matching the contents list; hidden from screen readers where supported. */
-  .legal-prose {
-    counter-reset: legal-section;
-  }
-  .legal-prose > section > h2::before {
-    counter-increment: legal-section;
-    content: counter(legal-section, decimal-leading-zero);
-    content: counter(legal-section, decimal-leading-zero) / '';
-    @apply mb-3 block font-heading text-sm font-semibold tabular-nums text-primary;
-  }
-  .legal-prose section:first-child h2 {
-    @apply mt-8 border-t-0 pt-0;
-  }
-  .legal-prose h3 {
-    @apply mt-8 font-body text-base font-semibold text-foreground;
-  }
-  .legal-prose p,
-  .legal-prose ul {
-    @apply mt-4;
-  }
-  .legal-prose ul {
-    @apply list-disc space-y-2 pl-5 marker:text-primary;
-  }
-  .legal-prose a {
-    @apply rounded-sm font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
-  }
-  .legal-prose strong {
-    @apply font-semibold text-foreground;
-  }
-  /* Storage keys like nkwapa-clinician-plan-seal-key are wider than a 320px column. */
-  .legal-prose code {
-    overflow-wrap: anywhere;
-  }
 }
 
 /* The hero fills the first screen: the sticky header always, the release banner while it shows. */
@@ -378,28 +604,12 @@
 .landing-scroll-pulse {
   stroke-dasharray: 18 100;
   stroke-dashoffset: 18;
-  animation: landing-scroll-pulse 2.4s var(--ease-in-out) infinite;
+  /* Three passes, then the faint trace rests: MASTER section 9 rules out continuous decoration. */
+  animation: landing-scroll-pulse 2.4s var(--ease-in-out) 0.8s 3;
 }
 @keyframes landing-scroll-pulse {
   to {
     stroke-dashoffset: -100;
-  }
-}
-
-/* Reading progress on /privacy and /terms, tied to the scroll position. */
-.legal-progress {
-  transform: scaleX(0);
-  transform-origin: 0 50%;
-}
-@supports (animation-timeline: scroll()) {
-  .legal-progress {
-    animation: legal-progress linear both;
-    animation-timeline: scroll(root);
-  }
-}
-@keyframes legal-progress {
-  to {
-    transform: scaleX(1);
   }
 }
 
@@ -427,9 +637,9 @@
   margin-bottom: -0.14em;
 }
 
-/* Anchor links on the landing page glide; the reduced-motion rule below turns this off. */
+/* Section anchors clear the sticky header. Clicked links glide from LandingHeader instead of a
+   scroll-behavior here, which also animated every Tab (R7.2). */
 html:has([data-landing]) {
-  scroll-behavior: smooth;
   scroll-padding-top: 4rem;
 }
 
@@ -454,4 +664,269 @@ html:has([data-landing]) {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* R1.5: CSS transitions reverse from the current frame, including during an exit.
+   Radix Presence waits for an animation, not a transition. This nonvisual clock keeps
+   the node mounted for the exit; it never drives opacity or transform itself. */
+@keyframes anchored-presence {
+  from {
+    --anchored-presence: 0;
+  }
+  to {
+    --anchored-presence: 1;
+  }
+}
+
+.anchored-overlay {
+  --overlay-enter: var(--duration-base);
+  --overlay-exit: var(--duration-exit);
+  opacity: 1;
+  transform: scale(1);
+  transition-property: opacity, transform;
+  transition-duration: var(--overlay-enter);
+  transition-timing-function: var(--ease-out);
+}
+
+.anchored-tooltip {
+  --overlay-enter: var(--duration-fast);
+  --overlay-exit: var(--duration-fast-exit);
+}
+
+@starting-style {
+  .anchored-overlay {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.anchored-overlay[data-state='closed'] {
+  opacity: 0;
+  transform: scale(0.95);
+  pointer-events: none;
+  transition-duration: var(--overlay-exit);
+  animation: anchored-presence var(--overlay-exit) linear;
+}
+
+/* Scanning neighbouring icons skips the transition as well as the hover delay. */
+.anchored-tooltip[data-state='instant-open'] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anchored-overlay {
+    transform: none;
+    /* Deliberately override the global 0.01ms clamp for this opacity-only fade. */
+    transition-duration: var(--overlay-enter) !important;
+  }
+  .anchored-overlay[data-state='closed'] {
+    transform: none;
+    transition-duration: var(--overlay-exit) !important;
+    animation-duration: var(--overlay-exit) !important;
+  }
+  @starting-style {
+    .anchored-overlay {
+      transform: none;
+    }
+  }
+}
+
+/* Routine keyboard operations never wait for an entrance or exit. The shared
+   input tracker survives Radix's programmatic focus handoff into the popup. */
+:root:not([data-overlay-input='pointer']) .anchored-overlay {
+  transition-duration: 0s !important;
+  /* Keep the clock's name: cancelling it mid-exit can strand Radix Presence. */
+  animation-duration: 0.01ms !important;
+}
+
+.anchored-tooltip[data-state='instant-open'] {
+  transition-duration: 0s !important;
+}
+
+/* R7.3: dialogs share the anchored clock above (scale from the centre, since a modal has no
+   trigger to grow from). The scrim only fades, on the shorter clock. */
+.dialog-scrim {
+  --overlay-enter: var(--duration-fast);
+  --overlay-exit: var(--duration-fast-exit);
+}
+
+.dialog-scrim,
+.dialog-scrim[data-state='closed'] {
+  transform: none;
+}
+
+@starting-style {
+  .dialog-scrim {
+    transform: none;
+  }
+}
+
+/* R7.4: form dialogs (`DialogContent variant="form"`). The footer stays pinned to the bottom of
+   the dialog while the fields scroll, so Save is reachable on a short screen (landscape phones,
+   200% zoom) without scrolling past every field. The dialog's own bottom padding moves into the
+   footer so the pinned and resting positions are the same. */
+.dialog-form {
+  padding-bottom: 0;
+}
+.dialog-form:not(:has(.dialog-footer)) {
+  padding-bottom: 1.5rem;
+}
+.dialog-form .dialog-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-inline: -1.5rem;
+  padding: 0.75rem 1.5rem 1.5rem;
+  border-top: 1px solid hsl(var(--rule));
+  background-color: hsl(var(--background));
+}
+
+/* Below 600px a form dialog is a bottom sheet (MASTER 5.4): full width, flush with the bottom edge
+   and lifted above the virtual keyboard (`--keyboard-inset`, KeyboardInset). It keeps the dialog's
+   transition clock, so a sheet closed mid-entrance slides back from where it is, on the drawer
+   curve and the sheet timings (240 ms in, 190 ms out). No drag handle: it would promise a gesture
+   this surface does not have; Cancel and Escape close it. */
+@media (max-width: 599.98px) {
+  .anchored-overlay.dialog-form {
+    --overlay-enter: var(--duration-sheet);
+    --overlay-exit: var(--duration-sheet-exit);
+    inset: auto 0 var(--keyboard-inset, 0px) 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - var(--keyboard-inset, 0px) - env(safe-area-inset-top) - 0.75rem);
+    border-width: 1px 0 0;
+    border-radius: 0.75rem 0.75rem 0 0;
+    padding-inline: max(1.5rem, env(safe-area-inset-left)) max(1.5rem, env(safe-area-inset-right));
+    transition-timing-function: var(--ease-drawer);
+  }
+  .dialog-form:not(:has(.dialog-footer)) {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+  .dialog-form .dialog-footer {
+    margin-inline: min(-1.5rem, calc(-1 * env(safe-area-inset-left)))
+      min(-1.5rem, calc(-1 * env(safe-area-inset-right)));
+    padding: 0.75rem max(1.5rem, env(safe-area-inset-right))
+      calc(1rem + env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+  }
+  /* The keyboard is its own bottom edge: no home-indicator padding above it. */
+  :root[data-keyboard] .dialog-form .dialog-footer {
+    padding-bottom: 0.75rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .anchored-overlay.dialog-form[data-state='closed'] {
+      opacity: 1;
+      transform: translateY(100%);
+    }
+    @starting-style {
+      .anchored-overlay.dialog-form {
+        opacity: 1;
+        transform: translateY(100%);
+      }
+    }
+  }
+}
+
+/* R7.1: sheets (tailwindcss-animate keyframes, which read these variables).
+   Reduced motion keeps the fade and drops the zoom and slide; keyboard opens and closes are instant,
+   as for the anchored overlays above. Presence still sees an animation end, so nothing strands. */
+@media (prefers-reduced-motion: reduce) {
+  .modal-motion {
+    --tw-enter-scale: 1 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+    /* Sheets only slide in normal motion; here the slide becomes a fade. */
+    --tw-enter-opacity: 0 !important;
+    --tw-exit-opacity: 0 !important;
+    animation-duration: var(--duration-base) !important;
+  }
+  .modal-motion[data-state='closed'] {
+    animation-duration: var(--duration-exit) !important;
+  }
+}
+
+:root:not([data-overlay-input='pointer']) .modal-motion {
+  animation-duration: 0.01ms !important;
+}
+
+/* DataTable: one row model, with presentation determined by its available width.
+   60rem accommodates patient identifiers, contact data and two 44px actions.
+   Without container-query support the complete scrollable table remains available. */
+@supports (container-type: inline-size) {
+  .data-table-adaptive {
+    container: data-table / inline-size;
+  }
+
+  .data-table-adaptive .data-table-grid {
+    display: none;
+  }
+
+  @container data-table (min-width: 60rem) {
+    .data-table-cards {
+      display: none;
+    }
+
+    .data-table-adaptive .data-table-grid {
+      display: block;
+    }
+  }
+}
+
+@supports not (container-type: inline-size) {
+  .data-table-cards {
+    display: none;
+  }
+}
+
+/* The workspace <main> is a scroll container (overflow: auto) that grows with its content, so a
+   sticky element inside it never pins to the screen. The read-aloud interview's rail and the
+   data-entry save rows must (BRIEF-INTERVIEW.md, STICKY_ACTIONS), so on pages that hold one,
+   <main> clips sideways instead of scrolling. Every other page keeps the old behaviour. */
+#main-content:has([data-interview-flow], [data-sticky-actions]) {
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+/*
+  A phone working through an interview needs the screen for the question: while the interview has
+  focus, the bottom nav and the chat button step aside and its footer drops to the bottom edge.
+*/
+@media (max-width: 599.98px) {
+  :root:has([data-interview-flow]:focus-within) [data-bottom-nav],
+  :root:has([data-interview-flow]:focus-within) [data-chat-widget] {
+    display: none;
+  }
+  :root:has([data-interview-flow]:focus-within) [data-app-shell] {
+    --workspace-bottom-nav-height: 0px;
+  }
+  :root[data-keyboard]:has([data-interview-flow]:focus-within) [data-app-shell] {
+    --workspace-bottom-nav-height: var(--keyboard-inset);
+  }
+  [data-interview-flow]:focus-within [data-interview-actions] {
+    padding-right: 0;
+  }
+}
+
+/* W4: the W1 station route as a compact, keyboard-scrollable line on the volunteer home. */
+.station-route.station-route-compact {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+}
+.station-route-compact li {
+  flex: 1 0 8.5rem;
+  flex-direction: column;
+  padding-right: 1rem;
+}
+.station-route-compact li:not(:last-child)::before {
+  left: 0.375rem;
+  right: -0.375rem;
+  top: 0.6875rem;
+  bottom: auto;
+  width: auto;
+  height: 2px;
 }

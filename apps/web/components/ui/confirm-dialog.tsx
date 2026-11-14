@@ -31,9 +31,17 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   /** Red confirm button. Default true: this exists for costly actions. */
   destructive?: boolean;
+  /**
+   * An alert that must be answered: one button, and Escape or a click outside does nothing, so it
+   * closes only when the person says it was done. Resolves `true`.
+   */
+  acknowledgeOnly?: boolean;
 }
 
-type Pending = ConfirmOptions & { resolve: (confirmed: boolean) => void };
+type Pending = ConfirmOptions & {
+  resolve: (confirmed: boolean) => void;
+  returnFocusTo: HTMLElement | null;
+};
 
 let current: Pending | null = null;
 const listeners = new Set<(pending: Pending | null) => void>();
@@ -45,7 +53,9 @@ function publish(next: Pending | null) {
 
 export function confirmAction(options: ConfirmOptions): Promise<boolean> {
   current?.resolve(false);
-  return new Promise((resolve) => publish({ ...options, resolve }));
+  // Capture before the safe button's autoFocus can move focus into the dialog.
+  const returnFocusTo = document.activeElement as HTMLElement | null;
+  return new Promise((resolve) => publish({ ...options, resolve, returnFocusTo }));
 }
 
 export function ConfirmHost() {
@@ -71,22 +81,45 @@ export function ConfirmHost() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? undefined : answer(false))}>
-      <DialogContent className="max-w-md">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (next || shown?.acknowledgeOnly ? undefined : answer(false))}
+    >
+      <DialogContent
+        className="max-w-md"
+        role={shown?.acknowledgeOnly ? 'alertdialog' : 'dialog'}
+        onCloseAutoFocus={(event) => {
+          const previous = shown?.returnFocusTo;
+          const target =
+            previous?.isConnected &&
+            previous !== document.body &&
+            !previous.matches(':disabled') &&
+            previous.getClientRects().length
+              ? previous
+              : document.getElementById('main-content');
+          if (target) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
+      >
         {shown ? (
           <>
             <DialogHeader>
               <DialogTitle>{shown.title}</DialogTitle>
               <DialogDescription className="pt-1 leading-6">{shown.description}</DialogDescription>
             </DialogHeader>
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter>
               {/* Focus starts on the safe choice, so Enter on a misread dialog does no harm. */}
-              <Button variant="outline" onClick={() => answer(false)} autoFocus>
-                {shown.cancelLabel ?? 'Keep it'}
-              </Button>
+              {shown.acknowledgeOnly ? null : (
+                <Button variant="outline" onClick={() => answer(false)} autoFocus>
+                  {shown.cancelLabel ?? 'Keep it'}
+                </Button>
+              )}
               <Button
                 variant={shown.destructive === false ? 'default' : 'destructive'}
                 onClick={() => answer(true)}
+                autoFocus={shown.acknowledgeOnly}
               >
                 {shown.confirmLabel}
               </Button>

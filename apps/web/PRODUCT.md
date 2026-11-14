@@ -31,20 +31,23 @@ Built around the physical screening day: a patient walks between stations, each 
 - Clinic Wi-Fi is slow, intermittent or absent. The app is an installable PWA with an offline outbox, a sync center, and held changes per clinic and per account.
 - Times are shown in Africa/Accra.
 - Authentication is Keycloak. The login theme is a separate deployment that mirrors the web tokens.
+- The hypertension and diabetes interviews are run live: a volunteer reads each question aloud to the patient and types the answer on a shared laptop as they go (confirmed 2026-11-12). There is no paper sheet whose order the screen must match.
+- Where volunteers lose time or make mistakes today (owner, 2026-11-12): long scrolling forms (hard to see what is left or jump back), not knowing what is required, missing, saved or synced, moving between stations (finding the next patient, handover, which station is next), and correcting entries and validation errors.
 
 ## Capabilities and Constraints
 
 - Role- and permission-driven navigation (`apps/web/lib/app-nav.ts`), clinic scoping, feature flags, route guards. None of this may change in the redesign.
 - "Notifications" is the **outbound message delivery ledger**, not a personal inbox. There are no unread counts. "Clinic settings" is clinic research configuration, not personal preferences.
-- Clinical fields, units, validation, defaults and save semantics are fixed. The redesign changes layout and presentation only.
+- Clinical fields, units, validation, defaults and save semantics are fixed: the data each flow captures and how it saves may not change.
+- Data-entry flows (new patient, the hypertension and diabetes interviews, station forms) may be rethought as flows: order, grouping, steps, one question at a time, skip logic and review screens are all open, as long as the captured data stays the same (owner decision 2026-11-12). Other pages change layout and presentation only.
 - Stack is fixed for this redesign: Next 16.3 canary, React 18.3, Tailwind 3.4, shadcn (new-york) on Radix, lucide icons, Recharts 3, TanStack Table 9, Sonner 2, framer-motion 12. No upgrades without a separate issue.
 - Language: **English only** for this redesign (confirmed 2026-11-01).
 
 ## Brand Commitments
 
-- Logo teal `#008BA1` and logo gold `#FFCD1A` (wordmark "nkwapa" with a gold plus). Accessible action teal `#00778A` is derived by lightness only.
+- Logo teal `#008DA3` and logo gold `#FFCD1A` (wordmark "nkwapa" with a gold plus). Accessible action teal `#00778A` is derived by lightness only.
 - Source Serif 4 for headings, IBM Plex Sans for interface and data. Brief-pinned; do not replace.
-- Warm neutral canvas `#FCFBF3`, ink `#1D2930`. Values and their measured contrast live in `docs/design-system/MASTER.md`.
+- Teal-tinted canvas `#F2F7F7` with one white sheet `#FFFFFF` on it, ink `#19282E`, every neutral tinted from the logo teal (Layered Clinical Workspace, UI refresh R1.1). Values and their measured contrast live in `docs/design-system/ui-refresh/R0-AUDIT.md` section 4, mirrored in `docs/design-system/MASTER.md`.
 - Heidi Health is a quality reference only. Its burgundy and yellow, logo, fonts and layouts are not to be reproduced.
 - Target identity named by the client: "Modern Clinical Editorial". Calm, warm, trustworthy, efficient.
 
@@ -65,4 +68,4 @@ Built around the physical screening day: a patient walks between stations, each 
 
 ## Accessibility & Inclusion
 
-WCAG 2.2 AA throughout. Targets at least 44px in the staff app and the portal. Keyboard reachable, visible focus, reduced motion respected, light and dark themes both designed and measured. Plain-language labels for non-technical staff and patients.
+WCAG 2.2 AA throughout. Touch targets at least 44px in the staff app and the portal; on a mouse, buttons are 36px and fields 40px, with small and icon buttons keeping a 44px hit area (owner decision 2026-11-10). Keyboard reachable, visible focus, reduced motion respected, light and dark themes both designed and measured. Plain-language labels for non-technical staff and patients.

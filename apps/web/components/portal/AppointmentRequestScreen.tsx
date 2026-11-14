@@ -31,6 +31,7 @@ import { usePortalResource } from '@/components/portal/use-portal-resource';
 import { RouteGuard } from '@/components/RouteGuard';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
+import { focusField } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -79,6 +80,17 @@ export function AppointmentRequestScreen() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The field the message is about, so it can be focused and marked invalid.
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const fail = (message: string, field: string | null = null) => {
+    setError(message);
+    setErrorField(field);
+    if (field) focusField(field);
+  };
+  const invalidProps = (id: string) =>
+    errorField === id
+      ? { 'aria-invalid': true as const, 'aria-describedby': 'appointment-request-error' }
+      : {};
   const { showToast } = useToast();
 
   const context = usePortalResource<AppointmentRequestRecord[]>({
@@ -99,22 +111,26 @@ export function AppointmentRequestScreen() {
     if (!writeGate.canWrite) return;
 
     if (!clinicId || !getToken) {
-      setError('An active clinic is required before you can submit a request.');
+      fail('An active clinic is required before you can submit a request.');
       return;
     }
 
     if (!preferredStartDate || !preferredEndDate) {
-      setError('Please choose both a start date and an end date.');
+      fail(
+        'Please choose both a start date and an end date.',
+        preferredStartDate ? 'preferredEndDate' : 'preferredStartDate',
+      );
       return;
     }
 
     if (preferredEndDate < preferredStartDate) {
-      setError('Your preferred end date must be on or after the start date.');
+      fail('Your preferred end date must be on or after the start date.', 'preferredEndDate');
       return;
     }
 
     setSubmitting(true);
     setError(null);
+    setErrorField(null);
 
     try {
       await createAppointmentRequest(clinicId, getToken, {
@@ -146,7 +162,12 @@ export function AppointmentRequestScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.WRITE_SELF_REPORT">
       <div className="space-y-6">
-        <Button asChild variant="ghost" size="default">
+        <Button
+          asChild
+          variant="ghost"
+          size="default"
+          className="h-auto max-w-full whitespace-normal text-left"
+        >
           <Link href="/portal/appointments">
             <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />
             Back to appointments
@@ -169,13 +190,17 @@ export function AppointmentRequestScreen() {
           title="Visit request details"
           description="Choose the dates that work for you. Your clinic will confirm the time."
         >
-          <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
+          <form
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+          >
+            <div className="min-w-0 space-y-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="preferredStartDate">Preferred start date</Label>
                   <Input
                     id="preferredStartDate"
+                    {...invalidProps('preferredStartDate')}
                     type="date"
                     className="tabular-nums"
                     value={preferredStartDate}
@@ -195,6 +220,7 @@ export function AppointmentRequestScreen() {
                   <Label htmlFor="preferredEndDate">Preferred end date</Label>
                   <Input
                     id="preferredEndDate"
+                    {...invalidProps('preferredEndDate')}
                     type="date"
                     className="tabular-nums"
                     value={preferredEndDate}
@@ -220,7 +246,8 @@ export function AppointmentRequestScreen() {
                       key={suggestion}
                       type="button"
                       onClick={() => setReason(suggestion)}
-                      className="inline-flex min-h-11 items-center rounded-full border border-input bg-background px-4 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-pressed={reason === suggestion}
+                      className="inline-flex min-h-11 items-center rounded-sm border border-input bg-card px-4 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-pressed:border-primary aria-pressed:bg-selected aria-pressed:font-semibold aria-pressed:text-primary"
                     >
                       {suggestion}
                     </button>
@@ -241,7 +268,7 @@ export function AppointmentRequestScreen() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               <div className="border-t border-border py-4">
                 <h3 className="flex items-center gap-2 font-medium text-foreground">
                   <Clock3 aria-hidden="true" className="h-4 w-4 text-primary" />
@@ -271,9 +298,13 @@ export function AppointmentRequestScreen() {
 
               <PortalWriteGateNotice gate={writeGate} />
 
-              <Button type="submit" disabled={submitting || !writeGate.canWrite} className="w-full">
+              <Button
+                type="submit"
+                disabled={submitting || !writeGate.canWrite}
+                className="h-auto w-full min-w-0 whitespace-normal [overflow-wrap:anywhere]"
+              >
                 <Send aria-hidden="true" className="h-4 w-4" />
-                {submitting ? 'Submitting request...' : 'Submit appointment request'}
+                {submitting ? 'Sending request…' : 'Submit appointment request'}
               </Button>
             </div>
           </form>

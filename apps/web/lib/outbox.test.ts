@@ -13,6 +13,7 @@ import {
   outboxSyncState,
   setOutboxOwner,
   SYNC_OPERATION,
+  withoutRejectedBaseVersion,
 } from './outbox';
 import type { NkwapaDb } from './db';
 import { createFakeSyncDb, queuedRow } from './testing/fake-sync-db';
@@ -338,5 +339,31 @@ describe('outbox owner', () => {
       false,
     );
     expect((await db.outbox.get('theirs'))?.ownerUserId).toBe('user-a');
+  });
+});
+
+describe('withoutRejectedBaseVersion', () => {
+  const payload = JSON.stringify({ encounterId: 'e1', baseUpdatedAt: 'T1', notes: 'x' });
+  const refused = (fields: string[]) => ({
+    conflictType: 'VALIDATION_ERROR',
+    conflictDetails: { fieldErrors: fields.map((field) => ({ field, message: 'not allowed' })) },
+  });
+
+  it('drops the field when an older API refused only it', () => {
+    expect(JSON.parse(withoutRejectedBaseVersion(payload, refused(['baseUpdatedAt']))!)).toEqual({
+      encounterId: 'e1',
+      notes: 'x',
+    });
+  });
+
+  it('leaves a payload with any other refused field to the clinician', () => {
+    expect(withoutRejectedBaseVersion(payload, refused(['baseUpdatedAt', 'notes']))).toBeNull();
+  });
+
+  it('ignores other refusals and payloads without the field', () => {
+    expect(withoutRejectedBaseVersion(payload, { conflictType: 'CONFLICT_FINALIZED' })).toBeNull();
+    expect(
+      withoutRejectedBaseVersion(JSON.stringify({ notes: 'x' }), refused(['baseUpdatedAt'])),
+    ).toBeNull();
   });
 });

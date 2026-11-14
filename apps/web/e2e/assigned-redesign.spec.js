@@ -41,5 +41,5 @@ test('completed and cancelled assignments stay in the worklist without being cal
   await expect(table.getByText('SYN-CANCELLED · Synthetic CANCELLED')).toBeVisible();
   await expect(table.getByText('SYN-COMPLETED · Synthetic COMPLETED')).toBeVisible();
   await needs.getByRole('link', { name: 'View worklist' }).click();
-  await expect(page.getByRole('heading', { name: 'Assigned Patients' })).toBeInViewport();
+  await expect(page.getByRole('heading', { name: 'Assigned patients' })).toBeInViewport();
 });

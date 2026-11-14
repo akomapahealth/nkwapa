@@ -13,12 +13,12 @@ export const APP_DESCRIPTION =
  * fails if a theme change leaves these behind.
  */
 export const APP_COLORS = {
-  /** :root --background: 54 63% 97% */
-  lightBackground: '#FCFBF3',
+  /** :root --background: 180 23.8% 95.9% */
+  lightBackground: '#F2F7F7',
   /** :root --primary: 188 100% 27% */
   lightPrimary: '#00778A',
-  /** .dark --background: 200 25% 8% */
-  darkBackground: '#0F161A',
+  /** .dark --background: 192 29.4% 6.7% */
+  darkBackground: '#0C1416',
 } as const;
 
 /** The title and status bar blend into the sticky header, which uses --background. */

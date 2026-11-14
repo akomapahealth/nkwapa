@@ -4,10 +4,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { UserRole, type PortalInviteIdentityStatus, type StaffInvite } from '@prisma/client';
 import { formatStaffDisplayName, staffNameMessage, staffNamePartError } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
@@ -82,6 +84,7 @@ export class StaffInviteService {
     private readonly keycloakAdminService: KeycloakAdminService,
     private readonly emailDeliverabilityService: EmailDeliverabilityService,
     private readonly userProfileService: UserProfileService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   async listForClinic(actor: StaffInviteActor, clinicId: string) {
@@ -215,6 +218,15 @@ export class StaffInviteService {
       requestId,
     );
 
+    // Someone who already has an account sees it in the bell too. No clinic on it: they hold no
+    // role there yet, and the bell hides notifications about clinics a reader cannot see.
+    this.push?.notify([existing?.id], {
+      title: `You were invited to join ${clinic.name}`,
+      body: `As ${roleLabel(invite.role)}. Accept it in Nkwapa.`,
+      url: '/accept-invite',
+      tag: `invite-${invite.id}`,
+      kind: 'INVITE',
+    });
     return this.serialize({ ...invite, ...identity }, delivery, new Date());
   }
 
@@ -471,6 +483,13 @@ export class StaffInviteService {
 
     await this.adoptInviteName(user, invite, requestId);
 
+    this.push?.notify([invite.createdByUserId], {
+      title: `${user.displayName} joined ${invite.clinic.name}`,
+      body: `They accepted your invitation as ${roleLabel(invite.role)}.`,
+      url: '/admin/users',
+      kind: 'INVITE',
+      clinicId: invite.clinicId,
+    });
     return this.acceptanceResult(invite);
   }
 
@@ -790,4 +809,9 @@ export class StaffInviteService {
         : null,
     };
   }
+}
+
+/** "DOCTOR" reads as "a doctor", "SYSTEM_ADMIN" as "a system admin". */
+function roleLabel(role: string): string {
+  return `a ${role.toLowerCase().replace(/_/g, ' ')}`;
 }

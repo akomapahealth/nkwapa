@@ -27,6 +27,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PERMISSIONS, rolesWithPermission } from '../auth/constants/permissions';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
@@ -398,6 +399,7 @@ export class PatientPortalService {
       requestId,
     });
 
+    await this.notifyStaffOfRequest(created.clinicId);
     return this.serializeAppointmentRequest(created);
   }
 
@@ -499,6 +501,7 @@ export class PatientPortalService {
       requestId,
     });
 
+    await this.notifyStaffOfRequest(created.clinicId);
     return this.serializeAppointmentRequest(created);
   }
 
@@ -547,6 +550,7 @@ export class PatientPortalService {
       requestId,
     });
 
+    await this.notifyStaffOfRequest(created.clinicId);
     return this.serializeAppointmentRequest(created);
   }
 
@@ -981,8 +985,42 @@ export class PatientPortalService {
    * Tell the patient their appointment request was answered (#250), on a device where they turned
    * notifications on. It says only that there is an answer; the portal says what it is.
    */
+  /**
+   * Tell the clinic's staff who answer requests that one arrived. One tile per person per clinic:
+   * further requests raise its count until they open it.
+   */
+  private async notifyStaffOfRequest(clinicId: string) {
+    if (!this.push) return;
+    try {
+      const staff = await this.prisma.userClinicRole.findMany({
+        where: {
+          clinicId,
+          role: {
+            in: rolesWithPermission(PERMISSIONS.APPOINTMENT_WRITE).filter(
+              (role) => role !== 'PATIENT' && role !== 'SYSTEM_ADMIN',
+            ),
+          },
+        },
+        select: { userId: true },
+      });
+      this.push.notify(
+        staff.map((row) => row.userId),
+        {
+          title: 'A patient sent an appointment request',
+          body: 'Open Appointments to answer it.',
+          url: '/appointments',
+          tag: `appointment-requests-${clinicId}`,
+          kind: 'APPOINTMENT_REQUEST',
+          clinicId,
+        },
+      );
+    } catch {
+      // A notification is a courtesy; the request is already saved.
+    }
+  }
+
   private async notifyRequestAnswered(patientId: string) {
-    if (!this.push?.enabled) return;
+    if (!this.push) return;
     const patient = await this.prisma.patient.findUnique({
       where: { id: patientId },
       select: { portalUserId: true },
@@ -992,6 +1030,7 @@ export class PatientPortalService {
       body: 'Open Nkwapa to see the reply.',
       url: '/portal/appointments',
       tag: 'appointment-request',
+      kind: 'APPOINTMENT_REQUEST',
     });
   }
 

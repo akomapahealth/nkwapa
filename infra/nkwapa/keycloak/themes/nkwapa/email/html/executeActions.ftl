@@ -15,16 +15,16 @@
 -->
 <#import "template.ftl" as layout>
 <@layout.emailLayout>
-  <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#111827">Choose your password</h1>
-  <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#111827">Your clinic has asked you to set a password for your Nkwapa account. Choose one now to finish setting it up.</p>
+  <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#19282e">Choose your password</h1>
+  <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#19282e">Your clinic has asked you to set a password for your Nkwapa account. Choose one now to finish setting it up.</p>
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px">
     <tr>
-      <td style="border-radius:8px;background:#0f766e">
+      <td style="border-radius:6px;background:#00778a">
         <a href="${link}" style="display:inline-block;padding:12px 24px;font-size:16px;font-weight:600;color:#ffffff;text-decoration:none">Choose my password</a>
       </td>
     </tr>
   </table>
-  <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4b5563">This link can only be used once, and expires in ${linkExpirationFormatter(linkExpiration)}. If it has expired, ask your clinic to send it again.</p>
-  <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4b5563">If you were invited to the patient portal, your clinic has also emailed you the patient code you will be asked for after signing in.</p>
-  <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4b5563">If you were not expecting this, you can ignore this email. Nothing changes until the link above is used.</p>
+  <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#55666d">This link can only be used once, and expires in ${linkExpirationFormatter(linkExpiration)}. If it has expired, ask your clinic to send it again.</p>
+  <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#55666d">If you were invited to the patient portal, your clinic has also emailed you the patient code you will be asked for after signing in.</p>
+  <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#55666d">If you were not expecting this, you can ignore this email. Nothing changes until the link above is used.</p>
 </@layout.emailLayout>

@@ -1,21 +1,13 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, MapPinned, Map, ShieldAlert } from 'lucide-react';
+import { Building2, MapPinned, Map, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  RecordSection,
-  RecordSectionContent,
-  RecordSectionDescription,
-  RecordSectionHeader,
-  RecordSectionTitle,
-} from '@/components/patients/RecordSection';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { Label } from '@/components/ui/label';
 import {
@@ -25,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SectionSkeleton } from '@/components/feedback/AppState';
+import { EmptyState, SectionSkeleton } from '@/components/feedback/AppState';
 import { ApiError, apiFetch, readApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useAsyncResource } from '@/lib/use-async-resource';
@@ -66,7 +58,8 @@ import {
   type OrganizationSummary,
 } from '@/lib/clinic-metadata';
 import { ClinicMetadataDialog, type ClinicDialogMode } from './ClinicMetadataDialog';
-import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { ListFilters, TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
+import { DataTable, SHEET_GUTTER, type DataTableColumn } from '@/components/ui/data-table';
 
 const FILTER_OPTIONS = [
   { value: 'all' as const, label: 'All clinics' },
@@ -77,12 +70,6 @@ const FILTER_OPTIONS = [
   },
   { value: 'inactive' as const, label: 'Inactive' },
 ];
-
-const FILTER_LABELS: Record<ClinicListFilter, string | null> = {
-  all: null,
-  'needs-attention': 'Needs attention',
-  inactive: 'Inactive',
-};
 
 /** The worst issue on a clinic, which is what a single-badge cell should show. */
 function headlineIssue(clinic: ClinicRow) {
@@ -199,6 +186,12 @@ export function ClinicRegistryScreen() {
 
   const activeCount = rows.filter((clinic) => clinic.isActive).length;
   const attentionCount = rows.filter(clinicNeedsAttention).length;
+  // Warnings never count as attention (they never block reporting) but still show amber badges.
+  const warningOnlyCount = rows.filter(
+    (clinic) =>
+      !clinicNeedsAttention(clinic) &&
+      clinic.metadataIssues.some((issue) => issue.severity === 'warning'),
+  ).length;
 
   // Says which of the two filters emptied the list, because "no clinic matches this view" sends
   // an operator looking at the wrong control when it was the zone that did it.
@@ -273,8 +266,13 @@ export function ClinicRegistryScreen() {
         cell: ({ row: params }) =>
           params.original.organization ? (
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate">{params.original.organization.name}</span>
-              <span className="truncate font-mono text-xs text-muted-foreground">
+              <span className="truncate" title={params.original.organization.name}>
+                {params.original.organization.name}
+              </span>
+              <span
+                className="truncate font-mono text-xs text-muted-foreground"
+                title={params.original.organization.slug}
+              >
                 {params.original.organization.slug}
               </span>
             </span>
@@ -310,7 +308,7 @@ export function ClinicRegistryScreen() {
         accessorKey: 'isActive',
         header: 'Status',
         cell: ({ row: params }) => (
-          <Badge variant={params.original.isActive ? 'finalized' : 'destructive'}>
+          <Badge variant={params.original.isActive ? 'finalized' : 'secondary'}>
             {params.original.isActive ? 'Active' : 'Inactive'}
           </Badge>
         ),
@@ -330,7 +328,7 @@ export function ClinicRegistryScreen() {
         meta: { align: 'right' },
         cell: ({ row: params }) => (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => openEdit(params.original, headlineIssue(params.original)?.field)}
           >
@@ -345,254 +343,275 @@ export function ClinicRegistryScreen() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="System administration"
         title="Clinics"
-        description="Manage clinic records, location metadata, and availability."
+        count={clinics.data ? rows.length : undefined}
+        description="Clinic records, locations and availability."
         helpTitle="What you manage here"
         helpText="Create clinics, review their location and zone metadata, and adjust operational details without losing historical records."
         actions={<Button onClick={openCreate}>Create clinic</Button>}
       />
 
-      <AppMetricGroup label="Clinic metadata summary" className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup variant="strip" label="Clinic metadata summary">
         <AppMetricCard
-          title="Total clinics"
-          value={rows.length}
-          icon={Building2}
-          detail="Every clinic environment in the platform."
+          title="Needs attention"
+          tone="attention"
+          onActivate={() => setFilter('needs-attention')}
+          actionLabel="Show clinics needing attention"
+          value={clinics.data ? attentionCount : '…'}
+          icon={ShieldAlert}
+          detail="Clinics whose location metadata organization reporting cannot rely on."
         />
+
+        <AppMetricCard
+          title="With warnings"
+          value={clinics.data ? warningOnlyCount : '…'}
+          icon={TriangleAlert}
+          detail="Clinics with only warnings, such as no zone code. Worth fixing, but they never block reporting, so they do not count as needing attention."
+        />
+
         <AppMetricCard
           title="Active clinics"
-          value={activeCount}
+          value={clinics.data ? activeCount : '…'}
           icon={MapPinned}
           detail="Clinics currently available for staff and patient workflows."
         />
         <AppMetricCard
           title="Zones"
-          value={zonedClinicCount}
+          value={zones.data ? zonedClinicCount : '…'}
           icon={Map}
           detail="Reporting zones in use across the clinics you administer."
         />
-        <AppMetricCard
-          title="Needs attention"
-          value={attentionCount}
-          icon={ShieldAlert}
-          detail="Clinics whose location metadata organization reporting cannot rely on."
-        />
       </AppMetricGroup>
 
-      <RecordSection className="min-w-0">
-        <RecordSectionHeader className="space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <RecordSectionTitle>Clinic registry</RecordSectionTitle>
-              <RecordSectionDescription>
-                Review names, location codes, time zones, and activation status.
-              </RecordSectionDescription>
+      <section aria-label="Clinic registry" className="space-y-4 pb-20">
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+          <SegmentedControl
+            label="Clinic filter"
+            value={filter}
+            options={FILTER_OPTIONS}
+            onChange={setFilter}
+            className="lg:w-[26rem]"
+          />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2">
+              <Label
+                htmlFor="clinic-zone-filter"
+                className="text-sm font-normal text-muted-foreground"
+              >
+                Zone
+              </Label>
+              <Select
+                value={zoneFilterToSelect(zoneFilter)}
+                onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
+              >
+                <SelectTrigger id="clinic-zone-filter" className={TOOLBAR_SELECT}>
+                  <SelectValue placeholder="All zones" />
+                </SelectTrigger>
+                <SelectContent>
+                  {zoneOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                      {option.clinicCount === null ? '' : ` (${option.clinicCount})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
-              <p className="text-muted-foreground">Showing</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                {visibleRows.length}
-              </p>
-            </div>
-          </div>
-        </RecordSectionHeader>
-        <RecordSectionContent className="space-y-4">
-          <ProgressiveHelp title="How clinic metadata is used">
-            A clinic&apos;s time zone decides how appointment times, reminders, and daily reporting
-            are read. Its location code identifies it in organization reporting and must be unique
-            within its organization. A zone code groups clinics for reporting and filtering; it is
-            still optional, and it never changes who can open a clinic. Inactive clinics stay in the
-            system for history and audit, but stop acting like live operational workspaces until you
-            reactivate them.
-          </ProgressiveHelp>
-
-          <div className="space-y-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <SegmentedControl
-                label="Clinic filter"
-                value={filter}
-                options={FILTER_OPTIONS}
-                onChange={setFilter}
-              />
-              <div className="space-y-2 lg:w-64">
-                <Label htmlFor="clinic-zone-filter">Zone</Label>
-                <Select
-                  value={zoneFilterToSelect(zoneFilter)}
-                  onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
+            {showOrganizationFilter ? (
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="clinic-organization-filter"
+                  className="text-sm font-normal text-muted-foreground"
                 >
-                  <SelectTrigger id="clinic-zone-filter">
-                    <SelectValue placeholder="All zones" />
+                  Organization
+                </Label>
+                <Select
+                  value={organizationFilterToSelect(organizationFilter)}
+                  onValueChange={(value) =>
+                    setOrganizationFilter(organizationFilterFromSelect(value))
+                  }
+                >
+                  <SelectTrigger id="clinic-organization-filter" className={TOOLBAR_SELECT}>
+                    <SelectValue placeholder="All organizations" />
                   </SelectTrigger>
                   <SelectContent>
-                    {zoneOptions.map((option) => (
+                    {organizationFilterOptions(organizationList).map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
-                        {option.clinicCount === null ? '' : ` (${option.clinicCount})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              {showOrganizationFilter ? (
-                <div className="space-y-2 lg:w-64">
-                  <Label htmlFor="clinic-organization-filter">Organization</Label>
-                  <Select
-                    value={organizationFilterToSelect(organizationFilter)}
-                    onValueChange={(value) =>
-                      setOrganizationFilter(organizationFilterFromSelect(value))
-                    }
-                  >
-                    <SelectTrigger id="clinic-organization-filter">
-                      <SelectValue placeholder="All organizations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {organizationFilterOptions(organizationList).map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-            </div>
-            <ActiveFilterSummary
-              items={[
-                { label: 'View', value: FILTER_LABELS[filter] },
-                { label: 'Zone', value: zoneFilterLabel(zoneFilter) },
-                {
-                  label: 'Organization',
-                  value: organizationFilterLabel(organizationList, organizationFilter),
-                },
-              ]}
-              emptyLabel="All clinics"
-            />
+            ) : null}
           </div>
+          <p aria-live="polite" className="text-sm tabular-nums text-muted-foreground lg:ml-auto">
+            {visibleRows.length === rows.length
+              ? null
+              : `Showing ${visibleRows.length} of ${rows.length}`}
+          </p>
+        </div>
+        <ListFilters
+          groupLabel="Clinic filters"
+          sheetTitle="Filter clinics"
+          onClearAll={() => {
+            setZoneFilter(null);
+            setOrganizationFilter(null);
+          }}
+          chips={[
+            {
+              label: 'Zone',
+              value: zoneFilter === null ? null : zoneFilterLabel(zoneFilter),
+              onRemove: () => setZoneFilter(null),
+            },
+            {
+              label: 'Organization',
+              value:
+                organizationFilter === null
+                  ? null
+                  : organizationFilterLabel(organizationList, organizationFilter),
+              onRemove: () => setOrganizationFilter(null),
+            },
+          ]}
+        />
 
-          <ResourceState
-            state={clinics}
-            skeleton={
-              <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
-            }
-            errorTitle="The clinic list could not be loaded"
-            // Only the unfiltered read can mean "there are no clinics". Once a zone is applied
-            // an empty response means the filter found nothing, and offering "Create the first
-            // clinic" there would be both wrong and the wrong thing to reach for.
-            isEmpty={(data) =>
-              data.length === 0 && zoneFilter === null && organizationFilter === null
-            }
-            empty={{
-              icon: Building2,
-              title: 'No clinics yet',
-              description:
-                'Create the first clinic to start configuring staff access and local operations.',
-              action: <Button onClick={openCreate}>Create clinic</Button>,
-            }}
-          >
-            {() =>
-              visibleRows.length === 0 ? (
-                <div className="rounded-lg border border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
-                  <p>{emptyResultMessage}</p>
-                  {zoneFilter !== null ? (
-                    <Button variant="outline" className="mt-3" onClick={() => setZoneFilter(null)}>
+        <ResourceState
+          state={clinics}
+          skeleton={
+            <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
+          }
+          errorTitle="The clinic list could not be loaded"
+          // Only the unfiltered read can mean "there are no clinics". Once a zone is applied
+          // an empty response means the filter found nothing, and offering "Create the first
+          // clinic" there would be both wrong and the wrong thing to reach for.
+          isEmpty={(data) =>
+            data.length === 0 && zoneFilter === null && organizationFilter === null
+          }
+          empty={{
+            icon: Building2,
+            title: 'No clinics yet',
+            description:
+              'Create the first clinic to start configuring staff access and local operations.',
+            action: <Button onClick={openCreate}>Create clinic</Button>,
+          }}
+        >
+          {() =>
+            visibleRows.length === 0 ? (
+              <EmptyState
+                density="compact"
+                icon={Building2}
+                title={
+                  filter === 'needs-attention' ? 'Nothing needs attention' : 'No clinics match'
+                }
+                description={emptyResultMessage}
+                action={
+                  zoneFilter !== null ? (
+                    <Button variant="outline" onClick={() => setZoneFilter(null)}>
                       Show all zones
                     </Button>
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-3 md:hidden">
-                    {visibleRows.map((clinic) => (
-                      <article
-                        key={clinic.id}
-                        className="rounded-lg border border-border bg-background p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h3 className="truncate text-base font-semibold text-foreground">
-                              {clinic.name}
-                            </h3>
-                            <p className="mt-1 truncate text-sm text-muted-foreground">
-                              {clinic.region || 'No region assigned'}
-                            </p>
-                          </div>
-                          <Badge variant={clinic.isActive ? 'finalized' : 'destructive'}>
-                            {clinic.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <>
+                {/* Hairline rows, not boxes: the ruled list the oversight screens share (R4.3). */}
+                <div className="-mx-4 divide-y divide-rule border-y border-rule compact:-mx-6 md:hidden">
+                  {visibleRows.map((clinic) => (
+                    <article key={clinic.id} className={`py-4 ${SHEET_GUTTER}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="font-body text-base font-semibold text-foreground [overflow-wrap:anywhere]">
+                            {clinic.name}
+                          </h2>
+                          <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                            {clinic.region || 'No region assigned'}
+                          </p>
                         </div>
+                        <Badge variant={clinic.isActive ? 'finalized' : 'secondary'}>
+                          {clinic.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
 
-                        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-                          <div className="min-w-0">
-                            <dt className="text-muted-foreground">Location code</dt>
-                            <dd className="truncate font-mono text-xs text-foreground">
-                              {clinic.locationCode || 'Not set'}
-                            </dd>
-                          </div>
-                          <div className="min-w-0">
-                            <dt className="text-muted-foreground">Time zone</dt>
-                            <dd className="truncate text-foreground">{clinic.timezone}</dd>
-                          </div>
-                          <div className="min-w-0">
-                            <dt className="text-muted-foreground">Zone</dt>
-                            <dd
-                              className={
-                                clinic.zoneCode
-                                  ? 'truncate font-mono text-xs text-foreground'
-                                  : 'truncate text-xs text-muted-foreground'
-                              }
-                            >
-                              {zoneLabel(clinic.zoneCode)}
-                            </dd>
-                          </div>
-                          <div className="min-w-0">
-                            <dt className="text-muted-foreground">Organization</dt>
-                            <dd className="truncate text-foreground">
-                              {clinic.organization?.name ?? 'Not linked'}
-                            </dd>
-                          </div>
-                        </dl>
+                      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                        <div className="min-w-0">
+                          <dt className="text-muted-foreground">Location code</dt>
+                          <dd className="font-mono text-xs text-foreground [overflow-wrap:anywhere]">
+                            {clinic.locationCode || 'Not set'}
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-muted-foreground">Time zone</dt>
+                          <dd className="text-foreground [overflow-wrap:anywhere]">
+                            {clinic.timezone}
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-muted-foreground">Zone</dt>
+                          <dd
+                            className={
+                              clinic.zoneCode
+                                ? 'font-mono text-xs text-foreground [overflow-wrap:anywhere]'
+                                : 'text-xs text-muted-foreground [overflow-wrap:anywhere]'
+                            }
+                          >
+                            {zoneLabel(clinic.zoneCode)}
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-muted-foreground">Organization</dt>
+                          <dd className="text-foreground [overflow-wrap:anywhere]">
+                            {clinic.organization?.name ?? 'Not linked'}
+                          </dd>
+                        </div>
+                      </dl>
 
-                        {clinic.metadataIssues.length > 0 ? (
-                          <ul className="mt-3 flex flex-wrap gap-2">
-                            {clinic.metadataIssues.map((issue) => (
-                              <li key={issue.code}>
-                                <Badge variant={CLINIC_METADATA_SEVERITY_VARIANT[issue.severity]}>
-                                  {CLINIC_METADATA_ISSUE_LABELS[issue.code]}
-                                </Badge>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
+                      {clinic.metadataIssues.length > 0 ? (
+                        <ul className="mt-3 flex flex-wrap gap-2">
+                          {clinic.metadataIssues.map((issue) => (
+                            <li key={issue.code}>
+                              <Badge variant={CLINIC_METADATA_SEVERITY_VARIANT[issue.severity]}>
+                                {CLINIC_METADATA_ISSUE_LABELS[issue.code]}
+                              </Badge>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
 
-                        <Button
-                          variant="outline"
-                          className="mt-4 w-full"
-                          onClick={() => openEdit(clinic, headlineIssue(clinic)?.field)}
-                        >
-                          Edit clinic
-                        </Button>
-                      </article>
-                    ))}
-                  </div>
+                      <Button
+                        variant="outline"
+                        className="mt-4 w-full"
+                        onClick={() => openEdit(clinic, headlineIssue(clinic)?.field)}
+                      >
+                        Edit clinic
+                      </Button>
+                    </article>
+                  ))}
+                </div>
 
-                  <div className="hidden md:block">
-                    <DataTable
-                      keyboardScroll
-                      paginationClassName="pr-20"
-                      caption="Clinics"
-                      columns={columns}
-                      data={visibleRows}
-                      getRowId={(row) => row.id}
-                      isRefreshing={clinics.isRefreshing}
-                    />
-                  </div>
-                </>
-              )
-            }
-          </ResourceState>
-        </RecordSectionContent>
-      </RecordSection>
+                <div className="hidden md:block">
+                  <DataTable
+                    bleed
+                    keyboardScroll
+                    caption="Clinics"
+                    columns={columns}
+                    data={visibleRows}
+                    getRowId={(row) => row.id}
+                    isRefreshing={clinics.isRefreshing}
+                  />
+                </div>
+              </>
+            )
+          }
+        </ResourceState>
+        <ProgressiveHelp title="How clinic metadata is used">
+          A clinic&apos;s time zone decides how appointment times, reminders, and daily reporting
+          are read. Its location code identifies it in organization reporting and must be unique
+          within its organization. A zone code groups clinics for reporting and filtering; it is
+          still optional, and it never changes who can open a clinic. Inactive clinics stay in the
+          system for history and audit, but stop acting like live operational workspaces until you
+          reactivate them.
+        </ProgressiveHelp>
+      </section>
 
       <ClinicMetadataDialog
         open={dialogOpen}

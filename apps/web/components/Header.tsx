@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,18 +17,28 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { avatarToneProps } from '@/lib/avatar-tone';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getAccessibleNavItems, getNavItemHref, isNavItemActive } from '@/lib/app-nav';
 import { cn } from '@/lib/utils';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { formatRoleLabel, getOpsDestination, getVisibleRoleLabels } from '@/lib/ops';
 import { useKeycloak } from '@/app/KeycloakProvider';
@@ -51,14 +62,16 @@ import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 export function Header({
+  portal = false,
   sidebarCollapsed = false,
   onToggleSidebar,
   mobileOpen = false,
   onMobileOpenChange = () => undefined,
 }: {
+  portal?: boolean;
   sidebarCollapsed?: boolean;
   /** Omitted where there is no sidebar to toggle, as on the patient portal. */
-  onToggleSidebar?: () => void;
+  onToggleSidebar?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 }) {
@@ -90,7 +103,10 @@ export function Header({
   // Gated by the same filter as the rail (#267); only where they are drawn differs.
   const headerItems = getAccessibleNavItems(bootstrap, 'header');
   const profileItems = getAccessibleNavItems(bootstrap, 'profile');
-  const sheetUtilities = [...headerItems, ...profileItems];
+  const sheetUtilities = [
+    ...headerItems.filter((item) => item.href !== '/notifications'),
+    ...profileItems,
+  ];
 
   const handleClinicChange = async (value: string) => {
     if (!value || value === clinicId) return;
@@ -131,17 +147,19 @@ export function Header({
       .join('')
       .toUpperCase() ?? '?';
 
-  /*
-    One clinic switcher, in the header at every width: the clinic name with the active role beside
-    it as text (MASTER.md section 12). It used to be three things (an "Active clinic" label, a
-    separate picker from md, and role badges from lg) plus a second copy of the picker in the
-    navigation sheet, because the header had no room for a 220px select below 1024px. As a
-    borderless trigger sized to its text it fits a 390px header beside the menu, sync and account.
-  */
+  // Staff context follows the pilot: clinic above role, with both lines allowed to shrink.
+  // The portal shares compact clinic context without a staff sidebar control.
   const switcherLabel = `Active clinic: ${clinicName}${roleText ? `, ${roleText}` : ''}`;
   const roleSuffix = roleText ? (
-    // Visible from `sm`; on a phone it stays in the accessible name and shows in the menu sheet.
-    <span className="sr-only shrink-0 font-normal text-muted-foreground sm:not-sr-only">
+    <span
+      className={cn(
+        'font-normal text-muted-foreground',
+        onToggleSidebar || portal
+          ? 'block truncate text-xs leading-tight'
+          : 'sr-only shrink-0 sm:not-sr-only',
+      )}
+      title={roleText}
+    >
       {roleText}
     </span>
   ) : null;
@@ -150,87 +168,142 @@ export function Header({
       <Select value={clinicId ?? ''} onValueChange={(value) => void handleClinicChange(value)}>
         <SelectTrigger
           aria-label={`${switcherLabel}. Switch clinic`}
-          className="w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none"
+          className={cn(
+            'w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none',
+            (onToggleSidebar || portal) && 'h-auto min-h-11 min-w-[44px] flex-1 py-1 text-left',
+            // Phones: 14px back from padding, gap and chevron is what lets a typical clinic name
+            // ("Nkwapa Clinic - Demo") fit whole at 390px beside the reserved sync slot.
+            'gap-1 px-1.5 [&>svg]:size-3.5 compact:gap-2 compact:px-2.5 compact:[&>svg]:size-4',
+          )}
         >
-          <span className="min-w-0 truncate font-semibold text-foreground">
-            <SelectValue placeholder="Select clinic" />
+          <span className="min-w-0 truncate text-left font-semibold text-foreground">
+            <span className="block truncate" title={clinicName}>
+              <SelectValue placeholder="Select clinic">{activeClinic?.clinicName}</SelectValue>
+            </span>
+            {onToggleSidebar || portal ? roleSuffix : null}
           </span>
-          {roleSuffix}
+          {!onToggleSidebar && !portal ? roleSuffix : null}
         </SelectTrigger>
-        <SelectContent>
-          {switchableClinics.map((clinic) => (
-            <SelectItem key={clinic.clinicId} value={clinic.clinicId}>
-              {clinic.clinicName}
-            </SelectItem>
-          ))}
+        <SelectContent className="max-w-[calc(100vw-2rem)]">
+          <SelectGroup>
+            {switchableClinics.map((clinic) => (
+              <SelectItem key={clinic.clinicId} value={clinic.clinicId}>
+                <span className="break-words whitespace-normal [overflow-wrap:anywhere]">
+                  {clinic.clinicName}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
     ) : (
-      <p className="flex min-w-0 items-center gap-2 px-2.5 text-sm">
-        <span className="truncate font-semibold text-foreground">{clinicName}</span>
+      <p
+        className={cn(
+          'min-w-0 px-2.5 text-sm',
+          onToggleSidebar || portal ? 'flex flex-col justify-center' : 'flex items-center gap-2',
+        )}
+        aria-label={switcherLabel}
+      >
+        <span className="truncate font-semibold text-foreground" title={clinicName}>
+          {clinicName}
+        </span>
         {roleSuffix}
       </p>
     );
 
   return (
-    <header className="pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
-      <div className="flex h-14 items-center gap-2 px-4 md:px-6">
-        <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open navigation</span>
-            </Button>
-          </SheetTrigger>
-          {/*
+    <header
+      className={cn(
+        'pt-safe sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur',
+        (onToggleSidebar || portal) && 'compact:rounded-t-xl compact:bg-card/95',
+      )}
+    >
+      <div
+        className={cn(
+          'flex min-h-14 items-center gap-2 px-4 md:px-6',
+          // Pixel gutters leave room for enlarged text and touch targets at the 320px boundary.
+          (onToggleSidebar || portal) &&
+            'flex-wrap gap-[4px] px-[12px] py-1 compact:gap-2 compact:px-4 desktop:px-5',
+        )}
+      >
+        {(onToggleSidebar || portal) && (
+          <Image
+            src="/images/nkwapa-mark.png"
+            alt="Nkwapa"
+            width={32}
+            height={32}
+            className="shrink-0 compact:hidden"
+          />
+        )}
+        {!portal && (
+          <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={
+                  onToggleSidebar ? 'hidden compact:inline-flex desktop:hidden' : 'md:hidden'
+                }
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open navigation</span>
+              </Button>
+            </SheetTrigger>
+            {/*
             A flex column with a scrolling body. It was `h-full overflow-y-auto` inside a sheet
             that already had a header, so the body was a viewport tall *below* that header and the
             last nav items sat past the bottom of the screen with nothing to scroll them into view.
           */}
-          <SheetContent
-            side="left"
-            className="flex w-[88vw] max-w-[320px] flex-col border-border bg-background p-0"
-          >
-            <SheetHeader className="border-b border-border p-5 text-left">
-              <SheetTitle className="text-left">
-                <div className="space-y-3">
-                  <div className="relative h-11 w-40">
-                    <Image
-                      src="/images/nkwapa-logo.png"
-                      alt="Nkwapa EMR"
-                      fill
-                      sizes="160px"
-                      className="object-contain object-left"
-                    />
-                  </div>
-                  <p className="text-xs font-medium text-muted-foreground">Workspace menu</p>
+            <SheetContent
+              side="left"
+              className="flex w-[88vw] max-w-[320px] flex-col border-border bg-background p-0"
+              onCloseAutoFocus={(event) => {
+                if (
+                  onToggleSidebar &&
+                  !window.matchMedia('(min-width: 600px) and (max-width: 1199px)').matches
+                ) {
+                  event.preventDefault();
+                  document.getElementById('main-content')?.focus();
+                }
+              }}
+            >
+              <SheetHeader className="border-b border-border p-5 pr-16 text-left">
+                <div className="relative h-11 w-40">
+                  <BrandWordmark
+                    alt="Nkwapa EMR"
+                    fill
+                    sizes="160px"
+                    className="object-contain object-left"
+                  />
                 </div>
-              </SheetTitle>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-              {roleText ? (
-                <p className="px-3 text-sm text-muted-foreground">
-                  Signed in as <span className="font-medium text-foreground">{roleText}</span>
-                </p>
-              ) : null}
-              <AppNavList
-                bootstrap={bootstrap}
-                mobile
-                onNavigate={() => onMobileOpenChange(false)}
-              />
-              {/* The header icon and the account menu item, mirrored where a phone looks for them. */}
-              {sheetUtilities.length ? (
+                <SheetTitle className="text-left">Workspace menu</SheetTitle>
+                <SheetDescription>Choose where to work in {clinicName}.</SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+                {roleText ? (
+                  <p className="px-3 text-sm text-muted-foreground">
+                    Signed in as <span className="font-medium text-foreground">{roleText}</span>
+                  </p>
+                ) : null}
                 <AppNavList
                   bootstrap={bootstrap}
                   mobile
-                  label="Account"
-                  sections={[{ id: 'account', label: 'Account', items: sheetUtilities }]}
                   onNavigate={() => onMobileOpenChange(false)}
                 />
-              ) : null}
-            </div>
-          </SheetContent>
-        </Sheet>
+                {/* The header icon and the account menu item, mirrored where a phone looks for them. */}
+                {sheetUtilities.length ? (
+                  <AppNavList
+                    bootstrap={bootstrap}
+                    mobile
+                    label="Account"
+                    sections={[{ id: 'account', label: 'Account', items: sheetUtilities }]}
+                    onNavigate={() => onMobileOpenChange(false)}
+                  />
+                ) : null}
+              </div>
+            </SheetContent>
+          </Sheet>
+        )}
 
         {/*
           Only where there is a sidebar. PortalLayout renders this Header without one, so the
@@ -250,7 +323,7 @@ export function Header({
                   aria-expanded={!sidebarCollapsed}
                   aria-controls="workspace-sidebar"
                   aria-keyshortcuts="["
-                  className="hidden md:inline-flex"
+                  className="hidden desktop:inline-flex"
                 >
                   {sidebarCollapsed ? (
                     <PanelLeft aria-hidden="true" className="h-[18px] w-[18px]" />
@@ -270,16 +343,31 @@ export function Header({
           </TooltipProvider>
         ) : null}
 
-        <div className="flex min-w-0 flex-1 items-center">{clinicSwitcher}</div>
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 items-center',
+            (onToggleSidebar || portal) && 'min-w-[6rem] compact:min-w-0',
+          )}
+        >
+          {clinicSwitcher}
+        </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center gap-[4px] compact:gap-2">
+          <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
           {/*
-            Message delivery: an icon with its name in a tooltip, and no badge, because the ledger
-            is outbound delivery with nothing to read (MASTER.md section 12). From `md`; on a phone
-            it is in the menu sheet, where the header has no room for it.
+            Header icons with their names in a tooltip. The notifications bell is on every screen
+            size and carries the unread count; any other header icon starts at `md`.
           */}
           <TooltipProvider delayDuration={200}>
             {headerItems.map((item) => {
+              if (item.href === '/notifications') {
+                return (
+                  <NotificationBell
+                    key={item.href}
+                    active={isNavItemActive(pathname, item, clinicId)}
+                  />
+                );
+              }
               const Icon = item.icon;
               const href = getNavItemHref(item, clinicId);
               if (href === '#') {
@@ -290,7 +378,11 @@ export function Header({
                     size="icon"
                     disabled
                     aria-label={`${item.label}: select a clinic first`}
-                    className="hidden md:inline-flex"
+                    className={
+                      onToggleSidebar || portal
+                        ? 'hidden compact:inline-flex'
+                        : 'hidden md:inline-flex'
+                    }
                   >
                     <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
                   </Button>
@@ -305,7 +397,9 @@ export function Header({
                       variant="ghost"
                       size="icon"
                       className={cn(
-                        'hidden md:inline-flex',
+                        onToggleSidebar || portal
+                          ? 'hidden compact:inline-flex'
+                          : 'hidden md:inline-flex',
                         active && 'bg-primary/10 text-primary',
                       )}
                     >
@@ -324,13 +418,14 @@ export function Header({
             })}
           </TooltipProvider>
 
-          <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full" aria-label="User menu">
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="bg-primary text-xs text-primary-foreground">
+                <Avatar className="size-9">
+                  <AvatarFallback
+                    {...avatarToneProps(bootstrap?.displayName)}
+                    className="text-xs font-semibold"
+                  >
                     {initials}
                   </AvatarFallback>
                 </Avatar>

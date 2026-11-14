@@ -77,9 +77,11 @@ test('record navigation and ID validation preserve the chart and consent contrac
   await expect(page.getByRole('heading', { name: 'Needs you now', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Vitals', exact: true }).click();
   await expect(page).toHaveURL(/tab=vitals/);
+  // MASTER R3.8: 40px on a mouse, 44px on touch.
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
   await expect(page.getByRole('tab', { name: 'Vitals', exact: true })).toHaveCSS(
     'min-height',
-    '44px',
+    coarse ? '44px' : '40px',
   );
   await page.goto(`${chart}/edit`);
   await page.getByRole('button', { name: 'Change ID', exact: true }).click();
@@ -96,7 +98,7 @@ test('record navigation and ID validation preserve the chart and consent contrac
   );
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.goto(`${chart}/consent`);
-  const save = page.getByRole('button', { name: 'Record Consent', exact: true });
+  const save = page.getByRole('button', { name: 'Record consent', exact: true });
   await expect(save).toBeDisabled();
   await page.getByRole('checkbox').check();
   await expect(save).toBeEnabled();
@@ -131,5 +133,5 @@ test('record navigation and ID validation preserve the chart and consent contrac
     consentVersion: 'v1-en',
   });
   await page.waitForURL((url) => url.pathname === chart);
-  await expect(page.getByText('Consent Granted', { exact: true })).toBeVisible();
+  await expect(page.getByText('Consent granted', { exact: true })).toBeVisible();
 });

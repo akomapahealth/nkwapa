@@ -19,7 +19,9 @@ for (const theme of ['light', 'dark']) {
       const sex = page.getByRole('combobox', { name: 'Sex', exact: true });
       await expect(sex).toBeVisible();
       // Tab backward from the next field; date inputs have browser-specific segment stops.
-      await page.getByRole('textbox', { name: 'Phone number (Ghana)', exact: true }).focus();
+      // National ID follows Identity: after Sex come its section help button, then the ID type.
+      await page.getByRole('combobox', { name: 'National ID type', exact: true }).focus();
+      await page.keyboard.press('Shift+Tab');
       await page.keyboard.press('Shift+Tab');
       await expect(sex).toBeFocused();
       await sex.press('Space');

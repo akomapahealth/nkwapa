@@ -102,6 +102,7 @@ export function OrganizationReportScreen() {
         id: 'clinicName',
         accessorKey: 'clinicName',
         header: 'Clinic',
+        meta: { className: 'sticky left-0 z-[1] bg-card [thead_&]:bg-surface-2' },
         cell: ({ row: params }) => (
           <span className="flex items-center gap-2">
             <span className="truncate">{params.original.clinicName}</span>
@@ -115,22 +116,42 @@ export function OrganizationReportScreen() {
         header: 'Zone',
         accessorFn: (row) => zoneLabel(row.zoneCode),
       },
-      { id: 'patients', accessorKey: 'patients', header: 'Patients', width: 100 },
-      { id: 'encounters', accessorKey: 'encounters', header: 'Encounters', width: 110 },
+      {
+        id: 'patients',
+        accessorKey: 'patients',
+        header: 'Patients',
+        width: 100,
+        meta: { align: 'right' },
+      },
+      {
+        id: 'encounters',
+        accessorKey: 'encounters',
+        header: 'Encounters',
+        width: 110,
+        meta: { align: 'right' },
+      },
       {
         id: 'openWork',
         accessorKey: 'openWork',
         header: 'Open work',
+        meta: { align: 'right' },
         accessorFn: (row) => openWork(row),
       },
       {
         id: 'hypertensionScreeningRate',
         accessorKey: 'hypertensionScreeningRate',
         header: 'BP screened',
+        meta: { align: 'right' },
         enableSorting: false,
         accessorFn: (row) => formatRate(row.hypertensionScreeningRate),
       },
-      { id: 'activeStaff', accessorKey: 'activeStaff', header: 'Staff', width: 90 },
+      {
+        id: 'activeStaff',
+        accessorKey: 'activeStaff',
+        header: 'Staff',
+        width: 90,
+        meta: { align: 'right' },
+      },
       {
         id: 'drilldown',
         accessorKey: 'drilldown',
@@ -156,9 +177,8 @@ export function OrganizationReportScreen() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Reporting"
         title="Organization report"
-        description="Every clinic in an organization at once, with a way back into any one of them."
+        description="Every clinic at once, with a way into each."
         helpTitle="How these numbers are counted"
         helpText={
           <div className="space-y-2">
@@ -218,7 +238,15 @@ export function OrganizationReportScreen() {
             >
               {(data) => (
                 <div className="space-y-6">
-                  <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+                  <AppMetricGroup>
+                    <DashboardKpiCard
+                      title="Open work"
+                      tone="attention"
+                      value={openWork(data.totals).toLocaleString()}
+                      hint={`${data.totals.openDrafts} drafts, ${data.totals.awaitingReview} awaiting review, ${data.totals.readyToFinalize} ready to finalize`}
+                      icon={ClipboardList}
+                    />
+
                     <DashboardKpiCard
                       title="Clinics"
                       value={data.totals.clinics}
@@ -236,12 +264,6 @@ export function OrganizationReportScreen() {
                       value={data.totals.encounters.toLocaleString()}
                       hint={`Last ${data.windowDays} days, ${data.totals.finalized.toLocaleString()} finalized`}
                       icon={Activity}
-                    />
-                    <DashboardKpiCard
-                      title="Open work"
-                      value={openWork(data.totals).toLocaleString()}
-                      hint={`${data.totals.openDrafts} drafts, ${data.totals.awaitingReview} awaiting review, ${data.totals.readyToFinalize} ready to finalize`}
-                      icon={ClipboardList}
                     />
                   </AppMetricGroup>
 

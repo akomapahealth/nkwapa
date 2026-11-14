@@ -9,13 +9,13 @@ export const PORTAL_HERO_GRID = 'grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax
 export function PortalHero({
   title,
   description,
-  clinicName,
   children,
   className,
   contentClassName,
 }: {
   title: string;
   description?: string;
+  /** Unused: the portal header already names the clinic under its title (W3 polish). */
   clinicName?: string | null;
   children?: ReactNode;
   className?: string;
@@ -24,10 +24,9 @@ export function PortalHero({
   return (
     <div className={cn('min-w-0 space-y-4', className)}>
       <div className="space-y-2">
-        <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+        <h2 className="break-words font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
           {title}
         </h2>
-        {clinicName ? <p className="text-sm text-muted-foreground">{clinicName}</p> : null}
         {description ? (
           <p className="max-w-prose text-base leading-6 text-muted-foreground">{description}</p>
         ) : null}

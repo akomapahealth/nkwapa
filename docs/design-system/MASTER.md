@@ -47,7 +47,7 @@ typefaces rather than the application's. Closed by [#83](https://github.com/akom
 
 A Keycloak theme cannot import `globals.css` -- different origin, different process -- so
 `infra/nkwapa/keycloak/themes/nkwapa/login/resources/css/styles.css` still declares its own
-variables. They now mirror this document token for token, each one annotated with the token it
+variables. They now mirror this document (and `ui-refresh/R0-AUDIT.md` section 4) token for token, each one annotated with the token it
 mirrors, under a header saying the two files must move together. **Changing a value in section 3
 means changing it there too.** `apps/web/e2e/login-theme.spec.js` is what notices if they part
 company again: it asserts the typeface, the primary fill, the radius ceiling and the absence of
@@ -76,46 +76,49 @@ Defined in `apps/web/app/globals.css` under `:root`. Consume via Tailwind utilit
 
 ### Surfaces
 
-| Token                        | Value         | Hex       | Used for                     | Contrast                    |
-| ---------------------------- | ------------- | --------- | ---------------------------- | --------------------------- |
-| `--background`               | `54 63% 97%`  | `#FCFBF3` | Page canvas                  | 14.30:1 with `--foreground` |
-| `--card`                     | `50 33% 98%`  | `#FCFBF8` | Cards, panels, popovers      | 14.31:1                     |
-| `--sidebar`                  | `148 32% 88%` | `#D7EAE0` | Nav rail                     | 11.82:1                     |
-| `--sidebar-border`           | `148 24% 70%` | `#A0C5B1` | Sidebar edge, group dividers | decorative                  |
-| `--sidebar-muted-foreground` | `200 14% 32%` | `#46555D` | Sidebar group labels         | 6.13:1                      |
-| `--muted`                    | `45 30% 93%`  | `#F3F0E8` | Table headers, inert fills   | 4.94:1                      |
-| `--accent`                   | `47 60% 92%`  | `#F7F2DE` | Row hover, subtle emphasis   | 13.16:1                     |
+Layered Clinical Workspace (UI refresh R1.1). The values below mirror the as-built tables in `docs/design-system/ui-refresh/R0-AUDIT.md` section 4, which is the source of truth when the two disagree. Every neutral is tinted from the logo teal (hue 180 to 198).
 
-**The canvas is warm cream, not white.** #61's original wording says "white canvas"; that wording is superseded. The warm neutral family (`background`, `card`, `muted`, `accent`) is coherent and already measured, and switching to pure white would require re-deriving all four.
+| Token                        | Value               | Hex       | Used for                         | Contrast                    |
+| ---------------------------- | ------------------- | --------- | -------------------------------- | --------------------------- |
+| `--background`               | `180 23.8% 95.9%`   | `#F2F7F7` | Page canvas                      | 14.04:1 with `--foreground` |
+| `--card` / `--popover`       | `0 0% 100%`         | `#FFFFFF` | The one sheet, panels, popovers  | 15.18:1                     |
+| `--sidebar`                  | `180 23.8% 95.9%`   | `#F2F7F7` | Nav rail (the canvas itself)     | 14.04:1                     |
+| `--sidebar-border`           | `190.9 18% 88%`     | `#DBE4E6` | Sidebar edge, group dividers     | decorative                  |
+| `--sidebar-muted-foreground` | `197.5 12.4% 38%`   | `#55666D` | Sidebar group labels             | 5.55:1                      |
+| `--muted` / `--surface-2`    | `180 23.1% 97.5%`   | `#F7FAFA` | Table headers, recessed fills    | 5.72:1 muted text on        |
+| `--accent` / `--selected`    | `186.3 46.3% 92%`   | `#E1F2F4` | Row hover, selected row          | 4.53:1 action teal on       |
+| `--mint` / `--mint-line`     | `171.4 38.9% 92.9%` | `#E6F4F2` | Next-action hero                 | 5.30:1 muted text on        |
+| `--gold-surface`             | `46.7 100% 92.9%`   | `#FFF7DB` | Highlight such as a "new" marker | 6.31:1 with `--gold-ink`    |
+| `--deep`                     | `190.2 74.7% 17.1%` | `#0B414C` | One high-emphasis brand surface  | 11.18:1 white on            |
 
-**The sidebar is deliberately at 88% lightness.** That is the shallowest tint that still reads as a separate panel against the cream canvas (1.21:1). At 91% the separation drops to 1.14:1 and the two surfaces merge, which fails #66's requirement that the sidebar be visually distinct.
-
-**The sidebar has its own foreground tokens.** At 88%, the standard `--muted-foreground` lands on the sidebar at 4.49:1, failing by 0.01. Rather than lighten the sidebar and lose panel separation, sidebar text uses `--foreground` for nav items (11.82:1) and `--sidebar-muted-foreground` for group labels (6.13:1).
+**One white sheet on a teal-tinted canvas.** The cream canvas and the separate mint sidebar are retired. The rail sits on the canvas and the white sheet beside it is what separates the panels, which keeps #66's requirement that the sidebar read as distinct without a tinted panel. Sidebar text can use the standard foreground tokens again; `--sidebar-muted-foreground` stays as an alias so call sites need not change.
 
 ### Ink
 
-| Token                | Value         | Hex       | Used for                        | On canvas |
-| -------------------- | ------------- | --------- | ------------------------------- | --------- |
-| `--foreground`       | `200 25% 15%` | `#1D2930` | Body, headings, clinical values | 14.30:1   |
-| `--muted-foreground` | `200 10% 40%` | `#5C6970` | Labels, units, secondary text   | 5.44:1    |
+| Token                | Value               | Hex       | Used for                        | On canvas |
+| -------------------- | ------------------- | --------- | ------------------------------- | --------- |
+| `--foreground`       | `197.1 29.6% 13.9%` | `#19282E` | Body, headings, clinical values | 14.04:1   |
+| `--muted-foreground` | `197.5 12.4% 38%`   | `#55666D` | Labels, units, secondary text   | 5.55:1    |
+| `--faint`            | `195.7 10.9% 58.6%` | `#8A9BA1` | Placeholder and disabled only   | 2.89:1    |
 
 ### Brand and action
 
-| Token         | Value          | Hex       | Used for                           | Contrast           |
-| ------------- | -------------- | --------- | ---------------------------------- | ------------------ |
-| `--primary`   | `188 100% 27%` | `#00778A` | Primary buttons, active nav, links | 5.22:1 white on    |
-| `--secondary` | `47 100% 55%`  | `#FFCD1A` | Brand accent, highlights           | 9.90:1 dark ink on |
-| `--ring`      | `188 100% 27%` | `#00778A` | Focus ring                         | 5.04:1 on canvas   |
+| Token         | Value            | Hex       | Used for                           | Contrast                    |
+| ------------- | ---------------- | --------- | ---------------------------------- | --------------------------- |
+| `--primary`   | `188 100% 27%`   | `#00778A` | Primary buttons, active nav, links | 5.22:1 white on             |
+| `--secondary` | `47 100% 55%`    | `#FFCD1A` | Brand accent, highlights           | 9.90:1 dark ink on          |
+| `--ring`      | `188 100% 27%`   | `#00778A` | Focus ring                         | 4.83:1 on canvas            |
+| `--brand`     | `188.1 100% 32%` | `#008DA3` | Logo teal, decoration only         | 3.93:1 on white: never text |
 
-`--primary` also passes as _text_: 5.04:1 on canvas, **4.58:1 on `--muted`**. That second pairing matters because `DataTable` sets column headers on `--muted`, so teal header links land there.
+`--primary` also passes as _text_: 4.83:1 on canvas, **4.98:1 on `--muted`** and 4.53:1 on `--selected`. That second pairing matters because `DataTable` sets column headers on `--muted`, so teal header links land there.
 
 ### Status
 
-| Token           | Value         | Hex       | Used for                         | Contrast           |
-| --------------- | ------------- | --------- | -------------------------------- | ------------------ |
-| `--success`     | `152 65% 30%` | `#1B7E50` | In range, synced, cosigned       | 5.05:1 white on    |
-| `--warning`     | `32 90% 48%`  | `#E9820C` | Out of range, expiring, unsynced | 5.39:1 dark ink on |
-| `--destructive` | `0 72% 51%`   | `#DC2828` | Critical values, delete, merge   | 4.80:1 white on    |
+| Token           | Value         | Hex       | Used for                         | Contrast                                  |
+| --------------- | ------------- | --------- | -------------------------------- | ----------------------------------------- |
+| `--success`     | `152 65% 30%` | `#1B7E50` | In range, synced, cosigned       | 5.05:1 white on                           |
+| `--warning`     | `32 90% 48%`  | `#E9820C` | Out of range, expiring, unsynced | 5.39:1 dark ink on                        |
+| `--destructive` | `0 72% 49%`   | `#D72323` | Critical values, delete, merge   | 5.06:1 white on, 4.68:1 as text on canvas |
 
 **Warning is orange, not amber, because the brand accent is gold.** If warning shared hue 47 with `--secondary`, a warning badge would be indistinguishable from decorative brand furniture. At hue 32 the separation is **ΔE 24.2**, 23° apart in Lab hue.
 
@@ -132,6 +135,12 @@ Status colour is never the only signal. Pair every status fill with a label or i
 | `--destructive-ink` | `0 72% 38%`   | `#A71B1B` | 6.20:1                     |
 
 The tinted badge pattern is `bg-<token>/12` plus `text-<token>-ink`.
+
+**Tags (R1.3).** `Badge` is the pilot `.tag`: 24px minimum height (it wraps rather than overflow), 4px radius, 12.5px semibold, no shadow, no hover. No call site may round it into a pill. Variants: `secondary` neutral (`--surface-2` fill, `--border` edge, muted ink, 5.72:1); `info` for selected or suggested (`--selected` with `--primary`, 4.53:1); `gold` for "new" highlights only (6.31:1), never a state; `draft`, `review`, `finalized`, `warning` as before; `severe`; `destructive` filled.
+
+**Blood-pressure severity (R1.3, audit A8).** One map, `HYPERTENSION_BADGE_VARIANTS` in `lib/hypertension.ts`, feeds `statusVariant()` and the hypertension history panel: Normal and Elevated neutral, Stage 1 `warning`, Stage 2 `severe` (`--severe-surface` / `--severe-ink`, hue 20, 5.67:1 light, 6.72:1 dark), Crisis filled `destructive`. The text label always names the stage, so the scale never relies on colour alone. The classifier and saved values are unchanged. The dashboard distribution chart (`HYPERTENSION_TONES`) follows the same ladder for the stages: Stage 1 `warning`, Stage 2 `severe` (bar fill `--severe`, 4.34:1 on the card), Crisis `destructive`; Normal stays success green and Elevated warning there, because a chart needs Normal to differ from Not classified. The station results summary shows the stage as the same tag.
+
+**Panels (R1.3).** `Card` is the bordered panel on the one white sheet: 8px radius, 1px `--border`, `--card` fill, no shadow. Panels sit side by side or in sequence. Never nest a `Card` in a `Card`.
 
 **All four statuses have an ink token.** Destructive did not until #94, and it was the one status
 still using its fill as text on its own tint, on nine surfaces including
@@ -165,10 +174,10 @@ a clinician reads before prescribing.
 
 ### Lines
 
-| Token      | Value         | Hex       | Used for                        | On canvas       |
-| ---------- | ------------- | --------- | ------------------------------- | --------------- |
-| `--border` | `45 20% 87%`  | `#E4E1D7` | Decorative dividers, card edges | 1.26:1 — exempt |
-| `--input`  | `200 15% 52%` | `#728B97` | **Every form control boundary** | 3.47:1          |
+| Token      | Value           | Hex       | Used for                        | On canvas                         |
+| ---------- | --------------- | --------- | ------------------------------- | --------------------------------- |
+| `--border` | `190.9 18% 88%` | `#DBE4E6` | Decorative dividers, card edges | 1.29:1 on white — exempt          |
+| `--input`  | `200 15% 52%`   | `#728B97` | **Every form control boundary** | 3.59:1 on white, 3.33:1 on canvas |
 
 **`--input` is split from `--border` and must stay split.** WCAG 1.4.11 requires 3:1 for boundaries needed to identify a control. Form fields qualify; card edges and decorative dividers do not. Before this split both were `45 20% 87%` at 1.26:1, meaning every text input, select, and textarea in the product had an effectively invisible boundary.
 
@@ -178,8 +187,8 @@ Do not "fix" `--border` or `--sidebar-border` to reach 3:1. They are correctly e
 
 These are additive foundation tokens. Existing action, text, input-boundary and
 chart-series values stay unchanged. `--rule` aliases `--border` for decorative
-1px dividers; `--rule-strong` aliases `--foreground` for the direction's 2px group
-rule. Neither replaces `--input` on form controls.
+1px dividers; `--rule-strong` is the 2px group rule, a calm teal-grey (`192 16% 50%`,
+dark `190 12% 42%`) since W3 polish: ink rules were the loudest thing on most pages. Neither replaces `--input` on form controls.
 
 Opaque status surfaces have explicit light and dark values, so their measured
 contrast does not depend on which parent surface happens to sit behind them.
@@ -202,8 +211,8 @@ workflow or clinical states.
 
 | Rule token      | Background     | Light contrast | Dark contrast | Requirement        |
 | --------------- | -------------- | -------------: | ------------: | ------------------ |
-| `--rule-strong` | `--background` |        14.30:1 |       15.66:1 | >= 3:1 non-text    |
-| `--rule-strong` | `--card`       |        14.31:1 |       14.50:1 | >= 3:1 non-text    |
+| `--rule-strong` | `--background` |         3.36:1 |        3.75:1 | >= 3:1 non-text    |
+| `--rule-strong` | `--card`       |         3.63:1 |        3.45:1 | >= 3:1 non-text    |
 | `--rule`        | `--background` |         1.26:1 |        1.47:1 | Decorative, exempt |
 | `--rule`        | `--card`       |         1.26:1 |        1.36:1 | Decorative, exempt |
 
@@ -284,24 +293,27 @@ was removed with the 2026-10 redesign (`docs/design/landing-page-redesign.md`).
 
 Defined under `.dark`. Dark mode inverts which side carries the ink: fills stay bright and take dark text. The tinted badge inverts too, becoming a dark tint of the hue carrying light ink.
 
-| Token                        | Value         | Hex       | Contrast               |
-| ---------------------------- | ------------- | --------- | ---------------------- |
-| `--sidebar`                  | `155 20% 14%` | `#1D2B25` | 12.68:1                |
-| `--sidebar-border`           | `155 18% 26%` | `#364E44` | decorative             |
-| `--sidebar-muted-foreground` | `155 8% 66%`  | `#A1AFA9` | 6.51:1                 |
-| `--primary`                  | `188 80% 47%` | `#18BED8` | 7.77:1 dark ink on     |
-| `--secondary`                | `47 85% 52%`  | `#EDC01D` | 10.00:1 dark ink on    |
-| `--success`                  | `152 55% 50%` | `#39C684` | 7.89:1 dark ink on     |
-| `--warning`                  | `35 90% 58%`  | `#F4A434` | 8.43:1 dark ink on     |
-| `--input`                    | `200 14% 50%` | `#6E8591` | 4.74:1                 |
-| `--info`                     | `200 60% 58%` | `#54A9D4` | workflow state         |
-| `--success-ink`              | `152 40% 74%` | `#A2D7BE` | 6.82:1 on its tint     |
-| `--warning-ink`              | `35 75% 74%`  | `#EEC58B` | 6.74:1 on its tint     |
-| `--info-ink`                 | `200 45% 74%` | `#9FC7DB` | 6.49:1 on its tint     |
-| `--destructive-ink`          | `0 50% 80%`   | `#E6B3B3` | 8.06:1 on its tint     |
-| `--destructive`              | `0 62% 66%`   | `#DE7373` | 5.48:1 as text on card |
+| Token                           | Value               | Hex       | Contrast               |
+| ------------------------------- | ------------------- | --------- | ---------------------- |
+| `--background` / `--sidebar`    | `192 29.4% 6.7%`    | `#0C1416` | 15.74:1 with ink       |
+| `--card`                        | `195 23.1% 10.2%`   | `#141D20` | 14.48:1                |
+| `--muted` / `--surface-2`       | `192.9 21.9% 12.5%` | `#192427` | 6.54:1 muted text on   |
+| `--accent` / `--selected`       | `188.1 42.5% 17.1%` | `#19393E` | 5.54:1 action teal on  |
+| `--border` / `--sidebar-border` | `198 20.8% 18.8%`   | `#26343A` | decorative             |
+| `--sidebar-muted-foreground`    | `190 9.8% 63.9%`    | `#9AA9AC` | 7.66:1 on canvas       |
+| `--primary`                     | `188 80% 47%`       | `#18BED8` | 8.34:1 dark ink on     |
+| `--secondary`                   | `47 85% 52%`        | `#EDC01D` | 10.73:1 dark ink on    |
+| `--success`                     | `152 55% 50%`       | `#39C684` | 8.47:1 dark ink on     |
+| `--warning`                     | `35 90% 58%`        | `#F4A434` | 9.05:1 dark ink on     |
+| `--input`                       | `192.4 11.8% 48%`   | `#6C8389` | 4.27:1 on card         |
+| `--info`                        | `200 60% 58%`       | `#54A9D4` | workflow state         |
+| `--success-ink`                 | `152 40% 74%`       | `#A2D7BE` | 6.82:1 on its tint     |
+| `--warning-ink`                 | `35 75% 74%`        | `#EEC58B` | 6.74:1 on its tint     |
+| `--info-ink`                    | `200 45% 74%`       | `#9FC7DB` | 6.49:1 on its tint     |
+| `--destructive-ink`             | `0 50% 80%`         | `#E6B3B3` | 8.06:1 on its tint     |
+| `--destructive`                 | `0 62% 66%`         | `#DE7373` | 5.48:1 as text on card |
 
-All other `.dark` values are unchanged and already correct.
+"Dark ink" on a dark-mode fill is the dark canvas, `192 29.4% 6.7%` (`#0C1416`), for every `*-foreground` that sits on a bright fill (R1.2 follow-up; was `200 25% 10%`). Light `--warning-foreground` is the ink `#19282E` (5.52:1 on warning).
 
 **`--destructive` is lighter in dark mode than in light, and carries dark ink.** That inversion is
 forced, not stylistic. `text-destructive` is how every field error, error notice and destructive
@@ -310,7 +322,7 @@ on the dark canvas, so every destructive word in the product failed AA in dark m
 cannot serve both uses at that lightness: text on the card needs L >= 60 and white on the fill
 needs L <= 54, and those windows do not overlap. Flipping `--destructive-foreground` to dark ink
 is the usual dark-theme answer and clears all four pairings at 66% -- 5.92:1 on the canvas, 5.48:1
-on the card, 4.67:1 on its own 12% tint, and 5.60:1 for the ink on the fill.
+on the card, 4.67:1 on its own 12% tint, and 5.60:1 for the ink on the fill (6.01:1 since R1.2 moved the dark ink to the canvas).
 
 It was found by `e2e/dark-mode.spec.js`, on `/appointments`, where the "Decline" action is the
 first thing axe reaches. Nothing had looked before, which is the whole argument for that spec.
@@ -358,18 +370,18 @@ Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:
 
 ## 5. Radius
 
-`--radius` is `0.625rem` (10px).
+`--radius` is `0.5rem` (8px), so the scale is 4 / 6 / 8 / 12 (UI refresh R1.1, R0-AUDIT section 4).
 
-| Step | Value | Used for                 |
-| ---- | ----- | ------------------------ |
-| `sm` | 6px   | Badges, chips, pills     |
-| `md` | 8px   | Buttons, inputs, selects |
-| `lg` | 10px  | Cards, panels            |
-| `xl` | 14px  | Dialogs, sheets          |
+| Step | Value | Used for                                                                  |
+| ---- | ----- | ------------------------------------------------------------------------- |
+| `sm` | 4px   | Buttons, inputs, selects, textareas, badges, tags, tooltips, focus (R3.8) |
+| `md` | 6px   | Tab tops, menu items                                                      |
+| `lg` | 8px   | Panels, popovers, menus                                                   |
+| `xl` | 12px  | The sheet, dialogs, side sheets                                           |
 
-All four steps are real Tailwind classes. `xl` was added to `tailwind.config.js` during the Phase 6 migration because Tailwind's stock `rounded-xl` is 12px, not the 14px this table specifies.
+All four steps are real Tailwind classes, derived from `--radius` in `tailwind.config.js`.
 
-**Nothing rounder than 14px.** That rules out `rounded-2xl` (16px) and `rounded-3xl` (24px) as well as the arbitrary values. On a dense clinical table a 28px corner reads as a consumer app and costs vertical space the Today board does not have.
+**Nothing rounder than 12px, and no squircles.** That rules out `rounded-2xl` (16px) and `rounded-3xl` (24px) as well as arbitrary values. Circles stay for avatars, status dots and route stops only. The one exception is the landing page's phone mock-up bezel in `components/landing/ProductFrames.tsx`, which depicts hardware rather than interface.
 
 Measured before the Phase 6 migration: `rounded-[28px]` in 32 files (78 occurrences), plus `[24px]`, `[26px]`, `[30px]` and `[32px]` — five arbitrary radii inside one product, three of them inside the fallback components alone.
 
@@ -476,32 +488,111 @@ already migrated to these roles. Shipped in [PR #288](https://github.com/akomapa
 
 ## 7. Motion
 
+**The owner's 20 motion principles and the seven added rules are in `NKWAPA-UI-REFRESH-MASTER.md` section 9.1 and mapped to Nkwapa in `ui-refresh/R0-AUDIT.md` section 6. They supersede anything below that disagrees.** The pilot values: enter 200ms and exit 160ms, sheets 240ms in and 190ms out, popovers from `scale(.95)` at the trigger, 30ms row stagger capped at 6 rows.
+
 - **150ms** for colour and opacity.
 - **200ms** for position.
 - Nothing longer in a clinical view.
 - **No transform-based hover.** Scale and translate on hover cause layout shift, which #63 and #66 both prohibit. Use colour or opacity.
-- `prefers-reduced-motion` is already handled globally in `globals.css` and is correct. Do not duplicate it per component.
+- `prefers-reduced-motion` is handled globally in `globals.css`. R1.5 anchored overlays override the global 0.01ms clamp only to preserve opacity fades, with all scaling removed. Keep that exception shared rather than per component.
 - **Curves and durations are tokens.** `--ease-out`, `--ease-in-out`, `--ease-drawer`, `--duration-fast` (150ms) and `--duration-base` (200ms) in `globals.css`, exposed as `ease-out-strong`, `ease-in-out-strong`, `ease-drawer`, `duration-fast` and `duration-base`. Enter with `ease-out-strong`; never `ease-in`, which delays the moment the user is watching.
 - **Press feedback is allowed.** `Button` scales to 0.97 on `:active`. That answers a press, not a hover, and scale does not change the box, so nothing moves.
 - **Busy buttons keep their width.** `Button loading` hides the label under a spinner rather than swapping text (section 11).
 - **Toasts are Sonner**, through `useToast()` in `components/ui/toast.tsx`. Pass the id a loading toast returned to settle it in place as success or error, or use `toastPromise`. Error toasts are announced assertively through a visually hidden `role="alert"` copy; every other tone stays in Sonner's polite region (#280, section 13).
 
+### Draggable Sheets (R2.4)
+
+The shared Radix Sheet retains its dialog, title/description, focus trap, Escape,
+outside dismissal and explicit close control. A separate handle, 64 by 44px at default text size, closes
+on click or keyboard activation and supports an outward drag on each configured
+edge: down for bottom, up for top, left for left and right for right. Only the
+handle owns pointer capture and disables native touch panning and text selection;
+the body keeps normal scrolling, selection and form interactions. No clinical or
+queue action is attached to the gesture.
+
+While held, CSS `translate` follows the pointer directly without a transition.
+Movement towards the attached edge meets increasing rubber-band resistance.
+Release dismisses after 30% of the Sheet's dimension (capped at 160px), or an
+outward flick above 0.5px/ms after at least 24px. A release moving inward restores
+the Sheet. Restoration uses the installed Motion physical spring, with response
+0.3s and damping ratio 0.8 mapped to mass/stiffness/damping, carrying release
+velocity. Duration-based Motion springs intentionally discard velocity and are
+not used. Regrabbing stops the spring at its current position. Reduced motion
+retains direct manipulation but restores immediately without a release spring;
+existing reduced-motion entrance/exit rules remain.
+
+Cancellation and lost capture restore without dismissal. Resize, visual-viewport
+resize, window blur and page hiding release capture and reset displacement.
+Browser history and pathname changes close through the existing Radix close
+control. External closes stop a held gesture or spring, and cleanup cancels it on
+unmount. A trailing pointer click after a moved/cancelled gesture is suppressed.
+
+Custom focus-return callbacks still take precedence, preserving the sequential
+More-to-sync handoff. Without a custom override, the Sheet remembers the actual
+opening control, including selection-controlled panels with no Radix Trigger,
+and returns focus there if still connected and visible, otherwise to main content.
+This does not change modal or focus-trap semantics. All current consumers retain
+their existing side, data, action and save contracts. R2.5 portal More uses the
+same bottom Sheet and focus handoff as staff More.
+
+### Anchored overlays (R1.5)
+
+Dropdown menus (including submenus), Select and InfoHint use `.anchored-overlay`:
+200ms in (`--duration-base`), 160ms out (`--duration-exit`), `--ease-out`, opacity
+and scale 0.95 to 1. Each uses its Radix content transform origin on both paths.
+Select uses Radix's 4px side offset for static placement, leaving the content
+transform free for scaling.
+
+CSS `@starting-style` supplies the entrance; transitions reverse from the current
+frame. A nonvisual `anchored-presence` animation keeps Radix Presence mounted
+through the exit, because Presence listens for animationend rather than
+transitionend. Do not replace the transitions with enter/exit keyframes. Browsers
+without `@starting-style` show the open content immediately.
+
+Tooltip uses 150/120ms (`--duration-fast` / `--duration-fast-exit`). Its provider
+keeps a 300ms skip-delay window, overridable through the existing prop, and
+`instant-open` skips the entrance transition too. The custom filtering Combobox
+stays instant: focus and typing are routine operations, and it is not a Radix
+Popover. InfoHint is the only direct Radix Popover consumer.
+
+`useOverlayInput` shares one set of capture listeners across mounted overlay
+roots. Pointer activity enables motion; keyboard activity disables both enter
+and exit immediately, including Escape on a pointer-opened popup. Native
+`:focus-visible` is insufficient here: Radix's focus handoff can match it even
+after a pointer press. Reduced motion keeps the opacity fade and removes scaling;
+keyboard and tooltip scanning remain instant under that preference too.
+
 ---
 
 ## 8. Density, targets, breakpoints
 
-| Rule                       | Value                   |
-| -------------------------- | ----------------------- |
-| Table row height, desktop  | 44px                    |
-| Table row height, touch    | 52px                    |
-| Minimum interactive target | 44px                    |
-| Breakpoints                | 375 / 768 / 1024 / 1440 |
+| Rule                       | Value                                                                                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Table row height, desktop  | 44px                                                                                                                                           |
+| Table row height, touch    | 52px                                                                                                                                           |
+| Minimum interactive target | 44px under `pointer: coarse`; 44px hit area for small and icon buttons on a mouse                                                              |
+| Button height              | 44px touch, 36px mouse (`--button-height`); small 44 / 32; large 48 / 40 (R3.8)                                                                |
+| Form control height        | 44px touch, 40px mouse (`--field-height`: `Input`, `SelectTrigger`, `Combobox`) (R3.8)                                                         |
+| Tabs and menu rows         | Tabs 48px touch, 40px mouse (`--tab-height`); Select, dropdown and combobox rows 44px touch, 36px mouse (`--menu-row-height`) (R3.8 follow-up) |
+| Breakpoints                | 375 / 768 / 1024 / 1440 (audit widths); named screens `compact` 600, `tablet` 840, `desktop` 1200                                              |
 
 Both row heights are set by `DataTable` (`components/ui/data-table.tsx`, TanStack Table v9). Row actions are real buttons in a right-aligned final column, one primary at most, so they line up down the column. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
 
-The 44px floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
+**Pointer-aware sizing (R3.8, owner decision 2026-11-10).** Staff work mostly on shared laptops with a mouse, where 44px controls read as oversized. The height tokens in `globals.css` switch under `@media (pointer: fine)`; touch keeps 44px. Call sites never set `h-11`/`min-h-11` on `Button`, `Input` or `SelectTrigger`; that would pin 44px on a mouse. Use `h-auto` when a label must wrap; the variant's `min-height` keeps the floor. Playwright's Desktop Chrome reports `pointer: fine` even at 390px, so a phone-target assertion must run in a touch context (`devices['Pixel 7']` or `hasTouch`).
+
+**Action placement (R3.8).** A form ends in `FormActions` (`components/ui/form-actions.tsx`): from 600px right-aligned, primary last, Cancel immediately before it; `split` pins the first child (a wizard's Back, or a status note) to the start edge. Phones stack full width with the primary on top; measured sticky rows (Vitals) keep the primary at the thumb. Dialog footers already follow the same order. Screens adopt it in their own unit.
+
+The 44px touch floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
+
+**Buttons (R1.2, radius R3.8).** Flat fills, semibold labels, 4px radius, no shadow. Primary hovers to `--primary-hover` (`#006A7A`, darker, 6.27:1 with white). `outline` and `secondary` are the same secondary action: white `--card` fill with the 3:1 `--input` boundary, hovering to `--muted` (R0-AUDIT A4). Gold is only the explicit `gold` variant. Destructive keeps `/95` on hover; `/90` falls to 4.51:1. Controls drop their shadow; placeholders stay `--muted-foreground` (5.99:1), not `--faint`.
 
 Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form controls and `ring-2` on everything else.
+
+**Segmented controls and tabs (R1.4).** Two looks, one job each (master §5.3):
+
+- `SegmentedControl` is for a mutually exclusive view or filter that reshapes one list (Day/Week, time windows, status filters). It is the pilot `.seg`: a `--surface-2` track with a 1px `--border` inset, and a raised `--card` knob that holds the active label in `--primary` (5.22:1 light, 7.67:1 dark). It stays toggle buttons with `aria-pressed`, not tabs. The knob is one shared Motion element (`layoutId`, re-measured only when the value changes) that moves in 220ms `--ease-in-out` and stretches to 1.12 on x mid-move. The active label colour is wiped in by `clip-path`, never by tweening text colour. Only the change a pointer press made animates. A keyboard press, the first render and a change made elsewhere (a reset, back navigation) snap into place. Four options sit 2x2 on a phone and 1x4 from `sm`. Other counts auto-fit at 7rem or wider. The focus ring is inset. Reduced motion removes all of it. Targets are 42px inside the 3px track (48px total), and 48px under `pointer: coarse`.
+- `Tabs` is for substantial record sections with real panels. It is the pilot `.tabs`: muted labels on a `--rule`, the active label in ink with a 2px `--primary` underline. The underline is a shared `layoutId` element that moves in 200ms `--ease-in-out` after a pointer press and snaps for the arrow keys and for changes made elsewhere. The label weight stays 500 in both states, so the active tab never widens and pushes its neighbours. Tabs never wrap. `TabsList` brings its own `overflow-x-auto` wrapper (a Motion `layoutScroll` element, so the underline measures correctly after a press scrolls a tab into view), so call sites add none. The focus ring is inset, because that wrapper clips anything outside the tab. Radix keeps the roles, `aria-selected` and the arrow keys. Targets are 40px on a mouse, 44px by default and 48px under `pointer: coarse` (`--tab-height`).
+- Gold is never a selected state. Neither control has a filled teal segment or a bordered box any more.
 
 ---
 
@@ -534,23 +625,70 @@ Shared primitives live in `apps/web/components/app-shell/` and `apps/web/compone
 
 ### Metrics and page headers
 
-Related metrics share one `AppMetricGroup` panel divided by hairlines; a metric is a quiet label with a 16px icon, then the figure. A grid of separately bordered cards, each with a 48px tinted icon tile, made the tiles the loudest thing on a dashboard and every page read as a template. A phrase standing in for a figure ("No reading yet") uses `type-section-title` so an empty state is not the largest text on screen.
+Related metrics use separate `AppMetricCard` figures inside `AppMetricGroup`, with generous gaps,
+soft token tints and `--elevation-raised`. There are no shared borders or icon tiles. Both `panel`
+and `strip` use the same system. A phone has a focusable, horizontal scroll-snap row; 600px+
+wraps the figures. Numeric zeroes use muted ink without a tinted surface. Details and count
+definitions remain in InfoHint. Action figures lead and use gold attention or the appropriate
+status surface; their buttons apply existing filters. The visible value is also their accessible
+description. Unknown resources show an ellipsis until a real result is available. This W3 polish
+contract supersedes the earlier divided-panel/ledger layout.
 
-`AppPageHeader` sits on the canvas with a hairline under it, not inside a card: the title is the page's heading, not one more panel among the panels below it. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
+`AppPageHeader` sits on the canvas, not inside a card: the title is the page's heading, not one more panel among the panels below it. Since W3 polish there is no hairline under it either: it doubled up with the group rule of the first section, so space alone separates header from work.
+
+**Header voice (W3 polish).** The description is one line under ~70 characters that changes what
+the reader does next ("Charts that may be the same person, strongest match first."). Policy,
+reasons and lists of types go into `hint` / `helpText` beside the title. A data line ("12
+messages went out today") is used only where the page shows no figure chips; a header never
+repeats a number a chip or count already shows. Actions sit in one wrapping row on every width:
+a page's action wrapper is `flex w-full items-center gap-2 compact:w-auto compact:gap-3` when it
+holds a SegmentedControl (`min-w-0 flex-1 compact:w-72 compact:flex-none`), so the control and an
+icon button share a phone row. Refresh and Export buttons keep their full accessible name and
+hide the word below 600px (`sr-only compact:not-sr-only`). Timezone notes join the description
+("Times in Africa/Accra.") instead of a third control in the action row. Workspace pages fade in over 150ms (`app/(workspace)/template.tsx`, opacity only), and a 2px bar crosses the top while an in-app link loads (`NavigationProgress`).
 
 ### Shared foundations (#265)
 
 `AppPageHeader` uses `type-page-title` and `type-body`, with an optional `breadcrumbs`
-slot above the title. `AppMetricGroup` is an unfilled ledger with a strong top rule,
-hairlines between cells, `type-label` labels and tabular `type-metric` figures.
+slot above the title. `AppMetricGroup` uses the separate-figure contract above, with tabular
+numbers and units retained.
 `FormSectionCard` keeps its existing API while drawing a ruled section on the canvas;
 its default heading is `h2`, with `titleAs="h3"` for nested sections.
 `DashboardSectionHeader` uses the Plex section role.
 
 `DataTable` retains its sorting, pagination, filtering, server/client modes and
 mobile renderer. Its optional `toolbar` slot holds caller-owned filters; it does
-not fetch or change filter state. The table has a strong top rule, tabular data,
-a quiet header and 44px sorting controls.
+not fetch or change filter state. R1.6 replaces the strong top rule with 1px
+`--border` edges and quiet row dividers, a `--card` body, sticky `--surface-2`
+headers, and `--surface-2` hover/focus-within rows. Numeric data remains tabular;
+column metadata retains right alignment and cell classes. Sorting controls remain
+44px; cells retain their 44px desktop / 52px coarse-pointer floors.
+
+`renderMobileRow(row.original)` is the existing card slot. Its presence makes the
+root an inline-size container: below **60rem available width** it shows cards;
+from 60rem it shows the table. This is a local content threshold, independent of
+viewport width or shell mode. Patient contact/identifier columns and two record
+actions need more space than the pilot's reduced phone table; 60rem reserves that
+space without changing the rendering API. Both current consumers, patient registry
+and staff invitations, inherit it. Cards include a wrapping "Sort by" fieldset
+using the same headers and sorting handlers, with accessible direction text.
+Caller filters and shared pagination remain outside the presentation switch.
+
+There is one TanStack row model and one sort/filter/page state in client and
+controlled-server modes. CSS changes visibility without mounting a new table,
+resetting state or requesting data. Inactive presentations use `display: none`,
+removing their controls from the accessibility tree. Renderers retain ownership
+of record content and actions; `onRowClick`, when used, also supports Enter in
+cards and must not be combined with nested actions. Row IDs identify both
+presentations. Refresh feedback sits above either presentation, out of flow;
+empty cards and tables share the supplied empty state or "Nothing to show."
+fallback. No row arrival animation is added.
+
+Without a card renderer, the table always retains its named keyboard-focusable
+horizontal/vertical scroll area, caption, sticky header and `aria-sort`. Browsers
+without container queries also retain that complete scrollable table. Existing
+`hideOnMobile` column metadata continues to mean the viewport `md` breakpoint;
+this unit does not change independent responsive layouts in other routes.
 
 `StatusLabel` is the shared badge for system states. `statusLabel` in
 `lib/status-presentation.ts` owns plain-language labels, reuses the hypertension
@@ -594,28 +732,110 @@ for Playwright and creates no public route or production dependency.
 
 ### Staff shell (#266)
 
-The rail is 232px on the canvas (`--background`, a `--border` hairline edge) and
-collapses to 64px of icons. Group names come from `app-nav.ts`; collapsed, a
-`border-rule` hairline separates the groups. Rows are 44px in both widths. The
-selected row takes a `bg-primary/10` tint, a semibold label and a primary icon,
-with `aria-current="page"`; nothing else is teal. Item descriptions no longer show
-in the rail. The aside stretches with the page and only its contents are sticky,
-so its edge runs the full height of a long page. `[` toggles the rail from `md` up,
-except while typing or with a modifier held; the header button keeps
-`aria-expanded` / `aria-controls`. Below 1280px the rail still starts collapsed.
+R2.1 uses the approved pilot's shipped geometry: 232px expanded and 64px
+icon-only from 1200px; a distinct 76px icon-only rail from 600 to 1199px.
+The earlier R0 prose says 248/88px and elsewhere 76px desktop collapse. These
+conflict with the pilot and round-3 feedback; 232/76/64 is the implementation
+baseline, not a new owner approval. Under 600px R2.2 supplies the phone BottomNav
+and More sheet. New Patient and all permission-filtered destinations remain available.
 
-Collapsed icons are named by the shadcn `tooltip` (`components/ui/tooltip.tsx`,
-`@radix-ui/react-tooltip` ^1.4.1, the #263 "adopt selectively" decision). It opens
-on hover and on keyboard focus; each link also keeps its label as `sr-only` text.
-`InfoHint` remains the only help bubble.
+The rail sits on `--background`, beside one `--card` workspace sheet inset 8px
+from 600px, with a quiet border and 12px corners. Main keeps its existing overflow
+behavior and the document remains the vertical scroll owner. The aside stretches
+with the document; its contents stick at the top in a dynamic-viewport-height
+column with an independently scrolling navigation area. Main has 10rem plus safe-area
+bottom clearance on phones and 6rem from 600px, so a final action can clear the
+fixed chat launcher and phone navigation. Chat sits above the phone bar; its panel
+height accounts for that space without changing chat behavior.
 
-The header is 56px: the rail toggle, one clinic switcher, the sync control and the
-account menu. The switcher shows the clinic name with the active clinic's roles
-after it as plain muted text (no badges); with one clinic it is text, with several
-a borderless `Select` whose accessible name carries both. On phones the role text
-is `sr-only` and also shown at the top of the menu sheet, and the sheet no longer
-repeats the picker. The sync control's "Sync now" is the shell's only refresh.
-The `--sidebar` tokens are kept but have no consumer in the staff shell now.
+`AppNavList` keeps `app-nav.ts` as its sole permissions/flag/placement filter.
+Expanded desktop groups retain their names; compact modes separate groups with space.
+Tablet and collapsed desktop links show icons only, with full accessible names and Radix
+tooltips (300ms first delay and instant neighbour scanning). Expanded desktop labels wrap
+instead of clipping. Controls keep a 44px floor. Current links use
+`--selected`, semibold `--primary`, and `aria-current="page"`; unselected labels use
+muted ink with `--surface-2` hover and a visible 2px focus ring. Disabled clinic
+controls remain native disabled buttons, without a contrast-reducing opacity.
+
+Desktop starts expanded with no saved preference. Guarded localStorage reads happen
+before the first shell paint, after KeycloakProvider's client session check.
+Forced rail/phone presentation never overwrites the desktop preference. The header
+toggle and `[` work only from 1200px; typing, editable content and modifier guards
+remain. Keyboard toggles, including keyboard activation of the header button, are
+instant. Pointer toggles transition width for 200ms with the shared drawer curve,
+reverse from the current frame, and crossfade the logo; reduced motion removes
+movement. The shared R1.5 Tooltip provides compact navigation labels with a 300ms
+first hover delay, instant keyboard access and the shared 300ms scanning window.
+
+At 600–1199px the header's Open navigation button opens a separate left overlay Sheet
+with full labelled destinations over a dimming scrim. It uses the existing Radix focus trap,
+240ms drawer entrance, reduced-motion fade, Escape/outside dismissal and leftward drag handle.
+It closes on route changes and when crossing 600/1200px. Focus returns to the trigger, or to
+main when that trigger is hidden by resizing. Phones retain BottomNav/More and desktop retains
+the docked sidebar. Tablet presentation never writes the desktop collapse preference.
+
+The header retains the clinic picker, sync and account controls at every width.
+Message delivery becomes visible from 600px in the staff shell so hiding the phone
+trigger cannot conceal it at 600 to 767px. Clinic settings remains in the account
+menu. R2.5 shares the compact clinic context with the portal. R2.2 replaces the staff hamburger
+with a small brand mark and a persistent bottom bar below 600px. R2.3 stacks the
+staff clinic name above the active role at every width, with independent single-line
+truncation and the complete context in the switcher's accessible name. Explicit
+selected text prevents the option's wrapping styles from expanding the header.
+The row may grow with enlarged text; phone pixel gutters and a 6rem minimum
+context width retain room for touch targets and visible context at 320px. When
+space runs short, the action group wraps below the clinic instead of squeezing
+its text out. The existing clinic-switch success/failure feedback remains.
+No new navigation counts or routes.
+
+The sync control precedes Message delivery and the account menu. Its quiet inner
+status surface is at least 32px tall inside a target of at least 44px. It reserves 6.75rem on
+phones (capped at 180px for enlarged text) and 192px from 600px, and the pill sits at the
+**right** edge of that slot, beside Sync now, the header icons and the account menu, so state
+changes do not shift adjacent controls and the quiet synced check is never stranded in the middle
+of the header (owner feedback, W3 polish). The button itself shrinks to the 44px check when
+synced, so the empty part of the slot is not an invisible target. The synced state shows only its success check in a compact tinted pill, with the full
+status in its accessible name and a Radix tooltip on hover or keyboard focus. Other states
+retain words.
+Phones show short attention-state labels and the active-clinic count (visually
+capped at 99+); the accessible name retains the full status and other-clinic
+count. Full labels and the existing Sync now action appear from 600px. Offline,
+syncing, attention, failed, queued, held and synced retain their existing priority,
+ownership, recovery actions and sheet. Stable icon layers crossfade opacity,
+small scale and blur over the shared 150ms ease-out; CSS transitions reverse from
+their current value. Reduced motion switches icons immediately and stops the
+sync spinner. Text and accessible status update immediately in both modes.
+
+`getMobileNavigation` partitions existing authorized sidebar items using R0-AUDIT
+section 5's fixed priority: Dashboard, Stations, Today Board, My Assigned, Queues,
+Patients, Appointments. Up to four become primary links, followed by More; the
+remaining sidebar items retain their groups in More. Header/profile destinations,
+Manage profile, Your settings and Saved changes and sync remain available there.
+No second permissions filter, renamed labels or counts. The static pilot's four
+sample tabs are a visual reference; the production bar follows the documented
+role/flag-driven contract and may contain five controls.
+
+The bar uses the pilot's 60px minimum rows, 11.5px labels, semantic card background,
+muted ink, primary current state and a single moving 2px top indicator. Phone labels are one word,
+centred, 11.5px, and fit on one line at 320px: Home, Today, Stations, Assigned, Queues,
+Patients, Visits (portal: Home, Health, Visits). The full label remains the accessible name,
+and sidebar and More keep it. `AppNavItem.shortLabel` is presentation only. Labels scale in rem
+and may wrap at enlarged text sizes for accessibility. Safe-area padding covers the home indicator and horizontal
+cutouts; keyboard focus is inset. More is a real button with dialog expansion
+state, and marks the current section for overflow routes. Clinic-dependent links
+remain native disabled controls when no clinic is selected.
+
+More reuses the shared Radix Sheet, opening from the bottom with a 12px top radius,
+a titled header and a scrolling body within 85dvh. Escape/close returns focus to
+More. Resizing across 600px closes it and focuses main, avoiding a hidden trigger.
+Navigation/history closes it without remounting page content. Opening the existing
+sync center waits for More to release its focus trap. The provider-controlled
+sync sheet remembers its actual entry point and restores focus on close, falling
+back to main if that control is gone or hidden. Its focus trap and queue behavior
+are unchanged. R2.4 adds the shared drag handle and interruption contract described
+in section 7, retaining these custom focus handlers and existing modal semantics.
+R2.5 reuses this phone bar and More behavior for the patient portal, as specified
+below. The known open-overlay accessibility findings remain unresolved.
 
 ### Navigation utilities (#267)
 
@@ -636,30 +856,63 @@ On phones the header has no room for the icon, so both appear at the end of the
 menu sheet in an "Account" list (its own `nav` landmark), drawn by `AppNavList`.
 Without a clinic selected each shows disabled, as the rail does.
 
-### Volunteer and doctor dashboards (#268)
+### Volunteer and doctor dashboards (#268, R3.1)
 
-The dashboard leads with **Needs you now** (`components/dashboard/NeedsYouNow.tsx`)
-for anyone with a volunteer or doctor section, then "Today at a glance", then the
-role sections, then clinic-wide measurement coverage. Rows are `AppActionRow`s with
-one 44px action each, built only from `DashboardData` counts; no patient is named,
-because the contract carries none.
+A volunteer-only dashboard now opens with the approved mint welcome band,
+device-clock greeting/date, five contour swells and a two-layer wave edge.
+The greeting uses IBM Plex Sans through `font-body`; gold is the existing
+`--secondary` token. A long first-name token truncates visually while retaining
+its full accessible text. At very narrow available measures, including enlarged
+text, decorative artwork yields its column to the greeting. Controls and state
+remain mounted across width changes.
 
-- **Volunteer:** a sentence with their own counts today, a row to their worklist
-  (`getOpsDestination`: Stations in the station line, otherwise My Assigned), and
-  a draft-visits row when they have drafts. This is the first phone screen.
-- **Doctor:** rows for visits waiting for review, waiting for sign-off and HAP
-  notes to cosign, each opening its `/queues?tab=` tab. With nothing waiting, one
-  line says so.
+The band mounts `DashboardShiftControls` only with the station-workflow flag,
+an active clinic and `OPS.SHIFT.READ`. It reads `fetchActiveShifts`, independently
+of station-board permissions, through `useOpsView` and a separate
+`dashboard-shifts` device-cache key. This adds no IndexedDB schema version or
+backend endpoint. Queued changes use `usePendingOpsWrites`,
+`overlayPendingShifts` and the existing `useShiftControls` operation.
+`OPS.SHIFT.WRITE` gates actions; eligible roles retain the existing effective-role
+and membership union. One eligible role is stated inline; several use the existing
+Select. Start shift and End shift preserve the existing applied/queued/error copy.
+Missing or failed first reads are unknown, never Off Duty. Saved/offline data is
+labelled; refresh errors retain known data and offer retry. A submission lock lasts
+until the read/overlay reconciles, then releases for later server-side changes.
+The shared hook also guards concurrent calls before React disables the button.
 
-Counts that became rows left the role sections' figure groups, so nothing is
-counted twice there. The page header's clinic-name badge is gone; the title and
-the header switcher name the clinic.
+**Needs you now** remains before **Today at a glance**, role trends and
+clinic-wide measurements. Its existing worklist/draft rows get numbered markers
+only in the volunteer-only presentation. Worklist destinations remain derived by
+`getOpsDestination`; no station counts, completed steps or queue patients are
+invented. Personal intake counts live once in the existing sentence. HAP totals
+and draft/cosign breakdown remain in the volunteer section, alongside the existing
+HAP draft links, quick actions, two trend charts and three distribution charts.
+Clinic-wide summary totals use the shared separate-figure system.
+Existing patient descriptions supplied by authorized work-item reads are preserved.
 
-Every dashboard chart (`TrendChart`, `DistributionChart`) now sits in
-`ChartFrame`: a 2px ruled top, a small heading, and a 44px "Show table" toggle
-(`aria-pressed`) that swaps the SVG for a two-column table of the same values.
-Lines are `type="linear"`. Manager, director and admin charts get the frame too;
-their order and content are #269.
+Mixed-role dashboards keep Needs you now, clinic summaries, station-flow access,
+permission-derived composition and persisted view tabs. The welcome/shift band
+appears inside their volunteer view; doctor, review, clinic and network sections
+retain their existing presentation. With the station flag off, the volunteer
+content and existing worklist remain available and no dashboard shift component
+mounts. The flag-off gate has component coverage; it is not a separate browser build.
+
+`DashboardIllustration` lazy-loads pinned local `lottie-web` 5.13.0 and same-origin
+JSON. Hello plays 0–60 once (2.5s); checklist plays 0–98 once (about 1.63s), only
+after a server-applied start. Queued starts say saved on this device and receive
+no server-confirmation illustration. Reduced motion loads no player/JSON; static
+SVG rest frames render immediately and survive load/player failure. Colours use
+theme tokens; fallback SVG IDs are isolated per instance. Source downloads were
+structurally matched to the supplied JSON, and both source pages specify the
+Lottie Simple License, permitting commercial use without in-app attribution.
+Sources, terms and SVG derivatives live in `public/lottie/`; regenerate the
+rest-frame files with `scripts/export-dashboard-illustrations.cjs`.
+
+Every dashboard chart (`TrendChart`, `DistributionChart`) retains `ChartFrame`:
+a ruled heading and a 44px Show table toggle (`aria-pressed`) swapping the SVG
+for a table of the same values. Line interpolation, chart data and clinical
+measurement coverage are unchanged. Detailed verification and limits:
+`ui-refresh/R3.1-REVIEW.md`.
 
 ### Manager, director and admin dashboards (#269)
 
@@ -685,13 +938,128 @@ only.
   network, doctor and volunteer sections sees them as a "Dashboard view" tab set,
   oversight first (Clinic trends, Network overview, then the person's own queues).
   A single-role account sees no tabs. Doctor and review stay one view.
+  **Superseded by W2 below**: the tab set and its stored tab are gone.
+
+### Role homes (W2)
+
+**One home for the person's main role in the active clinic** (owner decision, `ui-refresh/W2-REVIEW.md`).
+`pickMainRole` (`lib/main-role.ts`) takes `effectiveRolesForActiveClinic` in the order
+`SYSTEM_ADMIN` > `DIRECTOR` > `MANAGER` > `DOCTOR` > `VOLUNTEER`, falling back to the dashboard's
+data keys. `RoleHome` draws every role but the volunteer (W4 owns that home):
+
+- **Greeting band**: `VolunteerWelcome` with `solo` (no illustration, no shift panel). Time-of-day
+  greeting and date in Africa/Accra, one sentence of what is waiting, the role's primary (filled) and
+  secondary (outline) action, each shown only with its route's permission, then a ghost Refresh.
+  The greeting is the page's only `h1`.
+- **Four-figure strip** (`FigureStrip`): a named `ul` of the shared separate figures, number
+  first, label second, units shown. One horizontal row on phones, wrapping from 600px. Action
+  figures lead, nonzero attention figures use gold, zeroes recede. Never icon tiles. Doctor: in your
+  queue, finalized today, finalized this week, HAP notes to cosign (follow-up share when the notes
+  flag is off). Manager: checked in, sessions completed, left before finishing, median time in
+  clinic (station line), or the clinic's counts as "Today in this clinic" when the line is off or
+  unreachable. Director: registered patients, visits in 30 days, visits with a BP screen, care plans
+  with a follow-up. Admin: clinics, zones, staff accounts, patients across clinics. Labels say what
+  the API measures: `followUpComplianceRate` is care plans _with a follow-up date_, not follow-ups
+  kept.
+- **Own work**: doctor = Needs you now and finalizations beside BP levels and diabetes, then recent
+  finalized visits and reviews; manager = **Needs attention** (the clinic's held-up queues), then
+  station flow; director = Needs attention and trends beside queue status, screening coverage and BP
+  levels, then station flow and staff activity; admin = network trend and clinic comparison, then the
+  active clinic's station flow. Wide column 1.7fr, narrow 1fr from `lg`.
+- **Also on your plate**: other roles' waiting work as one line each, a count sentence and one link
+  (`workRows` shared with Needs you now), never their sections, directly under the strip (waiting
+  work before trends). Nothing waiting, no section.
+- **"Today at a glance" no longer leads** any staff home; it is also removed from the volunteer home in W4.
+- **Wait and service per station**: a ruled list, wait (`--chart-2`) then service (`--chart-1`) as
+  bars on one scale, both minutes written beside the name, "Longest wait" tag. Bars grow once from
+  their start (`.station-time-bar`, 600 ms ease-out, transform only; reduced motion at rest).
+
+### Volunteer home (W4)
+
+The volunteer's greeting retains the shift actions and Refresh, then the compact W1 station line
+and "Your clinic day". The line reuses the Stations `station-workspace` cache shape, pending shift
+overlay and polling; it remains keyboard-scrollable on narrow screens. The checklist names the
+real shift state, worklist destination and draft count. HAP drafts retain their own count and
+patient links when present. Clinic-wide figures and charts are off this home. Other main roles
+retain W2 precedence and "Also on your plate"; a volunteer has no lower-role work to list.
+
+### Lists (W3)
+
+The pilot's list language (`r0-pilot/index.html` `#s-patients`, `#s-queues`), shared by every
+page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-REVIEW.md`).
+
+- **Column labels** (every `DataTable`): Plex Mono 11.5px capitals, 0.05em tracking, muted, on
+  `--surface-2`. The rows lead; the labels index them. Sort buttons inherit the label (Preflight
+  resets a button's font and case, so the grid mode sets `font`, `letter-spacing` and
+  `text-transform` to `inherit`); the phone "Sort by" list stays ordinary sans text.
+- **Pager**: count left, Rows select, ghost chevrons.
+- **Edge to edge** (`DataTable bleed`): a list sitting directly in `<main>` runs to the sheet's
+  edges; first and last cells take the sheet gutter (`SHEET_GUTTER`, mirrors `<main>`'s padding).
+  Phone rows carry `SHEET_GUTTER` themselves. Never inside a `RecordSection`, card, two-column
+  grid or dialog. Used by Patients, Queues, Volunteers, Screening days. A bled list drops the page
+  header's hairline (`className="border-b-0 pb-0 md:pb-0"`): the table's top rule is the line.
+- **Count beside the title** (`AppPageHeader count`): only when the API returns the true total
+  (Patients `total`, the full volunteer directory). Never a page length or a capped list. It sits
+  beside the `h1`, not in it, so the page's name stays "Patients".
+- **Patient cell** (`PatientIdentity`): name (semibold sans) over code (mono, muted), one column.
+  Used by Patients and Queues; a patient reads the same on both.
+- **Row actions**: one quiet ghost "View" / "Open", and at most one `primaryOutline` action (pilot
+  `.btn-teal`: teal text, 55% teal border). A filled button on every row is a wall of teal.
+- **Missing values** read "Not recorded" in muted text, not a dash.
+- **Phone rows**: name (as the record link where the row opens a record) and a meta line (code,
+  then masked phone or time), the row's one action on the right. Patient rows still swipe left to
+  check in; a swipe may start on the name link and swallows the click that follows.
+- **Queues**: tabs named Drafts, Review, Sign-off, Cosign (pipeline order), count beside each;
+  columns Patient, Created / Submitted (Accra, `formatOpsDateTime`), Flags (BP stage and High
+  glucose together, "Nothing flagged" when none, never "normal"), quiet Open. Refresh is ghost.
+- **Patients**: search with a `/` hint (hover pointers only) and a sr-only label; a dashed Filter
+  chip opening the existing Sheet, then one removable chip per set filter and Clear all filters.
+  The chip row scrolls sideways on phones. "Swipe a patient left" hint on touch phones only.
+  Columns Patient (name over code · ID last 4), Phone (masked), Last visit (latest encounter at
+  this clinic, "No visits yet"), Location (community or district, region; muted status when not
+  recorded). A plain-language **Sort** select sits pinned right of the chips (Recently updated,
+  Name, Last visit, Newest/Oldest registered, Screened when on) and is the phone's only sort
+  (`DataTable mobileSort={false}`); column headers still sort on wide screens.
+- **List toolbar** (`app-shell/ListToolbar.tsx`), shared by every list tab: `ListSearch` (one
+  full-width search on `--surface-2`, clear button, optional `/` hint), `ListFilters` (dashed
+  Filter chip opening a right / bottom Sheet of the page's own fields, removable chips per set
+  filter, non-removable context chips such as an audit log's zone, Clear all, a pinned `trailing`
+  slot) and `TOOLBAR_SELECT` (a small select with a quiet inline label, for a list whose two to
+  five filters fit one row: Clinics and Staff). Duplicate review and Cross-clinic use the shared
+  Filter Sheet at every width, preserving one set of ids; below 840px it opens from the bottom. Filters apply as they
+  change; no Apply button, no "Filters" section, no summary line repeating what the controls show.
+- **Invitations**: a compact Invitations heading and Invite a colleague action; the status
+  `SegmentedControl scrollable` owns one horizontal row, and `ListSearch` owns the full row below
+  it. The invitations section is not a nested panel; its `DataTable bleed` reaches the workspace
+  gutters like the roster. Labels and select ids are unchanged. The scrollable segmented variant
+  keeps the same toggle-button semantics, shared knob and keyboard/reduced-motion behavior.
+- **Context figures on a list** (`AppMetricGroup variant="strip"`): separate stat chips with
+  breathing room, no shared lines, what each counts in its help. The same system serves
+  dashboards, reports and research; dashboards retain their richer greeting and work panels.
+  **One line per chip** (W3 polish): icon, figure, label and help share a 16px optical size, so
+  weight (600 vs 400) carries the emphasis instead of a numeral that dwarfs its own icon. A count
+  or rate reads number-first ("47 Needs review"); any other value reads label-first ("Blood
+  pressure 128/82 mmHg"). 40px tall on a mouse, 44px on touch, 8px radius. A zero has no tint
+  or shadow, only a hairline ring. On phones the row scrolls and bleeds to the screen edge, so a
+  cut chip reads as "more this way". Never repeat a figure the page already states: no "Total"
+  chip beside a header count, no "Visible" chip beside a "N loaded" line, and "Showing x of y"
+  only when a filter actually narrows the list.
+- **List tabs** (Audit, Message delivery, Staff, Clinics, Duplicate review, Cross-clinic): page
+  header, strip, toolbar, one muted "Showing / loaded" line, bled table, then any "how to read
+  this" help below the list. No `RecordSection` frames, no two-column filter rail. Long ids are
+  mono, first 8 characters, full value on hover, and a press copies the whole id (Audit).
+  "When did this happen" row times use `RelativeTime` ("12 min ago" for a week, then the Accra
+  date; exact time in the title). Planned times, audit entries, clinical timestamps and times
+  inside sentences stay absolute (`formatOpsDateTime` / `formatOpsTimestamp`).
+- **My Assigned**: the worklist leads (left, wide); shift and workflow notes sit in a 320px column
+  on the right.
 
 ### Patient registry and records (#270)
 
 The registry starts with search and the existing location and completed-screening
 filters (#224), followed by one result count and the shared sortable, paginated
 DataTable. Patient identities use the serif record role on phones; row actions
-have 44px targets. URL state, clinic scope, masking and check-in behavior stay as
+have 44px targets. **Superseded by Lists (W3)**: phone names are sans, as in the pilot. URL state, clinic scope, masking and check-in behavior stay as
 implemented before this phase.
 
 Patient records use local `RecordSection` groups on the canvas, with plain
@@ -740,8 +1108,52 @@ minutes remain beside every bar. Staffing is shown as Staffed N of capacity,
 separately from places in use. Manager controls retain their permission, day,
 connection and reason gates.
 
-Station setup, the station workbench, visit history/hand-off and My Assigned use
-`RecordSection` rules. Shared history, eye, counselling, results and shift panels
+### Stations workspace refresh (R3.2)
+
+The Stations overview leads with a compact shift strip. Off duty, it offers the
+existing shift start and eligible role choice without displaying disabled station
+lists or empty queue columns. A missing or refused first read stays unknown.
+Retained data remains visible after refresh failures with an explicit retry.
+Pending starts/ends retain their existing outbox overlays and recovery badges;
+station changes and claims require a server-confirmed active shift. Start/end
+use the shared `useShiftControls` operation with a page reconciliation lock.
+Today, My Assigned and the dashboard retain their own shift presentations.
+
+On duty, a labelled station trigger opens the existing draggable Sheet: bottom
+below 600px, right-side from 600px. The same content and open state survive width
+changes. Choices come from the active station board, including actual waiting
+counts and the current station. Selecting the current station clears it using
+the existing operation. Closure notices and screener attribution remain visible.
+
+The oldest queued patient becomes a ticket with a deep-teal, dashed queue stub,
+patient code, exact wait, check-in time and existing handoff/performer details.
+Other patients retain claim/Continue actions and the account's actual screener.
+The phone's fixed Take action uses the short visible label Take patient, retains
+the full patient name in its accessible label, and leaves space for chat, the
+BottomNav and the safe area. At wider sizes Take remains on the ticket.
+Station capacity and places in use remain explicit and informational, matching
+the existing server contract. Claim and Continue actions remain available.
+Claims and station changes have synchronous duplicate guards; successful claims stay busy through navigation.
+The whole line uses one route stop per actual station, gold for the user's stop,
+with actual waiting/being-seen counts and staffing. It reflows by available width.
+No workflow completion badges, new APIs or undo behavior are inferred from the pilot.
+
+**W1 (2026-11-11) supersedes the layout above** (`ui-refresh/W1-REVIEW.md`). One duty strip on a
+mint band holds duty state, role · since (role hidden below `compact`, the header shows it), the
+station picker (`Station <name> ⌄`, ghost; "Choose station" with none), Refresh and End shift; on a
+phone it is two rows, the picker second. The page `h1` "Stations" is screen-reader only; the
+"Next at <station>" eyebrow leads. The ticket shows a gold queue number, "<previous station> done",
+name, code · age (from `dob`; sex is not on the station read, so it is not shown), a wait meter on
+the station line's 40-minute scale (amber past 20), "Handed on by …", the hand-off note only when
+written, Take patient and Open chart. Check-in time and "no hand-off note" are gone. "Also waiting
+here" rows: place in line (queued only), name, code, minutes, outline Take patient. The phone's
+fixed action reads "Take <name>" on one ellipsed line, full name in its label. The line leads each
+stop with its waiting count, fills busy stops and leaves empty ones hollow; "being seen" shows only
+when non-zero. "Who is working on this account?" comes last; the strip says "recording as <name>"
+when it is not the holder.
+
+Station setup, the station visit workbench, visit history/hand-off and My Assigned
+use `RecordSection` rules. Shared history, eye, counselling, results and shift panels
 opt into that treatment only on these routes; VitalsForm uses its existing
 station `sections` boundary. Existing clinical fields, units, validation,
 defaults, correction history, offline outbox, held states and save payloads stay
@@ -753,24 +1165,248 @@ its assignment table retains the full list and existing filters.
 
 Shipped in [PR #295](https://github.com/akomapahealth/nkwapa/pull/295); before and after screenshots and verification are in the pull request.
 
+### Patient registry workspace refresh (R3.3)
+
+Both registry routes retain the shared `PatientRegistryScreen`, existing clinic
+scope, debounced search, URL filters, server sort and pagination. The toolbar sits
+on the workspace sheet, with a visible search label and a Filter action. `/`
+focuses search unless typing or an overlay owns focus; Escape clears search.
+New Patient uses `PATIENT.CREATE`, and check-in uses `OPS.CHECKIN.CREATE`.
+
+Location and completed-screening controls live in one draggable Sheet: bottom
+below 600px, right-side from 600px. Filters update immediately; Show results only
+closes the Sheet. Selection, custom-range mode and open state survive resizing,
+and filter values survive dismissal. Every active filter has a wrapping removal
+button with a 44px floor. Removing a region also clears its district; removing
+screened dates clears their now-invalid sort. Clear all retains unrelated sorts.
+Invalid or refused dates remain reachable through Edit screened dates after
+closing the Sheet. No result count is fabricated for its final action.
+
+The shared DataTable still switches by its available 60rem container width;
+other table consumers retain their existing presentation. Registry cards use
+IBM Plex Sans for names, Plex Mono for patient codes and actual phone/ID data.
+They keep View record and permission-gated Check in. A touch swipe to the left
+uses the same check-in operation and synchronous submission guard as the button.
+Vertical movement, pointer cancellation, resizing and blur cancel a held swipe.
+The row remains after success, queued writes and refusal. No undo, queue state,
+last-visit field or optimistic row removal is inferred from pilot data.
+
+Existing resource states and offline check-in/replay semantics remain. The
+registry still requires a connection for a cold read and retains loaded results
+with the existing stale/offline notices. Validation scope and manual limits are
+recorded in `ui-refresh/R3.3-REVIEW.md`.
+
+### Patient registration workspace refresh (R3.5)
+
+Both new-patient routes keep `RegisterPatientScreen`, their existing permission
+guards, clinic scoping, registry links and successful chart destination. The
+screen sits directly on the workspace sheet with its existing safety help and
+four ruled sections: Identity, Contact details, Residential location and National
+ID. Paired fields use two columns from 600px; from 1200px each section's heading
+and explanation sit beside its controls. All styling is registration-local;
+shared section/location/phone/error components and edit forms keep their contracts.
+
+Below 600px, Create patient and Cancel remain visible above the phone navigation.
+Registration measures the rendered Primary navigation and chat launcher so text
+enlargement cannot turn nominal shell dimensions into covered actions. Both
+buttons wrap when needed and keep 44px targets. The duplicate dialog keeps the
+existing Review details/Open existing patient operations, with a bounded grid and
+wrapping actions for long identity fields and enlarged text.
+
+Required markers, native constraints, field errors/summary links, all field
+labels, options, defaults and payload omission rules are unchanged. In particular,
+No ID document omits the ID number; switching back retains the entered value.
+Unknown/not-recorded residential states keep their existing clearing rules. The
+same synchronous submission guard covers repeated submits, permits retry after
+refusal and stays held while successful navigation leaves the form. The API's
+idempotency contract remains unchanged. Offline copy asks for a connection;
+registration does not invent an outbox, local save or automatic replay. Values
+remain in the mounted form after an unsuccessful request.
+
+Validation, candidate failures and limits are recorded in `ui-refresh/R3.5-REVIEW.md`.
+
+### Patient profile workspace refresh (R3.6)
+
+The canonical clinic-scoped chart keeps its data lifecycle, role/flag gates,
+legacy and merged-record redirects, URL tabs and lazy longitudinal reads. Its
+profile header now puts patient name, patient code, existing sex label and
+recorded research-consent badge together. An initials marker is decorative.
+Back to Patient Search remains a real clinic-scoped link; existing Edit and
+Check In Patient operations remain permission-gated, with their original
+handlers and pending/refusal/offline behavior. No encounter or registration
+workflow is invented from the visual pilot.
+
+On scroll, a compact identity strip keeps the actual name and patient code in
+view below the measured workspace header. It follows shell resizing/collapse,
+adds no duplicate focus stops or announcements, and yields if it would cover a
+keyboard-focused control. It updates without entrance motion, including under
+reduced motion. Opaque semantic surfaces preserve legibility in both themes.
+The strip is portaled outside the scrolling page to avoid inherited spacing and
+clipping. Measurements are chart-local; the shell and shared primitives are unchanged.
+
+Needs you now still leads the overview. Clinical summaries use one column below
+840px and two above; demographics/location and existing portal/admin/next-step
+sections use one column below 1200px and a 2:1 split above. Long identity values
+wrap; header, portal and merge actions wrap and retain 44px targets. Clinical values, labels,
+units, empty/error states, consent, merge refusal, portal access and new-encounter
+access remain on their existing implementations. The separate Vitals and
+Encounters redesigns remain R3.7 and R3.8.
+
+Validation and limits are recorded in `ui-refresh/R3.6-REVIEW.md`. The shared
+normal-route audit now explicitly waits for the sync pill's settled synced
+state before measuring contrast; transient sync states remain a separate finding.
+
+### Vitals workspace refresh (R3.7)
+
+One `VitalsForm` still serves encounter Vitals, the new-encounter wizard and
+section-limited station measurements. Ruled `RecordSection` groups replace
+nested panels and tinted icon tiles. The systolic/diastolic pair is visually
+distinct without changing its labels, units, input behavior or validation.
+Container-width grids use one column by default, two from 30rem available width,
+and three from 48rem for ordinary fields (four for chart history measurements).
+The read-only summary uses the same local grouping and explicit saved units.
+No form subtree is remounted on resize. Save and tobacco-review actions wrap with text size and retain 44px targets.
+On phones their row sticks within the form above the measured bottom navigation,
+with clearance for the actual chat launcher. At narrow available text widths,
+that clearance moves below the full-width actions so their labels stay readable. The navigation, launcher and action
+row are observed for resizing; focused fields have matching scroll clearance.
+The row stays bounded by the form, leaving subsequent station handoff controls
+in their original flow.
+
+The local stylesheet permits wrapping selected values, notes and actions.
+Shared Input/Select/Button, shell and station workflow are unchanged. A small
+`min-width`/word-wrap correction to the existing prescription allergy label
+prevents its long words from overflowing the encounter around Vitals at enlarged
+text. The encounter container also permits long words to wrap; no prescribing
+or encounter workflow behavior changed. `FieldError`
+receives the field id, not an already-suffixed error id; temperature, Notes,
+Select and Other context fields now link to their actual error messages.
+Select items are grouped through the existing Radix primitive.
+
+Chart history keeps its chronological reads, provenance, visit links, locked and
+status badges and cursor pagination, while its measurement grid follows actual
+available width. The shared ChartFrame receives only an inert `data-chart-frame`
+marker; Vitals-local CSS wraps its header. Explicit single-column grid tracks
+and `min-width: 0` prevent the blood-pressure chart from sizing the page to its
+minimum content at enlarged text. Other chart consumers retain their layout.
+Trends keeps its range/selected-measurement state, requests,
+exact values, units, graph/table alternatives and source descriptions. The
+measurement selector uses semantic selected surfaces, a quiet value hierarchy,
+visible focus and instant repeated selection. Clinical numbers never animate.
+
+No clinical fields, defaults, validation ranges, classifier, permission,
+finalization, offline/outbox/replay or save handlers changed. Crisis still saves
+first and waits for its existing one-button acknowledgement dialog; recording
+the acknowledgement remains separate backend work. R3.8 owns Encounters.
+Validation and limits are recorded in `ui-refresh/R3.7-REVIEW.md`.
+
+### Persistent BP reading signals (R3.7 follow-up)
+
+Vitals entry now keeps a reading-level signal beneath the BP pair: the exact
+number/unit, existing category badge, and a five-band strip with a visible check
+and `aria-current` on the selected category. Saved history and finalized views
+show compact tags beside their readings. Stage 1 uses warning, Stage 2 severe,
+and Crisis destructive, from the existing hypertension presentation map. Nothing
+animates. Text and the check preserve meaning without color.
+
+The signal reuses the shared classifier and low-BP predicate. A presentation
+guard with the existing shared plausible bounds and systolic/diastolic ordering
+withholds staging for incomplete/invalid pairs. Low BP is shown separately;
+a low reading is not given a Normal/Elevated badge or a selected hypertension
+band. Mixed high-systolic/low-diastolic readings retain both existing signals.
+No clinical rule, save, escalation, permission, outbox or acknowledgement behavior
+changes. The Crisis dialog remains.
+
+Entry labels distinguish unsaved BP from BP matching the locally saved reading;
+they make no claim about whether other fields are saved or the bundle is synced.
+Category changes announce politely without announcing numeric keystrokes. These
+are BP categories, not low/medium/high overall patient risk. A broader risk model
+remains later work and needs a specified clinical objective, inputs and approval.
+Review and evidence: `ui-refresh/R3.7-SIGNALS-REVIEW.md`.
+
 ### Queues and encounters (#272)
 
-`/queues` shows each lane's count once, on its tab; the metric row and the
-"Active lane" box that repeated it are gone. Each lane opens with one sentence
-saying what it holds, then a ruled list: patient first, chart code, created
-time, BP classification in plain words and a "High glucose" label where the
-existing fasting 126 / random 200 mg/dL flag applies. Phones get ruled rows
-with the same "Open encounter" action. Fetching, permissions and lane choice
-are unchanged.
+**Labels and row layout superseded by Lists (W3).** `/queues` keeps one count on each permission-gated lane tab. R3.4 puts the
+tabs directly on the workspace sheet, with one sentence explaining the selected
+lane and an explicit Refresh queues action. Existing labels, doctor cosign /
+finalize / review / drafts default priority and clinic-role cosign gate remain.
+The URL owns lane selection, including Back/Forward; invalid or inaccessible
+lane parameters fall back to the role's default. Only allowed lanes render.
+
+Each lane uses one DataTable with its existing 60rem container switch to ruled
+cards. Sort, pagination and loaded rows survive shell resizing and lane switches.
+Cards include actual patient identity, chart code, created/submitted time, BP
+classification and the existing fasting 126 / random 200 mg/dL High glucose flag.
+Both layouts expose a keyboard-accessible Open encounter link. Cosign rows keep
+the note ID as their row key, show the actual author and submitted time, and link
+to the encounter ID, so two notes for one encounter stay distinct.
+
+An unavailable count is unknown until a successful read. If totals fail while
+rows load, tabs say "loaded" and a warning explains the limit. A full API page
+still offers Show more without a total. Server offsets advance by received rows,
+independent of deduplication; retained rows survive refused paging and retry.
+Requests use the existing resource lifecycle with abort/supersession protection;
+a clinic or permission change remounts the queue workspace. Failed refreshes and
+offline reads retain a visibly qualified snapshot. The all-lane read remains
+atomic: one refused lane prevents replacing the prior snapshot.
+
+Only a successfully read, online, current empty lane with no contradictory
+nonzero total may show the approved licensed checklist and dashboard action.
+Drafts say "No draft visits"; review/sign-off/cosign say "All caught up" for
+that lane only. No claim is made that other work is complete. The illustration
+starts when first viewed, rests at frame 98 and stays mounted through refresh
+and lane changes; reduced motion and player failure use the existing static SVG.
+A stale/offline empty snapshot says it is the last loaded version instead.
+There is no polling promise, fabricated completion count, undo or new mutation.
+Validation and limits are recorded in `ui-refresh/R3.4-REVIEW.md`.
 
 The encounter workspace drops the three metric cards and the second patient
 heading. A ruled progress line names the stage in words (Draft, Pending review,
 Awaiting sign-off, Finalized) with `aria-current="step"`, derived from the
-existing status and preceptor review. Submit for Review and Mark Reviewed stay
-routine header actions. Sign-off actions (encounter Finalize, HAP Sign note and
+existing status and preceptor review. Submit for Review stays a routine header
+action; Mark Reviewed moved to its own band in R4.2 (below). Sign-off actions (encounter Finalize, HAP Sign note and
 Cosign note) use the consent precedent: outlined warning ink with `ShieldCheck`.
 Finalize sits in its own "Ready for your sign-off" row saying it locks every
 tab. A finalized care plan reads back as a ruled `<dl>`.
+
+R4.1 (doctor review): Finalize now asks once, in the shared confirm dialog ("Finalize this
+visit?", Not yet / Finalize visit, focus on the safe choice), because it locks the record.
+The HAP note is no longer a card: one ruled section with the title and status, a provenance
+`<dl>` (written by and role, care team at submission, submitted, signed or cosigned by whom)
+and History, Assessment and Plan as ruled blocks. Read-only text is plain reading text at a
+70ch measure, not boxed. A note waiting on this doctor leads with the same warning band as
+encounter sign-off ("Waiting for your cosign") holding the only Cosign note action; the
+dialog names the author. Draft actions end in `FormActions` (split: save state at the start,
+Sign note or Submit for cosign last). Addenda and prescriptions are ruled lists; the
+Prescriptions panel and its Add prescription form drop their card and box. Note, encounter
+and dashboard times use `formatOpsDateTime` (Africa/Accra). The doctor and review dashboard
+tables share `recent-visit-columns.tsx`: Patient (a link to the visit), Code, Status, Visit
+started. Do not give the note wrapper an accessible name containing "History": tests and
+assistive technology find the History field by that label.
+
+R4.2 (preceptor and manager oversight): Mark Reviewed leaves the header. A visit waiting on the
+reviewer opens with a "Ready for your review" band in the place sign-off takes next: the sign-off
+band's shape with a teal rule, `ClipboardCheck` and a primary Mark Reviewed, because review locks
+nothing. Warning ink and `ShieldCheck` stay reserved for Finalize, Sign and Cosign. After Mark
+Reviewed, focus moves to the "Ready for your sign-off" heading that replaces the band. There is no
+preceptor role: only doctors (and system administrators) hold `ENCOUNTER.REVIEW`, and the API sends
+the review dashboard block only beside the doctor block.
+
+The flag-off Today Board puts patient flow first: one ruled list grouped by what the manager does
+next (Waiting for a pair, Assigned, In intake, then Completed and Cancelled as closed disclosures),
+one hairline `article` per check-in with the pair as a `<dl>` and actions right-aligned. Row columns
+follow the list's own width (container query at 44rem), not the window. The shift control and
+Staff on duty sit in a 20rem column from 1200px; the role filter is a `SegmentedControl` whose
+labels carry the counts, replacing pill buttons and three count tiles. "Needs you now" appears only
+when someone is waiting and the viewer can assign. With the station flag on, `/today` is the
+station line board and is unchanged.
+
+Staff activity shows ranges and days through `formatOpsDate` and record times through
+`formatOpsDateTime`; the name column stays in view while the counts scroll sideways; opening a
+person moves focus to their name and All staff returns it to the row they left. The manager
+dashboard's staff table says Visits started and Visits finalized, shows role names, and links to
+Staff activity. Station flow's longest-wait note is a ruled warning band, not a tinted box.
+Volunteer Deactivate is a plain outline button: Reactivate undoes it.
 
 The Station session route uses `RecordSection` rows. A cancelled stop's station
 name is struck through beside "Cancelled by", the name, the time and the reason;
@@ -831,6 +1467,37 @@ Data request status words are rendered through `lib/status-presentation.ts`.
 
 Shipped in [PR #301](https://github.com/akomapahealth/nkwapa/pull/301); before and after screenshots and verification are in the pull request.
 
+R4.3 (director and system administrator oversight) narrows the warning rule above. Warning ink and
+`ShieldCheck` are for what cannot be undone from this screen: merge, erasure (closing a deletion
+request) and queueing a confirmed duplicate for merge. Deactivating an account, removing a role and
+taking a clinic offline are undone by Reactivate, Add role and reactivating, so they are plain
+outline buttons and a routine Save, and Inactive and Deactivated badges are the neutral `secondary`
+badge, not destructive red. Confirmation dialogs and their copy are unchanged.
+
+- **Counts are words, not tiles.** The boxed "Showing N" and "Loaded rows" tiles beside section
+  titles are gone; the count closes the section description ("Showing 10 of 13."). Metric groups
+  hold counts only: the audit log's "Has more results: Yes" and "Audit scope: Clinic" and Staff &
+  Access's "Scope" and "15 / 0" cells were not figures. Staff shows Active accounts and
+  Deactivated separately; the audit log says how many events are loaded and whether older history
+  remains in its description.
+- **One table at every width for counts.** The network clinic comparison drops its boxed phone
+  card list for the same `DataTable` with a sticky clinic column
+  (`sticky left-0 z-[1] bg-card [thead_&]:bg-surface-2` through the column `meta.className`) and
+  right-aligned counts. Director staff activity and both organization tables use the same sticky
+  name and right-aligned counts. Record lists that carry actions (clinic registry, roster) keep
+  their phone rows, now hairline `article`s instead of rounded boxes.
+- **Sheets hold ruled sections, not cards.** The access sheet's sections are `RecordSection`s with
+  `h3` titles, identity facts are hairline rows, and role rows are hairlines. The duplicate
+  comparison sheet's decision block and the cross-clinic clinic-pair rows are ruled; a chosen pair
+  fills with `--selected`.
+- **Times.** The audit log uses `formatOpsTimestamp` (Accra, with year and seconds, because audit
+  entries are compared to the second); duplicate rows, cards and the phone audit list use
+  `formatOpsDateTime`; `formatInviteDate` (invites and data requests) now reads in Accra too.
+- Audit filters sit in two rows of four and end in `FormActions` (Clear, Apply filters). The audit
+  table opens on 25 rows; its Rows select was blank because 10 was not one of its options. The
+  audit log and data requests use `SelectClinicState` when no clinic is chosen (data requests used
+  to show a skeleton forever). Metrics' failure-reason chart is one neutral series.
+
 ### Analytics and reporting (#275)
 
 `/metrics`, `/staff-activity`, `/reports/organization` (Report and Cohort
@@ -865,11 +1532,35 @@ Shipped in [PR #300](https://github.com/akomapahealth/nkwapa/pull/300); before a
 
 ### Patient portal (#276)
 
-Overview, My Health and Appointments share a three-column navigation strip on
-phones. Each destination has an icon, a text label and a 44px minimum target.
-The strip indicates the current section when a patient opens a form. Request
-an appointment is available from Overview and Appointments. Patients reach
-past readings through My Health.
+R2.5 keeps the existing Overview, My Health and Appointments labels and routes.
+Below 600px they appear in the shared fixed BottomNav followed by More, with the
+same moving indicator, one-word short labels (full accessible names), safe-area padding and 44px target floor
+as the staff bar. At 600px and above a wrapping top navigation strip replaces the
+phone bar. Health owns self-report routes; Appointments owns request routes.
+Account and settings routes mark More as current. CSS selects the presentation;
+page content stays mounted across widths.
+
+More reuses the shared draggable bottom Sheet, preserving keyboard access,
+Escape, focus containment, scrolling and sequential More-to-sync focus handoff.
+It contains Manage profile, Your settings and existing permission-filtered
+header/profile utilities. It does not add staff sidebar destinations. Saved
+changes and sync appears only with an active clinic and the same eligibility as
+the existing sync pill: sync permissions, this account's saved changes or held
+changes, including other clinics. An empty patient queue without sync permissions
+exposes neither an inert recovery entry nor an invented synced status. Queue,
+ownership, authentication and permission behavior remain unchanged.
+
+The portal Header uses a phone brand mark and stacked, independently truncating
+clinic/role context. Its former dormant left-menu trigger is absent; phone
+navigation is owned by BottomNav. Existing clinic switching, account menu,
+appearance, tour and install access remain. Authorized Header utilities appear
+from 600px, so hiding phone More cannot conceal them at 600–767px. The portal is
+one card surface on the
+canvas, inset 8px from 600px, with quiet borders and 12px corners. Main has 6rem
+plus bottom safe-area clearance below 600px and 1.5rem above; the inherited bottom
+navigation height variable is available to floating consumers. Chat remains a
+staff-only mount. Request an appointment remains available from Overview and
+Appointments; past readings remain under My Health.
 
 The six portal routes use the existing `RecordSection` top rule, serif
 headings and hairlines between records. The reading and request forms keep
@@ -920,6 +1611,17 @@ The flows, redirects, required actions, API calls and validation are unchanged.
   falls back to a cross-fade.
 
 Shipped in [PR #303](https://github.com/akomapahealth/nkwapa/pull/303); before and after screenshots and verification are in the pull request.
+
+**R5.2 (2026-11-11).** `/login`, every `OnboardingFrame` step and the Keycloak pages now sit on
+the same inset sheet as the portal and staff shells: full-bleed white under 600px, then 8px inside
+the canvas with a 12px radius and a hairline (`.nkwapa-auth-sheet` in the theme). The "I am signing
+in as" control is the pilot `.seg` (surface-2 track, raised card knob, primary label), still a
+native radio group; the filled teal segment is gone. Keycloak fields carry `autocomplete="username"`
+(it was `off` on sign-in, which blocked password managers) and point at their error with
+`aria-describedby`. Keycloak controls stay 48px on every pointer: the 44px password toggle sits
+inside the field, so a 40px mouse field would clip it. `/account` and `/account/name` use ruled
+`RecordSection`s, hairline role rows and `FormActions` (the name form ends in it everywhere it is
+used, including the admin user sheet); the permission split is unchanged.
 
 ### Public landing page (#278)
 
@@ -1175,6 +1877,15 @@ Rules live outside the component where they are testable: `lib/clinical-measurem
 cross-field clinical rules (systolic above diastolic, a temperature that converts into 25-45 °C, a
 blood-pressure context that requires a reading), and `validateClinicalMeasurements` is unit-tested.
 
+### Sentence case
+
+Every button, link, heading, tab, nav item and field label is sentence case: "Check in patient",
+"Submit for review", "Medical history", "Today board". Proper names keep their capitals (Nkwapa,
+Ghana Card, Greater Accra), and so do the literal names of other software's controls ("Add to
+Home Screen" in Safari, the Escape key) and of options quoted in copy ("tick None"). Copy that
+names a nav item keeps only that item's own capital: "Open Today board". Applied product-wide on
+2026-11-12; release notes keep the wording they shipped with.
+
 ### Required and optional
 
 **Mark what is required. Do not mark what is optional.** On these forms most fields are optional,
@@ -1191,6 +1902,13 @@ so annotating the majority is noise.
 
 The codebase previously ran both conventions inside the same submitted form: `*` in
 `RegisterPatientScreen` and `(optional)` in `ResidentialLocationFields`.
+
+Two places keep `(optional)`, because there is no form around them for an asterisk to contrast with:
+a filter field (`To (optional)` in `ScreenedDateFilter`), and an action dialog whose only input is
+an optional note (duplicate review, data request details, chat group name). Everywhere else
+`(optional)` was removed on 2026-11-12: care plan, address note, medication drug link, volunteer
+roster, screening day, staff invite and the portal measurement composer, which now mark their
+required fields instead.
 
 ### Error recovery
 
@@ -1380,6 +2098,46 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   (`animate-photo-settle`, 1.4 s). Plain CSS, so it plays on first paint with no script; it is
   the one entrance on this page longer than section 7's 200 ms, allowed because it is a
   public page, not a clinical view, and nothing waits on it.
+
+### Public site frame and product screenshots (R6.1)
+
+- **The inset sheet means "you are in Nkwapa".** `/login`, onboarding, the portal and the staff
+  shell sit on it (R5.2). The landing page and the legal pages stay full bleed: the landing hero
+  is a photograph to the window edges and its sections are coloured bands, which an inset frame
+  would cut into, and the legal pages share the landing header and footer. The hand-off is the
+  header's "Log in", and `/login` keeps its "Back to home".
+- **Legal pages layer the same way the workspace does:** the page switcher, title and metadata
+  sit on the canvas (`bg-background`), and the notice reads on the white sheet (`bg-card`). Below
+  `lg` the contents list starts folded behind "Show all N sections" (`aria-expanded`,
+  `aria-controls`), so the notice starts on the first screen of a phone; choosing a section folds
+  it again. From `lg` up it is the sticky list from #279, unchanged.
+- **Product screenshots live in `public/product/`** and are captured from the current light
+  workspace: 1920 × 1080 at 2x for laptop frames, 404 × 872 at 2x for phones. They come from a
+  synthetic screening day in a throwaway database (seeded demo clinic, invented Ghanaian names,
+  patients spread along the station line, staff on shifts). Never from a real clinic or the shared
+  e2e database, whose leftovers ("Review Synthetic-…", 11-hour waits) read as broken. A new
+  capture gets a **new file name**: the image optimizer and any CDN cache by URL, so a replaced
+  file under an old name keeps serving the old picture.
+- **Re-capturing them** (all six in one run, about two minutes): create a `nkwapa_shots` database,
+  migrate and base-seed it (`SEED_SAMPLE_*=true`), then run
+  `packages/db/prisma/seed-screening-day.ts` with `SHOTS_NOW` set to a clinic morning (e.g.
+  10:40 Accra) so printed times read as daytime. Point `DATABASE_URL` **and** `APP_DATABASE_URL` at
+  it, make an audit-flag build, and from `apps/web` run
+  `WEB_DIR=$PWD SHOTS_DIR=<dir> SHOTS_NOW=<same> npx playwright test -c ../../docs/design-system/product-shots/product-shots.config.cjs --workers=1`.
+  Both the seed and the config refuse any database not named `*_shots`. Files come out as
+  `<name>-<YYYYMMDD>.png`; copy them into `public/product/`, update the four landing components
+  that reference them, check the showcase markers, and drop the database.
+- **What each screen shows.** The showcase is a manager's station line (waits as bars, two past
+  20 minutes); its four markers are percentages measured from that image, so a new capture
+  re-measures them. The deck is each role's own working screen: a volunteer's Stations, a
+  doctor's patient record, a manager's dashboard. The journey's Review step uses the doctor's
+  record and Follow up the patient portal.
+- **Frames.** The laptop frame keeps the light canvas in both themes, because the screenshots are
+  the light workspace. The deck dropped its "01 / 03" counters and the gold role pills on each
+  screenshot: neither was a sequence or new information. The journey's "01 / 05" stays, because
+  that order is the visit's.
+- **Showcase markers** ease in from 0.85 scale (`power3.out`, 80 ms apart) instead of
+  overshooting: bounce is for momentum a person gave, not a scroll reveal.
 
 ## 13. Library decisions and open items
 

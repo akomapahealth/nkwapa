@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { ApiError, apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -279,6 +280,7 @@ export default function ClaimRecordPage() {
               <Input
                 id="claim-dob"
                 type="date"
+                autoComplete="bday"
                 value={dob}
                 onChange={(event) => setDob(event.target.value)}
               />
@@ -295,14 +297,7 @@ export default function ClaimRecordPage() {
               </InlineNotice>
             ) : null}
             {success ? <InlineNotice tone="success">{success}</InlineNotice> : null}
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button
-                onClick={() => void handleSubmit()}
-                disabled={!selectedInviteId || !patientCode || !dob || submitting}
-                className="w-full sm:w-auto"
-              >
-                {submitting ? 'Claiming…' : 'Claim patient record'}
-              </Button>
+            <FormActions>
               {/*
                 Outside the invite branch's list on purpose, and a refetch, not a page reload,
                 which threw away the session check to re-fetch a single object.
@@ -311,11 +306,16 @@ export default function ClaimRecordPage() {
                 variant="outline"
                 onClick={refreshInvitations}
                 disabled={bootstrapCtx?.isRefreshing}
-                className="w-full sm:w-auto"
               >
                 {bootstrapCtx?.isRefreshing ? 'Refreshing…' : 'Refresh invitations'}
               </Button>
-            </div>
+              <Button
+                onClick={() => void handleSubmit()}
+                disabled={!selectedInviteId || !patientCode || !dob || submitting}
+              >
+                {submitting ? 'Claiming…' : 'Claim patient record'}
+              </Button>
+            </FormActions>
           </div>
         </section>
       ) : null}

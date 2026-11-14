@@ -33,6 +33,7 @@ import {
   type EyeScreeningRecord,
 } from '@/lib/eye-screening';
 import { Button } from '@/components/ui/button';
+import { STICKY_ACTIONS } from '@/components/ui/form-actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -279,7 +280,13 @@ export function EyeScreeningForm({
       }
     >
       <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
-        <CardTitle className="flex items-center gap-2 text-xl">
+        <CardTitle
+          as={ruled ? 'h2' : undefined}
+          className={cn(
+            'flex items-center gap-2',
+            ruled ? 'type-section-title leading-7 tracking-normal' : 'text-xl',
+          )}
+        >
           <EyeIcon className="h-5 w-5 text-primary" aria-hidden="true" />
           Eye examination
         </CardTitle>
@@ -483,7 +490,7 @@ export function EyeScreeningForm({
         )}
         {status ? <InlineNotice tone={status.tone}>{status.text}</InlineNotice> : null}
         {editable && !loading ? (
-          <div className="flex justify-end">
+          <div data-sticky-actions className={cn('flex justify-end', STICKY_ACTIONS)}>
             <Button type="button" onClick={() => void save()} disabled={saving}>
               {saving ? 'Saving…' : 'Save eye examination'}
             </Button>

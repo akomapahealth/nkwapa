@@ -127,6 +127,20 @@ module.exports = [
       'react-hooks/set-state-in-effect': 'off',
       '@next/next/no-html-link-for-pages': 'off',
       '@next/next/no-location-assign-relative-destination': 'off',
+      // The package root re-exports PrismaClient; one import from it put the 235 KB (gzipped)
+      // Prisma runtime in every page's JavaScript (R7.7). Import the module's subpath instead.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@nkwapa/db',
+              message:
+                "Import from a subpath such as '@nkwapa/db/measurement-units'. The root ships Prisma to the browser.",
+            },
+          ],
+        },
+      ],
     },
   },
   prettier,
