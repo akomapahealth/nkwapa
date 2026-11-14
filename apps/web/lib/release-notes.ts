@@ -39,9 +39,55 @@ const RELEASES_URL = 'https://api.github.com/repos/akomapahealth/nkwapa/releases
 
 /** Used when GitHub cannot be reached at build or revalidation time. Keep it on the latest release. */
 export const FALLBACK_RELEASE: Release = {
-  version: '2.0.1',
-  date: '2026-11-06',
+  version: '2.1.0',
+  date: '2026-11-14',
   groups: [
+    {
+      heading: 'New in 2.1',
+      items: [
+        {
+          lead: 'A refreshed workspace for every role.',
+          text: 'Volunteers, doctors, managers, directors and patients each open on their own work first. The menu fits the screen: a side menu on a computer, a slim rail on a tablet and a bar along the bottom on a phone, with the rest under More.',
+        },
+        {
+          lead: 'Review-station notes without choosing a doctor.',
+          text: 'A volunteer at the review station can submit a note without picking a doctor first. Any doctor at the clinic can cosign it. A note assigned to a named doctor still stays with that doctor.',
+        },
+        {
+          lead: 'A notice when your screening save is replaced.',
+          text: "If a colleague's offline save replaces blood pressure, diabetes or vitals answers you saved more recently, you get a notice in Notifications that opens the visit. Their save still goes through, so nobody is blocked.",
+        },
+        {
+          lead: 'A preview on each clinical note.',
+          text: 'The notes list in a patient record shows the first lines of each note, so you can find the right one without opening them all.',
+        },
+      ],
+    },
+    {
+      heading: 'Improved in 2.1',
+      items: [
+        {
+          lead: 'Clearer screening and clinical forms.',
+          text: 'The blood pressure and diabetes interviews and the clinical forms show which section you are in and whether your answers are saved.',
+        },
+        {
+          lead: 'Signing asks you to confirm.',
+          text: 'Signing a note and finalizing a visit ask once before they happen.',
+        },
+        {
+          lead: 'The patient portal fits phones better.',
+          text: 'The header and bottom bar adjust to the screen, and long appointment titles wrap instead of being cut off when text is enlarged.',
+        },
+        {
+          lead: 'Saved changes say what they are waiting for.',
+          text: 'The sync list separates changes that are waiting, changes that need your attention and changes you can retry.',
+        },
+        {
+          lead: 'Settings on one page.',
+          text: "Your settings sit in one readable column, with links to notifications, installing the app and your clinic's details.",
+        },
+      ],
+    },
     {
       heading: 'New in 2.0.1',
       items: [
