@@ -1,114 +1,145 @@
 'use client';
 
 import type { LucideIcon } from 'lucide-react';
-import { createContext, useContext } from 'react';
+import { useId, type ReactNode } from 'react';
 import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
 
-/*
-  Inside an AppMetricGroup a metric is a cell of one panel rather than a card of its own.
-*/
-const InMetricGroup = createContext(false);
+export type MetricTone = 'neutral' | 'calm' | 'attention' | 'danger' | 'info' | 'success';
+const TONES: Record<MetricTone, string> = {
+  neutral: 'bg-surface-2 text-foreground',
+  calm: 'bg-mint text-foreground',
+  attention: 'bg-gold-surface text-gold-ink',
+  danger: 'bg-destructive-surface text-destructive-ink',
+  info: 'bg-info-surface text-info-ink',
+  success: 'bg-success-surface text-success-ink',
+};
 
 /**
- * A number, what it counts, and a line of context.
- *
- * The number carries the emphasis. The label sits above it in quiet ink with a small icon, where
- * it used to share the top row with a 48px tinted icon tile -- on a dashboard of eight of them the
- * tiles were the loudest thing on screen and said nothing the label did not.
+ * Separate figures; wider screens wrap with generous gaps. A phone scrolls one row that bleeds to
+ * the screen edge (the workspace gutter is 16px there), so a cut-off chip reads as "more this way".
+ */
+export const METRIC_ROW =
+  'flex min-w-0 snap-x snap-mandatory scroll-px-4 gap-2.5 overflow-x-auto -mx-4 px-4 py-1 [scrollbar-width:none] compact:mx-0 compact:flex-wrap compact:gap-3 compact:px-1';
+
+/** A bare count or rate reads number-first ("47 Needs review"); a reading reads label-first. */
+const isCount = (value: ReactNode) =>
+  typeof value === 'number' || (typeof value === 'string' && /^[\d.,]+%?$/.test(value.trim()));
+
+/**
+ * One line, one unit: icon, figure, label and help share a 16px optical size, so the figure is
+ * emphasised by weight rather than by a numeral that dwarfs its own icon.
  */
 export function AppMetricCard({
   title,
   value,
+  unit,
   detail,
   hint,
   icon: Icon,
+  tone = 'neutral',
+  onActivate,
+  actionLabel,
   className,
 }: {
   title: string;
-  value: number | string;
+  value: ReactNode;
+  unit?: string;
   detail?: string;
   hint?: string;
   icon?: LucideIcon;
+  tone?: MetricTone;
+  /** A shortcut to a filter the page already offers. Never changes records. */
+  onActivate?: () => void;
+  actionLabel?: string;
   className?: string;
 }) {
-  const grouped = useContext(InMetricGroup);
+  const valueId = useId();
+  const zero = value === 0 || (typeof value === 'string' && /^0(?:[.,]0+)?%?$/.test(value.trim()));
+  const help = [hint, detail].filter(Boolean).join(' ');
+  const figure = (
+    <span id={valueId} className="whitespace-nowrap text-base font-semibold tabular-nums">
+      {value}
+      {unit ? <span className="ml-0.5 text-sm font-normal">{unit}</span> : null}
+    </span>
+  );
+  const label = <span className="min-w-0 text-sm leading-snug">{title}</span>;
+  const content = (
+    <>
+      {Icon ? <Icon aria-hidden="true" className="size-4 shrink-0 opacity-80" /> : null}
+      {isCount(value) ? (
+        <>
+          {figure}
+          {label}
+        </>
+      ) : (
+        <>
+          {label}
+          {figure}
+        </>
+      )}
+    </>
+  );
+  const bodyClass =
+    'flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg py-2 pl-3 text-left [@media(pointer:coarse)]:min-h-11';
   return (
     <div
       className={cn(
-        'min-w-0 p-4 sm:p-5',
-        grouped
-          ? // Hairlines on the right and bottom; the group crops the outer ones.
-            'border-b border-r border-rule'
-          : 'border-t-2 border-rule-strong',
+        'flex max-w-full shrink-0 snap-start items-center rounded-lg',
+        help ? 'pr-1.5' : 'pr-3',
+        zero
+          ? 'text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border))]'
+          : ['shadow-[var(--elevation-raised)]', TONES[tone]],
         className,
       )}
     >
-      <p className="type-label flex items-start gap-2 text-muted-foreground">
-        {Icon ? <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> : null}
-        {/* Inline, so the help follows the label's last line when a narrow cell wraps it. */}
-        <span className="min-w-0">
-          {hint ? <TitleWithHint title={title} hint={hint} /> : title}
-        </span>
-      </p>
-      <p
-        className={cn(
-          'mt-2 text-foreground',
-          // A figure gets the full size; a phrase standing in for one ("No reading yet") does not,
-          // or the empty state would be the loudest thing on the page.
-          String(value).length > 10 ? 'type-section-title' : 'type-metric',
-        )}
-      >
-        {value}
-      </p>
-      {detail ? (
-        <p className="type-label mt-1.5 font-normal text-muted-foreground">{detail}</p>
-      ) : null}
+      {onActivate ? (
+        <button
+          type="button"
+          aria-label={actionLabel ?? `Show ${title.toLowerCase()}`}
+          aria-describedby={valueId}
+          onClick={onActivate}
+          className={cn(
+            bodyClass,
+            'cursor-pointer pr-2 transition-[background-color,transform] duration-fast ease-out hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.97] motion-reduce:transform-none',
+          )}
+        >
+          {content}
+        </button>
+      ) : (
+        <div className={cn(bodyClass, help && 'pr-1')}>{content}</div>
+      )}
+      {help ? <InfoHint label={help} className="text-current" /> : null}
     </div>
   );
 }
 
-/**
- * Related metrics in one panel, divided by hairlines, instead of a grid of separate cards.
- *
- * Pass the grid columns in `className` (e.g. `sm:grid-cols-2 xl:grid-cols-4`). An unfilled last
- * row shows as card surface rather than a gap, because each cell draws only its own right and
- * bottom edges and the panel crops the outermost ones.
- */
+/** Panel and strip consumers share one figure system; details stay reachable in help. */
 export function AppMetricGroup({
   children,
   className,
   label,
+  variant = 'panel',
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
-  /** Names the group for assistive technology when no heading sits right above it. */
   label?: string;
+  variant?: 'panel' | 'strip';
 }) {
   return (
-    <section aria-label={label} className="overflow-hidden border-t-2 border-rule-strong">
-      <div className={cn('-mb-px -mr-px grid grid-cols-1', className)}>
-        <InMetricGroup.Provider value={true}>{children}</InMetricGroup.Provider>
+    <section data-variant={variant} className="min-w-0">
+      <div
+        role={label ? 'region' : 'group'}
+        aria-label={label ?? 'Summary figures'}
+        tabIndex={0}
+        className={cn(
+          METRIC_ROW,
+          'rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+          className,
+        )}
+      >
+        {children}
       </div>
     </section>
-  );
-}
-
-/**
- * The label's last word and its help icon never part: a narrow cell wraps the label, and an icon
- * left alone on the next line reads as belonging to the number below it.
- */
-function TitleWithHint({ title, hint }: { title: string; hint: string }) {
-  const split = title.lastIndexOf(' ');
-  const head = split === -1 ? '' : title.slice(0, split + 1);
-  const tail = split === -1 ? title : title.slice(split + 1);
-  return (
-    <>
-      {head ? <span className="align-middle">{head}</span> : null}
-      <span className="whitespace-nowrap">
-        <span className="align-middle">{tail}</span>
-        <InfoHint label={hint} size="sm" className="ml-1" />
-      </span>
-    </>
   );
 }

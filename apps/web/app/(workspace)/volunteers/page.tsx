@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { CalendarCheck, UserPlus } from 'lucide-react';
+import { CalendarCheck, MoreHorizontal, UserPlus } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { useAuth } from '@/lib/auth-context';
@@ -10,13 +10,25 @@ import { apiFetch, readApiError, ApiError } from '@/lib/api';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { volunteersPath, type VolunteerContact } from '@/lib/volunteers';
 import { RouteGuard } from '@/components/RouteGuard';
+import { cn } from '@/lib/utils';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  DataTable,
+  DataTableActions,
+  type DataTableColumn,
+  SHEET_GUTTER,
+} from '@/components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +37,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FieldError, fieldErrorProps, focusFirstInvalid } from '@/components/ui/field';
+import {
+  FieldError,
+  FieldLabel,
+  fieldErrorProps,
+  focusFirstInvalid,
+  RequiredLegend,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -217,45 +235,51 @@ function VolunteersContent() {
       <Button size="sm" variant="ghost" onClick={() => open(contact)} disabled={!writable}>
         Edit
       </Button>
-      {contact.linkedUserId ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!writable || busyId === contact.id}
-          onClick={() => act(contact, 'unlink', undefined, 'Account unlinked')}
-        >
-          Unlink
-        </Button>
-      ) : contact.linkCandidate ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!writable || busyId === contact.id}
-          onClick={() =>
-            act(contact, 'link', { userId: contact.linkCandidate!.id }, 'Account linked')
-          }
-        >
-          Link account
-        </Button>
-      ) : null}
-      <Button
-        size="sm"
-        variant="outline"
-        className={contact.isActive ? 'border-warning text-warning-ink' : undefined}
-        disabled={!writable || busyId === contact.id}
-        onClick={() =>
-          act(
-            contact,
-            contact.isActive ? 'deactivate' : 'reactivate',
-            undefined,
-            contact.isActive
-              ? `${contact.displayName} deactivated`
-              : `${contact.displayName} reactivated`,
-          )
-        }
-      >
-        {contact.isActive ? 'Deactivate' : 'Reactivate'}
-      </Button>
+      {/* One visible action per row (Hick); the account and status actions wait in a menu. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={`More actions for ${contact.displayName}`}
+            disabled={!writable || busyId === contact.id}
+          >
+            <MoreHorizontal aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {contact.linkedUserId ? (
+            <DropdownMenuItem
+              onSelect={() => act(contact, 'unlink', undefined, 'Account unlinked')}
+            >
+              Unlink
+            </DropdownMenuItem>
+          ) : contact.linkCandidate ? (
+            <DropdownMenuItem
+              onSelect={() =>
+                act(contact, 'link', { userId: contact.linkCandidate!.id }, 'Account linked')
+              }
+            >
+              Link account
+            </DropdownMenuItem>
+          ) : null}
+          {/* Plain item: Reactivate undoes it, and warning ink is kept for what cannot be undone. */}
+          <DropdownMenuItem
+            onSelect={() =>
+              act(
+                contact,
+                contact.isActive ? 'deactivate' : 'reactivate',
+                undefined,
+                contact.isActive
+                  ? `${contact.displayName} deactivated`
+                  : `${contact.displayName} reactivated`,
+              )
+            }
+          >
+            {contact.isActive ? 'Deactivate' : 'Reactivate'}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </DataTableActions>
   );
 
@@ -299,8 +323,11 @@ function VolunteersContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
+        className="border-b-0 pb-0 md:pb-0"
         title="Volunteers"
-        description="Who volunteers at this clinic. They don't need a Nkwapa account to be scheduled and emailed."
+        count={directory.data?.items.length}
+        description="Who volunteers at this clinic."
+        hint="Volunteers don't need a Nkwapa account to be scheduled and emailed."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" asChild>
@@ -341,6 +368,7 @@ function VolunteersContent() {
       >
         {(data) => (
           <DataTable
+            bleed
             caption="Volunteer directory"
             columns={columns}
             data={data.items}
@@ -349,7 +377,7 @@ function VolunteersContent() {
             initialPageSize={25}
             keyboardScroll
             renderMobileRow={(contact) => (
-              <div className="space-y-2 border-t border-rule py-4">
+              <div className={cn('space-y-2 border-t border-rule py-4', SHEET_GUTTER)}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{contact.displayName}</span>
                   {!contact.isActive ? <Badge variant="draft">Inactive</Badge> : null}
@@ -364,7 +392,7 @@ function VolunteersContent() {
       </ResourceState>
 
       <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>{editing === 'new' ? 'Add volunteer' : 'Edit volunteer'}</DialogTitle>
             <DialogDescription>
@@ -372,10 +400,14 @@ function VolunteersContent() {
             </DialogDescription>
           </DialogHeader>
           <form noValidate onSubmit={save} className="space-y-4 border-t-2 border-rule-strong pt-5">
+            <RequiredLegend />
             <div className="space-y-1">
-              <Label htmlFor="volunteer-name">Name</Label>
+              <FieldLabel htmlFor="volunteer-name" required>
+                Name
+              </FieldLabel>
               <Input
                 id="volunteer-name"
+                required
                 value={form.displayName}
                 maxLength={120}
                 autoComplete="off"
@@ -389,9 +421,12 @@ function VolunteersContent() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="volunteer-email">Email</Label>
+              <FieldLabel htmlFor="volunteer-email" required>
+                Email
+              </FieldLabel>
               <Input
                 id="volunteer-email"
+                required
                 type="email"
                 value={form.email}
                 maxLength={320}
@@ -404,18 +439,13 @@ function VolunteersContent() {
               />
               <FieldError id="volunteer-email" message={errors.email} reserveSpace={submitted} />
               {existingId ? (
-                <Button
-                  type="button"
-                  variant="link"
-                  className="min-h-11 px-0"
-                  onClick={openExisting}
-                >
+                <Button type="button" variant="link" className="px-0" onClick={openExisting}>
                   Open existing
                 </Button>
               ) : null}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="volunteer-phone">Phone (optional)</Label>
+              <Label htmlFor="volunteer-phone">Phone</Label>
               <Input
                 id="volunteer-phone"
                 type="tel"
@@ -432,7 +462,7 @@ function VolunteersContent() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="volunteer-notes">Notes (optional)</Label>
+              <Label htmlFor="volunteer-notes">Notes</Label>
               <Textarea
                 id="volunteer-notes"
                 value={form.notes}

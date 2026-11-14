@@ -239,7 +239,7 @@ function EditPatientForm() {
         />
         <Button asChild variant="outline">
           <Link href={`/clinics/${clinicId}/patients`}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Patients
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to patients
           </Link>
         </Button>
       </div>
@@ -251,13 +251,12 @@ function EditPatientForm() {
       <Button asChild variant="ghost" className="w-fit">
         <Link href={`/clinics/${clinicId}/patients/${patientId}`}>
           <ArrowLeft className="h-4 w-4" />
-          Back to Patient
+          Back to patient
         </Link>
       </Button>
 
       <AppPageHeader
-        eyebrow="Clinic chart maintenance"
-        title={`Edit Patient ${patient.patientCode}`}
+        title={`Edit patient ${patient.patientCode}`}
         description="Update the current chart without changing protected identity history."
         helpTitle="How patient edits work"
         helpText="Demographics and contact details can change here, and offline saves queue a sync when the network is unavailable. The ID document changes only through its own checked, audited step."

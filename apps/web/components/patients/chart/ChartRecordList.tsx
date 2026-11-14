@@ -74,13 +74,11 @@ export function ChartRecordList<T extends { id: string }>({
             {list.isLoadingMore ? 'Loading…' : 'Load more'}
           </Button>
         </div>
-      ) : (
+      ) : list.items.length > 1 ? (
         <p className="pt-1 text-center text-xs text-muted-foreground">
-          {list.items.length === 1
-            ? 'Showing the only record.'
-            : `Showing all ${list.items.length} records.`}
+          Showing all {list.items.length} records.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

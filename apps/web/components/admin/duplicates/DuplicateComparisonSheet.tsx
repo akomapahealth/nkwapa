@@ -99,7 +99,7 @@ export function DuplicateComparisonSheet({
           </div>
 
           {onDecide ? (
-            <div className="space-y-3 rounded-lg border border-border/70 bg-background/70 p-4">
+            <div className="space-y-3 border-t-2 border-rule-strong pt-4">
               <h3 className="text-base font-semibold text-foreground">Record your decision</h3>
               <p className="text-sm leading-5 text-muted-foreground">
                 Neither option changes a patient record. Merging is a separate, irreversible step on
@@ -140,7 +140,7 @@ export function DuplicateComparisonSheet({
               ) : null}
             </div>
           ) : (
-            <div className="space-y-2 rounded-lg border border-dashed border-border/80 bg-muted/30 p-4">
+            <div className="space-y-2 border-t-2 border-rule-strong pt-4">
               <h3 className="text-base font-semibold text-foreground">Investigation only</h3>
               <p className="text-sm leading-5 text-muted-foreground">
                 This view counts and compares; it does not record decisions or merge charts. To note

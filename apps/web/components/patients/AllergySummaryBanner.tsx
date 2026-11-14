@@ -1,6 +1,7 @@
 'use client';
 
 import { statusLabel } from '@/lib/status-presentation';
+import type { ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, CircleHelp, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -39,12 +40,22 @@ const presentations = {
   },
 } as const;
 
+/** States where the chart still owes an allergy entry. */
+export function allergyStatusNeedsEntry(state: AllergySummary['state']): boolean {
+  return state === 'NOT_RECORDED' || state === 'HISTORICAL_ONLY';
+}
+
 export function AllergySummaryBanner({
   summary,
   compact = false,
+  titleAs: Title = 'h3',
+  action,
 }: {
   summary: AllergySummary;
   compact?: boolean;
+  titleAs?: 'h2' | 'h3';
+  /** The next step, when the status asks for one. */
+  action?: ReactNode;
 }) {
   const presentation = presentations[summary.state];
   const Icon = presentation.icon;
@@ -58,13 +69,13 @@ export function AllergySummaryBanner({
         compact ? 'space-y-2' : 'space-y-3',
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          {/* h3: this banner is nested inside a section that already owns the h2. */}
-          <h3 className="font-semibold">{presentation.title}</h3>
+          <Title className="font-semibold">{presentation.title}</Title>
           <p className="mt-1 text-sm opacity-90">{presentation.description}</p>
         </div>
+        {action ? <div className="w-full pl-8 sm:w-auto sm:shrink-0 sm:pl-0">{action}</div> : null}
       </div>
       {summary.activeAllergies.length > 0 ? (
         <ul className="flex flex-wrap gap-2" aria-label="Active allergies">

@@ -9,3 +9,10 @@ Both families are licensed under the SIL Open Font License 1.1
 
 To refresh them, request the Google Fonts CSS for the same axes with a current browser user
 agent and replace each file with the `latin` or `latin-ext` URL it lists.
+
+## og/
+
+Static TTF instances for the link-preview card (`app/opengraph-image.tsx`): Satori, which draws it,
+reads neither WOFF2 nor variable fonts. `source-serif-4-600.ttf` and `ibm-plex-sans-400.ttf` are the
+woff2 files above, instanced at that weight with fontTools (`instancer`) and subset to Basic Latin,
+Latin-1, dashes, curly quotes and the ellipsis. If the hero copy gains other characters, re-subset.

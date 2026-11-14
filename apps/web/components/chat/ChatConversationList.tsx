@@ -45,7 +45,7 @@ export function ChatConversationList({
         <div className="flex items-center gap-1">
           <button
             onClick={onNewGroup}
-            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title="New group"
             aria-label="New group"
           >
@@ -53,7 +53,7 @@ export function ChatConversationList({
           </button>
           <button
             onClick={onNewMessage}
-            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title="New message"
             aria-label="New message"
           >
@@ -79,7 +79,7 @@ export function ChatConversationList({
             <p className="text-xs text-muted-foreground">No conversations yet.</p>
             <button
               onClick={onNewMessage}
-              className="mt-2 min-h-11 cursor-pointer rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="mt-2 min-h-11 cursor-pointer rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Start a new conversation
             </button>
@@ -99,7 +99,7 @@ export function ChatConversationList({
                 key={conv.id}
                 onClick={() => onSelect(conv)}
                 data-testid="chat-conversation-row"
-                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 {group ? (
                   <ChatGroupAvatar onlineCount={onlineCount} />
@@ -135,9 +135,7 @@ export function ChatConversationList({
                       {conv.lastMessage.content}
                     </p>
                   ) : group ? (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {others.length + 1} members{onlineCount ? ` · ${onlineCount} online` : ''}
-                    </p>
+                    <p className="truncate text-xs text-muted-foreground">No messages yet</p>
                   ) : null}
                 </div>
                 {conv.unreadCount > 0 && (

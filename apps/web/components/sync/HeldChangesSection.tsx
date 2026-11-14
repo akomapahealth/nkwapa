@@ -129,7 +129,7 @@ export function HeldChangesSection({
               entered it.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setClaiming(null)} disabled={busy}>
               Cancel
             </Button>

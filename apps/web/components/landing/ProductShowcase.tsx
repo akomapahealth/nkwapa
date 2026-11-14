@@ -12,31 +12,32 @@ import {
 import { DESKTOP_ALT, DesktopFrame, PhoneFrame } from './ProductFrames';
 import { SectionRule } from './SectionRule';
 
-// Marker positions are percentages of the desktop screenshot, measured from desktop.png.
+// Marker positions are percentages of station-line-20261111.png (a manager's station line, 1920x1080 at 2x),
+// measured from the screenshot: each sits just left of, and centred on, what it labels.
 const ANNOTATIONS = [
   {
     title: 'The clinic day, in order',
     text: 'The menu runs in the order the day does.',
-    left: '1.2%',
-    top: '30%',
+    left: '9.3%',
+    top: '16.5%',
   },
   {
-    title: 'Today at a glance',
-    text: "Today's visits, drafts, and what waits for review or sign-off.",
-    left: '18.4%',
-    top: '27.5%',
+    title: 'What needs you now',
+    text: 'Plain sentences, each with one thing to do about it.',
+    left: '14.8%',
+    top: '21.2%',
   },
   {
-    title: 'Measurement coverage',
-    text: 'Which visits have vital signs, tobacco screening and counseling recorded.',
-    left: '18.4%',
-    top: '46.5%',
+    title: 'Waits you can see',
+    text: 'Each patient is a bar as long as their wait. Past 20 minutes it turns amber and says so.',
+    left: '14.8%',
+    top: '49.4%',
   },
   {
     title: 'Sync status',
     text: 'Whether work recorded offline has reached the server.',
-    left: '89%',
-    top: '6.5%',
+    left: '78.6%',
+    top: '1.2%',
   },
 ];
 
@@ -136,7 +137,7 @@ export function ProductShowcase() {
                 </div>
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <Image
-                    src="/desktop.png"
+                    src="/product/station-line-20261111.png"
                     alt={DESKTOP_ALT}
                     width={3840}
                     height={2160}

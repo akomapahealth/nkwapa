@@ -65,6 +65,8 @@ export interface VitalsRecord {
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Server `updatedAt` this device's unsynced edit started from; see lib/encounter-record.ts. */
+  baseUpdatedAt?: string;
 }
 
 export interface TobaccoScreeningRecord {
@@ -90,7 +92,7 @@ export interface DiabetesScreeningRecord {
   glucoseMgDl?: number;
   glucoseType?: string;
   hba1cPercent?: number;
-  symptoms?: import('@nkwapa/db').DiabetesSymptom[];
+  symptoms?: import('@nkwapa/db/diabetes-screening').DiabetesSymptom[];
   symptomsJson?: string;
   legacySymptomsUnmapped?: boolean;
   notes?: string;
@@ -100,6 +102,8 @@ export interface DiabetesScreeningRecord {
   encounterStatus?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Server `updatedAt` this device's unsynced edit started from; see lib/encounter-record.ts. */
+  baseUpdatedAt?: string;
   // Guided interview (#114).
   diabetesStatus?: string;
   diabetesType?: string;
@@ -225,6 +229,8 @@ export interface HypertensionAssessmentRecord {
   collectedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Server `updatedAt` this device's unsynced edit started from; see lib/encounter-record.ts. */
+  baseUpdatedAt?: string;
 }
 
 export interface CarePlanRecord {
@@ -493,7 +499,12 @@ export interface SyncStateRecord {
  * other's copy, and the next screen to read it renders the wrong shape (#197). `station-board` is
  * the manager's bare board on /today; `station-workspace` is the board plus shifts on /stations.
  */
-export type OpsCacheKind = 'today-board' | 'my-assigned' | 'station-board' | 'station-workspace';
+export type OpsCacheKind =
+  | 'today-board'
+  | 'my-assigned'
+  | 'station-board'
+  | 'station-workspace'
+  | 'dashboard-shifts';
 
 /**
  * The last copy of a clinic-operations view this device loaded, so it still renders offline.
@@ -683,7 +694,7 @@ export class NkwapaDb extends Dexie {
       medication_adherence: 'id, clinicId, encounterId, context, [encounterId+context], updatedAt',
     });
     /*
-      v12 keeps the last loaded Today board and My Assigned list per clinic (#17).
+      v12 keeps the last loaded Today board and My assigned list per clinic (#17).
 
       A new store with nothing to migrate. It exists so the clinic floor still sees who is on duty
       and who is waiting when the connection drops; pending shift and check-in changes are drawn

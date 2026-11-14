@@ -33,6 +33,7 @@ import {
   TREND_RANGE_OPTIONS,
   buildBloodPressureTrendData,
   buildGlucoseTrendData,
+  formatTrendLabel,
   formatTrendRangeFrom,
   getLatestBloodPressureTrend,
   getLatestGlucoseTrend,
@@ -75,10 +76,7 @@ function buildWeightTrendData(measurements: MeasurementRecord[], bodyUnit: BodyM
     .slice()
     .reverse()
     .map((measurement) => ({
-      label: new Date(measurement.recordedAt).toLocaleDateString(undefined, {
-        month: 'numeric',
-        day: 'numeric',
-      }),
+      label: formatTrendLabel(measurement.recordedAt),
       weight: (() => {
         const kg = readTrendNumber(measurement.payload.kg);
         return kg == null ? null : weightFromKg(kg, bodyUnit);
@@ -105,16 +103,23 @@ function latestGlucoseLabel(point: GlucoseTrendPoint | null) {
   return `Recorded ${formatPortalDate(point.t)} • ${readingSource(point.source)}`;
 }
 
-const FOLLOW_UP_LABELS: Array<{
-  key: keyof PatientTrendsResponse['followUp'];
-  label: string;
-}> = [
-  { key: 'requested', label: 'Requested' },
-  { key: 'confirmed', label: 'Confirmed' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'noShow', label: 'No-show' },
-  { key: 'closed', label: 'Closed' },
+const FOLLOW_UP_PHRASES: Array<[keyof PatientTrendsResponse['followUp'], string]> = [
+  ['requested', 'requested'],
+  ['confirmed', 'confirmed'],
+  ['completed', 'completed'],
+  ['noShow', 'missed'],
+  ['closed', 'closed'],
 ];
+
+/** Visit counts said in words, in the description, rather than five boxed numbers. */
+function describeFollowUp(followUp: PatientTrendsResponse['followUp'], rangeDays: number) {
+  const parts = FOLLOW_UP_PHRASES.filter(([key]) => followUp[key] > 0).map(
+    ([key, phrase]) => `${followUp[key]} ${phrase}`,
+  );
+  return parts.length
+    ? `Your appointment requests and visits over the last ${rangeDays} days: ${parts.join(', ')}.`
+    : `No appointment requests or visits in the last ${rangeDays} days.`;
+}
 
 export function HealthPortalScreen() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
@@ -219,7 +224,7 @@ export function HealthPortalScreen() {
 
             return (
               <div className="space-y-6">
-                <AppMetricGroup className="md:grid-cols-3">
+                <AppMetricGroup>
                   <AppMetricCard
                     icon={HeartPulse}
                     title="Blood pressure"
@@ -264,14 +269,10 @@ export function HealthPortalScreen() {
                         me.recommendations.medicationPrescribed ? (
                           <span className="flex flex-wrap gap-2">
                             {me.recommendations.counselingGiven && (
-                              <Badge variant="secondary" className="rounded-full">
-                                Counseling
-                              </Badge>
+                              <Badge variant="secondary">Counseling</Badge>
                             )}
                             {me.recommendations.medicationPrescribed && (
-                              <Badge variant="secondary" className="rounded-full">
-                                Medication
-                              </Badge>
+                              <Badge variant="secondary">Medication</Badge>
                             )}
                           </span>
                         ) : (
@@ -292,18 +293,8 @@ export function HealthPortalScreen() {
 
                 <PortalPanel
                   title="Follow-up activity"
-                  description={`Appointment requests and visit outcomes across the last ${rangeDays} days.`}
-                  contentClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
-                >
-                  {FOLLOW_UP_LABELS.map((item) => (
-                    <PortalFact
-                      key={item.key}
-                      label={item.label}
-                      value={followUp[item.key]}
-                      valueClassName="text-2xl font-semibold"
-                    />
-                  ))}
-                </PortalPanel>
+                  description={describeFollowUp(followUp, rangeDays)}
+                />
 
                 <section className="grid gap-4 lg:grid-cols-2">
                   <h2 className="type-section-title lg:col-span-2">Reading trends</h2>
@@ -367,9 +358,7 @@ export function HealthPortalScreen() {
                         >
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="outline" className="rounded-full border-border">
-                                {formatMeasurementLabel(entry.type)}
-                              </Badge>
+                              <Badge variant="outline">{formatMeasurementLabel(entry.type)}</Badge>
                               <span className="text-sm font-medium tabular-nums text-foreground">
                                 {formatMeasurementValue(entry, units)}
                               </span>

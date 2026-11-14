@@ -8,6 +8,11 @@ const apiCommand =
   process.env.PLAYWRIGHT_API_COMMAND || 'npm run start:prod --workspace=@nkwapa/api';
 const webCommand = process.env.PLAYWRIGHT_WEB_COMMAND || 'npm run start --workspace=@nkwapa/web';
 
+// R8 audit specs need the nkwapa_audit database (or a frozen clock for visual baselines), so they
+// run only through playwright/device-matrix.config.cjs, never in the default suite CI runs.
+const AUDIT_ONLY_SPECS =
+  /(device-matrix-(homes|forms|overlays)|role-navigation|screening-api-compatibility|visual-regression|performance-review)\.spec\.js/;
+
 module.exports = defineConfig({
   testDir: './e2e',
   timeout: 60_000,
@@ -21,10 +26,12 @@ module.exports = defineConfig({
   workers: isCI ? 1 : undefined,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
-  // Stop a broken run early. Each failure retries twice with long timeouts, so a run with a few
-  // real failures used to outlive the 30-minute Keycloak session (#233: 3.2 h) and then fail
-  // ~70 unrelated specs at /login, burying the real cause.
-  maxFailures: isCI ? 10 : 0,
+  // Stop a run before it outlives the 30-minute Keycloak session: past that, every later spec
+  // fails at /login and buries the real cause (#233: 3.2 h). Bounded by time, not by a failure
+  // count, so one broken file cannot hide failures in the files after it. A shard takes ~10 min.
+  globalTimeout: isCI ? 25 * 60_000 : 0,
+  // A build broken everywhere stops here rather than spending the full 25 minutes on each shard.
+  maxFailures: isCI ? 40 : 0,
   reporter: isCI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
@@ -103,7 +110,10 @@ module.exports = defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: /auth\.setup\.js/,
+      testIgnore:
+        process.env.NKWAPA_AUDIT_SUITE === '1'
+          ? /auth\.setup\.js/
+          : [/auth\.setup\.js/, AUDIT_ONLY_SPECS],
       use: {
         ...devices['Desktop Chrome'],
       },

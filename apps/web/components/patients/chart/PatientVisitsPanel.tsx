@@ -15,7 +15,12 @@ import {
 } from '@/lib/patient-chart';
 import { useCursorList } from '@/lib/use-cursor-list';
 import { formatOpsDateTime } from '@/lib/ops';
-import { ChartLockedBadge, ChartStatusBadge, type ChartState } from './ChartStatusBadge';
+import {
+  ChartLockedBadge,
+  ChartStatusBadge,
+  chartStateLabel,
+  type ChartState,
+} from './ChartStatusBadge';
 import { ChartRecordCard, ChartRecordList } from './ChartRecordList';
 
 const CAPTURE_LABELS: Array<{ key: keyof ChartVisitRecord['recorded']; label: string }> = [
@@ -40,7 +45,10 @@ function CaptureChips({ visit }: { visit: ChartVisitRecord }) {
   // `noteStatus` is absent entirely for roles without note access, so an undefined
   // check keeps note existence hidden rather than reporting "no note".
   if (visit.recorded.noteStatus !== undefined && visit.recorded.noteStatus !== null) {
-    captured.push('Clinical note');
+    // The note's own state lives here, so the row carries one status badge (the visit's), not two.
+    captured.push(
+      `Clinical note (${chartStateLabel(visit.recorded.noteStatus as ChartState).toLowerCase()})`,
+    );
   }
 
   if (captured.length === 0) {
@@ -50,7 +58,10 @@ function CaptureChips({ visit }: { visit: ChartVisitRecord }) {
   return (
     <ul className="flex flex-wrap gap-2">
       {captured.map((label) => (
-        <li key={label} className="border-r border-rule pr-2 text-xs text-muted-foreground">
+        <li
+          key={label}
+          className="border-r border-rule pr-2 text-xs text-muted-foreground last:border-r-0 last:pr-0"
+        >
           {label}
         </li>
       ))}
@@ -77,9 +88,6 @@ function VisitRecordCard({ visit, clinicId }: { visit: ChartVisitRecord; clinicI
       badges={
         <>
           <ChartStatusBadge state={visit.status as ChartState} />
-          {visit.recorded.noteStatus ? (
-            <ChartStatusBadge state={visit.recorded.noteStatus as ChartState} />
-          ) : null}
           {visit.locked ? <ChartLockedBadge /> : null}
         </>
       }

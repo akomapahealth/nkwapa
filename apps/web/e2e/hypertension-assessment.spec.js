@@ -2,6 +2,11 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const {
+  chooseAnswer,
+  question,
+  openSection: openInterviewSection,
+} = require('../playwright/interview');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -48,9 +53,11 @@ async function readAssessments(page, encounterId) {
 }
 
 async function chooseStatus(page, label) {
-  await page.getByLabel('Hypertension status').click();
-  await page.getByRole('option', { name: label, exact: true }).click();
+  await chooseAnswer(question(page, 'Hypertension status'), label);
 }
+
+// The interview shows one section at a time; the rail moves between them.
+const openSection = (page, name) => openInterviewSection(page, 'Hypertension interview', name);
 
 async function recordVitals(page, systolic, diastolic) {
   await page.getByRole('tab', { name: 'Vitals' }).click();
@@ -110,7 +117,7 @@ test('a corrected blood pressure classification is what the encounter shows next
   // And the encounter agrees on the next visit, which is what a clinician actually experiences.
   await page.goto(`/encounters/${encounterId}`);
   await page.getByRole('tab', { name: 'Hypertension' }).click();
-  await expect(page.getByLabel('Hypertension status')).toHaveText(/newly elevated/i);
+  await expect(page.getByRole('radio', { name: 'Newly elevated BP', exact: true })).toBeChecked();
 });
 
 /**
@@ -147,6 +154,7 @@ test("today's reading, its classification and the repeat prompt all come from th
   await recordVitals(page, 162, 98);
 
   await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await openSection(page, /BP control/);
 
   // Read through from Vitals, never re-entered here.
   //
@@ -160,8 +168,7 @@ test("today's reading, its classification and the repeat prompt all come from th
   await expect(prompt).toBeVisible();
 
   // Recording the repeat answers the prompt, and it goes away.
-  await page.getByLabel('BP measurement repeated today').click();
-  await page.getByRole('option', { name: 'Yes', exact: true }).click();
+  await chooseAnswer(question(page, 'BP measurement repeated today'), 'Yes');
   await expect(prompt).toBeHidden();
 });
 
@@ -198,6 +205,7 @@ test('an urgent symptom raises the escalation notice and offers the review reaso
   await page.goto(`/encounters/${encounterId}`);
   await page.getByRole('tab', { name: 'Hypertension' }).click();
 
+  await openSection(page, /Current symptoms/);
   await expect(page.getByText(/this visit needs a clinician now/i)).toBeHidden();
 
   await page.getByRole('checkbox', { name: 'Chest pain' }).check();
@@ -206,11 +214,61 @@ test('an urgent symptom raises the escalation notice and offers the review reaso
   await expect(notice).toBeVisible();
 
   await page.getByRole('button', { name: /add to the reasons for clinician review/i }).click();
+  await openSection(page, /Actions and referral/);
   await expect(page.getByRole('checkbox', { name: 'Concerning symptoms' })).toBeChecked();
 
   // Reversible: the volunteer can disagree with what was preselected.
   await page.getByRole('checkbox', { name: 'Concerning symptoms' }).uncheck();
   await expect(page.getByRole('checkbox', { name: 'Concerning symptoms' })).not.toBeChecked();
+});
+
+/**
+ * Leaving a tab whose answers fail validation used to switch anyway, and the tab's panel unmounts
+ * on switch, so the draft vanished without a word. Now the volunteer stays unless they choose to
+ * leave.
+ */
+test('an unsaved interview is kept when switching tabs fails to save it', async ({ page }) => {
+  test.setTimeout(120_000);
+
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  await page.goto('/patients/new');
+  await page.getByLabel('First name', { exact: true }).fill('Draft');
+  await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
+  await page.getByLabel('National ID', { exact: true }).fill(`E2E-DRAFT-${suffix}`);
+  await page.getByRole('button', { name: 'Create patient' }).click();
+  await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
+  const patientId = page.url().split('/').at(-1);
+
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/clinics\/[^/]+\/encounters$/.test(new URL(response.url()).pathname),
+  );
+  await page.goto(`/patients/${patientId}/encounters/new`);
+  const encounterId = (await (await created).json()).id;
+
+  await page.goto(`/encounters/${encounterId}`);
+  await page.getByRole('tab', { name: 'Hypertension' }).click();
+  await page.getByLabel('Main concern today').click();
+  await page.getByRole('option', { name: 'Other', exact: true }).click();
+  // "Other" needs a description, so this draft cannot save.
+
+  await page.getByRole('tab', { name: 'Vitals' }).click();
+  const dialog = page.getByRole('alertdialog').or(page.getByRole('dialog'));
+  await expect(dialog.getByText('These answers are not saved yet')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Stay and fix' }).click();
+
+  await expect(page.getByRole('tab', { name: 'Hypertension' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByLabel('Main concern today')).toHaveText(/Other/);
+  await expect(page.getByLabel('Describe the concern')).toBeFocused();
+
+  // Leaving is still possible, as a stated choice.
+  await page.getByRole('tab', { name: 'Vitals' }).click();
+  await dialog.getByRole('button', { name: 'Leave without saving' }).click();
+  await expect(page.getByRole('tab', { name: 'Vitals' })).toHaveAttribute('aria-selected', 'true');
 });
 
 /**

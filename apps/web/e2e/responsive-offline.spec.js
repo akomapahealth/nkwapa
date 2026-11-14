@@ -95,7 +95,7 @@ for (const template of workspaceRoutes()) {
           .first(),
       ).toBeVisible({ timeout: 25_000 });
       // Wait for data/state resolution. A shell-only probe would miss the table/form that follows.
-      await expect(page.getByRole('heading', { name: 'Starting secure access' })).toHaveCount(0);
+      await expect(page.getByRole('status', { name: 'Signing you in' })).toHaveCount(0);
       await page.waitForLoadState('networkidle');
       expect(new URL(page.url()).pathname, 'must not measure a redirected login page').not.toBe(
         '/login',
@@ -134,7 +134,7 @@ for (const template of workspaceRoutes()) {
 for (const [url, empty] of [
   ['/patients', 'No patients in this clinic yet'],
   ['/today', 'No patient check-ins yet'],
-  ['/queues', 'Nothing in this queue'],
+  ['/queues', 'All caught up'],
   ['/appointments', 'No appointments found'],
   ['/portal', 'No confirmed appointment yet'],
 ]) {
@@ -182,7 +182,7 @@ for (const [url, pattern, empty] of [
     stationWorkflow ? '**/stations/board*' : '**/clinics/*/checkins?*',
     'No patient check-ins yet',
   ],
-  ['/queues', '**/clinics/*/encounters?*', 'Nothing in this queue'],
+  ['/queues', '**/clinics/*/encounters?*', 'All caught up'],
   ['/appointments', '**/clinics/*/appointments?*', 'No appointments found'],
   ['/portal', '**/patient-portal/me', 'No confirmed appointment yet'],
   ['/portal/appointments', '**/patients/me/appointments**', 'No visit booked yet'],
@@ -211,7 +211,7 @@ for (const [url, pattern, empty] of [
           await expect(page.getByTestId('ops-offline-banner')).toBeVisible();
         } else if (url === '/queues') {
           await expect(
-            page.getByText(/You are offline. Reconnect to load the queues/),
+            page.getByRole('tabpanel').getByText(/You are offline. Reconnect to load the queues/),
           ).toBeVisible();
         } else {
           await expect(
@@ -236,8 +236,12 @@ test.describe('failed list reads', () => {
   test.use({ storageState: storageStateFor('staff') });
   for (const [url, api, empty] of [
     ['/audit', '**/clinics/*/audit?*', 'No audit events match the current filters'],
-    ['/notifications', '**/clinics/*/reminders?*', 'No reminders match the current filters'],
-    ['/queues', '**/clinics/*/encounters?*', 'Nothing in this queue'],
+    [
+      '/notifications/delivery',
+      '**/clinics/*/reminders?*',
+      'No reminders match the current filters',
+    ],
+    ['/queues', '**/clinics/*/encounters?*', 'All caught up'],
     ['/admin/users', '**/clinics/*/users?*', 'No staff records match these filters'],
   ])
     test(`${url} reports failed loads without claiming zero records`, async ({ page }) => {
@@ -245,12 +249,8 @@ test.describe('failed list reads', () => {
         route.fulfill({ status: 503, json: { message: 'Synthetic unavailable network' } }),
       );
       await page.goto(url);
-      await expect(
-        page
-          .locator('#main-content')
-          .getByText(/Synthetic unavailable network/)
-          .first(),
-      ).toBeVisible();
+      const result = url === '/queues' ? page.getByRole('tabpanel') : page.locator('#main-content');
+      await expect(result.getByText(/Synthetic unavailable network/).first()).toBeVisible();
       await expect(page.getByRole('heading', { name: empty, exact: true })).toHaveCount(0);
       await expect(page.getByText('Nothing to show.', { exact: true })).toHaveCount(0);
       await expect(
@@ -265,8 +265,10 @@ for (const role of ['doctor', 'volunteer', 'manager', 'director']) {
     test('keeps role-specific work and navigation within every width', async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 900 });
       await page.goto('/dashboard');
+      // Each role's home (W2) leads with its own work rows: "Needs attention" for the clinic's
+      // managers and directors, "Your clinic day" for volunteers (W4), "Needs you now" otherwise.
       await expect(
-        page.getByRole('heading', { name: 'Today at a glance', exact: true }),
+        page.getByRole('heading', { name: /^(Needs (you now|attention)|Your clinic day)$/ }),
       ).toBeVisible();
       // This heading is rendered only with loaded dashboard data. Background polling and
       // chat can keep the network active indefinitely, so networkidle is not a ready signal.

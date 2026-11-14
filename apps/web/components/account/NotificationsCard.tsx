@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { useAuth } from '@/lib/auth-context';
 import {
   getNotificationState,
@@ -44,21 +50,21 @@ export function NotificationsCard({ audience }: { audience: 'staff' | 'patient' 
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Bell className="h-5 w-5 text-primary" aria-hidden="true" />
+    <RecordSection id="notifications" className="scroll-mt-24">
+      <RecordSectionHeader>
+        <RecordSectionTitle className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           Notifications
-        </CardTitle>
-        <CardDescription>
+        </RecordSectionTitle>
+        <RecordSectionDescription>
           {WHAT_NOTIFIES[audience]}{' '}
           {background
             ? 'It arrives even when Nkwapa is closed.'
             : 'It arrives while Nkwapa is open in another tab or in the background.'}{' '}
           It says who or what kind, never any patient details.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3" aria-live="polite">
+        </RecordSectionDescription>
+      </RecordSectionHeader>
+      <RecordSectionContent className="space-y-3" aria-live="polite">
         {state === null ? null : state === 'unsupported' ? (
           <p className="text-sm text-muted-foreground">
             This browser can&apos;t show notifications. On iPhone and iPad, add Nkwapa to your Home
@@ -108,7 +114,7 @@ export function NotificationsCard({ audience }: { audience: 'staff' | 'patient' 
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }

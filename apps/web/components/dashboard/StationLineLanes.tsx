@@ -87,7 +87,9 @@ export function StationLineLanes({
               data-testid="station-lane"
             >
               <div className="min-w-0">
-                <p className="type-label truncate text-foreground">{station.name}</p>
+                <p className="type-label text-foreground [overflow-wrap:anywhere]">
+                  {station.name}
+                </p>
                 <p className="type-label font-normal text-muted-foreground">
                   {waiting === 0
                     ? 'No one waiting'

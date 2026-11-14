@@ -31,6 +31,7 @@ module.exports = async function bundleFixture({
     plugins: [new webpack.DefinePlugin({ 'process.env': JSON.stringify({}) })],
     module: {
       rules: [
+        { test: /\.module\.css$/, use: path.join(__dirname, 'css-module.cjs') },
         { test: /\.tsx?$/, exclude: /node_modules/, use: path.join(__dirname, 'transpile.cjs') },
       ],
     },

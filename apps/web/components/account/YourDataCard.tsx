@@ -5,8 +5,15 @@ import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { FormActions } from '@/components/ui/form-actions';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -84,22 +91,22 @@ export function YourDataCard() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
+    <RecordSection>
+      <RecordSectionHeader>
+        <RecordSectionTitle className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           Your data
-        </CardTitle>
-        <CardDescription>
+        </RecordSectionTitle>
+        <RecordSectionDescription>
           Ask your clinic for a copy of your information, to correct it, to delete what does not
           have to be kept, or to limit how it is used. Asking never affects your care. See the{' '}
           <Link href={`${PRIVACY_HREF}#rights`} className="underline underline-offset-4">
             privacy notice
           </Link>{' '}
           for what each one means.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
+        </RecordSectionDescription>
+      </RecordSectionHeader>
+      <RecordSectionContent className="space-y-5">
         <form noValidate onSubmit={(event) => void submit(event)} className="space-y-3">
           {failure ? <InlineNotice tone="error">{failure}</InlineNotice> : null}
           <div className="space-y-2">
@@ -131,13 +138,15 @@ export function YourDataCard() {
               placeholder="Anything that helps the clinic, such as what is wrong."
             />
           </div>
-          <Button
-            type="submit"
-            disabled={submitting || !getToken || !clinicId}
-            aria-busy={submitting}
-          >
-            {submitting ? 'Sending…' : 'Send request'}
-          </Button>
+          <FormActions>
+            <Button
+              type="submit"
+              disabled={submitting || !getToken || !clinicId}
+              aria-busy={submitting}
+            >
+              {submitting ? 'Sending…' : 'Send request'}
+            </Button>
+          </FormActions>
         </form>
 
         <section aria-labelledby="data-requests-history" className="space-y-2">
@@ -155,16 +164,16 @@ export function YourDataCard() {
           ) : requests.length === 0 ? (
             <p className="text-sm text-muted-foreground">You have not made a request.</p>
           ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
+            <ul className="divide-y divide-rule border-y border-rule">
               {requests.map((request) => {
                 const due = describeDataRequestDue(request);
                 return (
-                  <li key={request.id} className="space-y-1 px-3 py-2.5 text-sm">
+                  <li key={request.id} className="space-y-1 py-3 text-sm">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                       <p className="font-medium text-foreground">
                         {dataRequestTypeLabel(request.type)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm tabular-nums text-muted-foreground">
                         {DATA_REQUEST_STATUS_LABEL[request.status]}
                         {' · '}
                         Sent {formatInviteDate(request.createdAt)}
@@ -182,7 +191,7 @@ export function YourDataCard() {
             </ul>
           )}
         </section>
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }

@@ -1,4 +1,5 @@
 import {
+  medicalHistoryDetail,
   medicalHistoryLabel,
   requiresPrescriptionAllergyAcknowledgement,
   sortMedicalHistory,
@@ -40,6 +41,45 @@ describe('medical history UI helpers', () => {
     ]);
 
     expect(result.map((item) => item.id)).toEqual(['active-old', 'resolved-new', 'historical-old']);
+  });
+
+  it('puts an active allergy above a newer active condition', () => {
+    const allergy = {
+      ...record('allergy', 'ACTIVE', '2026-01-01T12:00:00Z'),
+      category: 'ALLERGY' as const,
+    };
+    const result = sortMedicalHistory([
+      record('condition', 'ACTIVE', '2026-07-30T12:00:00Z'),
+      allergy,
+    ]);
+
+    expect(result.map((item) => item.id)).toEqual(['allergy', 'condition']);
+  });
+
+  it('reads social history and allergy details in plain words', () => {
+    const social = {
+      ...record('s', 'ACTIVE', '2026-07-30T12:00:00Z'),
+      category: 'SOCIAL_HISTORY' as const,
+    };
+    social.currentRevision.details = { socialType: 'TOBACCO', description: 'Stopped in 2020' };
+    const allergy = {
+      ...record('a', 'ACTIVE', '2026-07-30T12:00:00Z'),
+      category: 'ALLERGY' as const,
+    };
+    allergy.currentRevision.details = {
+      kind: 'ALLERGY',
+      substance: 'Penicillin',
+      severity: 'SEVERE',
+      reaction: 'Rash',
+    };
+    const condition = record('c', 'RESOLVED', '2026-07-30T12:00:00Z');
+    condition.currentRevision.onsetDate = '2019-03-01';
+    condition.currentRevision.resolvedDate = '2021-05-31T00:00:00.000Z';
+
+    expect(medicalHistoryLabel(social)).toBe('Tobacco use');
+    expect(medicalHistoryDetail(social)).toBe('Stopped in 2020');
+    expect(medicalHistoryDetail(allergy)).toBe('Severe · Rash');
+    expect(medicalHistoryDetail(condition)).toBe('Since Mar 1, 2019 · Resolved May 31, 2021');
   });
 
   it('uses explicit NKA language', () => {

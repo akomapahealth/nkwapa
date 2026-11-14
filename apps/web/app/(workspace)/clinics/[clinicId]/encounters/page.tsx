@@ -44,9 +44,9 @@ export default function ClinicEncountersListPage() {
     <RouteGuard requiredPermission="ENCOUNTER.READ">
       <div className="space-y-6">
         <AppPageHeader
-          eyebrow="Clinic encounters"
           title="Encounters"
-          description="Encounters start from a patient record or the clinic board, and wait in the queues until they are signed off."
+          description="Start from a patient record or the clinic board."
+          hint="Encounters wait in the queues until they are signed off."
         />
 
         <RecordSection aria-labelledby="clinic-encounters-start" className="max-w-3xl">

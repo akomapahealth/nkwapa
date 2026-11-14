@@ -4,7 +4,7 @@ import { useClinicUnits } from '@/lib/bootstrap-context';
 import { formatGlucose, formatHba1c } from '@nkwapa/db/measurement-units';
 
 import { AlertTriangle, Droplets } from 'lucide-react';
-import { DIABETES_SYMPTOM_LABELS, type DiabetesSymptom } from '@nkwapa/db';
+import { DIABETES_SYMPTOM_LABELS, type DiabetesSymptom } from '@nkwapa/db/diabetes-screening';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
 import { InlineNotice } from '@/components/ops/OpsShared';

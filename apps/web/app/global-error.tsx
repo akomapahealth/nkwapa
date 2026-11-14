@@ -14,12 +14,10 @@ export default function GlobalError({
     <html lang="en">
       <body>
         <FullscreenStatus
-          eyebrow="Critical error"
-          title="Nkwapa needs a fresh reload"
-          description={
-            error.message ||
-            'A critical rendering error interrupted the app before the current page could recover on its own.'
-          }
+          title="Nkwapa needs to reload"
+          description={`Something went wrong before the page could recover on its own. Changes saved on this device are safe.${
+            error.digest ? ` Quote reference ${error.digest} if you report it.` : ''
+          }`}
           tone="danger"
           primaryAction={<Button onClick={reset}>Retry app</Button>}
           secondaryAction={

@@ -1,5 +1,6 @@
 'use client';
 
+import { badgeVariants } from '@/components/ui/badge';
 import { StatusLabel } from '@/components/ui/status-label';
 import { statusLabel } from '@/lib/status-presentation';
 import { cn } from '@/lib/utils';
@@ -48,12 +49,7 @@ export function ChartStatusBadge({ state, className }: { state: ChartState; clas
  */
 export function ChartLockedBadge({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full border border-border/80 px-2 py-0.5 text-xs text-muted-foreground',
-        className,
-      )}
-    >
+    <span className={cn(badgeVariants({ variant: 'secondary' }), className)}>
       <span className="sr-only">This record is </span>Locked
     </span>
   );

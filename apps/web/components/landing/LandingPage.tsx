@@ -24,7 +24,7 @@ export function LandingPage({ release }: { release: Release }) {
     applicationCategory: 'MedicalApplication',
     operatingSystem: 'Web',
     url: 'https://nkwapa.app',
-    image: 'https://nkwapa.app/og-image.jpg',
+    image: 'https://nkwapa.app/opengraph-image',
     softwareVersion: release.version,
     description:
       'An electronic medical record for hypertension and diabetes care that connects patient registration, vital signs, clinical visits, doctor review and follow-up.',
@@ -53,7 +53,7 @@ export function LandingPage({ release }: { release: Release }) {
       <ReleaseBanner release={release} />
       <LandingHeader />
       <LandingMotion>
-        <main id="main">
+        <main id="main" tabIndex={-1} className="focus-visible:outline-none">
           <HeroSection />
           <ProblemSection />
           <ClinicalJourney />

@@ -6,10 +6,23 @@ import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { statusLabel } from '@/lib/status-presentation';
-import { ShieldCheck } from 'lucide-react';
+import { MoreHorizontal, ShieldCheck } from 'lucide-react';
+import { ListSearch } from '@/components/app-shell/ListToolbar';
+import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { EmptyState, InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
+import {
+  EmptyState,
+  InlineErrorState,
+  SectionSkeleton,
+  SelectClinicState,
+} from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { RecordSection, RecordSectionContent } from '@/components/patients/RecordSection';
 import {
@@ -48,6 +61,7 @@ export function DataRequestsScreen() {
   const getToken = useAuth();
   const { isOnline } = useSync();
   const clinicId = useBootstrap()?.activeClinicId ?? null;
+  const [query, setQuery] = useState('');
   const [rows, setRows] = useState<ClinicDataRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState<Closing>(null);
@@ -104,19 +118,43 @@ export function DataRequestsScreen() {
 
   const openCount = rows?.filter((row) => isOpenDataRequest(row.status)).length ?? 0;
 
+  const visible =
+    rows?.filter((row) =>
+      `${row.patient.firstName} ${row.patient.lastName} ${row.patient.patientCode} ${dataRequestTypeLabel(row.type)}`
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
+    ) ?? [];
+
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Patient rights"
         title="Data requests"
-        description={
-          rows ? `${openCount} open. Each must be answered within 30 days of receipt.` : undefined
-        }
+        description="Answer patient requests within 30 days of receipt."
         hint="Patients ask from their portal profile. Make the change on the patient's chart, then record what you did here; the patient sees your note. Medical records must be kept as the law requires, so a deletion request is usually answered by removing contact details, portal access or research use, and saying why the rest stays."
       />
 
+      {rows && !error ? (
+        <AppMetricGroup variant="strip">
+          <AppMetricCard
+            title="Open requests"
+            value={openCount}
+            icon={ShieldCheck}
+            detail="Received or in progress requests needing an answer."
+          />
+        </AppMetricGroup>
+      ) : null}
+      <ListSearch
+        id="data-request-search"
+        label="Search data requests"
+        placeholder="Patient name, code or request type"
+        value={query}
+        onChange={setQuery}
+      />
       {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
-      {error ? (
+      {/* Without a clinic nothing loads, and the skeleton below would spin forever. */}
+      {!clinicId ? (
+        <SelectClinicState surface="The data request queue" />
+      ) : error ? (
         <InlineErrorState
           title="Data requests could not be loaded"
           description={error}
@@ -124,18 +162,22 @@ export function DataRequestsScreen() {
         />
       ) : rows === null ? (
         <SectionSkeleton lines={4} />
-      ) : rows.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState
           density="compact"
           titleAs="h2"
-          title="No data requests"
-          description="When a patient asks for a copy, a correction or a deletion, it appears here."
+          title={rows.length ? 'No matching data requests' : 'No data requests'}
+          description={
+            rows.length
+              ? 'Clear the search to see all requests.'
+              : 'When a patient asks for a copy, a correction or a deletion, it appears here.'
+          }
         />
       ) : (
         <RecordSection>
           <RecordSectionContent className="p-0">
             <ul className="divide-y divide-border" aria-label="Data requests">
-              {rows.map((row) => {
+              {visible.map((row) => {
                 const due = describeDataRequestDue(row);
                 const open = isOpenDataRequest(row.status);
                 return (
@@ -181,16 +223,6 @@ export function DataRequestsScreen() {
                     </div>
                     {open ? (
                       <div className="flex flex-wrap gap-1">
-                        {row.status === 'RECEIVED' ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={saving}
-                            onClick={() => void save(row, 'IN_PROGRESS')}
-                          >
-                            Start
-                          </Button>
-                        ) : null}
                         <Button
                           size="sm"
                           variant="outline"
@@ -205,14 +237,30 @@ export function DataRequestsScreen() {
                           ) : null}
                           Complete
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={saving}
-                          onClick={() => setClosing({ request: row, status: 'DECLINED' })}
-                        >
-                          Decline
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={saving}
+                              aria-label={`More actions for ${row.patient.firstName} ${row.patient.lastName}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {row.status === 'RECEIVED' ? (
+                              <DropdownMenuItem onSelect={() => void save(row, 'IN_PROGRESS')}>
+                                Start
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuItem
+                              onSelect={() => setClosing({ request: row, status: 'DECLINED' })}
+                            >
+                              Decline
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     ) : null}
                   </li>
@@ -233,7 +281,7 @@ export function DataRequestsScreen() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent variant="form">
           <DialogHeader>
             <DialogTitle>
               {closing?.status === 'DECLINED' ? 'Decline request' : 'Complete request'}

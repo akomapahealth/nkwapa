@@ -6,6 +6,8 @@ import { PwaBoot } from '@/components/pwa/PwaBoot';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import { ToastProvider } from '@/components/ui/toast';
 import { CookieConsent } from '@/components/CookieConsent';
+import { InertBehindModal } from '@/components/ui/inert-behind-modal';
+import { KeyboardInset } from '@/components/ui/keyboard-inset';
 import { ThemeProvider } from '@/lib/theme-context';
 import { themeStorageKey } from '@/lib/theme-storage';
 
@@ -20,6 +22,17 @@ const ibmPlexSans = localFont({
   display: 'swap',
   variable: '--font-body-latin',
   fallback: ['system-ui', 'sans-serif'],
+});
+// Record numbers, readings and times. Not preloaded: no first-paint text uses it.
+const ibmPlexMono = localFont({
+  src: [
+    { path: './fonts/ibm-plex-mono-400-latin.woff2', weight: '400' },
+    { path: './fonts/ibm-plex-mono-500-latin.woff2', weight: '500' },
+  ],
+  display: 'swap',
+  variable: '--font-mono',
+  preload: false,
+  fallback: ['ui-monospace', 'monospace'],
 });
 const ibmPlexSansExt = localFont({
   src: './fonts/ibm-plex-sans-latin-ext.woff2',
@@ -127,21 +140,12 @@ export const metadata: Metadata = {
     title: 'Nkwapa EMR',
     description:
       'Patient records and clinic workflows for hypertension and diabetes care, in one place.',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'The Nkwapa home page: "Patient records and clinic workflows, in one place," beside the clinic dashboard on a laptop and a phone.',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Nkwapa EMR',
     description:
       'Patient records and clinic workflows for hypertension and diabetes care, in one place.',
-    images: ['/og-image.jpg'],
   },
 };
 
@@ -150,7 +154,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: themeBootScript mutates <html> before React hydrates.
     <html
       lang="en"
-      className={`${ibmPlexSans.variable} ${ibmPlexSansExt.variable} ${sourceSerif4.variable} ${sourceSerif4Ext.variable}`}
+      className={`${ibmPlexSans.variable} ${ibmPlexSansExt.variable} ${ibmPlexMono.variable} ${sourceSerif4.variable} ${sourceSerif4Ext.variable}`}
       suppressHydrationWarning
     >
       <head>
@@ -163,6 +167,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ServiceWorkerRegistration />
             <PwaBoot />
             <CookieConsent />
+            <InertBehindModal />
+            <KeyboardInset />
           </ToastProvider>
         </ThemeProvider>
       </body>

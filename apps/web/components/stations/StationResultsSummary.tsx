@@ -3,14 +3,15 @@
 import { useClinicUnits } from '@/lib/bootstrap-context';
 import { formatGlucose, formatHeight, formatWeight } from '@nkwapa/db/measurement-units';
 
-import { classifyBloodPressure, isHypoglycemic } from '@nkwapa/db';
+import { classifyBloodPressure } from '@nkwapa/db/bp-classification';
+import { isHypoglycemic } from '@nkwapa/db/diabetes-thresholds';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { summarizeEyeScreening, type EyeScreeningRecord } from '@/lib/eye-screening';
-import { HYPERTENSION_LABELS } from '@/lib/hypertension';
+import { StatusLabel } from '@/components/ui/status-label';
 import { formatOpsDateTime } from '@/lib/ops';
 import { performerLabel, type StationKind, type StationVisit } from '@/lib/stations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import { AlertTriangle } from 'lucide-react';
 
 const GLUCOSE_TIMING: Record<string, string> = {
   FASTING: 'fasting',
@@ -66,7 +67,7 @@ export function StationResultsSummary({
   const rows: Array<{
     label: string;
     value: string;
-    detail?: string;
+    detail?: React.ReactNode;
     flag: boolean;
     by: string;
   }> = [
@@ -76,7 +77,8 @@ export function StationResultsSummary({
         vitals?.systolicBp != null && vitals?.diastolicBp != null
           ? `${vitals.systolicBp}/${vitals.diastolicBp} mmHg`
           : 'Not recorded',
-      detail: bp !== 'UNKNOWN' ? HYPERTENSION_LABELS[bp] : undefined,
+      // The stage as its severity tag, so Crisis does not read like Stage 1 in the shared amber box.
+      detail: bp !== 'UNKNOWN' ? <StatusLabel value={bp} className="mt-1" /> : undefined,
       flag: bpFlag,
       by: recordedAt('BLOOD_PRESSURE'),
     },
@@ -134,22 +136,31 @@ export function StationResultsSummary({
       }
     >
       <CardHeader className={ruled ? 'px-0 pb-3 pt-4' : undefined}>
-        <CardTitle className="text-xl">Results from today’s stations</CardTitle>
+        <CardTitle
+          as={ruled ? 'h2' : undefined}
+          className={ruled ? 'type-section-title leading-7 tracking-normal' : 'text-xl'}
+        >
+          Results from today’s stations
+        </CardTitle>
         <CardDescription>
           Medical history recorded at intake: {recordedAt('INTAKE')}. Open the patient’s chart for
           the full history and allergies.
         </CardDescription>
       </CardHeader>
       <CardContent className={ruled ? 'px-0 pb-5' : undefined}>
-        <dl className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {/* Ruled cells, not tiles: tiles nested a box in the card. A flag says so in words, not tint alone. */}
+        <dl className="grid gap-x-6 md:grid-cols-2 xl:grid-cols-4">
           {rows.map((row) => (
-            <div
-              key={row.label}
-              className={cn('rounded-lg border p-3', row.flag && 'border-warning/40 bg-warning/10')}
-            >
+            <div key={row.label} className="border-t border-rule py-3">
               <dt className="text-sm text-muted-foreground">{row.label}</dt>
               <dd className="mt-1 text-lg font-semibold">{row.value}</dd>
               {row.detail ? <dd className="text-sm">{row.detail}</dd> : null}
+              {row.flag ? (
+                <dd className="inline-flex items-center gap-1 text-sm font-medium text-warning-ink">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  Out of range
+                </dd>
+              ) : null}
               <dd className="mt-2 text-xs text-muted-foreground">Recorded by {row.by}</dd>
             </div>
           ))}

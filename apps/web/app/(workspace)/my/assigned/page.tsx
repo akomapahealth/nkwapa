@@ -40,6 +40,7 @@ import {
   opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -182,13 +183,13 @@ export default function MyAssignedPage() {
     {
       id: 'checkedInAt',
       accessorKey: 'checkedInAt',
-      header: 'Checked In',
+      header: 'Checked in',
       accessorFn: (row) => formatOpsDateTime(row.checkedInAt, timezone),
     },
     {
       id: 'assignedRole',
       accessorKey: 'assignedRole',
-      header: 'My Role',
+      header: 'My role',
       enableSorting: false,
       cell: ({ row: params }) => (
         <AssignedRoleBadge role={params.original.assignedRole as 'VOLUNTEER' | 'DOCTOR'} />
@@ -208,7 +209,7 @@ export default function MyAssignedPage() {
     {
       id: 'team',
       accessorKey: 'team',
-      header: 'Care Team',
+      header: 'Care team',
       accessorFn: (row) =>
         `${row.assignedVolunteer.displayName} / ${row.assignedDoctor.displayName}`,
     },
@@ -269,10 +270,10 @@ export default function MyAssignedPage() {
     <RouteGuard requiredPermission="OPS.ASSIGNMENT.READ_SELF">
       <div className="space-y-6">
         <AppPageHeader
-          title="My Assigned"
-          description="A focused worklist for volunteer intake and doctor follow-through."
+          title="My assigned"
+          description={`Your patients for the day. Times in ${timezone}.`}
           actions={
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex items-end gap-2 compact:gap-3">
               <div className="space-y-2">
                 <Label htmlFor="my-assigned-date" className="text-eyebrow text-muted-foreground">
                   Clinic day
@@ -292,10 +293,6 @@ export default function MyAssignedPage() {
                 </div>
               </div>
 
-              <p className="pb-3 text-sm text-muted-foreground">
-                Times shown in <span className="font-medium text-foreground">{timezone}</span>
-              </p>
-
               <Button
                 type="button"
                 variant="outline"
@@ -307,7 +304,7 @@ export default function MyAssignedPage() {
                   aria-hidden="true"
                   className={view.isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}
                 />
-                Refresh
+                <span className="sr-only compact:not-sr-only">Refresh</span>
               </Button>
             </div>
           }
@@ -340,38 +337,56 @@ export default function MyAssignedPage() {
           </section>
         ) : null}
 
-        <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
-          <AppMetricCard
-            title="Assigned today"
-            value={assignments.length}
-            detail={formatOpsDate(selectedDate, timezone)}
-          />
+        <AppMetricGroup variant="strip">
           <AppMetricCard
             title="Ready for intake"
+            onActivate={() => setStatusFilter('ASSIGNED')}
+            actionLabel="Open the Assigned filter"
+            tone="attention"
             value={
-              assignments.filter(
-                (assignment) =>
-                  assignment.assignedRole === 'VOLUNTEER' &&
-                  assignment.checkInStatus === 'ASSIGNED' &&
-                  !assignment.encounterId,
-              ).length
+              view.data
+                ? assignments.filter(
+                    (assignment) =>
+                      assignment.assignedRole === 'VOLUNTEER' &&
+                      assignment.checkInStatus === 'ASSIGNED' &&
+                      !assignment.encounterId,
+                  ).length
+                : '…'
             }
-            detail="Volunteer-owned intake starts"
+            detail="Volunteer-owned intake starts. Opens the Assigned filter."
           />
+
+          <AppMetricCard
+            title="Assigned today"
+            onActivate={() => setStatusFilter('ALL')}
+            actionLabel="Show assigned today patients"
+            value={view.data ? assignments.length : '…'}
+            detail={formatOpsDate(selectedDate, timezone)}
+          />
+
           <AppMetricCard
             title="In progress"
+            onActivate={() => setStatusFilter('IN_PROGRESS')}
+            actionLabel="Show in progress patients"
             value={
-              assignments.filter(
-                (assignment) =>
-                  assignment.checkInStatus === 'IN_PROGRESS' && Boolean(assignment.encounterId),
-              ).length
+              view.data
+                ? assignments.filter(
+                    (assignment) =>
+                      assignment.checkInStatus === 'IN_PROGRESS' && Boolean(assignment.encounterId),
+                  ).length
+                : '…'
             }
             detail="Cases with active encounters"
           />
           <AppMetricCard
             title="Completed"
+            onActivate={() => setStatusFilter('COMPLETED')}
+            actionLabel="Show completed patients"
             value={
-              assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED').length
+              view.data
+                ? assignments.filter((assignment) => assignment.checkInStatus === 'COMPLETED')
+                    .length
+                : '…'
             }
             detail="Finished clinic flow"
           />
@@ -400,15 +415,58 @@ export default function MyAssignedPage() {
         <OpsFeedbackNotice feedback={shiftControls.feedback} />
 
         {view.isInitialLoading ? (
-          <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),320px]">
+            <SectionSkeleton lines={5} />
             <div className="min-w-0 space-y-6">
               <SectionSkeleton lines={2} />
               <SectionSkeleton lines={2} />
             </div>
-            <SectionSkeleton lines={5} />
           </div>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
+          // The worklist leads; the shift and the notes support it from the side.
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),320px]">
+            <section
+              id="assigned-patients"
+              aria-labelledby="assigned-patients-title"
+              className="min-w-0 scroll-mt-24 space-y-4"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 id="assigned-patients-title" className="type-section-title font-body">
+                    Assigned patients
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Cases aligned to your current clinic role.
+                  </p>
+                </div>
+                <SegmentedControl
+                  label="Filter assigned patients"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  className="sm:w-[30rem]"
+                  options={[
+                    { value: 'ALL', label: 'All' },
+                    { value: 'ASSIGNED', label: 'Assigned' },
+                    { value: 'IN_PROGRESS', label: 'In progress' },
+                    { value: 'COMPLETED', label: 'Completed' },
+                  ]}
+                />
+              </div>
+              {!view.data ? null : filteredAssignments.length === 0 ? (
+                <EmptyStateCard
+                  title="Nothing assigned yet"
+                  description="As soon as the manager pairs you to a patient, the case will appear here."
+                />
+              ) : (
+                <DataTable
+                  caption="Patients assigned to you"
+                  columns={columns}
+                  data={rows}
+                  pageSizeOptions={[10, 25]}
+                  initialPageSize={10}
+                />
+              )}
+            </section>
             <div className="min-w-0 space-y-6">
               <ShiftControlCard
                 ruled
@@ -428,7 +486,7 @@ export default function MyAssignedPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <ClipboardList className="h-5 w-5 text-primary" />
-                    Workflow Notes
+                    Workflow notes
                   </CardTitle>
                   <CardDescription className="leading-6">
                     Volunteers start intake and generate the draft encounter. Doctors can enter as
@@ -447,58 +505,6 @@ export default function MyAssignedPage() {
                 </CardContent>
               </Card>
             </div>
-
-            <Card id="assigned-patients" className="min-w-0 scroll-mt-24">
-              <CardHeader className="space-y-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <Stethoscope className="h-5 w-5 text-primary" />
-                      Assigned Patients
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      Cases aligned to your current clinic role.
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(['ALL', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED'] as const).map((value) => (
-                      <Button
-                        key={value}
-                        type="button"
-                        variant={statusFilter === value ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setStatusFilter(value)}
-                        aria-pressed={statusFilter === value}
-                      >
-                        {value === 'ALL'
-                          ? 'All'
-                          : value === 'IN_PROGRESS'
-                            ? 'In Progress'
-                            : value.charAt(0) + value.slice(1).toLowerCase()}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {!view.data ? null : filteredAssignments.length === 0 ? (
-                  <EmptyStateCard
-                    title="Nothing assigned yet"
-                    description="As soon as the manager pairs you to a patient, the case will appear here."
-                  />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <DataTable
-                      caption="Patients assigned to you"
-                      columns={columns}
-                      data={rows}
-                      pageSizeOptions={[10, 25]}
-                      initialPageSize={10}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         )}
       </div>

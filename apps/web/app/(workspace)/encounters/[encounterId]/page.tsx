@@ -8,7 +8,6 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -33,13 +32,16 @@ import {
   type TobaccoScreeningRecord,
   type VitalsRecord,
 } from '@/lib/db';
-import { ArrowLeft, Check, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
 import { HypertensionHistoryPanel } from '@/components/patients/HypertensionHistoryPanel';
 import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel';
 import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
+import styles from '@/components/encounters/encounter-workspace.module.css';
+import { confirmAction } from '@/components/ui/confirm-dialog';
+import { formatOpsDateTime, formatOpsDay } from '@/lib/ops';
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -182,6 +184,9 @@ export default function EncounterDetailPage() {
   const handleTabChange = useCallback(
     async (newValue: string) => {
       if (newValue === activeTab) return;
+      const focused = document.activeElement;
+      const keyboardTablist =
+        focused?.getAttribute('role') === 'tab' ? focused.closest('[role="tablist"]') : null;
       const saveFns: Record<string, (() => Promise<void>) | null> = {
         vitals: vitalsSaveRef.current,
         diabetes: diabetesSaveRef.current,
@@ -191,15 +196,57 @@ export default function EncounterDetailPage() {
       const saveCurrent = saveFns[activeTab];
       if (saveCurrent) {
         setSavingBeforeSwitch(true);
+        let failure: string | null = null;
         try {
           await saveCurrent();
-        } catch {
-          // Save failed; still allow tab switch
+        } catch (e) {
+          failure = e instanceof Error ? e.message : 'This tab could not be saved.';
         } finally {
           setSavingBeforeSwitch(false);
         }
+        /*
+          The tab's panel unmounts on switch, so leaving after a failed save throws the draft
+          away. Leaving stays possible, but only as a stated choice.
+        */
+        if (failure) {
+          const leave = await confirmAction({
+            title: 'These answers are not saved yet',
+            description: `${failure} If you leave this tab now, the unsaved answers are lost.`,
+            confirmLabel: 'Leave without saving',
+            cancelLabel: 'Stay and fix',
+            destructive: true,
+          });
+          if (!leave) {
+            // The dialog hands focus back to the tab when it unmounts; wait for that, then take
+            // the volunteer to the first answer that needs fixing.
+            const focusInvalid = (frames: number) => {
+              if (document.querySelector('[role="dialog"],[role="alertdialog"]') && frames > 0) {
+                requestAnimationFrame(() => focusInvalid(frames - 1));
+                return;
+              }
+              document
+                .querySelector<HTMLElement>(
+                  '[role="tabpanel"][data-state="active"] [aria-invalid="true"]:not([hidden] *)',
+                )
+                ?.focus();
+            };
+            requestAnimationFrame(() => focusInvalid(60));
+            return;
+          }
+        }
       }
       setActiveTab(newValue);
+      // Autosave temporarily disables the focused tab, which sends focus to body. Restore
+      // the selected tab after React commits, unless the person has moved focus elsewhere.
+      if (keyboardTablist) {
+        requestAnimationFrame(() => {
+          if (document.activeElement === document.body) {
+            keyboardTablist
+              .querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+              ?.focus();
+          }
+        });
+      }
     },
     [activeTab],
   );
@@ -221,6 +268,10 @@ export default function EncounterDetailPage() {
       const updated = (await res.json()) as EncounterDetail;
       setEncounter(updated);
       await fetchData();
+      if (endpoint === 'review') {
+        // The review band's button is gone; hand focus to what replaced it, the sign-off band.
+        requestAnimationFrame(() => document.getElementById('encounter-signoff')?.focus());
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -242,7 +293,7 @@ export default function EncounterDetailPage() {
           <Button asChild variant="outline">
             <Link href="/queues">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Queues
+              Back to queues
             </Link>
           </Button>
         </div>
@@ -256,7 +307,7 @@ export default function EncounterDetailPage() {
           <Button asChild variant="outline">
             <Link href="/queues">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Queues
+              Back to queues
             </Link>
           </Button>
         </div>
@@ -279,54 +330,64 @@ export default function EncounterDetailPage() {
 
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
-      <div className="space-y-6">
-        <AppPageHeader
-          eyebrow="Encounter workspace"
-          title={
-            encounter.patient
-              ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
-              : 'Encounter Workspace'
-          }
-          description="Capture vitals, diabetes assessments, hypertension evaluation, and care plan decisions from a shared charting flow."
-          badges={
-            <>
-              {encounter.patient ? (
-                <Badge variant="outline" className="border-primary/25 bg-background/80 font-mono">
-                  {encounter.patient.patientCode}
+      <div className="min-w-0 space-y-6 [overflow-wrap:anywhere]">
+        <header className={styles.header}>
+          <Link
+            className={styles.back}
+            href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Back to patient
+          </Link>
+          <div className={styles.identityRow}>
+            <div className={styles.identity}>
+              <p className="text-sm text-muted-foreground">Encounter</p>
+              <h1 className="mt-1 type-page-title">
+                {encounter.patient
+                  ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
+                  : 'Encounter workspace'}
+              </h1>
+              <div className={styles.metadata}>
+                {encounter.patient ? (
+                  <span className="font-mono tabular-nums" translate="no">
+                    {encounter.patient.patientCode}
+                  </span>
+                ) : null}
+                <Badge
+                  variant={
+                    isFinalized
+                      ? 'finalized'
+                      : encounter.status === 'IN_REVIEW'
+                        ? 'review'
+                        : 'draft'
+                  }
+                >
+                  {STAGES[stage]}
                 </Badge>
-              ) : null}
-              <Badge
-                variant={
-                  isFinalized ? 'finalized' : encounter.status === 'IN_REVIEW' ? 'review' : 'draft'
-                }
+                <span className="tabular-nums">
+                  Started{' '}
+                  <time dateTime={encounter.createdAt}>
+                    {formatOpsDateTime(encounter.createdAt)}
+                  </time>
+                </span>
+              </div>
+            </div>
+            {canSubmit ? (
+              <div
+                role="group"
+                aria-label="Encounter actions"
+                data-placement="header"
+                className={styles.actions}
               >
-                {STAGES[stage]}
-              </Badge>
-            </>
-          }
-          actions={
-            <>
-              <Button asChild variant="ghost">
-                <Link href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}>
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Patient
-                </Link>
-              </Button>
-              {canSubmit ? (
-                <Button size="sm" onClick={() => doTransition('submit')} disabled={transitioning}>
-                  Submit for Review
+                <Button onClick={() => doTransition('submit')} disabled={transitioning}>
+                  Submit for review
                 </Button>
-              ) : null}
-              {canReview ? (
-                <Button size="sm" onClick={() => doTransition('review')} disabled={transitioning}>
-                  Mark Reviewed
-                </Button>
-              ) : null}
-            </>
-          }
-        />
+              </div>
+            ) : null}
+          </div>
+        </header>
 
-        <EncounterProgress stage={stage} createdAt={encounter.createdAt} />
+        <EncounterProgress stage={stage} />
 
         {error ? (
           <InlineErrorState
@@ -336,18 +397,40 @@ export default function EncounterDetailPage() {
           />
         ) : null}
 
+        {/* The preceptor's decision leads, in the place sign-off takes once it is made. Routine, so
+            teal and one press: unlike Finalize it locks nothing. */}
+        {canReview ? (
+          <section aria-labelledby="encounter-review" className={styles.review}>
+            <div className={styles.signoffText}>
+              <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <div>
+                <h2 id="encounter-review" className="font-sans text-base font-semibold">
+                  Ready for your review
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Read each tab, then mark it reviewed. The visit moves on to sign-off.
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => doTransition('review')} disabled={transitioning}>
+              Mark reviewed
+            </Button>
+          </section>
+        ) : null}
+
         {canFinalize ? (
-          <section
-            aria-labelledby="encounter-signoff"
-            className="flex flex-col gap-3 border-y-2 border-warning py-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex items-start gap-3">
+          <section aria-labelledby="encounter-signoff" className={styles.signoff}>
+            <div className={styles.signoffText}>
               <ShieldCheck
                 className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink"
                 aria-hidden="true"
               />
               <div>
-                <h2 id="encounter-signoff" className="font-sans text-base font-semibold">
+                <h2
+                  id="encounter-signoff"
+                  tabIndex={-1}
+                  className="font-sans text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   Ready for your sign-off
                 </h2>
                 <p className="text-sm text-muted-foreground">
@@ -358,7 +441,20 @@ export default function EncounterDetailPage() {
             <Button
               variant="outline"
               className="border-warning text-warning-ink"
-              onClick={() => doTransition('finalize')}
+              onClick={async () => {
+                // Finalizing locks the record for good, so it takes one deliberate confirmation.
+                if (
+                  await confirmAction({
+                    title: 'Finalize this visit?',
+                    description:
+                      'Every clinical tab becomes read-only and the visit leaves your sign-off queue. This cannot be undone here.',
+                    confirmLabel: 'Finalize visit',
+                    cancelLabel: 'Not yet',
+                    destructive: false,
+                  })
+                )
+                  void doTransition('finalize');
+              }}
               disabled={transitioning}
             >
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
@@ -367,55 +463,38 @@ export default function EncounterDetailPage() {
           </section>
         ) : null}
 
-        {canReadPrescriptions && clinicId ? (
-          <PrescriptionPanel
-            clinicId={clinicId}
-            patientId={encounter.patientId}
-            encounterId={encounterId}
-            userId={userId}
-            canWrite={canWritePrescriptions}
-            isFinalized={isFinalized}
-            showAllergySafety={medicalHistoryEnabled}
-          />
-        ) : null}
-
         {clinicId && (
           <Tabs
             value={activeTab}
             onValueChange={isFinalized ? setActiveTab : handleTabChange}
             className="w-full"
           >
-            <div
-              className="max-w-full overflow-x-auto pb-1"
-              aria-label="Encounter clinical sections"
-            >
-              <TabsList className="w-max justify-start gap-2 rounded-lg border border-border bg-card p-2">
-                {stationWorkflowEnabled && isClinicalUser ? (
-                  <TabsTrigger value="station-session" disabled={savingBeforeSwitch}>
-                    Station session
-                  </TabsTrigger>
-                ) : null}
-                <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
-                  Vitals
+            <TabsList aria-label="Encounter clinical sections">
+              {stationWorkflowEnabled && isClinicalUser ? (
+                <TabsTrigger value="station-session" disabled={savingBeforeSwitch}>
+                  Station session
                 </TabsTrigger>
-                <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
-                  Diabetes
+              ) : null}
+              <TabsTrigger value="vitals" disabled={savingBeforeSwitch}>
+                Vitals
+              </TabsTrigger>
+              <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
+                Hypertension
+              </TabsTrigger>
+              <TabsTrigger value="diabetes" disabled={savingBeforeSwitch}>
+                Diabetes
+              </TabsTrigger>
+              {canFinalize && (
+                <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>
+                  Care plan
                 </TabsTrigger>
-                <TabsTrigger value="hypertension" disabled={savingBeforeSwitch}>
-                  Hypertension
+              )}
+              {clinicalNotesEnabled && isClinicalUser ? (
+                <TabsTrigger value="clinical-note" disabled={savingBeforeSwitch}>
+                  Clinical note
                 </TabsTrigger>
-                {canFinalize && (
-                  <TabsTrigger value="careplan" disabled={savingBeforeSwitch}>
-                    Care Plan
-                  </TabsTrigger>
-                )}
-                {clinicalNotesEnabled && isClinicalUser ? (
-                  <TabsTrigger value="clinical-note" disabled={savingBeforeSwitch}>
-                    Clinical Note
-                  </TabsTrigger>
-                ) : null}
-              </TabsList>
-            </div>
+              ) : null}
+            </TabsList>
             {stationWorkflowEnabled && isClinicalUser ? (
               <TabsContent value="station-session">
                 <StationSessionPanel
@@ -547,6 +626,28 @@ export default function EncounterDetailPage() {
           </Tabs>
         )}
 
+        {/* After the clinical tabs: prescribing follows the assessment it rests on. */}
+        {canReadPrescriptions && clinicId ? (
+          <PrescriptionPanel
+            clinicId={clinicId}
+            patientId={encounter.patientId}
+            encounterId={encounterId}
+            userId={userId}
+            canWrite={canWritePrescriptions}
+            isFinalized={isFinalized}
+            showAllergySafety={medicalHistoryEnabled}
+          />
+        ) : null}
+
+        {/* On a phone, submitting waits below the work it sends on, not above it. */}
+        {canSubmit ? (
+          <div role="group" aria-label="Encounter actions" className={styles.phoneSubmit}>
+            <Button onClick={() => doTransition('submit')} disabled={transitioning}>
+              Submit for review
+            </Button>
+          </div>
+        ) : null}
+
         {isFinalized && (
           <div className="space-y-4">
             <InlineNotice tone="info">
@@ -579,9 +680,10 @@ export default function EncounterDetailPage() {
                       <div className="grid grid-cols-[minmax(0,12rem)_1fr] gap-4 py-2">
                         <dt className="text-muted-foreground">Follow-up</dt>
                         <dd className="font-medium tabular-nums">
-                          {new Date(
-                            (carePlan as { followUpDate: string }).followUpDate,
-                          ).toLocaleDateString()}
+                          {/* A calendar day stored at midnight UTC: read at noon so no zone moves it. */}
+                          {formatOpsDay(
+                            `${(carePlan as { followUpDate: string }).followUpDate.slice(0, 10)}T12:00:00Z`,
+                          )}
                         </dd>
                       </div>
                     )}
@@ -597,32 +699,36 @@ export default function EncounterDetailPage() {
 }
 
 /** Where this visit is on the review path, in words; the current step is not colour alone. */
-function EncounterProgress({ stage, createdAt }: { stage: number; createdAt: string }) {
+function EncounterProgress({ stage }: { stage: number }) {
   return (
-    <section aria-label="Review progress" className="border-t-2 border-rule-strong pt-3">
-      <ol className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-        {STAGES.map((label, index) => (
-          <li
-            key={label}
-            aria-current={index === stage ? 'step' : undefined}
-            className={
-              index === stage
-                ? 'border-t-2 border-primary pt-2 text-sm font-semibold text-foreground'
-                : 'border-t-2 border-transparent pt-2 text-sm text-muted-foreground'
-            }
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {index < stage ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
-              {label}
-            </span>
-            <span className="block text-xs font-normal text-muted-foreground">
-              {index < stage ? 'Done' : index === stage ? 'Current' : 'Not yet'}
-            </span>
-          </li>
-        ))}
+    <section aria-label="Review progress">
+      <ol className={styles.progress}>
+        {STAGES.map((label, index) => {
+          const state = index < stage ? 'done' : index === stage ? 'current' : 'next';
+          return (
+            <li
+              key={label}
+              data-state={state}
+              aria-current={index === stage ? 'step' : undefined}
+              className={styles.step}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {index < stage ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
+                {label}
+              </span>
+              <span className={styles.stepState}>
+                {state === 'done' ? 'Done' : state === 'current' ? 'Current' : 'Not yet'}
+              </span>
+            </li>
+          );
+        })}
       </ol>
-      <p className="mt-3 text-xs text-muted-foreground tabular-nums">
-        Started {new Date(createdAt).toLocaleString()}
+      <p className={styles.progressSummary} aria-hidden="true">
+        <span className="font-semibold">{STAGES[stage]}</span>
+        <span className="text-muted-foreground">
+          {' '}
+          · step {stage + 1} of {STAGES.length}
+        </span>
       </p>
     </section>
   );

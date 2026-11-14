@@ -24,7 +24,7 @@ describe('staff invitation wording', () => {
 
   it('never shows a raw role enum', () => {
     expect(formatStaffRole('VOLUNTEER')).toBe('Volunteer');
-    expect(formatStaffRole('SYSTEM_ADMIN')).toBe('System Admin');
+    expect(formatStaffRole('SYSTEM_ADMIN')).toBe('System admin');
   });
 
   // Cancelled and expired invitations stay visible, so each needs words of its own.

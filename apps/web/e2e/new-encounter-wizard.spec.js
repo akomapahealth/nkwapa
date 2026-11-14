@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
+const { openSection } = require('../playwright/interview');
 
 const { storageStateFor } = require('../playwright/roles');
 
@@ -28,6 +29,8 @@ async function createPatient(page) {
 async function chooseOption(page, label, option) {
   await page.getByLabel(label, { exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
+  // A closing Radix select still owns the page; typing before it unmounts is dropped.
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
 test('the wizard runs the guided interviews and carries vitals into them', async ({ page }) => {
@@ -36,7 +39,14 @@ test('the wizard runs the guided interviews and carries vitals into them', async
   const patientId = await createPatient(page);
   await page.goto(`/patients/${patientId}/encounters/new`);
 
-  await page.getByRole('button', { name: 'Continue to Vitals' }).click();
+  // The confirm step shows enough to tell two patients with the same name apart.
+  const identity = page.getByRole('region', { name: 'Confirm patient' });
+  await expect(identity.getByRole('definition').first()).toBeVisible();
+  for (const term of ['Date of birth', 'Sex', 'Phone', 'National ID']) {
+    await expect(identity.getByRole('term').filter({ hasText: term })).toBeVisible();
+  }
+
+  await page.getByRole('button', { name: 'Continue to vitals' }).click();
 
   await page.getByLabel('Systolic BP (mmHg)').fill('152');
   await page.getByLabel('Diastolic BP (mmHg)').fill('96');
@@ -47,12 +57,13 @@ test('the wizard runs the guided interviews and carries vitals into them', async
   await page.getByRole('button', { name: 'Save measurements' }).click();
 
   /*
-    The guided interview, not the four-field form. Section 2 exists only on the interview, and
-    its heading is what distinguishes the two without depending on a field they share.
+    The guided interview, not the four-field form. Only the interview has a section rail, and its
+    Blood pressure control section is where today's reading is shown.
   */
-  await expect(page.getByRole('heading', { name: /2\. Blood pressure control/i })).toBeVisible({
-    timeout: 30_000,
-  });
+  const rail = page.getByRole('navigation', { name: 'Hypertension interview' });
+  await expect(rail).toBeVisible({ timeout: 30_000 });
+  await openSection(page, 'Hypertension interview', /BP control/);
+  await expect(page.getByRole('heading', { name: /Blood pressure control/i })).toBeVisible();
 
   /*
     And it carries the reading the previous step just saved.

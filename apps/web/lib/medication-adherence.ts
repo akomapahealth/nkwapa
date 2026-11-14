@@ -5,8 +5,8 @@ import {
   parseAdherenceEntries,
   type MedicationAdherenceContextValue,
   type MedicationAdherenceEntry,
-  type MedicationProblemValue,
-} from '@nkwapa/db';
+} from '@nkwapa/db/medication-adherence';
+import { type MedicationProblemValue } from '@nkwapa/db/clinical-vocabulary';
 import { isCategoryForCondition } from '@nkwapa/db/medication-classes';
 import type { MedicationAdherenceEntryRecord, MedicationAdherenceSetRecord, NkwapaDb } from './db';
 import type { MedicationRecord } from './medication-reconciliation';

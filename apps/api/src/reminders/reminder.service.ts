@@ -39,6 +39,7 @@ import {
 import { DEFAULT_TIMEZONE } from '../notifications/templates/partials';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 import { RedisService, RedisUnavailableError } from '../redis/redis.service';
+import { PushService } from '../push/push.service';
 
 const REMINDER_QUEUE_NAME = 'reminders';
 const FOLLOWUP_TEMPLATE_KEY = 'FOLLOWUP_REMINDER_V1';
@@ -309,6 +310,7 @@ export class ReminderService {
     private readonly emailProvider: EmailProvider | null,
     @InjectQueue(REMINDER_QUEUE_NAME) private readonly reminderQueue: Queue,
     private readonly redis: RedisService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   /**
@@ -820,6 +822,28 @@ export class ReminderService {
       beforeJson: before,
       afterJson: JSON.stringify(updated),
     });
+    if (status === 'FAILED' && reminder.status !== 'FAILED') this.notifyFailure(updated);
+  }
+
+  /**
+   * Tell whoever scheduled a reminder that it did not reach the patient. Reminders the system made
+   * itself (on finalize, for an appointment) have no scheduler and stay on the delivery log.
+   */
+  private notifyFailure(
+    reminder: Pick<Reminder, 'id' | 'createdByUserId' | 'clinicId' | 'patientId'>,
+  ) {
+    if (!reminder.createdByUserId) return;
+    this.push?.notify([reminder.createdByUserId], {
+      title: 'A reminder you scheduled was not sent',
+      body: "Check the patient's phone number or email, then schedule it again.",
+      url:
+        reminder.clinicId && reminder.patientId
+          ? `/clinics/${reminder.clinicId}/patients/${reminder.patientId}`
+          : '/notifications/delivery',
+      tag: `reminder-${reminder.id}`,
+      kind: 'REMINDER_FAILED',
+      clinicId: reminder.clinicId,
+    });
   }
 
   /**
@@ -1304,6 +1328,14 @@ export class ReminderService {
       entityId: reminder.id,
       afterJson: JSON.stringify({ status: 'FAILED', failureReason }),
     });
+    // A suppression is deliberate (the appointment moved or was cancelled); only a failed send is news.
+    if (action === 'REMINDER.SEND_FAILED') {
+      const row = await this.prisma.reminder.findUnique({
+        where: { id: reminder.id },
+        select: { id: true, createdByUserId: true, clinicId: true, patientId: true },
+      });
+      if (row) this.notifyFailure(row);
+    }
   }
 
   /**

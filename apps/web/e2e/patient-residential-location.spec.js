@@ -8,6 +8,8 @@ test.use({ storageState: storageStateFor('staff') });
 async function chooseSelect(page, label, option) {
   await page.getByLabel(label, { exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
+  // A closing Radix select still owns the page; typing before it unmounts is dropped.
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
 test('records a residential location, distinguishes it from the clinic, and filters the registry', async ({
@@ -42,8 +44,10 @@ test('records a residential location, distinguishes it from the clinic, and filt
   // the DOM (breakpoint-hidden via CSS); target the grid cell the default
   // desktop viewport actually shows to avoid a strict-mode double match.
   await page.goto(`/clinics/${clinicId}/patients`);
+  await page.getByRole('button', { name: 'Filter patients', exact: true }).click();
   await chooseSelect(page, 'Region', 'Greater Accra');
-  await expect(page.getByText('Region: Greater Accra')).toBeVisible();
+  await page.getByRole('button', { name: 'Show results', exact: true }).click();
+  await expect(page.getByText('Region Greater Accra')).toBeVisible();
   await expect(page.getByRole('cell', { name: lastName })).toBeVisible();
 
   // No horizontal overflow across breakpoints.

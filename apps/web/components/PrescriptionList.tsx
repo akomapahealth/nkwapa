@@ -81,11 +81,11 @@ export function PrescriptionList({
       isEmpty={(items) => items.length === 0}
     >
       {(items) => (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-rule border-y border-rule">
           {items.map((p) => (
             <li
               key={p.id}
-              className="flex items-start justify-between gap-3 rounded-md border p-3 [overflow-wrap:anywhere]"
+              className="flex items-start justify-between gap-3 py-3 [overflow-wrap:anywhere]"
             >
               <div>
                 <p className="font-medium">

@@ -38,13 +38,20 @@ const BREAKPOINTS = [
 
 /** Routes with a stable address and no fixture setup. Heading proves the page really rendered. */
 const ROUTES = [
-  { path: '/dashboard', heading: /today at a glance/i },
-  { path: '/today', heading: /today board/i },
+  { path: '/dashboard', heading: /^good (morning|afternoon|evening)/i },
+  {
+    path: '/today',
+    heading:
+      process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true'
+        ? /station line/i
+        : /today board/i,
+  },
   { path: '/my/assigned', heading: /my assigned/i },
   { path: '/queues', heading: /queues/i },
   { path: '/patients', heading: /patients/i },
   { path: '/appointments', heading: /appointments/i },
-  { path: '/notifications', heading: /message delivery/i },
+  { path: '/notifications/delivery', heading: /message delivery/i },
+  { path: '/notifications', heading: /^notifications$/i },
   { path: '/audit', heading: /audit/i },
   { path: '/staff-activity', heading: /staff activity/i },
   { path: '/admin/users', heading: /staff/i },

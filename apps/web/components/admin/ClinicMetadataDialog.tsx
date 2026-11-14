@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, RotateCcw, ShieldCheck } from 'lucide-react';
+import { Building2, RotateCcw } from 'lucide-react';
 import { isCountryCode } from '@nkwapa/db/clinic-metadata';
 import {
   BODY_MEASURE_UNIT_LABELS,
@@ -114,7 +114,6 @@ export function ClinicMetadataDialog({
   onOpenChange,
 }: ClinicMetadataDialogProps) {
   const [values, setValues] = useState<ClinicFormValues>(initialValues);
-  const deactivating = mode === 'edit' && initialValues.isActive && !values.isActive;
   const [errors, setErrors] = useState<ClinicFormErrors>({});
   const [submitted, setSubmitted] = useState(false);
   /*
@@ -221,7 +220,7 @@ export function ClinicMetadataDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent variant="form" className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Create clinic' : 'Edit clinic'}</DialogTitle>
           <DialogDescription>
@@ -301,7 +300,7 @@ export function ClinicMetadataDialog({
                 <FieldError id="clinic-organizationId" message={shownErrors.organizationId} />
               </div>
             ) : organization ? (
-              <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
+              <div className="flex items-start gap-3 border-y border-rule py-3 text-sm">
                 <Building2
                   aria-hidden="true"
                   className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
@@ -515,11 +514,10 @@ export function ClinicMetadataDialog({
             </Button>
             <Button
               type="submit"
-              variant={deactivating ? 'outline' : 'default'}
-              className={deactivating ? 'border-warning text-warning-ink' : undefined}
+              // Taking a clinic offline is undone by reactivating it, so the save stays routine
+              // (R4.3: warning ink is for what cannot be undone here).
               disabled={saving}
             >
-              {deactivating ? <ShieldCheck className="h-4 w-4" aria-hidden="true" /> : null}
               {saving
                 ? mode === 'create'
                   ? 'Creating…'

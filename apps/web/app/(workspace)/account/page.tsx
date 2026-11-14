@@ -10,8 +10,16 @@ import { StaffNameForm } from '@/components/account/StaffNameForm';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { avatarToneProps } from '@/lib/avatar-tone';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  RecordSection,
+  RecordSectionContent,
+  RecordSectionDescription,
+  RecordSectionHeader,
+  RecordSectionTitle,
+} from '@/components/patients/RecordSection';
+import { FormActions } from '@/components/ui/form-actions';
 import { FieldError, fieldErrorProps } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,7 +51,6 @@ export default function AccountPage() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Your account"
         title="Profile"
         description="How you appear to colleagues, and how Nkwapa reaches you."
         actions={
@@ -79,15 +86,15 @@ export default function AccountPage() {
               </>
             ) : (
               <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Your details</CardTitle>
-                    <CardDescription>
+                <RecordSection>
+                  <RecordSectionHeader>
+                    <RecordSectionTitle>Your details</RecordSectionTitle>
+                    <RecordSectionDescription>
                       Your name, phone and date of birth are on your clinic record. To correct them,
                       send a request below or ask at your next visit.
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
+                    </RecordSectionDescription>
+                  </RecordSectionHeader>
+                </RecordSection>
                 <YourDataCard />
               </>
             )}
@@ -115,22 +122,26 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
   const email = bootstrap.profile?.email ?? null;
   const globalRoles = bootstrap.globalRoles ?? [];
   return (
-    <Card className="min-w-0">
-      <CardContent className="space-y-5 pt-6">
+    <RecordSection>
+      <RecordSectionContent className="space-y-5 pt-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12">
-            <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+            <AvatarFallback
+              {...avatarToneProps(bootstrap.displayName)}
+              className="text-sm font-semibold"
+            >
               {initialsOf(bootstrap.displayName)}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate font-heading text-lg font-semibold text-foreground">
+            <p className="font-heading text-lg font-semibold text-foreground [overflow-wrap:anywhere]">
               {bootstrap.displayName}
             </p>
             {email ? (
-              <p className="flex items-center gap-1.5 truncate text-sm text-muted-foreground">
-                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{email}</span>
+              <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                {/* 3px centres the 14px icon on the first 20px line when the email wraps. */}
+                <Mail className="mt-[3px] h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 [overflow-wrap:anywhere]">{email}</span>
               </p>
             ) : null}
           </div>
@@ -143,21 +154,23 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
           <h2 id="profile-access" className="text-eyebrow text-muted-foreground">
             Your access
           </h2>
-          <ul className="divide-y divide-border rounded-lg border border-border">
+          <ul className="divide-y divide-rule border-y border-rule">
             {globalRoles.map((role) => (
-              <li key={role} className="px-3 py-2.5 text-sm">
+              <li key={role} className="py-2.5 text-sm">
                 <p className="font-medium text-foreground">{formatRoleLabel(role)}</p>
                 <p className="text-xs text-muted-foreground">Every clinic</p>
               </li>
             ))}
             {bootstrap.memberships.map((membership) => (
-              <li key={membership.clinicId} className="flex gap-2.5 px-3 py-2.5 text-sm">
+              <li key={membership.clinicId} className="flex gap-2.5 py-2.5 text-sm">
                 <Building2
                   className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{membership.clinicName}</p>
+                  <p className="font-medium text-foreground [overflow-wrap:anywhere]">
+                    {membership.clinicName}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {membership.roles.map(formatRoleLabel).join(', ')}
                   </p>
@@ -169,8 +182,8 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
             Roles are granted by a clinic administrator.
           </p>
         </section>
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }
 
@@ -187,17 +200,17 @@ function NameCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <UserPen className="h-5 w-5 text-primary" aria-hidden="true" />
+    <RecordSection>
+      <RecordSectionHeader>
+        <RecordSectionTitle className="flex items-center gap-2">
+          <UserPen className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           Name
-        </CardTitle>
-        <CardDescription>
+        </RecordSectionTitle>
+        <RecordSectionDescription>
           Shown on the records you work on, so colleagues and auditors can see who did what.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </RecordSectionDescription>
+      </RecordSectionHeader>
+      <RecordSectionContent>
         <StaffNameForm
           key={bootstrap.userId}
           idPrefix="profile-name"
@@ -206,8 +219,8 @@ function NameCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
           onSubmit={save}
           autoFocus={false}
         />
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }
 
@@ -249,51 +262,51 @@ function PhoneCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Phone className="h-5 w-5 text-primary" aria-hidden="true" />
+    <RecordSection>
+      <RecordSectionHeader>
+        <RecordSectionTitle className="flex items-center gap-2">
+          <Phone className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           Work phone
-        </CardTitle>
-        <CardDescription>
+        </RecordSectionTitle>
+        <RecordSectionDescription>
           Optional. A number your clinic team can reach you on. Patients never see it.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </RecordSectionDescription>
+      </RecordSectionHeader>
+      <RecordSectionContent>
         <form noValidate onSubmit={(event) => void submit(event)} className="space-y-3">
           {failure ? <InlineNotice tone="error">{failure}</InlineNotice> : null}
           <div className="space-y-2">
             <Label htmlFor={id}>Phone number</Label>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                id={id}
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="024 123 4567"
-                maxLength={32}
-                value={phone}
-                disabled={saving}
-                onChange={(event) => {
-                  setPhone(event.target.value);
-                  setError(undefined);
-                }}
-                className="sm:max-w-xs"
-                {...fieldErrorProps(id, error)}
-              />
-              <Button
-                type="submit"
-                variant="outline"
-                disabled={saving || phone.trim() === saved}
-                aria-busy={saving}
-              >
-                {saving ? 'Saving…' : phone.trim() ? 'Save phone' : 'Remove phone'}
-              </Button>
-            </div>
+            <Input
+              id={id}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="024 123 4567"
+              maxLength={32}
+              value={phone}
+              disabled={saving}
+              onChange={(event) => {
+                setPhone(event.target.value);
+                setError(undefined);
+              }}
+              className="compact:max-w-xs"
+              {...fieldErrorProps(id, error)}
+            />
             <FieldError id={id} message={error} />
           </div>
+          <FormActions>
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={saving || phone.trim() === saved}
+              aria-busy={saving}
+            >
+              {saving ? 'Saving…' : phone.trim() ? 'Save phone' : 'Remove phone'}
+            </Button>
+          </FormActions>
         </form>
-      </CardContent>
-    </Card>
+      </RecordSectionContent>
+    </RecordSection>
   );
 }

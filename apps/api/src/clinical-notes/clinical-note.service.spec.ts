@@ -65,6 +65,47 @@ describe('ClinicalNoteService', () => {
     service = new ClinicalNoteService(prisma as never, repository as never, audit as never);
   });
 
+  it('returns a word-boundary assessment preview without full narrative or addenda', async () => {
+    prisma.patient.findFirst.mockResolvedValue({ id: 'patient' });
+    const assessment = '  Stable\n examination   ' + 'follow-up '.repeat(25);
+    repository.findPatientNotes.mockResolvedValue([
+      { id: 'note', assessment, history: 'Private history' },
+    ]);
+    const [summary] = await service.listPatientNotes(
+      clinicId,
+      'patient',
+      roles(doctorId, UserRole.DOCTOR),
+    );
+    expect(summary.preview).toBe('Stable examination ' + 'follow-up '.repeat(14).trimEnd() + '…');
+    expect(summary.preview.length).toBeLessThanOrEqual(161);
+    expect(summary).not.toHaveProperty('assessment');
+    expect(summary).not.toHaveProperty('history');
+    expect(summary).not.toHaveProperty('addenda');
+  });
+
+  it('falls back to collapsed history when assessment is blank', async () => {
+    prisma.patient.findFirst.mockResolvedValue({ id: 'patient' });
+    repository.findPatientNotes.mockResolvedValue([
+      { id: 'note', assessment: '  ', history: '  Headache\n for   two days. ' },
+    ]);
+    const [summary] = await service.listPatientNotes(
+      clinicId,
+      'patient',
+      roles(volunteerId, UserRole.VOLUNTEER),
+    );
+    expect(summary.preview).toBe('Headache for two days.');
+  });
+
+  it.each([UserRole.PATIENT, UserRole.MANAGER, UserRole.DIRECTOR, UserRole.SYSTEM_ADMIN])(
+    'returns no preview to %s without clinical note read access',
+    async (role) => {
+      await expect(
+        service.listPatientNotes(clinicId, 'patient', roles('actor', role)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repository.findPatientNotes).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([UserRole.SYSTEM_ADMIN, UserRole.DIRECTOR, UserRole.MANAGER, UserRole.PATIENT])(
     'denies %s access to clinical note content',
     async (role) => {

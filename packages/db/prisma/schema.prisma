@@ -892,20 +892,20 @@ model Organization {
 }
 
 model Clinic {
-  id             String  @id @default(uuid()) @db.Uuid
-  organizationId String  @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
   name           String
   region         String?
-  countryCode    String  @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
-  timezone       String  @default("Africa/Accra") @db.VarChar(64)
+  countryCode    String          @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
+  timezone       String          @default("Africa/Accra") @db.VarChar(64)
   /// Units staff type and read screening values in. Storage is always mg/dL, kg, cm and %;
   /// see packages/db/src/measurement-units.ts. Defaults follow countryCode when a clinic is made.
   glucoseUnit    GlucoseUnit     @default(MMOL_L)
   bodyUnit       BodyMeasureUnit @default(METRIC)
   hba1cUnit      Hba1cUnit       @default(PERCENT)
-  locationCode   String  @db.VarChar(64)
-  zoneCode       String? @db.VarChar(64)
-  isActive       Boolean @default(true)
+  locationCode   String          @db.VarChar(64)
+  zoneCode       String?         @db.VarChar(64)
+  isActive       Boolean         @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1049,6 +1049,7 @@ model User {
   cancelledAppointments           Appointment[]                   @relation("AppointmentCancelledBy")
   idempotencyRecords              IdempotencyRecord[]
   pushSubscriptions               PushSubscription[]
+  inboxNotifications              InboxNotification[]
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
   createdStaffInvites             StaffInvite[]                   @relation("StaffInviteCreatedBy")
@@ -2850,6 +2851,41 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// What the bell lists for one person. Short plain-English text written when something happens,
+/// never a chat message's content. Only the owner reads it (row level security).
+enum InboxNotificationKind {
+  MESSAGE
+  COSIGN
+  ASSIGNMENT
+  HEALTH_ALERT
+  APPOINTMENT_REQUEST
+  INVITE
+  REMINDER_FAILED
+}
+
+model InboxNotification {
+  id        String                @id @default(uuid()) @db.Uuid
+  userId    String                @db.Uuid
+  /// The clinic it is about. Listed only while the reader still has a role there.
+  clinicId  String?               @db.Uuid
+  kind      InboxNotificationKind
+  title     String                @db.VarChar(200)
+  body      String?               @db.VarChar(500)
+  /// Same-origin path the tile opens.
+  url       String                @db.VarChar(500)
+  /// An unread notification with the same tag is updated in place rather than stacked.
+  tag       String?               @db.VarChar(120)
+  /// How many events the unread notification stands for, e.g. three messages in one chat.
+  count     Int                   @default(1)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @default(now()) @updatedAt
+  readAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
 }
 
 model Conversation {

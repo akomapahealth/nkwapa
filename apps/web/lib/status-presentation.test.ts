@@ -21,7 +21,14 @@ describe('status presentation', () => {
     expect(clinicalNoteStatusLabel('PENDING_COSIGN')).toBe(statusLabel('PENDING_COSIGN'));
     expect(statusVariant('FINALIZED')).toBe('finalized');
     expect(statusVariant('IN_REVIEW')).toBe('review');
-    expect(statusVariant('STAGE2')).toBe('destructive');
     expect(statusVariant('UNKNOWN')).toBe('draft');
+  });
+  it('gives each blood-pressure stage its own severity, so Stage 1 does not read as an emergency', () => {
+    expect(statusVariant('NORMAL')).toBe('draft');
+    expect(statusVariant('ELEVATED')).toBe('draft');
+    expect(statusVariant('STAGE1')).toBe('warning');
+    expect(statusVariant('STAGE2')).toBe('severe');
+    expect(statusVariant('CRISIS')).toBe('destructive');
+    expect(statusVariant('FAILED')).toBe('destructive');
   });
 });

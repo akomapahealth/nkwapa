@@ -725,6 +725,7 @@ export class OpsService {
   /** Tell the assigned volunteer and doctor (#250): who assigned, never which patient. */
   private notifyAssigned(
     assignment: {
+      clinicId: string;
       assignedVolunteerId: string;
       assignedDoctorId: string;
       assignedBy: { displayName: string };
@@ -740,6 +741,8 @@ export class OpsService {
         body: `Assigned by ${assignment.assignedBy.displayName}.`,
         url: '/my/assigned',
         tag: 'assigned',
+        kind: 'ASSIGNMENT',
+        clinicId: assignment.clinicId,
       },
     );
   }

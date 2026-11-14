@@ -1,73 +1,57 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, HeartPulse, House } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { Header } from '@/components/Header';
 import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
 import { cn } from '@/lib/utils';
-
-const navItems = [
-  {
-    href: '/portal',
-    label: 'Overview',
-    icon: House,
-    matches: (pathname: string) => pathname === '/portal',
-  },
-  {
-    href: '/portal/health',
-    label: 'My Health',
-    icon: HeartPulse,
-    matches: (pathname: string) =>
-      pathname.startsWith('/portal/health') || pathname.startsWith('/portal/self-reports'),
-  },
-  {
-    href: '/portal/appointments',
-    label: 'Appointments',
-    icon: CalendarDays,
-    matches: (pathname: string) => pathname.startsWith('/portal/appointments'),
-  },
-] as const;
+import { BottomNav } from '@/components/app-shell/BottomNav';
+import { portalNavItems } from '@/lib/portal-nav';
+import { useSyncRecoveryAvailability } from '@/lib/use-sync-recovery-availability';
 
 export function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const ContextTitle = /^\/(account|settings)(\/|$)/.test(pathname) ? 'p' : 'h1';
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const activeClinicId = getBootstrapActiveClinicId(bootstrap);
   const activeClinic = getActiveBootstrapClinic(bootstrap, activeClinicId);
+  const canOpenSync = useSyncRecoveryAvailability(bootstrap);
   const displayName = bootstrap?.displayName ?? 'Patient';
 
   return (
-    <div className="flex min-h-screen flex-col bg-background px-safe">
+    <div className="flex min-h-screen min-w-0 flex-col bg-card px-safe [--workspace-bottom-nav-height:3.75rem] compact:m-2 compact:rounded-xl compact:border compact:border-border compact:[--workspace-bottom-nav-height:0px] [:root[data-keyboard]_&]:[--workspace-bottom-nav-height:var(--keyboard-inset)]">
       <a
         href="#main-content"
-        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
+        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm"
       >
         Skip to main content
       </a>
       <NavigationProgress />
-      <Header />
+      <Header portal />
       <section aria-labelledby="portal-context-title" className="border-b border-border">
         <div className="mx-auto max-w-5xl px-4 md:px-6">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4">
-            <h1
+          {/* One quiet line: each page's own title is the big one. Two serif titles stacked took a
+              quarter of a phone screen before any content. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
+            <ContextTitle
               id="portal-context-title"
-              className="font-heading text-2xl font-semibold text-foreground"
+              className="font-body text-sm font-semibold text-foreground"
             >
               {pathname === '/portal'
                 ? `Welcome back, ${displayName.split(' ')[0]}`
                 : 'Patient portal'}
-            </h1>
+            </ContextTitle>
             {activeClinic?.clinicName && (
               <p className="text-sm text-muted-foreground">{activeClinic.clinicName}</p>
             )}
           </div>
           <nav
             aria-label="Patient portal"
-            className="grid grid-cols-3 border-t border-border sm:flex sm:gap-4"
+            className="hidden flex-wrap gap-x-4 border-t border-border compact:flex"
           >
-            {navItems.map((item) => {
+            {portalNavItems.map((item) => {
               const Icon = item.icon;
               const active = item.matches(pathname);
               return (
@@ -93,10 +77,11 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex-1 overflow-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11 [&_select]:min-h-11 [&_textarea]:min-h-11 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] focus-visible:outline-none md:px-6 lg:px-8"
+        className="min-w-0 flex-1 overflow-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11 [&_select]:min-h-11 [&_textarea]:min-h-11 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] compact:pb-[calc(1.5rem+env(safe-area-inset-bottom))] focus-visible:outline-none md:px-6 lg:px-8"
       >
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
+      <BottomNav portal canOpenSync={canOpenSync} />
     </div>
   );
 }

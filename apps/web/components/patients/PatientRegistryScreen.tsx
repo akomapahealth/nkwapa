@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users } from 'lucide-react';
 import { apiFetch, readApiError as readApiErrorDetail } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -11,7 +11,13 @@ import {
   registryViewQuery,
   type RegistryView,
 } from '@/lib/patient-registry-url';
-import { OPS_DEFAULT_TIMEZONE, getTodayInTimeZone, hasPermission, readApiError } from '@/lib/ops';
+import {
+  OPS_DEFAULT_TIMEZONE,
+  formatOpsDay,
+  getTodayInTimeZone,
+  hasPermission,
+  readApiError,
+} from '@/lib/ops';
 import {
   describeScreenedRange,
   formatScreenedDay,
@@ -19,12 +25,15 @@ import {
   screenedRangeError,
   type MatchingScreening,
 } from '@/lib/patient-registry-screened';
-import { GHANA_REGION_LABELS, PATIENT_LOCATION_STATUS_LABELS } from '@/lib/residential-location';
+import {
+  GHANA_REGION_LABELS,
+  PATIENT_LOCATION_STATUS_LABELS,
+  describeResidentialLocation,
+} from '@/lib/residential-location';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
-import { ActiveFilterSummary } from '@/components/app-shell/ActiveFilterSummary';
+import { ListFilters, ListSearch } from '@/components/app-shell/ListToolbar';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
-import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { ResourceState } from '@/components/feedback/ResourceState';
 import { OpsFeedbackNotice } from '@/components/ops/OpsShared';
@@ -33,10 +42,20 @@ import {
   ResidentialLocationFilters,
 } from '@/components/patients/ResidentialLocationFilters';
 import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
+import {
+  PatientIdentity,
+  PatientRegistryCard,
+  maskPhone,
+} from '@/components/patients/PatientRegistryCard';
 import { Button } from '@/components/ui/button';
 import { DataTable, DataTableActions, type DataTableColumn } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface PatientSummary {
   id: string;
@@ -45,6 +64,12 @@ interface PatientSummary {
   lastName: string;
   phoneE164?: string | null;
   nationalIdLast4?: string | null;
+  residentialLocationStatus?: string | null;
+  residentialRegion?: string | null;
+  residentialDistrict?: string | null;
+  residentialCommunity?: string | null;
+  /** The latest encounter at this clinic, as on the chart; null when never seen here. */
+  lastVisitAt?: string | null;
   /** Only while the screened filter is on. */
   matchingScreenings?: MatchingScreening[];
 }
@@ -76,6 +101,30 @@ const SEARCH_DEBOUNCE_MS = 300;
 export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canCreatePatient = hasPermission(perms, 'PATIENT.CREATE');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [customScreened, setCustomScreened] = useState(false);
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        event.key !== '/' ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.defaultPrevented ||
+        target?.closest(
+          'input, textarea, select, [contenteditable], [role=dialog], [role=combobox], [role=listbox]',
+        )
+      )
+        return;
+      if (document.querySelector('[role=dialog][data-state=open]')) return;
+      event.preventDefault();
+      document.getElementById('patient-search')?.focus();
+    };
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
 
   /*
@@ -129,8 +178,6 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   const clientScreenedError = screenedRangeError(screenedFrom, screenedTo);
   const [serverScreenedError, setServerScreenedError] = useState<ScreenedError | null>(null);
   const screenedError = clientScreenedError ?? serverScreenedError;
-  // Bumped when a chip or Clear all empties the filter, so the control drops back to Any time.
-  const [screenedResetKey, setScreenedResetKey] = useState(0);
 
   const committedView: RegistryView = {
     ...view,
@@ -191,21 +238,33 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     "Reload patients" retry, which is the wrong offer for the thing that actually failed.
   */
   const checkIn = usePatientCheckIn(clinicId);
+  const checkInFlight = useRef(false);
+  const submitCheckIn = async (patient: PatientSummary) => {
+    if (checkInFlight.current || !canCreateOpsCheckIn || !checkIn.canSubmit) return;
+    checkInFlight.current = true;
+    try {
+      await checkIn.checkIn(patient);
+    } finally {
+      checkInFlight.current = false;
+    }
+  };
 
   const patientHref = (patientId: string) => `/clinics/${clinicId}/patients/${patientId}`;
 
   const columns: DataTableColumn<PatientSummary>[] = [
     {
-      id: 'patientCode',
-      accessorKey: 'patientCode',
-      header: 'Patient code',
-      meta: { className: 'whitespace-nowrap font-medium' },
-    },
-    {
+      // Name over code, as in the pilot: one identity per row, read in one glance.
       id: 'name',
       accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
-      header: 'Name',
-      meta: { className: 'font-heading text-base' },
+      header: 'Patient',
+      meta: { className: 'min-w-56 max-w-80 whitespace-normal' },
+      cell: ({ row }) => (
+        <PatientIdentity
+          name={`${row.original.firstName} ${row.original.lastName}`.trim()}
+          code={row.original.patientCode}
+          idLast4={row.original.nationalIdLast4}
+        />
+      ),
     },
     ...(screenedActive
       ? [
@@ -228,45 +287,47 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       accessorKey: 'phoneE164',
       header: 'Phone',
       enableSorting: false,
-      meta: { className: 'w-40 text-muted-foreground' },
-      cell: ({ getValue }) => {
-        const value = getValue<string | null>();
-        return value ? value.replace(/(.{4}).*(.{4})/, '$1***$2') : '—';
-      },
+      meta: { className: 'w-44' },
+      cell: ({ getValue }) => <MaskedPhone value={getValue<string | null>()} />,
     },
     {
-      id: 'nationalIdLast4',
-      accessorKey: 'nationalIdLast4',
-      header: 'ID last 4',
+      id: 'lastVisit',
+      accessorKey: 'lastVisitAt',
+      header: 'Last visit',
+      sortDescFirst: true,
+      meta: { className: 'w-36' },
+      cell: ({ row }) => <LastVisit value={row.original.lastVisitAt} />,
+    },
+    {
+      id: 'location',
+      header: 'Location',
       enableSorting: false,
-      meta: { className: 'w-28 text-muted-foreground' },
-      cell: ({ getValue }) => {
-        const value = getValue<string | null>();
-        return value ? `…${value}` : '—';
-      },
+      meta: { className: 'min-w-40 max-w-64 whitespace-normal' },
+      cell: ({ row }) => <PatientLocation patient={row.original} />,
     },
     {
       id: 'actions',
       header: () => <span className="sr-only">Actions</span>,
       enableSorting: false,
-      meta: { align: 'right', className: 'w-[220px]' },
+      meta: { align: 'right', className: 'w-[11.5rem]' },
       /*
-        Real buttons, aligned down the column. They were two text links side by side whose widths
-        depended on the label, so "View" and "Check-in" wandered row to row. There is still no
-        row-click navigation: it fired for anything inside the row, including Check in.
+        One quiet View and one outlined Check in (pilot). A filled button on every row made the
+        list a wall of teal; the row's action still reads as the action, in the brand colour.
+        There is no row-click navigation: it fired for anything inside the row, including Check in.
       */
       cell: ({ row }) => (
         <DataTableActions>
-          <Button asChild variant="outline" size="sm" className="min-h-11 w-20">
+          <Button asChild variant="ghost" size="sm" className="w-16">
             <Link href={patientHref(row.original.id)}>View</Link>
           </Button>
           {canCreateOpsCheckIn ? (
             <Button
+              variant="primaryOutline"
               size="sm"
-              className="min-h-11 w-24"
+              className="w-24"
               loading={checkIn.busyPatientId === row.original.id}
               disabled={checkIn.isBusy || !checkIn.canSubmit}
-              onClick={() => void checkIn.checkIn(row.original)}
+              onClick={() => void submitCheckIn(row.original)}
             >
               Check in
             </Button>
@@ -287,7 +348,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   };
   const clearScreened = () => {
     setScreened('', '');
-    setScreenedResetKey((key) => key + 1);
+    setCustomScreened(false);
   };
 
   const otherFiltersActive = Boolean(
@@ -323,65 +384,150 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     };
   })();
 
+  const clearFilters = () => {
+    setServerScreenedError(null);
+    setCustomScreened(false);
+    updateView({
+      q: '',
+      location: EMPTY_LOCATION_FILTER,
+      screenedFrom: '',
+      screenedTo: '',
+      sorting: sorting[0]?.id === 'screened' ? [] : sorting,
+    });
+  };
+  const activeFilters = [
+    { label: 'Search', value: q.trim() || null, onRemove: () => updateView({ q: '' }) },
+    {
+      label: 'Region',
+      value: region ? GHANA_REGION_LABELS[region] : null,
+      // A district only means something inside its region.
+      onRemove: () => updateView({ location: { ...locationFilter, region: '', district: '' } }),
+    },
+    {
+      label: 'District',
+      value: district || null,
+      onRemove: () => updateView({ location: { ...locationFilter, district: '' } }),
+    },
+    {
+      label: 'Community',
+      value: locationFilter.community.trim() || null,
+      onRemove: () => updateView({ location: { ...locationFilter, community: '' } }),
+    },
+    {
+      label: 'Location status',
+      value: status ? PATIENT_LOCATION_STATUS_LABELS[status] : null,
+      onRemove: () => updateView({ location: { ...locationFilter, status: '' } }),
+    },
+    {
+      label: 'Screened',
+      value:
+        screenedFrom && !screenedError
+          ? [screenedFrom, screenedTo]
+              .filter((date, index) => date && (index === 0 || date !== screenedFrom))
+              .map(formatScreenedDay)
+              .join(' – ')
+          : null,
+      onRemove: clearScreened,
+    },
+  ].filter((filter) => Boolean(filter.value));
+
+  const total = registry.data && !registry.data.rejected ? registry.data.total : undefined;
+
+  /*
+    One sort control in words, for the table and the phone list alike. The table's Patient and
+    Last visit headers write the same state, so the two never disagree. Code order is
+    registration order (codes are issued in sequence), which is what staff actually ask for.
+  */
+  const sortOptions = [
+    { value: 'default', label: 'Recently updated' },
+    { value: 'name:asc', label: 'Name, A to Z' },
+    { value: 'name:desc', label: 'Name, Z to A' },
+    { value: 'lastVisit:desc', label: 'Last visit, newest' },
+    { value: 'lastVisit:asc', label: 'Last visit, oldest' },
+    { value: 'patientCode:desc', label: 'Newest registered' },
+    { value: 'patientCode:asc', label: 'Oldest registered' },
+    ...(screenedActive
+      ? [
+          { value: 'screened:desc', label: 'Screened, newest' },
+          { value: 'screened:asc', label: 'Screened, oldest' },
+        ]
+      : []),
+  ];
+  const sortValue = sorting[0] ? `${sorting[0].id}:${sorting[0].desc ? 'desc' : 'asc'}` : 'default';
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AppPageHeader
-        eyebrow="Patient registry"
+        className="border-b-0 pb-0 md:pb-0"
         title="Patients"
+        count={total}
         description="Search this clinic's records and move patients into care."
         helpTitle="How patient search works"
         helpText="Search by name, patient code, phone number, or the last four digits of the stored ID. Results update as you type and stay scoped to this clinic. Open the chart from any result, or check the patient into OPS when your role allows it."
         actions={
-          <Button asChild>
-            <Link href={`/clinics/${clinicId}/patients/new`}>
-              <UserPlus className="h-4 w-4" />
-              New Patient
-            </Link>
-          </Button>
+          canCreatePatient ? (
+            <Button asChild>
+              <Link href={`/clinics/${clinicId}/patients/new`}>
+                <UserPlus className="h-4 w-4" />
+                New patient
+              </Link>
+            </Button>
+          ) : null
         }
       />
 
-      <FormSectionCard title="Search patients" className="border-t-2 border-rule-strong">
-        <div className="space-y-2 md:max-w-xl">
-          <Label htmlFor="patient-search">Name, patient code, phone or ID last 4</Label>
-          <div className="relative">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              id="patient-search"
-              type="search"
-              value={q}
-              onChange={(event) => updateView({ q: event.target.value })}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape' && q) updateView({ q: '' });
-              }}
-              placeholder="e.g. Ama Mensah or NKP-2026-000123"
-              autoComplete="off"
-              spellCheck={false}
-              aria-describedby="patient-search-help"
-              className="pl-9 pr-11 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {q ? (
-              <button
-                type="button"
-                onClick={() => {
-                  updateView({ q: '' });
-                  document.getElementById('patient-search')?.focus();
+      <section aria-label="Search patients" className="space-y-3">
+        <ListSearch
+          id="patient-search"
+          label="Name, patient code, phone or ID last 4"
+          value={q}
+          onChange={(value) => updateView({ q: value })}
+          placeholder="Name, code, phone or ID…"
+          help="Results update as you type. Press / to search, Escape to clear."
+          shortcut
+        />
+
+        <ListFilters
+          groupLabel="Patient filters"
+          sheetTitle="Filter patients"
+          sheetDescription="Filters update results immediately within this clinic."
+          chips={activeFilters}
+          onClearAll={clearFilters}
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          trailing={
+            <>
+              <span id="patient-sort-label" className="text-sm text-muted-foreground">
+                Sort
+              </span>
+              <Select
+                value={
+                  sortOptions.some((option) => option.value === sortValue) ? sortValue : 'default'
+                }
+                onValueChange={(value) => {
+                  const [id, dir] = value.split(':');
+                  updateView({
+                    sorting: value === 'default' ? [] : [{ id, desc: dir === 'desc' }],
+                  });
                 }}
-                aria-label="Clear search"
-                className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-          <p id="patient-search-help" className="text-xs text-muted-foreground">
-            Results update as you type. Press Escape to clear.
-          </p>
-        </div>
-        <div className="space-y-3 border-t border-border/70 pt-4">
+                <SelectTrigger
+                  aria-labelledby="patient-sort-label"
+                  className="h-[var(--button-height-sm)] min-h-[var(--button-height-sm)] w-auto gap-2 border-border bg-transparent px-2.5 text-sm font-medium"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {sortOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          }
+        >
           <fieldset className="space-y-3">
             <legend className="text-sm font-medium text-foreground">Residential location</legend>
             <ResidentialLocationFilters
@@ -391,7 +537,8 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
           </fieldset>
           <div className="border-t border-border/70 pt-4">
             <ScreenedDateFilter
-              key={screenedResetKey}
+              customChosen={customScreened}
+              onCustomChosenChange={setCustomScreened}
               value={{ from: screenedFrom, to: screenedTo }}
               today={today}
               timeZone={timeZone}
@@ -399,160 +546,119 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               onChange={(next) => setScreened(next.from, next.to)}
             />
           </div>
-          <ActiveFilterSummary
-            items={[
-              { label: 'Search', value: q.trim() || null, onRemove: () => updateView({ q: '' }) },
-              {
-                label: 'Region',
-                value: region ? GHANA_REGION_LABELS[region] : null,
-                // A district only means something inside its region.
-                onRemove: () =>
-                  updateView({ location: { ...locationFilter, region: '', district: '' } }),
-              },
-              {
-                label: 'District',
-                value: district || null,
-                onRemove: () => updateView({ location: { ...locationFilter, district: '' } }),
-              },
-              {
-                label: 'Community',
-                value: locationFilter.community.trim() || null,
-                onRemove: () => updateView({ location: { ...locationFilter, community: '' } }),
-              },
-              {
-                label: 'Location status',
-                value: status ? PATIENT_LOCATION_STATUS_LABELS[status] : null,
-                onRemove: () => updateView({ location: { ...locationFilter, status: '' } }),
-              },
-              {
-                label: 'Screened',
-                value:
-                  screenedFrom && !screenedError
-                    ? [screenedFrom, screenedTo]
-                        .filter((date, index) => date && (index === 0 || date !== screenedFrom))
-                        .map(formatScreenedDay)
-                        .join(' – ')
-                    : null,
-                onRemove: clearScreened,
-              },
-            ]}
-            emptyLabel="Browsing the full clinic registry"
-            onClearAll={() => {
-              setServerScreenedError(null);
-              setScreenedResetKey((key) => key + 1);
-              updateView({
-                q: '',
-                location: EMPTY_LOCATION_FILTER,
-                screenedFrom: '',
-                screenedTo: '',
-                sorting: sorting[0]?.id === 'screened' ? [] : sorting,
-              });
-            }}
-          />
-        </div>
-      </FormSectionCard>
+        </ListFilters>
+        {canCreateOpsCheckIn ? (
+          // Only where the phone list is what shows, and only for a finger: the gesture's one hint.
+          <p className="hidden items-center gap-1.5 text-sm text-muted-foreground [@media(pointer:coarse)_and_(max-width:743px)]:flex">
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+            Swipe a patient left to check them in
+          </p>
+        ) : null}
+        {/* While the filters are open the sheet says it beside the dates; once is enough. */}
+        {screenedError && !filtersOpen ? (
+          <p role="alert" className="text-sm text-destructive">
+            {screenedError.message}{' '}
+            <Button variant="link" onClick={() => setFiltersOpen(true)}>
+              Edit screened dates
+            </Button>
+          </p>
+        ) : null}
+        {/* The empty state already says when nothing matched. */}
+        {screenedActive && total ? (
+          <p aria-live="polite" className="text-sm font-medium text-foreground">
+            {screenedCountLine(total, screenedFrom, screenedTo)}
+          </p>
+        ) : null}
+      </section>
 
       <OpsFeedbackNotice feedback={checkIn.feedback} />
 
-      <section aria-labelledby="patient-results-title" className="border-t-2 border-rule-strong">
-        <header className="space-y-3 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1.5">
-              <h2 id="patient-results-title" className="type-section-title">
-                Patient results
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Open a chart or hand the patient into OPS.
-              </p>
-              {/* The empty state already says when nothing matched. */}
-              {screenedActive &&
-              registry.data &&
-              !registry.data.rejected &&
-              registry.data.total > 0 ? (
-                <p aria-live="polite" className="text-sm font-medium text-foreground">
-                  {screenedCountLine(registry.data.total, screenedFrom, screenedTo)}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </header>
-        {/* Keep the final pagination controls above the fixed chat launcher at the page end. */}
-        <div className="space-y-4 pb-20">
-          <ResourceState
-            state={registry}
-            errorTitle="We couldn't load the patient registry"
-            skeleton={
-              <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
-            }
-            isEmpty={(data) => data.items.length === 0}
-            empty={emptyState}
-          >
-            {(data) => (
-              <DataTable
-                caption="Patients in this clinic"
-                columns={columns}
-                data={data.items}
-                getRowId={(row) => row.id}
-                rowCount={data.total}
-                isRefreshing={registry.isRefreshing}
-                sorting={sorting}
-                onSortingChange={(next) => updateView({ sorting: next })}
-                pagination={{ pageIndex: page, pageSize }}
-                onPaginationChange={(next) =>
-                  setView((current) => ({
-                    ...current,
-                    page: next.pageIndex,
-                    pageSize: next.pageSize,
-                  }))
-                }
-                renderMobileRow={(row) => (
-                  <article className="border-b border-border py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="type-record-title text-foreground">
-                          {row.firstName} {row.lastName}
-                        </h3>
-                        <p className="mt-1 text-sm text-muted-foreground">{row.patientCode}</p>
-                      </div>
-                      {row.nationalIdLast4 ? (
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          …{row.nationalIdLast4}
-                        </span>
-                      ) : null}
+      {/* Keep the final pagination controls above the fixed chat launcher at the page end. */}
+      <section aria-label="Patient results" className="pb-20">
+        <ResourceState
+          state={registry}
+          errorTitle="We couldn't load the patient registry"
+          skeleton={
+            <SectionSkeleton lines={4} className="border-0 bg-transparent p-0 shadow-none" />
+          }
+          isEmpty={(data) => data.items.length === 0}
+          empty={emptyState}
+        >
+          {(data) => (
+            <DataTable
+              bleed
+              mobileSort={false}
+              caption="Patients in this clinic"
+              columns={columns}
+              data={data.items}
+              getRowId={(row) => row.id}
+              rowCount={data.total}
+              isRefreshing={registry.isRefreshing}
+              sorting={sorting}
+              onSortingChange={(next) => updateView({ sorting: next })}
+              pagination={{ pageIndex: page, pageSize }}
+              onPaginationChange={(next) =>
+                setView((current) => ({
+                  ...current,
+                  page: next.pageIndex,
+                  pageSize: next.pageSize,
+                }))
+              }
+              renderMobileRow={(row) => (
+                <PatientRegistryCard
+                  patient={row}
+                  href={patientHref(row.id)}
+                  canCheckIn={canCreateOpsCheckIn}
+                  disabled={checkIn.isBusy || !checkIn.canSubmit}
+                  busy={checkIn.busyPatientId === row.id}
+                  onCheckIn={() => void submitCheckIn(row)}
+                >
+                  {screenedActive ? (
+                    <div className="mt-2 text-sm">
+                      <p className="font-medium">Screened</p>
+                      <ScreenedDates
+                        screenings={row.matchingScreenings ?? []}
+                        timeZone={timeZone}
+                      />
                     </div>
-                    <p className="mt-3 text-sm tabular-nums text-muted-foreground">
-                      {row.phoneE164 || 'No phone on file'}
-                    </p>
-                    {screenedActive ? (
-                      <div className="mt-3 text-sm">
-                        <p className="font-medium text-foreground">Screened</p>
-                        <ScreenedDates
-                          screenings={row.matchingScreenings ?? []}
-                          timeZone={timeZone}
-                        />
-                      </div>
-                    ) : null}
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <Button asChild variant="outline">
-                        <Link href={patientHref(row.id)}>View record</Link>
-                      </Button>
-                      {canCreateOpsCheckIn ? (
-                        <Button
-                          loading={checkIn.busyPatientId === row.id}
-                          disabled={checkIn.isBusy || !checkIn.canSubmit}
-                          onClick={() => void checkIn.checkIn(row)}
-                        >
-                          Check in
-                        </Button>
-                      ) : null}
-                    </div>
-                  </article>
-                )}
-              />
-            )}
-          </ResourceState>
-        </div>
+                  ) : null}
+                </PatientRegistryCard>
+              )}
+            />
+          )}
+        </ResourceState>
       </section>
     </div>
+  );
+}
+
+function MaskedPhone({ value }: { value: string | null }) {
+  return value ? (
+    <span className="tabular-nums">{maskPhone(value)}</span>
+  ) : (
+    <span className="text-muted-foreground">Not recorded</span>
+  );
+}
+
+function LastVisit({ value }: { value?: string | null }) {
+  return value ? (
+    <time dateTime={value} className="tabular-nums">
+      {formatOpsDay(value)}
+    </time>
+  ) : (
+    <span className="text-muted-foreground">No visits yet</span>
+  );
+}
+
+/** Place first, region last ("Abura, Central"): the district sits between them on the chart. */
+function PatientLocation({ patient }: { patient: PatientSummary }) {
+  const location = describeResidentialLocation(patient);
+  if (!location.isRecorded)
+    return <span className="text-muted-foreground">{location.summary}</span>;
+  const place = location.community ?? location.district;
+  return (
+    <span title={location.summary}>
+      {[place, location.regionLabel].filter(Boolean).join(', ') || location.summary}
+    </span>
   );
 }

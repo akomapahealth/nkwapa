@@ -100,6 +100,18 @@
     "./measurement-units": {
       "types": "./dist/src/measurement-units.d.ts",
       "default": "./dist/src/measurement-units.js"
+    },
+    "./ghana-locations": {
+      "types": "./dist/src/ghana-locations.d.ts",
+      "default": "./dist/src/ghana-locations.js"
+    },
+    "./patient-duplicates": {
+      "types": "./dist/src/patient-duplicates.d.ts",
+      "default": "./dist/src/patient-duplicates.js"
+    },
+    "./patient-merge": {
+      "types": "./dist/src/patient-merge.d.ts",
+      "default": "./dist/src/patient-merge.js"
     }
   },
   "scripts": {

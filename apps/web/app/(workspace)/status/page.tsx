@@ -24,7 +24,7 @@ export default function StatusDetailsPage() {
   useEffect(() => {
     if (!auth?.isReady) return;
     if (!auth.isAuthenticated) {
-      setMessage('Sign in as a System Admin to view status details.');
+      setMessage('Sign in as a system admin to view status details.');
       return;
     }
     const controller = new AbortController();
@@ -37,7 +37,7 @@ export default function StatusDetailsPage() {
           cache: 'no-store',
           signal: controller.signal,
         });
-        if (response.status === 403) throw new Error('Only System Admins can view these details.');
+        if (response.status === 403) throw new Error('Only system admins can view these details.');
         if (!response.ok) throw new Error('Status details could not be loaded.');
         const data = (await response.json()) as { components: Detail[] };
         setDetails(data.components);

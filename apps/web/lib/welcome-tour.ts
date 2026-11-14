@@ -98,7 +98,7 @@ function startStep(
     return {
       id: 'start',
       icon: 'start',
-      title: 'Your day starts in My Assigned',
+      title: 'Your day starts in My assigned',
       body: 'The patients assigned to you, in order, with the next thing each one needs.',
     };
   }
@@ -150,12 +150,12 @@ function workPoints(
     });
   }
   if (can('PATIENT.CREATE')) {
-    points.push({ label: 'Register someone new', where: 'New Patient, in the sidebar.' });
+    points.push({ label: 'Register someone new', where: 'New patient, in the sidebar.' });
   }
   if (can('OPS.ASSIGNMENT.MANAGE')) {
     points.push({
       label: 'Run the day',
-      where: 'Today Board and Queues: who is waiting, and who is with whom.',
+      where: 'Today board and Queues: who is waiting, and who is with whom.',
     });
   }
   if (can('VOLUNTEER.ROSTER.MANAGE')) {

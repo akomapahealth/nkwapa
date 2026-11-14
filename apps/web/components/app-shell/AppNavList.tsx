@@ -17,6 +17,7 @@ export function AppNavList({
   bootstrap,
   collapsed = false,
   mobile = false,
+  rail = false,
   onNavigate,
   label = 'Workspace',
   sections: sectionsOverride,
@@ -24,6 +25,8 @@ export function AppNavList({
   bootstrap: WhoAmIResponse | null;
   collapsed?: boolean;
   mobile?: boolean;
+  /** Tablet rail uses the same icon-only presentation as desktop collapse. */
+  rail?: boolean;
   onNavigate?: () => void;
   /** The landmark's name; a second list in the same sheet needs its own. */
   label?: string;
@@ -34,18 +37,19 @@ export function AppNavList({
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const sections = sectionsOverride ?? getAccessibleNavSections(bootstrap);
 
-  const showLabels = !collapsed || mobile;
+  const showLabels = mobile || (!collapsed && !rail);
 
   return (
     <nav aria-label={label} className="flex flex-col gap-4">
-      {sections.map((section, index) => (
-        <div
-          key={section.id}
-          // Collapsed, a hairline stands in for the group name between icon groups.
-          className={cn(!showLabels && index > 0 && 'border-t border-rule pt-4')}
-        >
+      {sections.map((section) => (
+        <div key={section.id}>
           {showLabels && (
-            <p className="px-3 pb-1.5 text-xs font-semibold text-muted-foreground">
+            <p
+              className={cn(
+                'px-3 pb-1.5 text-xs font-semibold text-muted-foreground',
+                rail && 'sr-only',
+              )}
+            >
               {section.label}
             </p>
           )}
@@ -65,7 +69,10 @@ export function AppNavList({
                 'group flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-foreground transition-colors duration-fast',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 !showLabels && 'justify-center px-0',
-                active ? 'bg-primary/10 font-semibold' : 'hover:bg-muted',
+                rail && 'focus-visible:ring-inset',
+                active
+                  ? 'bg-selected font-semibold text-primary'
+                  : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
               );
 
               const itemContent = (
@@ -77,7 +84,12 @@ export function AppNavList({
                       active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
                     )}
                   />
-                  <span className={showLabels ? 'min-w-0 flex-1 truncate' : 'sr-only'}>
+                  <span
+                    className={cn(
+                      showLabels ? 'min-w-0 flex-1' : 'sr-only',
+                      rail ? 'w-full break-words [overflow-wrap:anywhere]' : 'whitespace-normal',
+                    )}
+                  >
                     {item.label}
                   </span>
                 </>
@@ -94,6 +106,7 @@ export function AppNavList({
               const control = enabled ? (
                 <Link
                   href={href}
+                  aria-label={item.label}
                   onClick={onNavigate}
                   aria-current={active ? 'page' : undefined}
                   className={itemClassName}
@@ -105,8 +118,9 @@ export function AppNavList({
                   type="button"
                   disabled
                   aria-disabled="true"
+                  aria-label={item.label}
                   title={`${item.label}: select a clinic first`}
-                  className={cn(itemClassName, 'w-full cursor-not-allowed text-left opacity-70')}
+                  className={cn(itemClassName, 'w-full cursor-not-allowed', !rail && 'text-left')}
                 >
                   {itemContent}
                 </button>

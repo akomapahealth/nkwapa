@@ -167,6 +167,8 @@ describe('ChatService background push (#250)', () => {
       body: 'Open Nkwapa to read it.',
       url: '/dashboard?chat=c1',
       tag: 'chat-c1',
+      kind: 'MESSAGE',
+      inbox: { body: 'Open the chat to read it.' },
     });
     expect(JSON.stringify(push.notify.mock.calls)).not.toContain('Kofi');
   });

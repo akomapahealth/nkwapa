@@ -25,7 +25,7 @@ import {
   enqueueOutboxMutation,
   SYNC_OPERATION,
 } from '@/lib/outbox';
-import { readApiError } from '@/lib/ops';
+import { formatOpsDateTime, formatOpsDay, readApiError } from '@/lib/ops';
 import type { AllergySummary } from '@/lib/medical-history';
 import {
   MEDICATION_SOURCE_TYPES,
@@ -43,10 +43,15 @@ import {
   type ReconciliationEvent,
   assembleMedicationRecords,
 } from '@/lib/medication-reconciliation';
-import { AllergySummaryBanner } from './AllergySummaryBanner';
+import { AllergySummaryBanner, allergyStatusNeedsEntry } from './AllergySummaryBanner';
+import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  RecordSection as Card,
+  RecordSectionContent as CardContent,
+  RecordSectionHeader as CardHeader,
+} from '@/components/patients/RecordSection';
 import {
   Dialog,
   DialogContent,
@@ -72,7 +77,7 @@ import {
   ChartSectionLoading,
   ChartSectionOffline,
 } from '@/components/patients/chart/ChartSectionState';
-import { FieldLabel } from '@/components/ui/field';
+import { FieldLabel, RequiredLegend } from '@/components/ui/field';
 
 const unavailableAllergies: AllergySummary = { state: 'UNAVAILABLE', activeAllergies: [] };
 
@@ -196,12 +201,15 @@ export function MedicationReconciliationPanel({
   userId,
   canWrite,
   canReadPrescriptions,
+  onOpenMedicalHistory,
 }: {
   clinicId: string;
   patientId: string;
   userId: string;
   canWrite: boolean;
   canReadPrescriptions: boolean;
+  /** Opens the tab where allergies are recorded, when this user can see it. */
+  onOpenMedicalHistory?: () => void;
 }) {
   const getToken = useAuth();
   const [view, setView] = useState<MedicationReconciliationView>({
@@ -215,6 +223,8 @@ export function MedicationReconciliationPanel({
   const [saving, setSaving] = useState(false);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A failed read, kept apart from save errors: it hides the lists instead of reading as "none".
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [medicationOpen, setMedicationOpen] = useState(false);
   const [editingMedication, setEditingMedication] = useState<MedicationRecord | null>(null);
@@ -268,7 +278,7 @@ export function MedicationReconciliationPanel({
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const response = await apiFetch(endpoint, { getToken, activeClinicId: clinicId });
       if (!response.ok) throw new Error(await readApiError(response));
@@ -280,7 +290,9 @@ export function MedicationReconciliationPanel({
         await loadOffline();
         setOffline(true);
       } catch {
-        setError(loadError instanceof Error ? loadError.message : 'Medication history unavailable');
+        setLoadError(
+          loadError instanceof Error ? loadError.message : 'Medication history unavailable',
+        );
       }
     } finally {
       setLoading(false);
@@ -841,9 +853,42 @@ export function MedicationReconciliationPanel({
     }
   }
 
+  /*
+    A list that never loaded is not an empty list. Without this the panel said "No medications
+    recorded" under the error and offered "Record no known medications", an attestation made
+    against a chart nobody could see.
+  */
+  if (loadError) {
+    return (
+      <div className="space-y-5">
+        <AllergySummaryBanner titleAs="h2" summary={allergies} compact />
+        <ChartSectionError
+          title="Medications could not be loaded"
+          description={`${loadError} Nothing is shown until the list loads, so an empty list is never mistaken for no medications.`}
+          onRetry={() => void load()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <AllergySummaryBanner summary={allergies} compact />
+      <AllergySummaryBanner
+        titleAs="h2"
+        summary={allergies}
+        compact
+        action={
+          onOpenMedicalHistory && allergyStatusNeedsEntry(allergies.state) ? (
+            <button
+              type="button"
+              onClick={onOpenMedicalHistory}
+              className="inline-flex min-h-11 items-center gap-1 text-sm font-medium underline underline-offset-4"
+            >
+              Record allergies
+            </button>
+          ) : undefined
+        }
+      />
       {offline ? (
         <ChartSectionOffline description="Showing medications saved on this device. Pending changes sync automatically once you reconnect." />
       ) : null}
@@ -852,19 +897,19 @@ export function MedicationReconciliationPanel({
           {notice}
         </StatusMessage>
       ) : null}
-      {error ? (
-        <ChartSectionError
-          title="Unable to load medications"
-          description={error}
-          onRetry={() => void load()}
-        />
+      {/* Dialog saves report inside their dialog; this is for Reconcile, which has none. */}
+      {error && !medicationOpen && !pharmacyOpen ? (
+        <InlineNotice tone="error">
+          <p className="font-medium">The change was not saved</p>
+          <p className="mt-1">{error}</p>
+        </InlineNotice>
       ) : null}
 
       <Card>
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Current medications</h2>
+              <h2 className="type-section-title">Current medications</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Patient-reported history, kept separate from prescriptions and orders.
               </p>
@@ -890,7 +935,7 @@ export function MedicationReconciliationPanel({
           {view.latestReconciliation ? (
             <p className="text-sm text-muted-foreground">
               <ShieldCheck className="mr-1 inline h-4 w-4" />
-              Last reconciled {new Date(view.latestReconciliation.createdAt).toLocaleString()}
+              Last reconciled {formatOpsDateTime(view.latestReconciliation.createdAt)}
               {view.latestReconciliation.reconciledBy?.displayName
                 ? ` by ${view.latestReconciliation.reconciledBy.displayName}`
                 : ''}
@@ -908,14 +953,14 @@ export function MedicationReconciliationPanel({
               onHistory={(record) => void openHistory('medication', record)}
             />
           ) : (
-            <MedicationEmpty state={listState} />
+            <MedicationEmpty state={listState} offline={offline} />
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold">Past and stopped medications</h2>
+          <h2 className="type-section-title">Past and stopped medications</h2>
           <p className="text-sm text-muted-foreground">
             Historical entries remain visible and auditable.
           </p>
@@ -929,8 +974,10 @@ export function MedicationReconciliationPanel({
               onHistory={(record) => void openHistory('medication', record)}
             />
           ) : (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No past or stopped medications recorded.
+            <p className="py-4 text-sm text-muted-foreground">
+              {offline
+                ? 'No past or stopped medications saved on this device.'
+                : 'No past or stopped medications recorded.'}
             </p>
           )}
         </CardContent>
@@ -939,7 +986,7 @@ export function MedicationReconciliationPanel({
       <Card>
         <CardHeader className="flex-row items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Pharmacy preference and history</h2>
+            <h2 className="type-section-title">Pharmacy preference and history</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               One pharmacy can be actively preferred; prior preferences remain in history.
             </p>
@@ -957,7 +1004,7 @@ export function MedicationReconciliationPanel({
               {view.pharmacies.map((record) => {
                 const preferred = activePreference?.pharmacyRecordId === record.id;
                 return (
-                  <li key={record.id} className="rounded-lg border border-border bg-background p-4">
+                  <li key={record.id} className="border-b border-rule py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1020,9 +1067,10 @@ export function MedicationReconciliationPanel({
                       <ol className="mt-3 space-y-1 border-t pt-3 text-xs text-muted-foreground">
                         {record.preferences.map((preference) => (
                           <li key={preference.id}>
-                            Preferred {new Date(preference.effectiveFrom).toLocaleDateString()} –{' '}
+                            Preferred{' '}
+                            {formatOpsDay(`${preference.effectiveFrom.slice(0, 10)}T12:00:00Z`)} –{' '}
                             {preference.effectiveTo
-                              ? new Date(preference.effectiveTo).toLocaleDateString()
+                              ? formatOpsDay(`${preference.effectiveTo.slice(0, 10)}T12:00:00Z`)
                               : 'present'}
                             {preference.setBy?.displayName
                               ? ` · Set by ${preference.setBy.displayName}`
@@ -1036,8 +1084,8 @@ export function MedicationReconciliationPanel({
               })}
             </ul>
           ) : (
-            <div className="rounded-lg border border-dashed p-8 text-center">
-              <Building2 className="mx-auto h-8 w-8 text-muted-foreground" />
+            <div className="py-4">
+              <Building2 className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
               <h3 className="mt-3 font-semibold">No pharmacy history recorded</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 Add a pharmacy without affecting medication orders or dispensing.
@@ -1049,14 +1097,14 @@ export function MedicationReconciliationPanel({
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold">Linked prescription history</h2>
+          <h2 className="type-section-title">Prescriptions from visits</h2>
           <p className="text-sm text-muted-foreground">
-            Read-only encounter orders shown only as context.
+            Written at this patient&apos;s visits. Change them from the visit itself.
           </p>
         </CardHeader>
         <CardContent>
           {!canReadPrescriptions ? (
-            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+            <div className="py-4 text-sm text-muted-foreground">
               <ShieldCheck className="mr-2 inline h-4 w-4" />
               Prescription context requires PRESCRIPTION.READ. Reported medications above remain
               available.
@@ -1064,7 +1112,7 @@ export function MedicationReconciliationPanel({
           ) : prescriptions.length ? (
             <ul className="space-y-3">
               {prescriptions.map((item) => (
-                <li key={item.id} className="rounded-lg border p-3">
+                <li key={item.id} className="border-b border-rule py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-medium">{item.drug?.name ?? 'Catalog medication'}</p>
@@ -1083,16 +1131,14 @@ export function MedicationReconciliationPanel({
                     ) : null}
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Ordered {new Date(item.createdAt).toLocaleString()}
+                    Ordered {formatOpsDateTime(item.createdAt)}
                     {item.prescribedBy?.displayName ? ` by ${item.prescribedBy.displayName}` : ''}
                   </p>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No linked prescriptions found.
-            </p>
+            <p className="py-4 text-sm text-muted-foreground">No linked prescriptions found.</p>
           )}
         </CardContent>
       </Card>
@@ -1147,7 +1193,7 @@ export function MedicationReconciliationPanel({
                   ) : null}
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {new Date(item.createdAt).toLocaleString()}
+                  {formatOpsDateTime(item.createdAt)}
                   {item.authoredBy?.displayName ? ` · ${item.authoredBy.displayName}` : ''}
                 </p>
               </li>
@@ -1170,96 +1216,123 @@ function MedicationList({
   onEdit: (record: MedicationRecord) => void;
   onHistory: (record: MedicationRecord) => void;
 }) {
+  const allUnreconciled =
+    records.length > 0 && records.every((record) => !record.currentRevision.lastReconciledAt);
   return (
-    <ul className="space-y-3">
-      {records.map((record) => {
-        const revision = record.currentRevision;
-        const status = statusPresentation[revision.status];
-        return (
-          <li key={record.id} className="rounded-lg border border-border bg-background p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-semibold">{revision.medicationName}</h3>
-                  <Badge variant={status.variant}>{status.label}</Badge>
-                  {revision.drug ? (
-                    <Badge variant="outline">Catalog linked</Badge>
-                  ) : (
-                    <Badge variant="outline">External / uncatalogued</Badge>
-                  )}
+    <>
+      {allUnreconciled ? (
+        <p className="border-b border-rule pb-3 text-sm text-muted-foreground">
+          This list has not yet been reconciled.
+        </p>
+      ) : null}
+      <ul>
+        {records.map((record) => {
+          const revision = record.currentRevision;
+          const status = statusPresentation[revision.status];
+          return (
+            <li key={record.id} className="border-b border-rule py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold">{revision.medicationName}</h3>
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                    {revision.drug ? (
+                      <Badge variant="outline">In drug catalog</Badge>
+                    ) : (
+                      <Badge variant="outline">Not in drug catalog</Badge>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm">
+                    {[
+                      revision.strength,
+                      revision.dose &&
+                        `${revision.dose}${revision.doseUnit ? ` ${revision.doseUnit}` : ''}`,
+                      revision.route,
+                      revision.frequency,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Dose details not recorded'}
+                  </p>
+                  {revision.indication ? (
+                    <p className="mt-1 text-sm text-muted-foreground">For {revision.indication}</p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {sourceLabels[revision.sourceType]} · Recorded by{' '}
+                    {record.recordedBy?.displayName ?? record.recordedByUserId}
+                    {revision.sourceEncounterId ? (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <Link
+                          className="underline underline-offset-2"
+                          href={`/encounters/${revision.sourceEncounterId}`}
+                        >
+                          Source visit
+                        </Link>
+                      </>
+                    ) : (
+                      ''
+                    )}
+                  </p>
+                  {!allUnreconciled ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {revision.lastReconciledAt
+                        ? `Last reconciled ${formatOpsDateTime(revision.lastReconciledAt)}${revision.reconciledBy?.displayName ? ` by ${revision.reconciledBy.displayName}` : ''}`
+                        : 'Not yet reconciled'}
+                    </p>
+                  ) : null}
                 </div>
-                <p className="mt-2 text-sm">
-                  {[
-                    revision.strength,
-                    revision.dose &&
-                      `${revision.dose}${revision.doseUnit ? ` ${revision.doseUnit}` : ''}`,
-                    revision.route,
-                    revision.frequency,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || 'Dose details not recorded'}
-                </p>
-                {revision.indication ? (
-                  <p className="mt-1 text-sm text-muted-foreground">For {revision.indication}</p>
-                ) : null}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {sourceLabels[revision.sourceType]} · Recorded by{' '}
-                  {record.recordedBy?.displayName ?? record.recordedByUserId}
-                  {revision.sourceEncounterId ? (
-                    <>
-                      {' '}
-                      ·{' '}
-                      <Link
-                        className="underline underline-offset-2"
-                        href={`/encounters/${revision.sourceEncounterId}`}
-                      >
-                        Source visit
-                      </Link>
-                    </>
-                  ) : (
-                    ''
-                  )}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {revision.lastReconciledAt
-                    ? `Last reconciled ${new Date(revision.lastReconciledAt).toLocaleString()}${revision.reconciledBy?.displayName ? ` by ${revision.reconciledBy.displayName}` : ''}`
-                    : 'Not yet reconciled'}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg"
-                  onClick={() => onHistory(record)}
-                >
-                  <History className="h-4 w-4" />
-                  History
-                </Button>
-                {canWrite ? (
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     className="rounded-lg"
-                    onClick={() => onEdit(record)}
+                    onClick={() => onHistory(record)}
                   >
-                    <Pencil className="h-4 w-4" />
-                    Revise
+                    <History className="h-4 w-4" />
+                    History
                   </Button>
-                ) : null}
+                  {canWrite ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg"
+                      onClick={() => onEdit(record)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Revise
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 
-function MedicationEmpty({ state }: { state: ReturnType<typeof medicationListState> }) {
+function MedicationEmpty({
+  state,
+  offline,
+}: {
+  state: ReturnType<typeof medicationListState>;
+  offline: boolean;
+}) {
   // Three distinct clinical meanings that must not be confused with one another: an attested
   // "none", a chart with only past medications, and a chart nobody has filled in.
   const noKnown = state === 'NO_KNOWN_CURRENT_MEDICATIONS';
+  // A fourth: this device simply has no copy. The server may hold a full list (R7.5).
+  if (offline && !noKnown && state !== 'HISTORICAL_ONLY') {
+    return (
+      <ChartSectionEmpty
+        icon={CircleSlash2}
+        title="No medications saved on this device"
+        description="This device has no copy of this patient's medications. Reconnect to see the full list before relying on it."
+      />
+    );
+  }
   return (
     <ChartSectionEmpty
       icon={noKnown ? CheckCircle2 : state === 'HISTORICAL_ONLY' ? History : CircleSlash2}
@@ -1333,7 +1406,7 @@ function MedicationDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent variant="form" className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>
             {editing ? 'Revise reported medication' : 'Add reported medication'}
@@ -1343,6 +1416,7 @@ function MedicationDialog({
             catalog entry.
           </DialogDescription>
         </DialogHeader>
+        <RequiredLegend />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             id="medication-name"
@@ -1352,7 +1426,7 @@ function MedicationDialog({
             onChange={(value) => setForm((current) => ({ ...current, medicationName: value }))}
           />
           <div className="relative space-y-2">
-            <Label htmlFor="medication-drug-search">Link clinic Drug (optional)</Label>
+            <Label htmlFor="medication-drug-search">Link clinic Drug</Label>
             <Input
               id="medication-drug-search"
               value={drugQuery}
@@ -1572,7 +1646,7 @@ function PharmacyDialog({
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent variant="form" className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? 'Revise pharmacy' : 'Add pharmacy'}</DialogTitle>
           <DialogDescription>

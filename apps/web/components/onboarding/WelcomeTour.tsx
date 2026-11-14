@@ -16,6 +16,8 @@ import {
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
+import { useReturnFocus } from '@/components/ui/use-return-focus';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -66,6 +68,7 @@ export function WelcomeTour() {
   const bootstrap = bootstrapContext?.bootstrap ?? null;
   const getToken = useAuth();
   const reduceMotion = useReducedMotion();
+  const focusReturn = useReturnFocus(undefined, undefined);
 
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
@@ -129,7 +132,7 @@ export function WelcomeTour() {
   const offset = reduceMotion ? 0 : 24;
 
   return (
-    <DialogPrimitive.Root
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         // Escape and an outside click both mean "not now", which is the same as Skip.
@@ -137,9 +140,10 @@ export function WelcomeTour() {
       }}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[110] bg-foreground/30 backdrop-blur-[2px] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:duration-150 data-[state=open]:duration-200" />
+        <DialogPrimitive.Overlay className="anchored-overlay dialog-scrim fixed inset-0 z-[110] bg-foreground/30 backdrop-blur-[2px]" />
         <DialogPrimitive.Content
           aria-describedby="welcome-tour-body"
+          {...focusReturn}
           onKeyDown={(event) => {
             if (event.key === 'ArrowRight') {
               event.preventDefault();
@@ -150,9 +154,9 @@ export function WelcomeTour() {
             }
           }}
           className={cn(
-            'fixed left-1/2 top-1/2 z-[111] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xl outline-none',
-            'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:duration-200',
-            'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150',
+            // The house dialog's clock and centring (R7.3): keyboard opens are instant, a close
+            // mid-entrance reverses, and reduced motion fades only.
+            'anchored-overlay fixed inset-0 z-[111] m-auto flex h-fit max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xl outline-none',
           )}
         >
           <div className="space-y-2.5 px-6 pt-5 sm:px-7">
@@ -253,6 +257,6 @@ export function WelcomeTour() {
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    </Dialog>
   );
 }

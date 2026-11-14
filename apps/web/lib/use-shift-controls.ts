@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getErrorMessage } from './api';
 import { formatRoleLabel, type ActiveShift, type ShiftRole } from './ops';
 import type { WithPendingSync } from './ops-offline';
@@ -32,6 +32,7 @@ export function useShiftControls({
   const submit = useOpsWrite(clinicId);
   const [selectedRole, setSelectedRole] = useState<ShiftRole | ''>('');
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   const [feedback, setFeedback] = useState<OpsFeedback | null>(null);
 
   // Default to the first role the person can take, and drop a role they no longer hold.
@@ -46,7 +47,8 @@ export function useShiftControls({
   const currentShift = shifts.find((shift) => shift.userId === userId) ?? null;
 
   async function run(write: OpsWrite, copy: { applied: string; queued: string }) {
-    if (!submit) return;
+    if (!submit || submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setFeedback(null);
     try {
@@ -61,12 +63,13 @@ export function useShiftControls({
     } catch (error) {
       setFeedback({ tone: 'error', message: getErrorMessage(error) });
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
 
   function checkIn() {
-    if (!submit || !selectedRole) return;
+    if (!submit || !selectedRole || currentShift) return;
     const role = formatRoleLabel(selectedRole);
     void run(
       { kind: 'shiftCheckIn', shiftId: generateClientId(), roleAtShift: selectedRole },

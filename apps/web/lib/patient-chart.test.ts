@@ -98,8 +98,8 @@ describe('patient chart tab registry', () => {
         'overview',
         'vitals',
         'medications',
-        'diabetes',
         'hypertension',
+        'diabetes',
         'medical-history',
         'notes',
         'visits',
@@ -130,9 +130,9 @@ describe('patient chart tab registry', () => {
       },
     );
 
-    it('shows the consent tab only to a consent recorder', () => {
+    it('shows the consent tab to every chart reader', () => {
       expect(sectionIdsFor('VOLUNTEER')).toContain('consent');
-      expect(sectionIdsFor('DOCTOR')).not.toContain('consent');
+      expect(sectionIdsFor('DOCTOR')).toContain('consent');
     });
 
     it('gives a portal patient role no chart sections at all', () => {
@@ -178,7 +178,8 @@ describe('patient chart tab registry', () => {
     });
 
     it('falls back to overview for a tab the role cannot open', () => {
-      expect(resolveChartTab('consent', doctorSections())).toBe('overview');
+      const managerSections = getAccessibleChartSections(ROLE_PERMISSIONS.MANAGER);
+      expect(resolveChartTab('notes', managerSections)).toBe('overview');
     });
 
     it('falls back for unknown and legacy tab names', () => {

@@ -1,6 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ['class'],
+  // Motion rule 25 (R0-AUDIT section 6): hover: utilities apply only under @media (hover: hover),
+  // so a tap on a phone never leaves a stuck hover state.
+  future: { hoverOnlyWhenSupported: true },
   content: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}'],
   // No source uses these yet; e2e/design-foundations.spec.js injects them at runtime. Drop each
   // entry once a component uses it.
@@ -20,6 +23,13 @@ module.exports = {
       fontFamily: {
         heading: ['var(--font-heading)', 'Georgia', 'serif'],
         body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+      },
+      // Named breakpoints from R0-AUDIT section 6, beside Tailwind's defaults.
+      screens: {
+        compact: '600px',
+        tablet: '840px',
+        desktop: '1200px',
       },
       fontSize: {
         'page-title': ['1.875rem', '2.25rem'],
@@ -43,6 +53,10 @@ module.exports = {
       transitionDuration: {
         fast: 'var(--duration-fast)',
         base: 'var(--duration-base)',
+        exit: 'var(--duration-exit)',
+        'fast-exit': 'var(--duration-fast-exit)',
+        sheet: 'var(--duration-sheet)',
+        'sheet-exit': 'var(--duration-sheet-exit)',
       },
       keyframes: {
         // Landing hero entrance. CSS rather than GSAP so it plays on first paint, before hydration.
@@ -100,6 +114,7 @@ module.exports = {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
+          hover: 'hsl(var(--primary-hover))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -133,6 +148,24 @@ module.exports = {
           ink: 'hsl(var(--info-ink))',
           surface: 'hsl(var(--info-surface))',
         },
+        severe: {
+          DEFAULT: 'hsl(var(--severe))',
+          ink: 'hsl(var(--severe-ink))',
+          surface: 'hsl(var(--severe-surface))',
+        },
+        'surface-2': 'hsl(var(--surface-2))',
+        selected: 'hsl(var(--selected))',
+        mint: {
+          DEFAULT: 'hsl(var(--mint))',
+          line: 'hsl(var(--mint-line))',
+        },
+        brand: 'hsl(var(--brand))',
+        gold: {
+          surface: 'hsl(var(--gold-surface))',
+          ink: 'hsl(var(--gold-ink))',
+        },
+        deep: 'hsl(var(--deep))',
+        faint: 'hsl(var(--faint))',
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',
           border: 'hsl(var(--sidebar-border))',

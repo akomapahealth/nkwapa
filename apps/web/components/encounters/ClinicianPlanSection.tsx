@@ -7,8 +7,9 @@ import {
   FOLLOW_UP_OWNER_LABELS,
   FOLLOW_UP_WINDOWS,
   FOLLOW_UP_WINDOW_LABELS,
-} from '@nkwapa/db';
+} from '@nkwapa/db/clinical-vocabulary';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Textarea } from '@/components/ui/textarea';
 import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { FieldLabel } from '@/components/ui/field';
@@ -362,9 +363,11 @@ export function ClinicianPlanSection({
       {message ? <InlineNotice tone="success">{message}</InlineNotice> : null}
 
       {canEdit ? (
-        <Button onClick={() => void handleSave()} disabled={disabled}>
-          {saving ? 'Saving…' : isOnline ? 'Save plan' : 'Queue plan'}
-        </Button>
+        <FormActions>
+          <Button onClick={() => void handleSave()} disabled={disabled}>
+            {saving ? 'Saving…' : isOnline ? 'Save plan' : 'Queue plan'}
+          </Button>
+        </FormActions>
       ) : (
         <p className="text-sm text-muted-foreground">This plan is read-only.</p>
       )}

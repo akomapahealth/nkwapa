@@ -75,12 +75,13 @@ export function completedScreeningWhere(filter: ScreenedFilter): Prisma.PatientC
   };
 }
 
-/** `lastScreenedAt` is sorted by the service, not by Prisma; see `listRegistry`. */
+/** `lastScreenedAt` and `lastVisitAt` are sorted by the service, not by Prisma; see `listRegistry`. */
 export const PATIENT_REGISTRY_SORT_FIELDS = [
   'updatedAt',
   'name',
   'patientCode',
   'lastScreenedAt',
+  'lastVisitAt',
 ] as const;
 export type PatientRegistrySortField = (typeof PATIENT_REGISTRY_SORT_FIELDS)[number];
 export interface PatientRegistrySort {
@@ -224,6 +225,24 @@ export class PatientRepository {
   async findManyByIds(ids: string[]): Promise<Patient[]> {
     if (ids.length === 0) return [];
     return this.prisma.patient.findMany({ where: { id: { in: ids } } });
+  }
+
+  /**
+   * Each patient's latest encounter at this clinic, the chart's "last visit"
+   * (`patient-chart.service`). Patients with no encounter there are absent from the map.
+   */
+  async findLastVisits(patientIds: string[], clinicId: string): Promise<Map<string, Date>> {
+    if (patientIds.length === 0) return new Map();
+    const rows = await this.prisma.encounter.groupBy({
+      by: ['patientId'],
+      where: { clinicId, patientId: { in: patientIds } },
+      _max: { createdAt: true },
+    });
+    return new Map(
+      rows.flatMap((row) =>
+        row._max.createdAt ? [[row.patientId, row._max.createdAt] as const] : [],
+      ),
+    );
   }
 
   /** The qualifying check-ins for these patients, each with its Review visits in the window. */

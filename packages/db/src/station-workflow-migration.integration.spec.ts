@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Client } from 'pg';
@@ -139,6 +140,77 @@ describeMigration('station workflow database safeguards', () => {
     );
     return id;
   }
+
+  it('accepts only a review holder’s unassigned note, then preserves cosign immutability', async () => {
+    for (const status of ['IN_PROGRESS', 'COMPLETED']) {
+      const encounterId = randomUUID();
+      const noteId = randomUUID();
+      await target.query(
+        `INSERT INTO "Encounter" ("id", "clinicId", "patientId", "createdByUserId", "updatedAt")
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+        [encounterId, CLINIC_A, PATIENT, VOLUNTEER_1],
+      );
+      await target.query(
+        `INSERT INTO "ClinicalNote" ("id", "clinicId", "patientId", "encounterId",
+          "history", "assessment", "plan", "authorUserId", "authorRole", "updatedAt")
+         VALUES ($1, $2, $3, $4, 'History', 'Assessment', 'Plan', $5, 'VOLUNTEER', CURRENT_TIMESTAMP)`,
+        [noteId, CLINIC_A, PATIENT, encounterId, VOLUNTEER_1],
+      );
+      const claimedAt = '2026-11-13T10:00:00.000Z';
+      const submit = () =>
+        target.query(
+          `UPDATE "ClinicalNote" SET "status" = 'PENDING_COSIGN',
+          "submittedByUserId" = $2, "submittedAt" = CURRENT_TIMESTAMP,
+          "assignedVolunteerId" = $2, "assignedVolunteerNameSnapshot" = 'Volunteer One',
+          "assignmentAssignedAtSnapshot" = $3 WHERE "id" = $1 RETURNING "status", "assignedDoctorId"`,
+          [noteId, VOLUNTEER_1, claimedAt],
+        );
+      // A complete-looking snapshot is insufficient without actual review ownership.
+      await expect(submit()).rejects.toMatchObject({ code: '23514' });
+      const visitId = await queue('REVIEW');
+      await target.query(
+        `UPDATE "PatientStationVisit" SET "encounterId" = $2, "status" = $3,
+          "claimedByUserId" = $4, "claimedAt" = $5,
+          "completedByUserId" = $4, "completedAt" = $5 WHERE "id" = $1`,
+        [visitId, encounterId, status, VOLUNTEER_2, claimedAt],
+      );
+      await expect(submit()).rejects.toMatchObject({ code: '23514' });
+      // Owning another station does not qualify as review ownership.
+      await target.query(
+        `UPDATE "PatientStationVisit" SET "claimedByUserId" = $2, "completedByUserId" = $2,
+          "stationId" = $3 WHERE "id" = $1`,
+        [visitId, VOLUNTEER_1, stations.BLOOD_PRESSURE],
+      );
+      await expect(submit()).rejects.toMatchObject({ code: '23514' });
+      await target.query(`UPDATE "PatientStationVisit" SET "stationId" = $2 WHERE "id" = $1`, [
+        visitId,
+        stations.REVIEW,
+      ]);
+      await target.query(`UPDATE "ClinicalNote" SET "history" = '' WHERE "id" = $1`, [noteId]);
+      await expect(submit()).rejects.toMatchObject({ code: '23514' });
+      await target.query(`UPDATE "ClinicalNote" SET "history" = 'History' WHERE "id" = $1`, [
+        noteId,
+      ]);
+      expect((await submit()).rows).toEqual([{ status: 'PENDING_COSIGN', assignedDoctorId: null }]);
+      await expect(
+        target.query(`UPDATE "ClinicalNote" SET "plan" = 'Changed' WHERE "id" = $1`, [noteId]),
+      ).rejects.toMatchObject({ code: '55000' });
+      // This exercises the database signed-state requirements; API role authorization is separate.
+      await target.query(
+        `UPDATE "ClinicalNote" SET "status" = 'COSIGNED', "cosignedByUserId" = $2,
+          "cosignedAt" = CURRENT_TIMESTAMP, "signedHistory" = "history",
+          "signedAssessment" = "assessment", "signedPlan" = "plan",
+          "signedContentHash" = repeat('a', 64) WHERE "id" = $1`,
+        [noteId, VOLUNTEER_2],
+      );
+      await expect(
+        target.query(`UPDATE "ClinicalNote" SET "signedPlan" = 'Changed' WHERE "id" = $1`, [
+          noteId,
+        ]),
+      ).rejects.toMatchObject({ code: '55000' });
+      await target.query(`DELETE FROM "PatientStationVisit" WHERE "id" = $1`, [visitId]);
+    }
+  });
 
   it('gives a clinic that existed before the migration the default station line', async () => {
     const rows = await target.query<{ kind: string; sortOrder: number }>(

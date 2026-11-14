@@ -7,33 +7,28 @@ test.use({ storageState: storageStateFor('staff') });
 test('login route hands authenticated users back to the workspace', async ({ page }) => {
   await page.goto('/login?next=%2Fdashboard');
   await expect(page).toHaveURL(/\/dashboard/);
-  await expect(page.getByText('Today at a glance')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clinic comparison' })).toBeVisible();
 });
 
-// #269: an account with several roles sees one role's section at a time, behind tabs.
-test('multi-role dashboard renders the shared sections', async ({ page }) => {
+// W2 (owner decision): one home for the main role, never a stack or a role switcher. This account
+// holds every role, so it gets the system administrator's network home.
+test('multi-role dashboard is one home for the main role', async ({ page }) => {
   await page.goto('/dashboard');
 
-  await expect(page.getByText('Today at a glance')).toBeVisible();
-  const views = page.getByRole('tablist', { name: 'Dashboard view' });
-  await expect(views.getByRole('tab')).toHaveText([
-    'Clinic trends',
-    'Network overview',
-    'Doctor queue',
-    'Your work today',
-  ]);
-  for (const [tab, headings] of [
-    ['Clinic trends', ['Clinic trends']],
-    ['Network overview', ['Network overview']],
-    ['Doctor queue', ['Doctor queue', 'Review queue']],
-    ['Your work today', ['Your work today']],
+  await expect(page.getByRole('heading', { name: 'Clinic comparison' })).toBeVisible();
+  await expect(page.locator('[data-main-role]')).toHaveAttribute('data-main-role', 'SYSTEM_ADMIN');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  const strip = page.getByRole('list', { name: 'Network overview' });
+  await expect(strip.getByRole('listitem')).toHaveCount(4);
+  await expect(strip).toContainText('staff accounts');
+  await expect(page.getByRole('tablist', { name: 'Dashboard view' })).toHaveCount(0);
+  await expect(page.getByText('Today at a glance')).toHaveCount(0);
+  // The other roles' sections are not on the page; their work is at most a line each.
+  for (const heading of [
+    'Recently finalized visits',
+    'Patient registrations in the last 30 days',
   ]) {
-    await views.getByRole('tab', { name: tab }).click();
-    for (const heading of headings) {
-      await expect(
-        page.getByRole('tabpanel').getByRole('heading', { name: heading, exact: true }),
-      ).toBeVisible();
-    }
+    await expect(page.getByRole('heading', { name: heading })).toHaveCount(0);
   }
 });
 
@@ -49,7 +44,7 @@ for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/dashboard');
 
-    await expect(page.getByText('Today at a glance')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Clinic comparison' })).toBeVisible();
 
     const hasViewportOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -63,10 +58,17 @@ for (const viewport of viewports) {
     const chatPanel = page.getByTestId('chat-panel');
     await expect(chatPanel).toBeVisible();
 
+    if (viewport.width < 600)
+      await expect.poll(async () => Math.round((await chatPanel.boundingBox()).y)).toBe(0);
     const bounds = await chatPanel.boundingBox();
     expect(bounds).not.toBeNull();
-    expect(bounds.width).toBeLessThanOrEqual(viewport.width - 8);
-    expect(bounds.height).toBeLessThanOrEqual(viewport.height - 40);
+    if (viewport.width < 600) {
+      expect(bounds.width).toBe(viewport.width);
+      expect(bounds.height).toBe(viewport.height);
+    } else {
+      expect(bounds.width).toBeLessThanOrEqual(viewport.width - 8);
+      expect(bounds.height).toBeLessThanOrEqual(viewport.height - 40);
+    }
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
 

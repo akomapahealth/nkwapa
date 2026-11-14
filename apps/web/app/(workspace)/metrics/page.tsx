@@ -50,9 +50,8 @@ function MetricsContent() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Oversight"
         title="Metrics"
-        description="How often key workflows run at this clinic, how they end, and why they fail."
+        description="How key workflows run here, and why they fail."
         helpTitle="What these numbers are"
         helpText="Counts of activity, recorded without names, contact details or clinical values. For who did what to which record, use the audit log."
         actions={
@@ -82,7 +81,16 @@ function MetricsContent() {
           );
           return (
             <div className="space-y-6">
-              <AppMetricGroup label="Headline figures" className="sm:grid-cols-2 xl:grid-cols-3">
+              <AppMetricGroup label="Headline figures">
+                <AppMetricCard
+                  title="Offline changes refused"
+                  tone="attention"
+                  value={formatRatio(headlines.syncConflictRate)}
+                  detail={`${summary.sync.mutations} changes in ${summary.sync.pushes} syncs`}
+                  icon={RefreshCw}
+                  hint="Conflicts and errors over every offline change devices sent."
+                />
+
                 <AppMetricCard
                   title="Request conversion"
                   value={formatRatio(headlines.requestConversion)}
@@ -97,13 +105,7 @@ function MetricsContent() {
                   icon={KeyRound}
                   hint="Successful record claims over all claim attempts."
                 />
-                <AppMetricCard
-                  title="Offline changes refused"
-                  value={formatRatio(headlines.syncConflictRate)}
-                  detail={`${summary.sync.mutations} changes in ${summary.sync.pushes} syncs`}
-                  icon={RefreshCw}
-                  hint="Conflicts and errors over every offline change devices sent."
-                />
+
                 <AppMetricCard
                   title="Requests throttled"
                   value={headlines.throttled}
@@ -138,10 +140,9 @@ function MetricsContent() {
                 <DistributionChart
                   title="Most common failure reasons"
                   hint="The codes behind failed and refused actions. Support can search logs for the code."
+                  // One neutral series: the title already says these are failures, and a wall of
+                  // red bars read as an outage when most codes are routine refusals.
                   data={failures}
-                  tones={Object.fromEntries(
-                    Object.keys(failures).map((label) => [label, 'destructive' as const]),
-                  )}
                   layout="horizontal"
                   emptyMessage="Nothing failed in this window."
                 />

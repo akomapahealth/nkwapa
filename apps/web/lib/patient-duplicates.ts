@@ -1,10 +1,9 @@
 import {
   DUPLICATE_MATCH_REASON_LABELS,
-  mergeFinding,
   type DuplicateConfidence,
   type DuplicateMatchReason,
-  type MergeFinding,
-} from '@nkwapa/db';
+} from '@nkwapa/db/patient-duplicates';
+import { mergeFinding, type MergeFinding } from '@nkwapa/db/patient-merge';
 
 export { DUPLICATE_MATCH_REASON_LABELS };
 export type { DuplicateConfidence, DuplicateMatchReason };

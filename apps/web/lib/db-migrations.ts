@@ -1,9 +1,8 @@
 import {
   evaluateGlucoseSuspicion,
-  parseLegacyDiabetesSymptoms,
   type DiabetesGlucoseContext,
-  type DiabetesSymptom,
-} from '@nkwapa/db';
+} from '@nkwapa/db/diabetes-thresholds';
+import { parseLegacyDiabetesSymptoms, type DiabetesSymptom } from '@nkwapa/db/diabetes-screening';
 
 export interface LegacyPulseRecord {
   heartRate?: number;

@@ -95,12 +95,12 @@ export function ClinicalMeasurementsDashboard({
         not a number with a footnote; "128 mmHg" is the reading, and splitting it lets someone
         read the figure without seeing what it measures.
       */}
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup>
         {workflowCards.map(({ label, value, icon }) => (
           <AppMetricCard key={label} title={label} value={value} icon={icon} />
         ))}
       </AppMetricGroup>
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup>
         {measurementCards.map(({ label, aggregate, suffix, icon }) => (
           <AppMetricCard
             key={label}

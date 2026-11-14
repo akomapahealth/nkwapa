@@ -292,7 +292,7 @@ export function ShiftControlCard({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg font-semibold">
               <Stethoscope className="h-4 w-4 text-primary" />
-              Shift Status
+              Shift status
             </CardTitle>
             <CardDescription className="mt-1">
               Start or end your clinic availability for the day.
@@ -300,10 +300,10 @@ export function ShiftControlCard({
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             {currentShift ? (
-              <Badge variant="finalized">On Duty</Badge>
+              <Badge variant="finalized">On duty</Badge>
             ) : (
               <Badge variant="outline" className="bg-card/70">
-                Off Duty
+                Off duty
               </Badge>
             )}
             {currentShift?.pendingSync ? (
@@ -323,7 +323,7 @@ export function ShiftControlCard({
               }
             >
               <div>
-                <p className="text-eyebrow text-muted-foreground">Checked In As</p>
+                <p className="text-eyebrow text-muted-foreground">Checked in as</p>
                 <div className="mt-2">
                   <ShiftRoleBadge role={currentShift.roleAtShift} />
                 </div>

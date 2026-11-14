@@ -14,8 +14,8 @@ export const PATIENT_CHART_SECTION_IDS = [
   'overview',
   'vitals',
   'medications',
-  'diabetes',
   'hypertension',
+  'diabetes',
   'medical-history',
   'notes',
   'visits',
@@ -66,12 +66,6 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
     requiredPermission: 'MEDICATION_RECONCILIATION.READ',
     featureFlag: 'medicationReconciliation',
   },
-  {
-    id: 'diabetes',
-    label: 'Diabetes',
-    description: 'Glucose and HbA1c screening history with suspicion status.',
-    requiredPermission: 'SCREENING.READ',
-  },
   /*
     Hypertension was recorded at every encounter and never shown on the chart: the section list
     simply had no entry for it, so a clinician could read a patient's diabetes history but had to
@@ -86,8 +80,14 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
     requiredPermission: 'SCREENING.READ',
   },
   {
+    id: 'diabetes',
+    label: 'Diabetes',
+    description: 'Glucose and HbA1c screening history with suspicion status.',
+    requiredPermission: 'SCREENING.READ',
+  },
+  {
     id: 'medical-history',
-    label: 'Medical History',
+    label: 'Medical history',
     description: 'Longitudinal conditions, allergies, surgeries, and family history.',
     requiredPermission: 'MEDICAL_HISTORY.READ',
     featureFlag: 'medicalHistory',
@@ -115,7 +115,8 @@ export const PATIENT_CHART_SECTIONS: readonly PatientChartSection[] = [
     id: 'consent',
     label: 'Consent',
     description: 'De-identified research consent status and history.',
-    requiredPermission: 'CONSENT.RECORD',
+    // Anyone on the chart may see consent status; recording or revoking it needs CONSENT.RECORD.
+    requiredPermission: 'PATIENT.READ',
   },
 ];
 

@@ -4,7 +4,12 @@ import type { SortingState } from '@tanstack/react-table';
  * Registry columns the API can sort by, keyed by the table's column id. `screened` only exists
  * while the screened date filter is on, which the API requires for `lastScreenedAt`.
  */
-const SORTABLE = { patientCode: 'patientCode', name: 'name', screened: 'lastScreenedAt' } as const;
+const SORTABLE = {
+  patientCode: 'patientCode',
+  name: 'name',
+  screened: 'lastScreenedAt',
+  lastVisit: 'lastVisitAt',
+} as const;
 
 /**
  * The table's sort as the registry API's `sortBy` / `sortDir`. Nothing set means the API's own

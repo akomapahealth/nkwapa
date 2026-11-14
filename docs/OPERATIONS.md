@@ -94,6 +94,27 @@ is created only after this job passes. The verifier requires all six components 
 SHAs equal to `GITHUB_SHA`, a matching OIDC issuer, a successful web response, and an allowed CORS
 preflight. Missing targets or the production fixture credential fail the gate.
 
+## Staging Keycloak memory (512 MB free tier)
+
+`nkwapa-auth-staging` was killed with "memory limit exceeded". Keycloak's default heap is 70% of
+the container, which leaves too little for metaspace, threads and the Infinispan cluster stack on
+512 MB. Set these on the **staging** Render service only (proposed, not applied; prod is paid and
+stays on defaults until measured):
+
+| Render env var       | Value                                                                  | Why                                                 |
+| -------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| `JAVA_OPTS_KC_HEAP`  | `-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=30 -XX:+UseSerialGC` | Caps the heap; SerialGC has the smallest footprint  |
+| `KC_CACHE`           | `local`                                                                | Single node, no Infinispan clustering (runtime)     |
+| `KC_METRICS_ENABLED` | `false`                                                                | Build-time option; the Dockerfile reads it as `ARG` |
+
+`KC_HEALTH_ENABLED` stays `true` (the Render health check uses it). If 65% still OOMs, use
+`-Xms128m -Xmx320m` instead of the percentages.
+
+Verify after the redeploy: run a burst of about 20 sign-ins against staging, then read the
+service's memory graph in the Render dashboard (or `docker stats` on a local container started
+with `--memory=512m` and the same env). Resident memory should level off below about 450 MB and
+the logs should show `cache: local`.
+
 ## Keycloak service account for patient identity
 
 Patients are now given a Keycloak account when their portal invitation is sent, rather than

@@ -50,7 +50,7 @@ test.describe('volunteer', () => {
       'Vitals',
       'Diabetes',
       'Hypertension',
-      'Medical History',
+      'Medical history',
       'Medications',
       'Notes',
     ]) {

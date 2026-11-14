@@ -224,12 +224,10 @@ export function CrossClinicInvestigationScreen() {
   return (
     <div className="space-y-6">
       <AppPageHeader
-        eyebrow="Patient identity"
         title="Cross-clinic duplicates"
-        description="Charts in different clinics that look like the same person, counted per clinic pair. For sizing the problem, not fixing it: nothing here changes or merges a record."
-        badges={<Badge variant="outline">Investigation only</Badge>}
+        description="The same person in two clinics, counted per clinic pair."
         actions={
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 compact:gap-3">
             <Button
               variant="outline"
               disabled={!burden || burden.totalPairs === 0}
@@ -241,8 +239,8 @@ export function CrossClinicInvestigationScreen() {
                 );
               }}
             >
-              <Download aria-hidden="true" className="mr-2 h-4 w-4" />
-              Export counts
+              <Download aria-hidden="true" className="h-4 w-4" />
+              <span className="sr-only compact:not-sr-only">Export counts</span>
             </Button>
             <Button
               variant="outline"
@@ -251,13 +249,15 @@ export function CrossClinicInvestigationScreen() {
             >
               <RefreshCw
                 aria-hidden="true"
-                className={cn('mr-2 h-4 w-4', investigation.isRefreshing && 'animate-spin')}
+                className={cn('h-4 w-4', investigation.isRefreshing && 'animate-spin')}
               />
-              Refresh
-              <span aria-live="polite" className="sr-only">
-                {investigation.isRefreshing ? 'Refreshing the cross-clinic investigation' : ''}
-              </span>
+              <span className="sr-only compact:not-sr-only">Refresh</span>
             </Button>
+            {/* Outside the button: an open dialog hides everything except live regions and their
+                ancestors, which left this button exposed with its label hidden. */}
+            <span aria-live="polite" className="sr-only">
+              {investigation.isRefreshing ? 'Refreshing the cross-clinic investigation' : ''}
+            </span>
           </div>
         }
       />
@@ -286,7 +286,20 @@ export function CrossClinicInvestigationScreen() {
         under All clinics.
       </InlineNotice>
 
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup variant="strip">
+        <AppMetricCard
+          title="Very likely"
+          tone="attention"
+          onActivate={() => {
+            setFilters({ ...filters, confidence: 'HIGH' });
+            setPage(0);
+          }}
+          actionLabel="Show very likely cross-clinic pairs"
+          value={burden?.highConfidencePairs ?? '—'}
+          icon={AlertTriangle}
+          detail="Pairs with the strongest signals."
+        />
+
         <AppMetricCard
           title="Pairs across clinics"
           value={burden?.totalPairs ?? '—'}
@@ -295,12 +308,7 @@ export function CrossClinicInvestigationScreen() {
             burden ? `${burden.openPairs} not yet reviewed.` : 'Likely duplicates spanning clinics.'
           }
         />
-        <AppMetricCard
-          title="Very likely"
-          value={burden?.highConfidencePairs ?? '—'}
-          icon={AlertTriangle}
-          detail="Pairs with the strongest signals."
-        />
+
         <AppMetricCard
           title="Clinics affected"
           value={burden?.clinicsAffected ?? '—'}
@@ -349,143 +357,109 @@ export function CrossClinicInvestigationScreen() {
               <ReasonBreakdown burden={data.burden} />
             </section>
 
-            {/* min-w-0 on both tracks, so a wide grid scrolls inside its card at 768 and 1024. */}
-            <section className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-              <RecordSection className="min-w-0">
-                <RecordSectionHeader>
-                  <RecordSectionTitle>Filters</RecordSectionTitle>
-                  <RecordSectionDescription>
-                    Narrow the pairs. The counts above always cover every pair.
-                  </RecordSectionDescription>
-                </RecordSectionHeader>
-                <RecordSectionContent className="space-y-4">
-                  <DuplicateFilterFields
-                    idPrefix="cross-clinic"
-                    filters={filters}
-                    onChange={changeFilters}
-                    onReset={() => {
-                      changeFilters(INVESTIGATION_DEFAULT_FILTERS);
-                      setClinicPair(null);
-                    }}
-                    resetDisabled={filtersAreDefault(filters, clinicPair)}
-                    extraSummary={[
-                      {
-                        label: 'Clinics',
-                        value: selectedPair ? clinicPairLabel(selectedPair) : null,
-                      },
-                    ]}
-                    emptyLabel="Showing every pair across clinics"
-                  />
-                  <ProgressiveHelp title="What a match strength means">
-                    <p>
-                      Strength is the sum of the rules a pair matched. It is a prompt to look, never
-                      a decision: a shared phone number can be a household, and two siblings can
-                      share a surname and a birthday. Compare the charts before drawing a conclusion
-                      from any single pair.
-                    </p>
-                  </ProgressiveHelp>
-                </RecordSectionContent>
-              </RecordSection>
+            <DuplicateFilterFields
+              idPrefix="cross-clinic"
+              filters={filters}
+              onChange={changeFilters}
+              onReset={() => {
+                changeFilters(INVESTIGATION_DEFAULT_FILTERS);
+                setClinicPair(null);
+              }}
+              resetDisabled={filtersAreDefault(filters, clinicPair)}
+            />
 
-              <RecordSection className="min-w-0">
-                <RecordSectionHeader className="space-y-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1.5">
-                      <RecordSectionTitle>Pairs</RecordSectionTitle>
-                      <RecordSectionDescription>
-                        {selectedPair
-                          ? `Only pairs between ${clinicPairLabel(selectedPair)}.`
-                          : 'Open a pair to compare the two charts side by side.'}
-                      </RecordSectionDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selectedPair ? (
-                        <Button variant="ghost" size="sm" onClick={() => focusClinicPair(null)}>
-                          <X aria-hidden="true" className="mr-1.5 h-4 w-4" />
-                          All clinic pairs
-                        </Button>
-                      ) : null}
-                      <div className="rounded-lg border border-border/70 bg-background/75 px-4 py-3 text-sm">
-                        <p className="text-muted-foreground">Showing</p>
-                        <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-                          {data.items.length} of {data.total}
-                        </p>
-                      </div>
+            <section aria-label="Pairs" className="space-y-4 pb-20">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p aria-live="polite" className="text-sm text-muted-foreground">
+                  {selectedPair
+                    ? `Only pairs between ${clinicPairLabel(selectedPair)}.`
+                    : 'Open a pair to compare the two charts side by side.'}{' '}
+                  <span className="tabular-nums">
+                    Showing {data.items.length} of {data.total}.
+                  </span>
+                </p>
+                {selectedPair ? (
+                  <Button variant="ghost" size="sm" onClick={() => focusClinicPair(null)}>
+                    <X aria-hidden="true" className="mr-1.5 h-4 w-4" />
+                    All clinic pairs
+                  </Button>
+                ) : null}
+              </div>
+              {data.items.length === 0 ? (
+                <EmptyState
+                  title="No pairs match these filters"
+                  description="Try a broader decision or match strength, clear the search, or show every clinic pair."
+                  icon={SearchX}
+                  density="compact"
+                />
+              ) : (
+                <>
+                  {/*
+                    Cards until lg, as on the review queue: a row is a pair of charts, and the
+                    columns need roughly 830px to keep both and the Compare action on screen.
+                  */}
+                  <div className="space-y-3 lg:hidden">
+                    {data.items.map((candidate) => (
+                      <DuplicatePairCard
+                        key={candidate.pairKey}
+                        candidate={candidate}
+                        onCompare={setSelected}
+                        showClinics
+                      />
+                    ))}
+                  </div>
+
+                  <div className="hidden lg:block">
+                    <DataTable
+                      keyboardScroll
+                      caption="Possible duplicates across clinics"
+                      columns={columns}
+                      data={data.items}
+                      getRowId={(row) => row.pairKey}
+                      isRefreshing={investigation.isRefreshing}
+                      pageSizeOptions={[10, 25, 50]}
+                      rowCount={data.total}
+                      pagination={{ pageIndex: page, pageSize }}
+                      onPaginationChange={(next) => {
+                        setPage(next.pageIndex);
+                        setPageSize(next.pageSize);
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 text-sm lg:hidden">
+                    <p className="tabular-nums text-muted-foreground">
+                      Showing {data.items.length} of {data.total}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page === 0 || investigation.isRefreshing}
+                        onClick={() => setPage((current) => Math.max(0, current - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={(page + 1) * pageSize >= data.total || investigation.isRefreshing}
+                        onClick={() => setPage((current) => current + 1)}
+                      >
+                        Next
+                      </Button>
                     </div>
                   </div>
-                </RecordSectionHeader>
-                <RecordSectionContent className="space-y-4">
-                  {data.items.length === 0 ? (
-                    <EmptyState
-                      title="No pairs match these filters"
-                      description="Try a broader decision or match strength, clear the search, or show every clinic pair."
-                      icon={SearchX}
-                      density="compact"
-                    />
-                  ) : (
-                    <>
-                      {/*
-                        Cards until lg, as on the review queue: a row is a pair of charts, and the
-                        columns need roughly 830px to keep both and the Compare action on screen.
-                      */}
-                      <div className="space-y-3 lg:hidden">
-                        {data.items.map((candidate) => (
-                          <DuplicatePairCard
-                            key={candidate.pairKey}
-                            candidate={candidate}
-                            onCompare={setSelected}
-                            showClinics
-                          />
-                        ))}
-                      </div>
-
-                      <div className="hidden lg:block">
-                        <DataTable
-                          keyboardScroll
-                          caption="Possible duplicates across clinics"
-                          columns={columns}
-                          data={data.items}
-                          getRowId={(row) => row.pairKey}
-                          isRefreshing={investigation.isRefreshing}
-                          pageSizeOptions={[10, 25, 50]}
-                          rowCount={data.total}
-                          pagination={{ pageIndex: page, pageSize }}
-                          onPaginationChange={(next) => {
-                            setPage(next.pageIndex);
-                            setPageSize(next.pageSize);
-                          }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm lg:hidden">
-                        <p className="tabular-nums text-muted-foreground">
-                          Showing {data.items.length} of {data.total}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={page === 0 || investigation.isRefreshing}
-                            onClick={() => setPage((current) => Math.max(0, current - 1))}
-                          >
-                            Previous
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              (page + 1) * pageSize >= data.total || investigation.isRefreshing
-                            }
-                            onClick={() => setPage((current) => current + 1)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </RecordSectionContent>
-              </RecordSection>
+                </>
+              )}
+              <ProgressiveHelp title="What a match strength means">
+                <p>
+                  Strength is the sum of the rules a pair matched. It is a prompt to look, never a
+                  decision: a shared phone number can be a household, and two siblings can share a
+                  surname and a birthday. Compare the charts before drawing a conclusion from any
+                  single pair.
+                </p>
+              </ProgressiveHelp>
             </section>
           </div>
         )}
@@ -578,7 +552,10 @@ function BurdenByClinicPair({
         <ConfidenceLegend />
       </RecordSectionHeader>
       <RecordSectionContent>
-        <ul className="space-y-2" aria-label="Likely duplicates by clinic pair">
+        <ul
+          className="divide-y divide-rule border-y border-rule"
+          aria-label="Likely duplicates by clinic pair"
+        >
           {burden.clinicPairs.map((row) => {
             const active = row.key === activeKey;
             return (
@@ -588,11 +565,10 @@ function BurdenByClinicPair({
                   aria-pressed={active}
                   onClick={() => onFocus(active ? null : row.key)}
                   className={cn(
-                    'w-full rounded-lg border px-4 py-3 text-left transition-colors duration-150',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                    active
-                      ? 'border-primary/40 bg-primary/10'
-                      : 'border-border/70 bg-background/70 hover:border-primary/30 hover:bg-card',
+                    // A hairline row that fills when chosen, like a selected nav item (R4.3).
+                    'w-full px-3 py-3 text-left transition-colors duration-150',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                    active ? 'bg-selected' : '[@media(hover:hover)]:hover:bg-muted',
                   )}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

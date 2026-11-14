@@ -3,8 +3,13 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
+import { useOverlayInput } from './use-overlay-input';
+import { useReturnFocus } from './use-return-focus';
 
-const Dialog = DialogPrimitive.Root;
+function Dialog(props: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root>) {
+  useOverlayInput();
+  return <DialogPrimitive.Root {...props} />;
+}
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
@@ -15,46 +20,91 @@ const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'fixed inset-0 z-50 bg-black/80 duration-fast ease-out-strong data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-      className,
-    )}
+    className={cn('anchored-overlay dialog-scrim fixed inset-0 z-50 bg-black/80', className)}
     {...props}
   />
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+interface DialogContentProps extends React.ComponentPropsWithoutRef<
+  typeof DialogPrimitive.Content
+> {
+  /**
+   * R7.4: `form` for a dialog that holds a multi-field form. Below 600px it becomes a bottom sheet
+   * (full width, lifted above the virtual keyboard) and, at every width, its `DialogFooter` stays
+   * pinned to the bottom while the fields scroll (globals.css `.dialog-form`). Confirmations and
+   * single-field prompts keep the default: a centred alert, which is what MASTER 5.4 asks for.
+   */
+  variant?: 'alert' | 'form';
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        // A dialog must fit the screen it opens on. The default was a fixed max width with no
-        // height bound and no scrolling, so a long clinical form ran off a 375 pixel viewport with
-        // its actions unreachable. Every panel had been working around this with its own override.
-        'fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-6 duration-base ease-out-strong data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
+  DialogContentProps
+>(
+  (
+    {
+      className,
+      children,
+      variant = 'alert',
+      onOpenAutoFocus,
+      onCloseAutoFocus,
+      onEscapeKeyDown,
+      ...props
+    },
+    ref,
+  ) => {
+    const focusReturn = useReturnFocus(onOpenAutoFocus, onCloseAutoFocus);
+    return (
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            // A dialog must fit the screen it opens on. The default was a fixed max width with no
+            // height bound and no scrolling, so a long clinical form ran off a 375 pixel viewport with
+            // its actions unreachable. Every panel had been working around this with its own override.
+            // Centred by margin, not a translate, so the motion owns transform and scales from the
+            // centre. R7.3: the same transition clock as menus and Selects (globals.css), so a dialog
+            // closed mid-entrance reverses from where it is instead of restarting its exit.
+            'anchored-overlay fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-6',
+            variant === 'form' && 'dialog-form',
+            className,
+          )}
+          {...props}
+          {...focusReturn}
+          onEscapeKeyDown={(event) => {
+            // Escape first closes an open combobox list (ui/combobox.tsx handles that itself);
+            // without this the dialog closes too and takes the half-filled form with it.
+            const target = event.target as HTMLElement | null;
+            if (
+              target?.getAttribute?.('role') === 'combobox' &&
+              target.getAttribute('aria-expanded') === 'true'
+            ) {
+              event.preventDefault();
+            }
+            onEscapeKeyDown?.(event);
+          }}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    );
+  },
+);
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col space-y-1.5 text-center sm:text-left', className)} {...props} />
+  <div className={cn('flex flex-col gap-1.5 text-left', className)} {...props} />
 );
 DialogHeader.displayName = 'DialogHeader';
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2', className)}
+    className={cn(
+      'dialog-footer flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+      className,
+    )}
     {...props}
   />
 );

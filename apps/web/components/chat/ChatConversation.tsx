@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, LogOut, Pencil, Send, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -10,6 +10,7 @@ import {
   type ChatMessage,
 } from '@/lib/chat-context';
 import { apiFetch } from '@/lib/api';
+import { formatOpsDay } from '@/lib/ops';
 import { getChatSocket } from '@/lib/chat-socket';
 import { ChatMessageBubble, type ChatMessageView } from './ChatMessageBubble';
 import { ChatAvatar, ChatGroupAvatar } from './ChatAvatar';
@@ -76,6 +77,24 @@ function reconcileIncomingMessage(messages: ChatMessageView[], incoming: ChatMes
   }
 
   return messages.map((message, index) => (index === optimisticIndex ? incoming : message));
+}
+
+/** "Today", "Yesterday" or the date, in clinic time, between one day's messages and the next. */
+function ChatDayLabel({ value }: { value: string }) {
+  const day = formatOpsDay(value);
+  // Read once per mount, as RelativeTime does, so a re-render never changes the label.
+  const [now] = useState(Date.now);
+  const label =
+    day === formatOpsDay(new Date(now).toISOString())
+      ? 'Today'
+      : day === formatOpsDay(new Date(now - 86_400_000).toISOString())
+        ? 'Yesterday'
+        : day;
+  return (
+    <p className="my-2 self-center rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+      {label}
+    </p>
+  );
 }
 
 function TypingDots() {
@@ -355,7 +374,7 @@ export function ChatConversation({
       <div className="flex items-center gap-2 border-b px-3 py-2.5">
         <button
           onClick={onBack}
-          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Back to conversations"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -388,7 +407,7 @@ export function ChatConversation({
         {group ? (
           <button
             onClick={() => setPanel(panel === 'members' ? 'none' : 'members')}
-            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Members"
             aria-expanded={panel === 'members'}
           >
@@ -418,7 +437,7 @@ export function ChatConversation({
                 value={renaming}
                 maxLength={200}
                 onChange={(event) => setRenaming(event.target.value)}
-                className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
               <button
                 type="submit"
@@ -497,14 +516,38 @@ export function ChatConversation({
       {/* Messages */}
       <div className="flex flex-1 flex-col-reverse overflow-y-auto px-3 py-2">
         <div ref={messagesEndRef} />
-        {messages.map((msg) => (
-          <ChatMessageBubble
-            key={msg.id}
-            message={msg}
-            isMine={msg.senderUserId === currentUserId}
-            onRetry={handleRetry}
-          />
-        ))}
+        {/* Newest first in the DOM (the column is reversed), so a day's label follows its oldest message. */}
+        {messages.length === 0 && !loading && !hasMore ? (
+          <p className="m-auto max-w-[16rem] text-center text-sm text-muted-foreground">
+            No messages yet. Write the first one below.
+          </p>
+        ) : null}
+        {messages.map((msg, index) => {
+          const older = messages[index + 1];
+          const newer = messages[index - 1];
+          const firstOfDay =
+            !older || formatOpsDay(older.createdAt) !== formatOpsDay(msg.createdAt);
+          // A run: same sender, same day, each message within five minutes of the last.
+          const sameRun = (a?: ChatMessageView, b?: ChatMessageView) =>
+            !!a &&
+            !!b &&
+            a.senderUserId === b.senderUserId &&
+            formatOpsDay(a.createdAt) === formatOpsDay(b.createdAt) &&
+            Math.abs(new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) <
+              5 * 60_000;
+          return (
+            <Fragment key={msg.id}>
+              <ChatMessageBubble
+                message={msg}
+                isMine={msg.senderUserId === currentUserId}
+                onRetry={handleRetry}
+                showSender={group && !sameRun(older, msg)}
+                showTime={!sameRun(msg, newer)}
+              />
+              {firstOfDay ? <ChatDayLabel value={msg.createdAt} /> : null}
+            </Fragment>
+          );
+        })}
         {hasMore && (
           <button
             onClick={() => fetchMessages(cursor)}
@@ -539,14 +582,15 @@ export function ChatConversation({
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder="Write a message…"
+            aria-label="Message"
             rows={1}
-            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="touch-target cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="touch-target cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Send message"
           >
             <Send className="h-4 w-4" />

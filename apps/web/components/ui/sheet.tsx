@@ -6,8 +6,14 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useSheetDrag } from './use-sheet-drag';
+import { useOverlayInput } from './use-overlay-input';
+import { useReturnFocus } from './use-return-focus';
 
-const Sheet = SheetPrimitive.Root;
+function Sheet(props: React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root>) {
+  useOverlayInput();
+  return <SheetPrimitive.Root {...props} />;
+}
 
 const SheetTrigger = SheetPrimitive.Trigger;
 
@@ -21,7 +27,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-50 bg-black/80 duration-fast ease-out-strong  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'modal-motion fixed inset-0 z-50 bg-black/80 ease-out-strong data-[state=open]:duration-sheet data-[state=closed]:duration-sheet-exit data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className,
     )}
     {...props}
@@ -31,7 +37,10 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  'safe-edges-x fixed z-50 max-w-full gap-4 bg-background p-6 shadow-lg transition-transform duration-base ease-out-strong data-[state=closed]:duration-base data-[state=open]:duration-base data-[state=open]:animate-in data-[state=closed]:animate-out',
+  // 240ms in, 190ms out on the drawer curve (MASTER 9.1 rule 3); the scrim keeps the same clock.
+  // Keep transition-transform: without it the handle drag stops tracking in Chromium (sheet-drag
+  // spec, R7.1). Not root-caused; nothing transitions transform here, the keyframes own it.
+  'modal-motion safe-edges-x fixed z-50 max-w-full gap-4 bg-background p-6 shadow-lg transition-transform ease-drawer data-[state=open]:duration-sheet data-[state=closed]:duration-sheet-exit data-[state=open]:animate-in data-[state=closed]:animate-out',
   {
     variants: {
       side: {
@@ -57,18 +66,55 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = 'right', className, children, ...props }, ref) => (
-  <SheetPortal>
-    <SheetOverlay />
-    <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-      <SheetPrimitive.Close className="absolute right-[max(1rem,env(safe-area-inset-right))] top-4 flex h-11 w-11 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity duration-fast ease-out-strong hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </SheetPrimitive.Close>
-      {children}
-    </SheetPrimitive.Content>
-  </SheetPortal>
-));
+>(({ side = 'right', className, children, onOpenAutoFocus, onCloseAutoFocus, ...props }, ref) => {
+  const { setNode, closeRef, handleProps } = useSheetDrag(side ?? 'right');
+  const focusReturn = useReturnFocus(onOpenAutoFocus, onCloseAutoFocus);
+  const contentRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setNode(node);
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref, setNode],
+  );
+  return (
+    <SheetPortal>
+      <SheetOverlay />
+      <SheetPrimitive.Content
+        ref={contentRef}
+        className={cn(sheetVariants({ side }), className)}
+        {...props}
+        {...focusReturn}
+      >
+        <SheetPrimitive.Close
+          ref={closeRef}
+          className="absolute right-[max(1rem,env(safe-area-inset-right))] top-4 flex h-11 w-11 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity duration-fast ease-out-strong hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </SheetPrimitive.Close>
+        <div className="flex h-11 shrink-0 justify-center">
+          <button
+            {...handleProps}
+            type="button"
+            aria-label={`Close sheet (or drag ${side === 'bottom' ? 'down' : side === 'top' ? 'up' : side} to dismiss)`}
+            className="flex h-11 w-16 touch-none select-none items-center justify-center rounded-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+            style={{ cursor: side === 'top' || side === 'bottom' ? 'ns-resize' : 'ew-resize' }}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                'rounded-full bg-current',
+                side === 'top' || side === 'bottom' ? 'h-1 w-8' : 'h-6 w-1',
+              )}
+            />
+          </button>
+        </div>
+        {children}
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  );
+});
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

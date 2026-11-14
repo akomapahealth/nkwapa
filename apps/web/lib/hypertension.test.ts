@@ -37,6 +37,9 @@ describe('hypertension vocabulary', () => {
     expect(HYPERTENSION_TONES['Not classified']).toBe('neutral');
     expect(HYPERTENSION_TONES.Normal).toBe('success');
     expect(HYPERTENSION_TONES.Crisis).toBe('destructive');
+    // Audit A8: Stage 1 is common and must not look like Crisis.
+    expect(HYPERTENSION_TONES['Stage 1']).toBe('warning');
+    expect(HYPERTENSION_TONES['Stage 2']).toBe('severe');
   });
 
   it('re-keys an API distribution to the labels the axis shows', () => {

@@ -9,7 +9,7 @@ import { StaffNameForm } from '@/components/account/StaffNameForm';
 import { OnboardingFrame } from '@/components/onboarding/OnboardingFrame';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { showToast } from '@/components/ui/toast';
 
 /*
@@ -68,9 +68,7 @@ export default function AccountNamePage() {
           isRequired ? null : (
             <Button
               type="button"
-              variant="ghost"
-              size="lg"
-              className="w-full sm:w-auto"
+              variant="outline"
               onClick={() => router.replace(next ?? '/dashboard')}
             >
               Cancel
@@ -99,20 +97,12 @@ export default function AccountNamePage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <Card className="rounded-xl border-border bg-card shadow-sm">
-        <CardHeader className="space-y-3 px-6 pt-8 md:px-10">
-          <p className="text-eyebrow text-primary">Your account</p>
-          <CardTitle className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
-            Your name
-          </CardTitle>
-          <CardDescription className="max-w-2xl text-sm leading-6 md:text-base">
-            Your name appears on the records you work on, so colleagues and auditors can see who did
-            what.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-6 pb-8 md:px-10">{body}</CardContent>
-      </Card>
+    <div className="max-w-2xl space-y-6">
+      <AppPageHeader
+        title="Your name"
+        description="Shown on the records you work on, so others see who did what."
+      />
+      {body}
     </div>
   );
 }

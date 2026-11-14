@@ -3,6 +3,7 @@ import { LANDING_BLUR } from '@/lib/landing-blur';
 import { ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AKOMAPA_HREF, CONTACT_HREF } from './links';
+import { HERO_HEADLINE, HERO_LEDE, HERO_PHOTO } from './hero-content';
 
 /**
  * A clinic photograph fills the first screen; the copy sits on a dark scrim at its foot, so the hero
@@ -15,17 +16,17 @@ export function HeroSection() {
     <section
       id="top"
       aria-labelledby="hero-title"
-      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col overflow-hidden lg:justify-end bg-[hsl(200_25%_8%)] text-white"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col overflow-hidden lg:justify-end bg-[hsl(192_29.4%_8%)] text-white"
     >
       <div
         data-hero-photo
         className="relative h-[36svh] min-h-[15rem] lg:absolute lg:inset-0 lg:-z-10 lg:h-auto"
       >
         <Image
-          src="/images/Akomapa-17.jpg"
+          src={HERO_PHOTO.src}
           placeholder="blur"
-          blurDataURL={LANDING_BLUR['/images/Akomapa-17.jpg']}
-          alt="A volunteer in an Akomapa shirt writes down a reading while a woman's blood pressure is taken at a community screening."
+          blurDataURL={LANDING_BLUR[HERO_PHOTO.src]}
+          alt={HERO_PHOTO.alt}
           fill
           loading="eager"
           fetchPriority="high"
@@ -36,7 +37,7 @@ export function HeroSection() {
             foot, darkest where the copy sits, so the volunteer's face stays clear at the top. */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_top,hsl(200_25%_8%)_0%,transparent_40%)] lg:bg-[linear-gradient(to_top,hsl(200_25%_6%/0.92)_0%,hsl(200_25%_6%/0.7)_45%,hsl(200_25%_6%/0.15)_85%)]"
+          className="absolute inset-0 bg-[linear-gradient(to_top,hsl(192_29.4%_8%)_0%,transparent_40%)] lg:bg-[linear-gradient(to_top,hsl(192_29.4%_6%/0.92)_0%,hsl(192_29.4%_6%/0.7)_45%,hsl(192_29.4%_6%/0.15)_85%)]"
         />
       </div>
 
@@ -48,18 +49,17 @@ export function HeroSection() {
             id="hero-title"
             className="mt-6 text-balance font-heading text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.02em] motion-safe:animate-landing-rise [animation-delay:60ms] sm:text-6xl lg:text-[4.4rem] xl:text-[5rem]"
           >
-            One record for every visit, even offline.
+            {HERO_HEADLINE}
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/90 motion-safe:animate-landing-rise [animation-delay:120ms] sm:text-xl">
-            An electronic medical record for hypertension and diabetes care, from registration to
-            doctor review and follow-up.
+            {HERO_LEDE}
           </p>
           <div className="mt-9 flex flex-col gap-3 motion-safe:animate-landing-rise [animation-delay:180ms] sm:flex-row">
             <Button
               asChild
               size="lg"
               variant="gold"
-              className="focus-visible:ring-white focus-visible:ring-offset-[hsl(200_25%_8%)]"
+              className="focus-visible:ring-white focus-visible:ring-offset-[hsl(192_29.4%_8%)]"
             >
               <a href={CONTACT_HREF} data-cta="contact">
                 Contact the team
@@ -69,7 +69,7 @@ export function HeroSection() {
               asChild
               size="lg"
               variant="ghost"
-              className="border border-white/70 text-white hover:bg-white/10 hover:text-white focus-visible:ring-white focus-visible:ring-offset-[hsl(200_25%_8%)]"
+              className="border border-white/70 text-white hover:bg-white/10 hover:text-white focus-visible:ring-white focus-visible:ring-offset-[hsl(192_29.4%_8%)]"
             >
               <a href={AKOMAPA_HREF} data-cta="akomapa" rel="noopener">
                 Learn about Akomapa

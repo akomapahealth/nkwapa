@@ -20,7 +20,7 @@ export default function AdminClinicsPage() {
     thing in two different shapes, and only one of them told the user what to do next.
 
     The check itself stays -- CLINIC.MANAGE is held by Managers, and clinic administration is
-    Director and System Admin only, so this is a genuine second gate rather than a duplicate of
+    Director and System admin only, so this is a genuine second gate rather than a duplicate of
     the permission above it.
   */
   if (!canAccessClinicsAdmin) {
@@ -28,7 +28,7 @@ export default function AdminClinicsPage() {
       <RouteGuard requiredPermission="CLINIC.MANAGE">
         <NoAccessState
           title="You don't have access to clinic administration"
-          description="Creating and deactivating clinics is limited to Directors and System Admins. Staff and role changes are available to you under Staff."
+          description="Creating and deactivating clinics is limited to Directors and system admins. Staff and role changes are available to you under Staff."
           action={
             <Button asChild variant="outline">
               <Link href="/admin/users">Go to Staff</Link>

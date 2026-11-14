@@ -10,10 +10,11 @@ import {
   enqueueOutboxMutation,
   SYNC_OPERATION,
 } from '@/lib/outbox';
-import { readApiError } from '@/lib/ops';
+import { formatOpsDateTime, formatOpsDay, readApiError } from '@/lib/ops';
 import {
   MEDICAL_HISTORY_CATEGORIES,
   MEDICAL_HISTORY_STATUSES,
+  medicalHistoryDetail,
   medicalHistoryLabel,
   sortMedicalHistory,
   type AllergySummary,
@@ -22,7 +23,7 @@ import {
   type MedicalHistoryRevision,
   type MedicalHistoryStatus,
 } from '@/lib/medical-history';
-import { AllergySummaryBanner } from './AllergySummaryBanner';
+import { AllergySummaryBanner, allergyStatusNeedsEntry } from './AllergySummaryBanner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -140,6 +141,10 @@ export function MedicalHistoryPanel({
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A failed read, kept apart from save errors: nothing under it may read as "no history".
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Until the first read settles, the allergy banner has nothing true to say.
+  const [settled, setSettled] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -179,7 +184,7 @@ export function MedicalHistoryPanel({
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const search = new URLSearchParams();
       if (categoryFilter !== 'ALL') search.set('category', categoryFilter);
@@ -200,10 +205,13 @@ export function MedicalHistoryPanel({
       try {
         await loadLocal();
       } catch {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load history.');
+        setRecords([]);
+        setAllergySummary({ state: 'UNAVAILABLE', activeAllergies: [] });
+        setLoadError(loadError instanceof Error ? loadError.message : 'Unable to load history.');
       }
     } finally {
       setLoading(false);
+      setSettled(true);
     }
   }, [categoryFilter, clinicId, getToken, loadLocal, patientId, statusFilter]);
 
@@ -226,6 +234,11 @@ export function MedicalHistoryPanel({
     setForm(initialForm);
     setError(null);
     setEditorOpen(true);
+  };
+
+  const openCreateAllergy = () => {
+    openCreate();
+    setForm({ ...initialForm, category: 'ALLERGY' });
   };
 
   const openEdit = (record: MedicalHistoryRecord) => {
@@ -399,7 +412,19 @@ export function MedicalHistoryPanel({
 
   return (
     <div className="space-y-4">
-      <AllergySummaryBanner summary={allergySummary} />
+      {settled ? (
+        <AllergySummaryBanner
+          titleAs="h2"
+          summary={allergySummary}
+          action={
+            canWrite && !loadError && allergyStatusNeedsEntry(allergySummary.state) ? (
+              <Button variant="outline" onClick={openCreateAllergy} className="bg-background">
+                Record allergies
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : null}
       <Card
         className={
           ruled
@@ -410,12 +435,12 @@ export function MedicalHistoryPanel({
         <CardHeader className={ruled ? 'gap-4 px-0 pb-3 pt-4' : 'gap-4'}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Longitudinal medical history</h2>
+              <h2 className="type-section-title">Medical history</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Active information appears first. Prior revisions remain recoverable.
+                Active entries first, allergies at the top. Every earlier version is kept.
               </p>
             </div>
-            {canWrite ? (
+            {canWrite && !loadError ? (
               <Button onClick={openCreate} className="rounded-lg">
                 <Plus className="h-4 w-4" />
                 Add history
@@ -461,20 +486,24 @@ export function MedicalHistoryPanel({
           {offline ? (
             <ChartSectionOffline description="Showing history saved on this device. Pending changes sync automatically once you reconnect." />
           ) : null}
-          {error ? (
+          {loadError ? (
             <ChartSectionError
-              title="Unable to load medical history"
-              description={error}
+              title="Medical history could not be loaded"
+              description={`${loadError} Nothing is listed until it loads, so missing records are never read as none.`}
               onRetry={() => void load()}
             />
           ) : null}
           {loading ? (
             <ChartSectionLoading label="medical history" />
-          ) : visibleRecords.length === 0 ? (
+          ) : loadError ? null : visibleRecords.length === 0 ? (
             <ChartSectionEmpty
               icon={History}
-              title="No matching history records"
-              description="This is an explicit empty state, not a record of no known conditions or allergies."
+              title={offline ? 'No history saved on this device' : 'No matching history records'}
+              description={
+                offline
+                  ? 'This device has no copy of this history. Reconnect to see the full record; this is not a record of no known conditions or allergies.'
+                  : 'This is an explicit empty state, not a record of no known conditions or allergies.'
+              }
             />
           ) : (
             <ul className="space-y-3">
@@ -482,19 +511,26 @@ export function MedicalHistoryPanel({
                 const presentation = statusPresentations[record.currentRevision.status];
                 const StatusIcon = presentation.icon;
                 return (
-                  <li key={record.id} className="rounded-lg border border-border bg-background p-4">
+                  <li key={record.id} className="border-b border-rule py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-semibold">{medicalHistoryLabel(record)}</h3>
-                          <Badge variant={presentation.variant} className="gap-1">
-                            <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                            {presentation.label}
-                          </Badge>
+                          {record.currentRevision.status !== 'ACTIVE' ? (
+                            <Badge variant={presentation.variant} className="gap-1">
+                              <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                              {presentation.label}
+                            </Badge>
+                          ) : null}
                           <Badge variant="outline">{categoryLabels[record.category]}</Badge>
                         </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Updated {new Date(record.updatedAt).toLocaleDateString()} · Revision{' '}
+                        {medicalHistoryDetail(record) ? (
+                          <p className="mt-1.5 text-sm text-foreground">
+                            {medicalHistoryDetail(record)}
+                          </p>
+                        ) : null}
+                        <p className="mt-1.5 text-sm text-muted-foreground">
+                          Updated {formatOpsDay(record.updatedAt)} · Revision{' '}
                           {record.currentRevision.revisionNumber}
                           {record.currentRevision.authoredBy?.displayName
                             ? ` · ${record.currentRevision.authoredBy.displayName}`
@@ -538,7 +574,7 @@ export function MedicalHistoryPanel({
       </Card>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent variant="form" className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Revise history record' : 'Add history record'}</DialogTitle>
             <DialogDescription>
@@ -648,7 +684,7 @@ export function MedicalHistoryPanel({
                     </Badge>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {new Date(revision.createdAt).toLocaleString()}
+                    {formatOpsDateTime(revision.createdAt)}
                     {revision.authoredBy?.displayName
                       ? ` · ${revision.authoredBy.displayName}`
                       : ''}

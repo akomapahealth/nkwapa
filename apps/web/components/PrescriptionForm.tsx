@@ -7,6 +7,7 @@ import { mapServerFieldErrors, mayQueueAfterFailure } from '@/lib/prescription-s
 import { db } from '@/lib/db';
 import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
 import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -294,8 +295,8 @@ export function PrescriptionForm({
   const acknowledgementRequired = requiresPrescriptionAllergyAcknowledgement(allergyState);
 
   return (
-    <div className="space-y-4 rounded-lg border border-border bg-background p-4 sm:p-5">
-      <h3 className="text-base font-semibold">Add prescription</h3>
+    <div className="space-y-4 border-t border-rule pt-4">
+      <h3 className="font-sans text-base font-semibold">Add prescription</h3>
       {notice ? <InlineNotice tone={notice.tone}>{notice.text}</InlineNotice> : null}
 
       <div className="space-y-2">
@@ -446,7 +447,7 @@ export function PrescriptionForm({
           />
           <Label
             htmlFor="prescription-allergy-acknowledgement"
-            className="cursor-pointer text-sm leading-5"
+            className="min-w-0 cursor-pointer break-words text-sm leading-5"
           >
             I reviewed the patient&apos;s allergy status before prescribing.
           </Label>
@@ -458,9 +459,11 @@ export function PrescriptionForm({
       />
       {/* Only `saving` disables this. A control that refuses to work without saying why is
           worse than one that explains the problem when pressed. */}
-      <Button className="w-full sm:w-auto" onClick={handleSave} disabled={saving}>
-        {saving ? 'Saving…' : 'Add prescription'}
-      </Button>
+      <FormActions>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Add prescription'}
+        </Button>
+      </FormActions>
     </div>
   );
 }

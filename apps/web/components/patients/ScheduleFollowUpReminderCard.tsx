@@ -18,6 +18,7 @@ import {
 } from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldError, fieldErrorProps, focusField } from '@/components/ui/field';
 
 interface ScheduledReminder {
   id: string;
@@ -49,6 +50,7 @@ export function ScheduleFollowUpReminderCard({
   const getToken = useAuth();
   const { isOnline } = useSync();
   const [date, setDate] = useState('');
+  const [dateError, setDateError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
     tone: 'success' | 'warning' | 'error';
@@ -78,7 +80,13 @@ export function ScheduleFollowUpReminderCard({
   }
 
   async function schedule() {
-    if (!getToken || !date) return;
+    if (!date) {
+      // MASTER: requiredness is said beside the field, never by a button that will not press.
+      setDateError('Choose the date the patient should return.');
+      focusField('follow-up-reminder-date');
+      return;
+    }
+    if (!getToken) return;
     setBusy(true);
     setResult(null);
     setJustQueued([]);
@@ -135,18 +143,19 @@ export function ScheduleFollowUpReminderCard({
               type="date"
               min={today()}
               value={date}
-              onChange={(event) => setDate(event.target.value)}
+              onChange={(event) => {
+                setDate(event.target.value);
+                setDateError(undefined);
+              }}
               className="w-[200px]"
+              {...fieldErrorProps('follow-up-reminder-date', dateError)}
             />
           </div>
-          <Button
-            type="button"
-            onClick={() => void schedule()}
-            disabled={!date || busy || !isOnline}
-          >
+          <Button type="button" onClick={() => void schedule()} disabled={busy || !isOnline}>
             {busy ? 'Scheduling…' : 'Schedule reminder'}
           </Button>
         </div>
+        <FieldError id="follow-up-reminder-date" message={dateError} />
         {!isOnline ? (
           <p className="text-sm text-muted-foreground">Scheduling a reminder needs a connection.</p>
         ) : null}
@@ -169,7 +178,7 @@ export function ScheduleFollowUpReminderCard({
         ) : null}
         <p className="text-xs text-muted-foreground">
           Scheduled reminders appear in{' '}
-          <Link href="/notifications" className="underline">
+          <Link href="/notifications/delivery" className="underline">
             Message delivery
           </Link>
           .

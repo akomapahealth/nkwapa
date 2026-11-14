@@ -81,6 +81,7 @@ import {
   ShiftCheckOutReplayPayload,
 } from '../ops/dto/ops-replay.dto';
 import { validatePayload } from '../common/validation';
+import { takeBaseUpdatedAt, type OverwriteCheck } from './overwrite-conflict';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
 
 export type { EntityType } from './entity-types';
@@ -93,6 +94,13 @@ export interface RequestMetadata {
 export interface UserWithId {
   user: { id: string };
   roles: ScopedRole[];
+}
+
+/** An applied result; a stale base that replaced someone's newer save is flagged for telemetry. */
+function applied(id: string, overwrote: boolean): SyncMutationResultDto {
+  return overwrote
+    ? { id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED, conflictType: 'CONFLICT_OVERWRITTEN' }
+    : { id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
 }
 
 @Injectable()
@@ -931,15 +939,17 @@ export class SyncService {
     _idempotencyKey: string,
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
-    await this.clinicalMeasurementsService.applyBundle({
+    const { payload: bundle, baseUpdatedAt } = takeBaseUpdatedAt(payload);
+    const { overwrote } = await this.clinicalMeasurementsService.applyBundle({
       clinicId,
       actorUserId,
       user,
       mutation: mut,
-      payload,
+      payload: bundle,
       metadata,
+      baseUpdatedAt,
     });
-    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+    return applied(mut.id, overwrote);
   }
 
   private async applyDiabetesScreeningUpsert(
@@ -953,8 +963,19 @@ export class SyncService {
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('DiabetesScreening payload must include encounterId');
+    const { payload: fields, baseUpdatedAt } = takeBaseUpdatedAt(payload);
+    const syncMutation: {
+      entityType: string;
+      entityId: string;
+      idempotencyKey: string;
+    } & OverwriteCheck = {
+      entityType: mut.entityType,
+      entityId: mut.entityId,
+      idempotencyKey,
+      baseUpdatedAt,
+    };
     const normalized = await this.diabetesScreeningService.validateSyncPayload(
-      payload,
+      fields,
       mut.createdAt ?? new Date().toISOString(),
     );
     await this.diabetesScreeningService.upsert(
@@ -966,17 +987,13 @@ export class SyncService {
         requestId: idempotencyKey,
         ipAddress: metadata?.ipAddress,
         userAgent: metadata?.userAgent,
-        syncMutation: {
-          entityType: mut.entityType,
-          entityId: mut.entityId,
-          idempotencyKey,
-        },
+        syncMutation,
       },
       mut.entityId,
       normalized.compatibility,
     );
 
-    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+    return applied(mut.id, syncMutation.overwrote === true);
   }
 
   /** Replay a glucose-station reading. `entityId` is the screening row's id. */
@@ -1037,8 +1054,19 @@ export class SyncService {
   ): Promise<SyncMutationResultDto> {
     const encounterId = payload.encounterId as string;
     if (!encounterId) throw new Error('HypertensionAssessment payload must include encounterId');
+    const { payload: fields, baseUpdatedAt } = takeBaseUpdatedAt(payload);
+    const syncMutation: {
+      entityType: string;
+      entityId: string;
+      idempotencyKey: string;
+    } & OverwriteCheck = {
+      entityType: mut.entityType,
+      entityId: mut.entityId,
+      idempotencyKey,
+      baseUpdatedAt,
+    };
     const normalized = await this.hypertensionAssessmentService.validateSyncPayload(
-      payload,
+      fields,
       mut.createdAt ?? new Date().toISOString(),
     );
     await this.hypertensionAssessmentService.upsert(
@@ -1050,16 +1078,12 @@ export class SyncService {
         requestId: idempotencyKey,
         ipAddress: metadata?.ipAddress,
         userAgent: metadata?.userAgent,
-        syncMutation: {
-          entityType: mut.entityType,
-          entityId: mut.entityId,
-          idempotencyKey,
-        },
+        syncMutation,
       },
       mut.entityId,
     );
 
-    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+    return applied(mut.id, syncMutation.overwrote === true);
   }
 
   /**

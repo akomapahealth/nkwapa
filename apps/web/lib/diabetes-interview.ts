@@ -14,7 +14,7 @@ import {
   parseDiabetesNutrition,
   serializeDiabetesNutrition,
   type DiabetesNutritionPayload,
-} from '@nkwapa/db';
+} from '@nkwapa/db/diabetes-interview';
 import {
   STORED_UNITS,
   type ClinicUnits,

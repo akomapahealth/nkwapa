@@ -7,5 +7,5 @@ import { redirect } from 'next/navigation';
  * the page that replaced it.
  */
 export default function RemindersRedirectPage() {
-  redirect('/notifications');
+  redirect('/notifications/delivery');
 }

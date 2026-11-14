@@ -29,7 +29,7 @@ export function GlucoseUnitSelect({
       onValueChange={(next) => onChange(next as GlucoseUnit)}
       disabled={disabled}
     >
-      <SelectTrigger aria-label="Glucose unit" className="h-11 w-28 shrink-0">
+      <SelectTrigger aria-label="Glucose unit" className="w-28 shrink-0">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

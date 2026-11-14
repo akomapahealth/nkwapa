@@ -26,14 +26,16 @@ async function createEncounter(page, patientId) {
   const response = await responsePromise;
   expect(response.ok()).toBeTruthy();
   const encounter = await response.json();
-  await expect(page.getByRole('button', { name: 'Continue to Vitals' })).toBeVisible();
-  await page.getByRole('button', { name: 'Continue to Vitals' }).click();
+  await expect(page.getByRole('button', { name: 'Continue to vitals' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue to vitals' }).click();
   return encounter.id;
 }
 
 async function chooseOption(page, label, option) {
   await page.getByLabel(label, { exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
+  // A closing Radix select still owns the page; typing before it unmounts is dropped.
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
 async function fillMeasurements(page) {
@@ -118,7 +120,7 @@ test('expanded vitals save, replay offline, review, finalize, and stay responsiv
   );
   await page.getByRole('button', { name: 'Mark tobacco reviewed' }).click();
   expect((await reviewPush).ok()).toBeTruthy();
-  await expect(page.getByText(/Reviewed \d/)).toBeVisible();
+  await expect(page.getByText(/Reviewed [A-Z][a-z]{2} \d/)).toBeVisible();
 
   await page.getByLabel('Systolic BP (mmHg)').focus();
   await page.keyboard.press('Tab');
@@ -136,9 +138,13 @@ test('expanded vitals save, replay offline, review, finalize, and stay responsiv
     ).toBeFalsy();
   }
 
-  await page.getByRole('button', { name: 'Submit for Review' }).click();
-  await page.getByRole('button', { name: 'Mark Reviewed' }).click();
+  await page.getByRole('button', { name: 'Submit for review' }).click();
+  await page.getByRole('button', { name: 'Mark reviewed' }).click();
   await page.getByRole('button', { name: 'Finalize' }).click();
+  await page
+    .getByRole('dialog', { name: 'Finalize this visit?' })
+    .getByRole('button', { name: 'Finalize visit' })
+    .click();
   await expect(page.getByRole('heading', { name: 'Clinical measurements' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save measurements' })).toHaveCount(0);
   await expect(page.getByText('80 bpm', { exact: true })).toBeVisible();

@@ -10,6 +10,7 @@ import {
 } from '@/lib/patient-duplicates';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { RelativeTime } from '@/components/app-shell/RelativeTime';
 import { MergeUnavailableBadge } from './MergeAvailability';
 
 /**
@@ -31,7 +32,7 @@ export function DuplicatePairCard({
   const precision = describeMatchPrecision(candidate.reasons);
 
   return (
-    <article data-testid="duplicate-pair-card" className="border-b border-border py-4">
+    <article data-testid="duplicate-pair-card" className="border-b border-rule py-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <Badge variant={confidenceBadgeVariant(candidate.confidence)}>
           {DUPLICATE_CONFIDENCE_LABELS[candidate.confidence]}
@@ -62,7 +63,7 @@ export function DuplicatePairCard({
       {/* An approximate name match reads like any other reason in that list. */}
       {precision ? <p className="mt-1 text-sm leading-5 text-warning-ink">{precision}</p> : null}
       <p className="mt-2 text-sm tabular-nums text-muted-foreground">
-        Last updated {candidate.lastUpdatedAt.slice(0, 10)}
+        Last updated <RelativeTime value={candidate.lastUpdatedAt} />
       </p>
       <Button variant="outline" className="mt-4 w-full" onClick={() => onCompare(candidate)}>
         Compare charts

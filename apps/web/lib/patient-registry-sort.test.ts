@@ -29,6 +29,18 @@ describe('registrySortingFromQuery', () => {
     expect(registrySortingFromQuery('name', null)).toEqual([{ id: 'name', desc: false }]);
   });
 
+  it('round-trips the last-visit and code sorts the Sort control writes', () => {
+    for (const id of ['lastVisit', 'patientCode']) {
+      const sorting = [{ id, desc: true }];
+      const query = registrySortQuery(sorting);
+      expect(registrySortingFromQuery(query.sortBy, query.sortDir)).toEqual(sorting);
+    }
+    expect(registrySortQuery([{ id: 'lastVisit', desc: false }])).toEqual({
+      sortBy: 'lastVisitAt',
+      sortDir: 'asc',
+    });
+  });
+
   it('ignores a sort the registry does not offer', () => {
     expect(registrySortingFromQuery('updatedAt', 'desc')).toEqual([]);
     expect(registrySortingFromQuery(null, null)).toEqual([]);

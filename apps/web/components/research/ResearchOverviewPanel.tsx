@@ -24,11 +24,10 @@ import {
 } from '@/lib/research';
 import { ResearchRunKey } from './ResearchRunKey';
 import { EXPORT_STATUS_STYLES } from './research-status';
+import { formatOpsDay, formatOpsDateTime } from '@/lib/ops';
 
-const formatWhen = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-const formatDay = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+const formatWhen = (iso: string) => formatOpsDateTime(iso);
+const formatDay = (iso: string) => formatOpsDay(iso);
 
 /** Why a run is in the queue, in the words the run row also uses. */
 function runReason(run: ResearchExportItem): string {
@@ -70,7 +69,16 @@ export function ResearchOverviewPanel({
       <h2 id="research-overview-title" className="sr-only">
         Readiness
       </h2>
-      <AppMetricGroup className="sm:grid-cols-2 xl:grid-cols-4">
+      <AppMetricGroup>
+        <AppMetricCard
+          title="Pending decisions"
+          value={decisions}
+          tone="attention"
+          icon={ClipboardCheck}
+          onActivate={() => document.getElementById('research-decisions')?.focus()}
+          actionLabel="Review pending export decisions"
+          hint="Runs and schedules listed under Needs a decision."
+        />
         <AppMetricCard
           title="Research"
           value={overview.researchEnabled ? 'On' : 'Off'}
@@ -127,9 +135,15 @@ export function ResearchOverviewPanel({
         </InlineNotice>
       ) : null}
 
-      <RecordSection data-testid="research-decisions">
+      <RecordSection
+        data-testid="research-decisions"
+        id="research-decisions"
+        tabIndex={-1}
+        aria-labelledby="research-decisions-title"
+        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <RecordSectionHeader>
-          <RecordSectionTitle className="flex items-center gap-2">
+          <RecordSectionTitle id="research-decisions-title" className="flex items-center gap-2">
             <ClipboardCheck aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
             Needs a decision
             {decisions > 0 ? <Badge variant="outline">{decisions}</Badge> : null}

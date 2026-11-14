@@ -30,6 +30,16 @@ function setup(env: Record<string, string | undefined> = {}) {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       upsert: jest.fn(),
     },
+    $executeRaw: jest.fn().mockResolvedValue(1),
+    encounter: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ patient: { firstName: 'Kwame', lastName: 'Asante' } }),
+    },
+    staffShift: { findMany: jest.fn().mockResolvedValue([]) },
+    userClinicRole: {
+      findMany: jest.fn().mockResolvedValue([{ userId: 'doc-1' }, { userId: 'actor' }]),
+    },
   };
   const prisma = {
     withSystemContext: jest.fn((_ctx, callback) => callback(client)),
@@ -44,12 +54,75 @@ function setup(env: Record<string, string | undefined> = {}) {
 describe('PushService', () => {
   beforeEach(() => send.mockReset());
 
-  it('is off without both VAPID keys, and sends nothing', () => {
+  it('is off without both VAPID keys: pushes nothing but still files the bell', async () => {
     expect(resolveVapidConfig({ WEB_PUSH_VAPID_PUBLIC_KEY: 'pub' })).toBeNull();
-    const { service, prisma } = setup({ WEB_PUSH_VAPID_PRIVATE_KEY: '' });
+    const { service, client } = setup({ WEB_PUSH_VAPID_PRIVATE_KEY: '' });
     expect(service.enabled).toBe(false);
-    service.notify(['user-1'], { title: 't', url: '/' });
-    expect(prisma.withSystemContext).not.toHaveBeenCalled();
+    service.notify(['user-1'], { title: 't', url: '/', kind: 'MESSAGE' });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(client.pushSubscription.findMany).not.toHaveBeenCalled();
+    expect(client.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('files one row per recipient with the bell wording, never the lock-screen text', async () => {
+    const { service, client } = setup();
+    await service.record(['u1', 'u2'], {
+      title: 'A patient needs urgent review',
+      body: 'Open Nkwapa to see who.',
+      url: '/x',
+      tag: 'health-e1',
+      kind: 'HEALTH_ALERT',
+      clinicId: 'c1',
+      inbox: { title: 'Kwame Asante needs urgent review', body: 'Chest pain.' },
+    });
+    expect(client.$executeRaw).toHaveBeenCalledTimes(2);
+    const values = client.$executeRaw.mock.calls[0].slice(1);
+    expect(values).toEqual(
+      expect.arrayContaining([
+        'u1',
+        'c1',
+        'HEALTH_ALERT',
+        'Kwame Asante needs urgent review',
+        'Chest pain.',
+        '/x',
+        'health-e1',
+      ]),
+    );
+    const sql = (client.$executeRaw.mock.calls[0][0] as string[]).join('?');
+    expect(sql).toContain('ON CONFLICT ("userId", "tag") WHERE "readAt" IS NULL');
+  });
+
+  it('alerts the clinic doctors, not the recorder, only for findings the save added', async () => {
+    const { service, client } = setup({ WEB_PUSH_VAPID_PRIVATE_KEY: '' });
+    const base = {
+      clinicId: 'c1',
+      encounterId: 'e1',
+      actorUserId: 'actor',
+      labels: { A: 'Chest pain', B: 'Fainting' },
+    };
+    service.alertOnNewFindings({ ...base, before: ['A'], after: ['A'] });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(client.encounter.findUnique).not.toHaveBeenCalled();
+
+    service.alertOnNewFindings({ ...base, before: ['A'], after: ['A', 'B'] });
+    for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
+    expect(client.$executeRaw).toHaveBeenCalledTimes(1);
+    const values = client.$executeRaw.mock.calls[0].slice(1);
+    expect(values).toEqual(expect.arrayContaining(['doc-1', 'Kwame Asante needs urgent review']));
+    expect(values).not.toContain('actor');
+    expect(values.join(' ')).toContain('Chest pain. Fainting.');
+  });
+
+  it('never sends the bell wording to a device', async () => {
+    const { service } = setup();
+    send.mockResolvedValue({ statusCode: 201, body: '', headers: {} });
+    await service.deliver(['user-1'], {
+      title: 'A patient needs urgent review',
+      url: '/x',
+      kind: 'HEALTH_ALERT',
+      inbox: { title: 'Kwame Asante needs urgent review' },
+    });
+    expect(String(send.mock.calls[0][1])).not.toContain('Kwame');
   });
 
   it('drops subscriptions the push service says are gone and stamps the rest', async () => {
@@ -60,7 +133,11 @@ describe('PushService', () => {
       return { statusCode: 201, body: '', headers: {} };
     });
 
-    await service.deliver(['user-1'], { title: 'New message from Ama', url: '/dashboard' });
+    await service.deliver(['user-1'], {
+      title: 'New message from Ama',
+      url: '/dashboard',
+      kind: 'MESSAGE',
+    });
 
     expect(send).toHaveBeenCalledTimes(3);
     const [, payload, options] = send.mock.calls[0];
@@ -82,7 +159,7 @@ describe('PushService', () => {
   it('treats 404 as gone too', async () => {
     const { service, client } = setup();
     send.mockRejectedValue(gone(404));
-    await service.deliver(['user-1'], { title: 't', url: '/' });
+    await service.deliver(['user-1'], { title: 't', url: '/', kind: 'MESSAGE' });
     expect(client.pushSubscription.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ['live', 'expired', 'flaky'] } },
     });
@@ -93,7 +170,11 @@ describe('PushService', () => {
     const { service, client, prisma } = setup();
     client.pushSubscription.findMany.mockRejectedValue(new Error('db down'));
     expect(() =>
-      service.notify(['user-1', null, 'user-1', undefined], { title: 't', url: '/' }),
+      service.notify(['user-1', null, 'user-1', undefined], {
+        title: 't',
+        url: '/',
+        kind: 'MESSAGE',
+      }),
     ).not.toThrow();
     await new Promise((resolve) => setImmediate(resolve));
     expect(prisma.detachFromRlsContext).toHaveBeenCalled();

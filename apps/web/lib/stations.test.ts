@@ -7,6 +7,7 @@ import {
   isStationBoard,
   moveStation,
   minutesSince,
+  ageInYears,
   performerLabel,
   screenerFromName,
   screenersByUser,
@@ -239,5 +240,18 @@ describe('describePerformerCorrection (#307)', () => {
     expect(
       describePerformerCorrection({ ...correction, reason: null }, () => 'then').reason,
     ).toBeNull();
+  });
+});
+
+describe('ageInYears', () => {
+  const now = new Date('2026-11-11T10:40:00Z');
+  it('counts whole years, before and on the birthday', () => {
+    expect(ageInYears('1980-11-12', now)).toBe(45);
+    expect(ageInYears('1980-11-11', now)).toBe(46);
+    expect(ageInYears('1980-11-11T00:00:00.000Z', now)).toBe(46);
+  });
+  it('is null without a usable date', () => {
+    expect(ageInYears(null, now)).toBeNull();
+    expect(ageInYears('unknown', now)).toBeNull();
   });
 });

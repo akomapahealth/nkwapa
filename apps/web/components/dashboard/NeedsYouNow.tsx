@@ -5,8 +5,10 @@ import { CheckCircle, ClipboardList, Eye, FileEdit, ListOrdered } from 'lucide-r
 import { AppActionRow, type AppActionRowProps } from '@/components/app-shell/AppActionRow';
 import { Button } from '@/components/ui/button';
 import { describeWorkItems, type DashboardWorkItem } from '@/lib/dashboard-work-items';
+import styles from './volunteer-welcome.module.css';
 
 interface NeedsYouNowProps {
+  steps?: boolean;
   volunteer?: {
     patientsRegisteredToday: number;
     encountersCreatedToday: number;
@@ -24,8 +26,10 @@ interface NeedsYouNowProps {
    * (`DashboardData.summary`) and, for managers and directors, its pending HAP cosigns.
    */
   clinic?: { pendingReview: number; readyToFinalize: number; pendingClinicalNoteCosigns?: number };
-  /** Where this person's next patient is: their station, Today Board or My Assigned. */
+  /** Where this person's next patient is: their station, Today board or My assigned. */
   worklistHref: string | null;
+  /** "Needs attention" on a manager's home, where the rows are the clinic's, not theirs. */
+  title?: string;
 }
 
 const WORKLIST_LABELS: Record<string, { title: string; detail: string; action: string }> = {
@@ -36,13 +40,13 @@ const WORKLIST_LABELS: Record<string, { title: string; detail: string; action: s
   },
   '/my/assigned': {
     title: 'See the patients assigned to you',
-    detail: 'Your next tasks, in order, are on My Assigned.',
-    action: 'Open My Assigned',
+    detail: 'Your next tasks, in order, are on My assigned.',
+    action: 'Open My assigned',
   },
   '/today': {
     title: "Check today's arrivals",
-    detail: 'Check-ins and assignments for this clinic are on the Today Board.',
-    action: 'Open Today Board',
+    detail: 'Check-ins and assignments for this clinic are on the Today board.',
+    action: 'Open Today board',
   },
 };
 
@@ -50,16 +54,10 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 type Row = Omit<AppActionRowProps, 'action'> & { href?: string; label?: string };
 
-/**
- * The first thing on every staff dashboard: the work waiting on this person, one ruled row per
- * kind with one action (MASTER.md section 12). Volunteers and doctors see their own queues;
- * managers, directors and administrators see where the clinic's queues are held up. A person's
- * own drafts and sign-offs name the oldest few patients and their station (#307), for someone
- * who can read patient records; clinic-wide rows stay counts.
- */
-export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }: NeedsYouNowProps) {
-  if (!volunteer && !doctor && !review && !clinic) return null;
+type WorkInputs = Omit<NeedsYouNowProps, 'steps' | 'title'>;
 
+/** The rows of waiting work for these inputs; shared by Needs you now and Also on your plate. */
+export function workRows({ volunteer, doctor, review, clinic, worklistHref }: WorkInputs): Row[] {
   const rows: Row[] = [];
   const worklist = worklistHref ? WORKLIST_LABELS[worklistHref] : undefined;
   if (volunteer && worklist && worklistHref) {
@@ -146,11 +144,33 @@ export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }:
     });
   }
 
+  return rows;
+}
+
+/**
+ * The first thing on every staff dashboard: the work waiting on this person, one ruled row per
+ * kind with one action (MASTER.md section 12). Volunteers and doctors see their own queues;
+ * managers, directors and administrators see where the clinic's queues are held up. A person's
+ * own drafts and sign-offs name the oldest few patients and their station (#307), for someone
+ * who can read patient records; clinic-wide rows stay counts.
+ */
+export function NeedsYouNow({
+  volunteer,
+  doctor,
+  review,
+  clinic,
+  worklistHref,
+  steps = false,
+  title = 'Needs you now',
+}: NeedsYouNowProps) {
+  if (!volunteer && !doctor && !review && !clinic) return null;
+  const rows = workRows({ volunteer, doctor, review, clinic, worklistHref });
+
   return (
     <section aria-labelledby="needs-you-now" className="border-t-2 border-rule-strong pt-4">
       <div className="flex items-baseline gap-2">
         <h2 id="needs-you-now" className="type-section-title text-foreground">
-          Needs you now
+          {title}
         </h2>
         {rows.length ? (
           <span className="type-body tabular-nums text-muted-foreground">
@@ -174,14 +194,14 @@ export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }:
         </p>
       ) : null}
       {rows.length ? (
-        <ul className="mt-1">
+        <ul className={steps ? styles.nextSteps : 'mt-1'}>
           {rows.map(({ href, label, ...row }) => (
             <AppActionRow
               key={row.title}
               {...row}
               action={
                 href ? (
-                  <Button asChild variant="outline" className="min-h-11">
+                  <Button asChild variant="outline">
                     <Link href={href}>{label}</Link>
                   </Button>
                 ) : undefined
@@ -194,6 +214,44 @@ export function NeedsYouNow({ volunteer, doctor, review, clinic, worklistHref }:
           Nothing is waiting on you right now.
         </p>
       )}
+    </section>
+  );
+}
+
+/**
+ * The work a person's other roles hold, under their main role's home (W2 owner decision): one
+ * line per kind, a count and one link, never that role's full section.
+ */
+export function AlsoOnYourPlate({ rows }: { rows: Row[] }) {
+  if (!rows.length) return null;
+  return (
+    <section aria-labelledby="also-on-your-plate" className="border-t-2 border-rule-strong pt-4">
+      <h2 id="also-on-your-plate" className="type-section-title text-foreground">
+        Also on your plate
+      </h2>
+      <ul className="mt-1">
+        {rows.map(({ title, href, label }) => (
+          <li
+            key={title}
+            className="type-body flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-rule py-3"
+          >
+            <span className="text-foreground">{title}</span>
+            {href ? (
+              <>
+                <span aria-hidden="true" className="text-muted-foreground">
+                  ·
+                </span>
+                <Link
+                  href={href}
+                  className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline sm:min-h-0"
+                >
+                  {label}
+                </Link>
+              </>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
