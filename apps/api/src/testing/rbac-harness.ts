@@ -1,6 +1,7 @@
 import { ExecutionContext } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import {
+  STAFF_AGREEMENT,
   TENANT_CLINICS,
   TENANT_CROSS_CLINIC_USERS,
   TENANT_SYSTEM_ADMIN,
@@ -20,7 +21,7 @@ import {
  */
 
 export interface TestActor {
-  user: { id: string };
+  user: { id: string; staffAgreementVersion?: number | null };
   roles: Array<{ clinicId: string | null; role: UserRole }>;
 }
 
@@ -48,7 +49,9 @@ export const CLINICAL_ROLES: readonly UserRole[] = [
 ];
 
 export function actor(id: string, roles: TestActor['roles']): TestActor {
-  return { user: { id }, roles };
+  // Every test actor has signed the confidentiality agreement (#330); rbac.guard.spec covers one
+  // who has not.
+  return { user: { id, staffAgreementVersion: STAFF_AGREEMENT.version }, roles };
 }
 
 /** A user holding exactly one role at one clinic. */

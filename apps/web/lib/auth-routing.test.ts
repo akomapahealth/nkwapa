@@ -160,6 +160,9 @@ describe('the name step (#225)', () => {
 
   it('holds a staff member without a name on the name page', () => {
     expect(getOnboardingPath(UNNAMED)).toBe('/account/name');
+    expect(getOnboardingPath({ ...UNNAMED, onboarding: { state: 'AGREEMENT_REQUIRED' } })).toBe(
+      '/account/agreement',
+    );
     expect(getDefaultWorkspacePath(UNNAMED)).toBe('/account/name');
   });
 

@@ -29,3 +29,16 @@ describe('journeyProgress', () => {
     expect(journeyProgress(journeySteps('patient'), 'name').current).toBe(0);
   });
 });
+
+describe('the agreement step (#330)', () => {
+  it('is listed only for roles that must sign, after the name', () => {
+    expect(journeySteps('staff').map((step) => step.id)).not.toContain('agreement');
+    expect(journeySteps('staff', { needsAgreement: true }).map((step) => step.id)).toEqual([
+      'password',
+      'accept',
+      'name',
+      'agreement',
+      'start',
+    ]);
+  });
+});

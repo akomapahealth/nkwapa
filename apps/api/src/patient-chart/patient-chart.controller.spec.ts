@@ -2,6 +2,7 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
+import { STAFF_AGREEMENT } from '@nkwapa/db';
 import { PatientChartController } from './patient-chart.controller';
 import { PatientChartService } from './patient-chart.service';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
@@ -38,7 +39,7 @@ function createExecutionContext(
 }
 
 const userWith = (id: string, roles: Array<{ clinicId: string | null; role: UserRole }>) => ({
-  user: { id },
+  user: { id, staffAgreementVersion: STAFF_AGREEMENT.version },
   roles,
 });
 

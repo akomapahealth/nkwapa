@@ -427,6 +427,7 @@ export {
 export * from './src/hypertension-interview';
 export * from './src/diabetes-interview';
 export * from './src/medication-adherence';
+export * from './src/staff-agreement';
 export {
   MIDDLE_INITIAL_MESSAGE,
   STAFF_NAME_MAX_LENGTH,

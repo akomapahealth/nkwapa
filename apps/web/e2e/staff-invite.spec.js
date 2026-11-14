@@ -108,6 +108,16 @@ async function acceptVolunteerSeat(page) {
     .click();
 }
 
+/** Sign the confidentiality agreement a new volunteer is held on (#330). */
+async function signAgreement(page, fullName) {
+  await page.waitForURL(/\/account\/agreement/, { timeout: 60_000 });
+  await expect(page.getByRole('heading', { name: 'Confidentiality agreement' })).toBeVisible();
+  await page.getByRole('checkbox', { name: /i have read and understood/i }).click();
+  await page.getByLabel(/type your full name to sign/i).fill(fullName);
+  await page.getByRole('button', { name: 'Sign and continue' }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+}
+
 /** The name the header's user menu shows for the signed-in person. */
 async function expectMenuName(page, displayName) {
   await page.getByRole('button', { name: 'User menu' }).click();
@@ -206,11 +216,37 @@ test('the name step holds them until they save, then lets them in', async () => 
   await expect(inviteePage.getByText('Ama K. Mensah')).toBeVisible();
   await inviteePage.getByRole('button', { name: 'Save and continue' }).click();
   await expect(inviteePage.getByText('Saved', { exact: true })).toBeVisible({ timeout: 30_000 });
-  // Back to where they were headed when the step stopped them.
-  await inviteePage.waitForURL(/\/patients/, { timeout: 60_000 });
+  // A volunteer signs the confidentiality agreement before anything else opens (#330).
+  await inviteePage.waitForURL(/\/account\/agreement/, { timeout: 60_000 });
+});
+
+test('the agreement holds a volunteer until they sign with their own name', async () => {
+  await expect(inviteePage.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await inviteePage.goto('/patients');
+  await inviteePage.waitForURL(/\/account\/agreement/, { timeout: 30_000 });
+
+  // Nothing is signed without the tick, or with someone else's name.
+  await inviteePage.getByRole('button', { name: 'Sign and continue' }).click();
+  await expect(inviteePage.getByText(/tick the box to confirm/i)).toBeVisible();
+  await inviteePage.getByRole('checkbox', { name: /i have read and understood/i }).click();
+  await inviteePage.getByLabel(/type your full name to sign/i).fill('Kofi Mensah');
+  await inviteePage.getByRole('button', { name: 'Sign and continue' }).click();
+  await expect(
+    inviteePage.getByText(/type your name as it appears on your account/i),
+  ).toBeVisible();
+
+  await inviteePage.getByLabel(/type your full name to sign/i).fill('ama mensah');
+  await inviteePage.getByRole('button', { name: 'Sign and continue' }).click();
+  await inviteePage.waitForURL(/\/dashboard/, { timeout: 60_000 });
   // A brand-new account meets the welcome tour on its first workspace page.
   await skipWelcomeTour(inviteePage);
   await expectMenuName(inviteePage, 'Ama K. Mensah');
+  // Signed once: the account page says when, and the step does not come back.
+  await inviteePage.goto('/account');
+  await expect(inviteePage.getByText(/confidentiality agreement signed on/i)).toBeVisible();
+  // Leave the workspace as the next test expects to find it: it opens /account from the menu,
+  // and already being there lets it type while that menu is still closing.
+  await inviteePage.goto('/dashboard');
 });
 
 test('invitations keep status and search on separate tablet rows', async ({ page }) => {
@@ -298,7 +334,7 @@ test('an invitation that carries a name goes straight in', async ({ page, browse
   try {
     await completeAccountSetup(named, NAMED_EMAIL);
     await acceptVolunteerSeat(named);
-    await named.waitForURL(/\/dashboard/, { timeout: 60_000 });
+    await signAgreement(named, 'Kofi Boateng');
     await skipWelcomeTour(named);
     await expectMenuName(named, 'Kofi A. Boateng');
   } finally {
