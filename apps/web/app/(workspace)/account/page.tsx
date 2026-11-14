@@ -32,6 +32,7 @@ import {
 } from '@/lib/account-name';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { STAFF_AGREEMENT_PATH } from '@/lib/auth-routing';
 import { useBootstrap, type WhoAmIResponse } from '@/lib/bootstrap-context';
 import { formatRoleLabel } from '@/lib/ops';
 import { welcomeTourAudience } from '@/lib/welcome-tour';
@@ -181,6 +182,20 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
           <p className="text-xs leading-5 text-muted-foreground">
             Roles are granted by a clinic administrator.
           </p>
+          {bootstrap.staffAgreement?.acceptedAt ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Confidentiality agreement signed on{' '}
+              {new Date(bootstrap.staffAgreement.acceptedAt).toLocaleDateString(undefined, {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+              .{' '}
+              <Link href={STAFF_AGREEMENT_PATH} className="font-medium text-primary underline">
+                Read it again
+              </Link>
+            </p>
+          ) : null}
         </section>
       </RecordSectionContent>
     </RecordSection>

@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { getNotificationState, syncPushSubscription } from '@/lib/browser-notifications';
 import {
   ACCOUNT_NAME_PATH,
+  STAFF_AGREEMENT_PATH,
   STAFF_INVITE_ACCEPT_PATH,
   buildAccountNameHref,
   buildLoginHref,
@@ -109,7 +110,10 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     settings sit in the portal, not in a staff sidebar they cannot use (#206).
   */
   const isAccountPage =
-    pathname === '/settings' || pathname === '/account' || pathname === ACCOUNT_NAME_PATH;
+    pathname === '/settings' ||
+    pathname === '/account' ||
+    pathname === ACCOUNT_NAME_PATH ||
+    pathname === STAFF_AGREEMENT_PATH;
   const isPortal =
     pathname?.startsWith('/portal') ||
     (isAccountPage && getDefaultWorkspacePath(bootstrap) === '/portal');
@@ -120,7 +124,8 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   const isOnboardingRoute =
     pathname === '/claim-record' ||
     pathname === STAFF_INVITE_ACCEPT_PATH ||
-    (pathname === ACCOUNT_NAME_PATH && onboardingPath === ACCOUNT_NAME_PATH);
+    (pathname === ACCOUNT_NAME_PATH && onboardingPath === ACCOUNT_NAME_PATH) ||
+    (pathname === STAFF_AGREEMENT_PATH && onboardingPath === STAFF_AGREEMENT_PATH);
   const isDisabledAccount = bootstrapCtx?.errorCode === 'USER_DISABLED';
 
   if (isLoginRoute) {

@@ -189,7 +189,7 @@ describe('the bootstrap contract carries zone as context only', () => {
       patientPortalInvite: { findMany: jest.fn().mockResolvedValue([]) },
       staffInvite: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const controller = new AuthController(clinicService as never, prisma as never);
+    const controller = new AuthController(clinicService as never, prisma as never, {} as never);
 
     const response = await controller.whoami({
       user: {

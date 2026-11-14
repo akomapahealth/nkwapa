@@ -58,6 +58,7 @@ export interface WhoAmIResponse {
   onboarding:
     | { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
     | { state: 'NAME_REQUIRED' }
+    | { state: 'AGREEMENT_REQUIRED' }
     | {
         state: 'PATIENT_CLAIM_REQUIRED';
         pendingInvites: Array<{
@@ -79,6 +80,11 @@ export interface WhoAmIResponse {
    * still parses; the tour is simply not offered then.
    */
   welcomeTour?: { completedVersion: number | null };
+  /**
+   * The confidentiality agreement (#330). Optional so an older API still parses; nobody is then
+   * held on the agreement step.
+   */
+  staffAgreement?: { required: boolean; signedVersion: number | null; acceptedAt: string | null };
   /**
    * The person's own name (#225). Optional so an older API still parses; nobody is then held on
    * the name step.

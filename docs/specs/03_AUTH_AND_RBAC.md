@@ -324,6 +324,15 @@ It returns:
   role but has no first or last name gets `NAME_REQUIRED` and is held on `/account/name` (#225)
 - the user's own name (`profile`): `needsName`, `firstName`, `middleInitial`, `lastName` and
   `email`, so the name step can prefill. `needsName` is never true for a patient-only account
+- the confidentiality agreement (`staffAgreement`): `required`, `signedVersion`, `acceptedAt`. An
+  account holding a role listed in `AGREEMENT_REQUIRED_ROLES` (`packages/db/src/staff-agreement.ts`,
+  VOLUNTEER today) that has not signed the current version gets `AGREEMENT_REQUIRED`, after the name
+  step, and is held on `/account/agreement` (#330). The web redirect is not the boundary:
+  `RbacGuard` refuses every permissioned route with `403 AGREEMENT_REQUIRED` until
+  `POST /auth/agreement` records the signature. Each signature is one append-only
+  `StaffAgreementAcceptance` row (version, SHA-256 of the text, typed name, roles, time) plus a
+  `STAFF_AGREEMENT.ACCEPT` audit event. Changing the text means bumping its `version`, which asks
+  everyone to sign again; adding a role to the list asks that role
 
 A clinic's zone rides along so a single-clinic view can name the zone it is showing. It appears
 beside a clinic and nowhere else: never in effective roles, never in effective permissions.

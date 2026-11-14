@@ -1,3 +1,4 @@
+import { requiresStaffAgreement } from '@nkwapa/db';
 import {
   Injectable,
   ForbiddenException,
@@ -1064,6 +1065,11 @@ export class AdminService {
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
+      // Holds a role that must sign the confidentiality agreement and has not yet (#330).
+      agreementPending: requiresStaffAgreement(
+        user.clinicRoles.map((entry) => entry.role),
+        user.staffAgreementVersion,
+      ),
       globalRoles,
       clinicMemberships,
       patientPortal,
@@ -1100,6 +1106,11 @@ export class AdminService {
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
+      // Holds a role that must sign the confidentiality agreement and has not yet (#330).
+      agreementPending: requiresStaffAgreement(
+        user.clinicRoles.map((entry) => entry.role),
+        user.staffAgreementVersion,
+      ),
       clinicRoles,
       globalRoles,
       otherClinicCount,

@@ -108,6 +108,8 @@ interface ClinicRosterRow {
   lastName: string | null;
   email: string | null;
   isActive: boolean;
+  /** Must sign the confidentiality agreement and has not yet (#330). */
+  agreementPending?: boolean;
   createdAt?: string;
   updatedAt?: string;
   clinicRoles: RoleName[];
@@ -129,6 +131,7 @@ interface AllUsersRow {
   lastName: string | null;
   email: string | null;
   isActive: boolean;
+  agreementPending?: boolean;
   createdAt: string;
   updatedAt: string;
   globalRoles: RoleName[];
@@ -159,6 +162,8 @@ interface StaffAccessRow {
   lastName: string | null;
   email: string | null;
   isActive: boolean;
+  /** Must sign the confidentiality agreement and has not yet (#330). */
+  agreementPending?: boolean;
   createdAt?: string;
   updatedAt?: string;
   clinicRoles: RoleName[];
@@ -318,6 +323,7 @@ function normalizeClinicRow(row: ClinicRosterRow, clinicId: string, clinicName: 
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,
+    agreementPending: row.agreementPending,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     clinicRoles: row.clinicRoles,
@@ -359,6 +365,7 @@ function normalizeAllUsersRow(
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,
+    agreementPending: row.agreementPending,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     clinicRoles,
@@ -720,6 +727,9 @@ export default function AdminUsersPage() {
             <Badge variant={statusBadgeVariant(row.isActive)}>
               {row.isActive ? 'Active' : 'Deactivated'}
             </Badge>
+            {row.isActive && row.agreementPending ? (
+              <Badge variant="outline">Agreement not signed</Badge>
+            ) : null}
             {/* Only the states someone has to act on; a quiet row stays quiet. */}
             {identity && identity.variant !== 'finalized' ? (
               <Badge variant={identity.variant} title={identity.detail}>
@@ -1297,6 +1307,9 @@ export default function AdminUsersPage() {
                       <Badge variant={statusBadgeVariant(row.isActive)}>
                         {row.isActive ? 'Active' : 'Deactivated'}
                       </Badge>
+                      {row.isActive && row.agreementPending ? (
+                        <Badge variant="outline">Agreement not signed</Badge>
+                      ) : null}
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -1532,6 +1545,9 @@ export default function AdminUsersPage() {
                   <Badge variant={statusBadgeVariant(selectedUser.isActive)}>
                     {selectedUser.isActive ? 'Active' : 'Deactivated'}
                   </Badge>
+                  {selectedUser.isActive && selectedUser.agreementPending ? (
+                    <Badge variant="outline">Agreement not signed</Badge>
+                  ) : null}
                 </RecordSectionContent>
                 {/*
                   The sign-in identity, as its own fact. The account state above is written here

@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
+import { STAFF_AGREEMENT } from '@nkwapa/db';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
@@ -40,6 +41,7 @@ const mockUserWithRoles = {
     email: 'test@example.com',
     phoneE164: null,
     isActive: true,
+    staffAgreementVersion: STAFF_AGREEMENT.version,
     createdAt: new Date(),
     updatedAt: new Date(),
   },

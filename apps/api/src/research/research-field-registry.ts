@@ -173,6 +173,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
     "A browser's Web Push endpoint and keys (#250): delivery plumbing for staff and portal logins.",
   InboxNotification:
     "A person's in-app notifications: short operational text addressed to one staff member.",
+  StaffAgreementAcceptance:
+    "A staff member's signature on the confidentiality agreement (#330): about staff, never a patient.",
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
   ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",

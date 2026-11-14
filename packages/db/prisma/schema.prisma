@@ -1011,8 +1011,13 @@ model User {
 
   /// The welcome tour version this person last finished or skipped; null if never. The web app
   /// shows the tour while this is below its current version, so a changed tour can be re-offered.
-  welcomeTourVersion     Int?
-  welcomeTourCompletedAt DateTime?
+  welcomeTourVersion       Int?
+  welcomeTourCompletedAt   DateTime?
+  /// The confidentiality agreement version this person last signed (#330); null if never. A copy
+  /// of the newest StaffAgreementAcceptance row, kept here because authentication reads this row
+  /// before any row level security context exists.
+  staffAgreementVersion    Int?
+  staffAgreementAcceptedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1050,6 +1055,7 @@ model User {
   idempotencyRecords              IdempotencyRecord[]
   pushSubscriptions               PushSubscription[]
   inboxNotifications              InboxNotification[]
+  staffAgreementAcceptances       StaffAgreementAcceptance[]
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
   createdStaffInvites             StaffInvite[]                   @relation("StaffInviteCreatedBy")
@@ -2886,6 +2892,29 @@ model InboxNotification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, updatedAt])
+}
+
+/// One signature on one version of a staff agreement (#330). Append-only: the application role
+/// may insert and read its own rows, never change or delete them, and they outlive deactivation.
+model StaffAgreementAcceptance {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  /// Which document, e.g. STAFF_CONFIDENTIALITY.
+  agreementKey   String   @db.VarChar(60)
+  version        Int
+  /// SHA-256 of the exact text shown, tying the signature to the wording.
+  textSha256     String   @db.Char(64)
+  /// The name the person typed as their signature.
+  signedName     String   @db.VarChar(250)
+  /// Staff roles held at signing.
+  rolesAtSigning String[]
+  acceptedAt     DateTime @default(now())
+  ipAddress      String?  @db.VarChar(64)
+  userAgent      String?  @db.VarChar(400)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, agreementKey, version])
 }
 
 model Conversation {
