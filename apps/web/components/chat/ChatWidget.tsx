@@ -41,6 +41,8 @@ function ChatPanel() {
   const router = useRouter();
   // A conversation a notification asked for, opened once the list has it.
   const [requestedId, setRequestedId] = useState<string | null>(null);
+  // A person someone asked to message, e.g. the administrator who changed their access (#329).
+  const [requestedUserId, setRequestedUserId] = useState<string | null>(null);
 
   const handleOpenConversation = useCallback((conv: ChatConversationType) => {
     setActiveConversation(conv);
@@ -57,8 +59,10 @@ function ChatPanel() {
       window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
     }
     const onOpenChat = (event: Event) => {
-      const id = (event as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
-      if (id) setRequestedId(id);
+      const detail = (event as CustomEvent<{ conversationId?: string; participantUserId?: string }>)
+        .detail;
+      if (detail?.conversationId) setRequestedId(detail.conversationId);
+      if (detail?.participantUserId) setRequestedUserId(detail.participantUserId);
     };
     const onWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type === NOTIFICATION_CLICK_MESSAGE && typeof event.data.url === 'string') {
@@ -81,6 +85,17 @@ function ChatPanel() {
     handleOpenConversation(conv);
     setRequestedId(null);
   }, [requestedId, chat?.conversations, handleOpenConversation]);
+
+  useEffect(() => {
+    if (!requestedUserId || !chat) return;
+    setRequestedUserId(null);
+    setIsOpen(true);
+    chat
+      .startConversation(requestedUserId)
+      .then(handleOpenConversation)
+      // They may not be reachable from this clinic; the picker lists who is.
+      .catch(() => setView('new-message'));
+  }, [requestedUserId, chat, handleOpenConversation]);
 
   const handleUserSelect = useCallback(
     async (user: ChatUser) => {

@@ -409,6 +409,80 @@ describe('AdminService', () => {
     );
   });
 
+  describe('in-app access change notices (#329)', () => {
+    const withPush = () => {
+      const made = createService();
+      const push = { notify: jest.fn() };
+      const service = new AdminService(
+        made.prisma as never,
+        made.auditService as never,
+        made.reminderService as never,
+        made.identitySync as never,
+        made.userProfileService as never,
+        push as never,
+      );
+      return { ...made, push, service };
+    };
+
+    it('tells the person, names who did it, and audits a direct grant', async () => {
+      const { prisma, auditService, push, service } = withPush();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'user-9', displayName: 'Ama' }));
+      prisma.userClinicRole.findFirst.mockResolvedValue(null);
+      prisma.userClinicRole.create.mockResolvedValue(
+        buildRoleEntry({ id: 'r-9', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+      );
+      prisma.clinic.findUnique.mockResolvedValue({ name: 'Cape Coast Clinic' });
+
+      await service.assignRole(systemAdminActor, 'user-9', 'clinic-1', UserRole.DOCTOR);
+
+      expect(push.notify).toHaveBeenCalledWith(['user-9'], {
+        kind: 'ACCESS_CHANGE',
+        // No clinic: the bell hides notices about a clinic the reader holds no role at.
+        clinicId: null,
+        url: `/account?changedBy=${systemAdminActor.userId}`,
+        title: 'You now have the Doctor role at Cape Coast Clinic',
+        body: 'Added by Ama. Open Nkwapa to see what you can do now.',
+      });
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'ROLE.GRANT', entityId: 'r-9', clinicId: 'clinic-1' }),
+      );
+    });
+
+    it('stays silent when the role was already held', async () => {
+      const { prisma, auditService, push, service } = withPush();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'user-9' }));
+      prisma.userClinicRole.findFirst.mockResolvedValue(
+        buildRoleEntry({ id: 'r-9', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+      );
+
+      await service.assignRole(systemAdminActor, 'user-9', 'clinic-1', UserRole.DOCTOR);
+
+      expect(push.notify).not.toHaveBeenCalled();
+      expect(auditService.logWrite).not.toHaveBeenCalled();
+    });
+
+    it('tells the person when a role is removed, still with no clinic on the notice', async () => {
+      const { prisma, push, service } = withPush();
+      prisma.userClinicRole.findFirst.mockResolvedValue({
+        ...buildRoleEntry({ id: 'role-1', clinicId: 'clinic-1', role: UserRole.VOLUNTEER }),
+        clinic: { name: 'Cape Coast Clinic' },
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'x', email: null, displayName: 'Kofi' });
+
+      await service.revokeClinicRole(managerActor, 'clinic-1', 'vol-1', UserRole.VOLUNTEER);
+
+      expect(push.notify).toHaveBeenCalledWith(
+        ['vol-1'],
+        expect.objectContaining({
+          kind: 'ACCESS_CHANGE',
+          clinicId: null,
+          title: 'Your Volunteer role at Cape Coast Clinic was removed',
+          body: 'Removed by Kofi. If this is a mistake, message them or another administrator.',
+        }),
+      );
+    });
+  });
+
   describe('staff lifecycle notifications', () => {
     it('emails a staff member when they are granted clinic access', async () => {
       const { prisma, reminderService, service } = createService();

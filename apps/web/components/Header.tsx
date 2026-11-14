@@ -58,6 +58,7 @@ import {
   UserPen,
 } from 'lucide-react';
 import { WelcomeTour } from '@/components/onboarding/WelcomeTour';
+import { AccessChangeNotice } from '@/components/account/AccessChangeNotice';
 import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
@@ -516,6 +517,7 @@ export function Header({
       </div>
       {/* Here because both the workspace and the portal render this header. */}
       <WelcomeTour />
+      <AccessChangeNotice />
       <InstallInstructionsDialog />
     </header>
   );

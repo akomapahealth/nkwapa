@@ -339,6 +339,28 @@ beside a clinic and nowhere else: never in effective roles, never in effective p
 
 Frontend navigation and clinic switching are driven from this response.
 
+### Telling Someone Their Access Changed
+
+When an administrator grants or removes a staff role, the person is told in the app (#329). The
+existing role emails are unchanged; this is in addition to them.
+
+- `AdminService` files an `ACCESS_CHANGE` inbox notification and a push for every direct grant,
+  every revocation and the per-clinic role removal in `deactivateUserInClinic`, naming the role, the
+  clinic and the administrator. A grant of a role already held announces nothing. A role taken up
+  by accepting an invitation announces nothing either: the person did that themselves.
+- The notification is filed with no clinic. The bell hides notifications about a clinic the reader
+  holds no role at, which is the state a revocation leaves them in.
+- A direct grant writes a `ROLE.GRANT` audit event, as revocations and invitation accepts already
+  did.
+- The web app shows an unread `ACCESS_CHANGE` once as a dialog ("Your access has changed") on the
+  next page load, with what the person can now do at their active clinic. It reloads `whoami`
+  when the notice arrives, so navigation and permission checks follow without a manual refresh.
+  Dismissing it marks the notification read. "This is a mistake, message them" opens a chat with
+  the administrator who made the change, and is offered only while the person can still chat.
+- Someone who has lost every role still sees the dialog, which says they have no access left.
+- What a role lets someone do is described by `accessPoints()` in `apps/web/lib/access-summary.ts`,
+  chosen by permission like the sidebar, and shared with the welcome tour and the account page.
+
 ---
 
 ## Patient Access And Onboarding

@@ -1,6 +1,7 @@
 import { requiresStaffAgreement } from '@nkwapa/db';
 import {
   Injectable,
+  Optional,
   ForbiddenException,
   BadRequestException,
   NotFoundException,
@@ -10,6 +11,7 @@ import { Prisma, UserRole } from '@prisma/client';
 import { hasPermissionAtClinic, isSystemAdmin } from '../auth/clinic-roles';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import {
@@ -75,6 +77,8 @@ export class AdminService {
     private readonly reminderService: ReminderService,
     private readonly identitySync: IdentitySyncService,
     private readonly userProfileService: UserProfileService,
+    // Optional so the many specs that build this service by hand need not supply it.
+    @Optional() private readonly push?: PushService,
   ) {}
 
   /**
@@ -182,6 +186,16 @@ export class AdminService {
       },
     });
 
+    // A direct grant left no trace before #329; revokes and invitation accepts always did.
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: actor.userId,
+      action: 'ROLE.GRANT',
+      entityType: 'UserClinicRole',
+      entityId: created.id,
+      afterJson: JSON.stringify({ ...created, source: 'ADMIN' }),
+    });
+
     // Deliberately after the duplicate guard above: re-assigning a role someone already
     // holds returns early, and emailing them about a no-op would be noise. A
     // SYSTEM_ADMIN grant has no clinic by construction and is not a clinic access
@@ -200,6 +214,9 @@ export class AdminService {
         scope: 'CLINIC',
         actorUserId: actor.userId,
       });
+      await this.notifyAccessChange(targetUserId, actor, 'GRANTED', [role], clinic?.name ?? null);
+    } else {
+      await this.notifyAccessChange(targetUserId, actor, 'GRANTED', [role], null);
     }
 
     return created;
@@ -265,6 +282,13 @@ export class AdminService {
         });
       }
     }
+    await this.notifyAccessChange(
+      targetUserId,
+      actor,
+      'REVOKED',
+      [role],
+      existing.clinic?.name ?? null,
+    );
 
     return { deleted: true };
   }
@@ -332,6 +356,13 @@ export class AdminService {
         });
       }
     }
+    await this.notifyAccessChange(
+      targetUserId,
+      actor,
+      'REVOKED',
+      [role],
+      existing.clinic?.name ?? null,
+    );
 
     return { deleted: true };
   }
@@ -404,6 +435,14 @@ export class AdminService {
         actorUserId: actor.userId,
         requestId,
       });
+
+      await this.notifyAccessChange(
+        targetUserId,
+        actor,
+        'REVOKED',
+        clinicEntries.map((entry) => entry.role),
+        clinicName,
+      );
 
       return {
         ...this.toLifecycleUserSummary(target),
@@ -689,6 +728,49 @@ export class AdminService {
    * A user with no email on file records a visible NO_CONTACT_METHOD row rather than
    * failing the role change itself; access management must not depend on a mailbox.
    */
+  /**
+   * Tell someone, in the app, that their own access changed (#329): a bell notification and a
+   * push to their devices. It names a role and a clinic, never a patient.
+   *
+   * Filed with no clinic on purpose. The bell hides notifications about a clinic the reader holds
+   * no role at, which is exactly the state a revocation leaves them in.
+   */
+  private async notifyAccessChange(
+    targetUserId: string,
+    actor: AdminActor,
+    change: 'GRANTED' | 'REVOKED',
+    roles: UserRole[],
+    clinicName: string | null,
+  ) {
+    if (!this.push || roles.length === 0 || roles.every((role) => role === UserRole.PATIENT)) {
+      return;
+    }
+    const by = await this.prisma.user.findUnique({
+      where: { id: actor.userId },
+      select: { displayName: true },
+    });
+    const names = roles
+      .map((role) => role.charAt(0) + role.slice(1).toLowerCase().replace(/_/g, ' '))
+      .join(' and ');
+    const noun = roles.length > 1 ? 'roles' : 'role';
+    const where = clinicName ? ` at ${clinicName}` : ' across every clinic';
+    const who = by?.displayName ?? 'an administrator';
+    this.push.notify([targetUserId], {
+      kind: 'ACCESS_CHANGE',
+      clinicId: null,
+      // The actor rides in the link so the notice can offer to message them.
+      url: `/account?changedBy=${actor.userId}`,
+      title:
+        change === 'GRANTED'
+          ? `You now have the ${names} ${noun}${where}`
+          : `Your ${names} ${noun}${where} ${roles.length > 1 ? 'were' : 'was'} removed`,
+      body:
+        change === 'GRANTED'
+          ? `Added by ${who}. Open Nkwapa to see what you can do now.`
+          : `Removed by ${who}. If this is a mistake, message them or another administrator.`,
+    });
+  }
+
   private async notifyStaffLifecycle(params: {
     templateKey:
       | 'STAFF_ROLE_GRANTED_V1'
