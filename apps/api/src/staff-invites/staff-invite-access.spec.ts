@@ -4,6 +4,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
+import { RedisService } from '../redis/redis.service';
 import { PERMISSIONS, rolesWithPermission } from '../auth/constants/permissions';
 import {
   CLINIC_A1,
@@ -46,6 +47,8 @@ describe('staff invitation access', () => {
         ClinicScopeGuard,
         RbacGuard,
         { provide: StaffInviteService, useValue: {} },
+        // The user-scoped invite limits put RateLimitGuard on the route.
+        { provide: RedisService, useValue: { isReady: () => false } },
       ],
     }).compile();
 

@@ -210,7 +210,7 @@ Online-only and never stored. Each section is included only when the sender hold
 | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes |
 | DIRECTOR | yes | no |
-| MANAGER | yes | no |
+| MANAGER | yes | yes |
 | DOCTOR | yes | yes |
 | VOLUNTEER | yes | yes |
 | PATIENT | no | no |
@@ -236,7 +236,7 @@ Offline: not queued. Every read and write requires a live connection.
 | `PATIENT.UPDATE` | yes | yes | yes | yes | no | no |
 | `PRESCRIPTION.READ` | yes | yes | yes | yes | no | no |
 | `PRESCRIPTION.WRITE` | yes | no | no | yes | no | no |
-| `REFERRAL_REPORT.EXPORT` | yes | no | no | yes | yes | no |
+| `REFERRAL_REPORT.EXPORT` | yes | no | yes | yes | yes | no |
 | `SCREENING.READ` | yes | yes | yes | yes | yes | no |
 | `SCREENING.WRITE` | yes | no | no | yes | yes | no |
 

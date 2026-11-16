@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useId, useState, type FormEvent } from 'react';
-import { Check, Copy, Download, FileLock2, Mail } from 'lucide-react';
+import { Check, Copy, Download, FileLock2, Mail, ShieldCheck } from 'lucide-react';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { saveBlob } from '@/lib/download';
+import { formatOpsDay } from '@/lib/ops';
 import { useCopyToClipboard } from '@/lib/use-copy-to-clipboard';
 import {
   REFERRAL_REASON_MAX,
@@ -98,6 +99,8 @@ export function ReferralReportSheet({
   const [delivery, setDelivery] = useState<ReferralDelivery>('DOWNLOAD');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [consent, setConsent] = useState(false);
+  /** When the patient's referral consent was granted, if one is on file: then no tick is needed. */
+  const [consentOnFile, setConsentOnFile] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -110,8 +113,12 @@ export function ReferralReportSheet({
     try {
       const response = await apiFetch(`${base}/sections`, { getToken, activeClinicId: clinicId });
       if (!response.ok) throw await readApiError(response);
-      const body = (await response.json()) as { sections: ReferralReportSection[] };
+      const body = (await response.json()) as {
+        sections: ReferralReportSection[];
+        referralConsent: { grantedAt: string } | null;
+      };
       setAllowed(body.sections);
+      setConsentOnFile(body.referralConsent?.grantedAt ?? null);
       setSections(defaultReferralSections(body.sections));
     } catch (error) {
       setLoadError(getErrorMessage(error, 'The report options could not be loaded.'));
@@ -119,8 +126,9 @@ export function ReferralReportSheet({
   }, [base, clinicId, getToken]);
 
   useEffect(() => {
-    if (open && !allowed) void loadSections();
-  }, [open, allowed, loadSections]);
+    // Every time it opens: consent may have been recorded or revoked since.
+    if (open) void loadSections();
+  }, [open, loadSections]);
 
   // A fresh form every time the sheet opens: nothing from the last referral carries over.
   useEffect(() => {
@@ -145,7 +153,8 @@ export function ReferralReportSheet({
     if (delivery === 'EMAIL' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim())) {
       next.recipientEmail = 'Enter the email address the report should go to.';
     }
-    if (!consent) next.consent = 'Confirm the patient agreed to this referral today.';
+    if (!consentOnFile && !consent)
+      next.consent = 'Confirm the patient agreed to this referral today.';
     return next;
   };
 
@@ -153,7 +162,7 @@ export function ReferralReportSheet({
   useEffect(() => {
     if (submitted) setErrors(validate());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reason, delivery, recipientEmail, consent, submitted]);
+  }, [reason, delivery, recipientEmail, consent, consentOnFile, submitted]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -186,7 +195,7 @@ export function ReferralReportSheet({
           sections,
           delivery,
           recipientEmail: delivery === 'EMAIL' ? recipientEmail.trim() : undefined,
-          patientAgreedToday: consent,
+          patientAgreedToday: consentOnFile ? undefined : consent,
         }),
       });
       if (!response.ok) throw await readApiError(response);
@@ -426,28 +435,41 @@ export function ReferralReportSheet({
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <label
-                htmlFor={id('consent')}
-                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-border bg-background px-3 py-3"
-              >
-                <Checkbox
-                  id={id('consent')}
-                  className="mt-0.5"
-                  checked={consent}
-                  required
-                  onCheckedChange={(checked) => setConsent(checked === true)}
-                  {...fieldErrorProps(id('consent'), errors.consent)}
-                />
-                <span className="text-sm text-foreground">
-                  The patient agreed today to this report being shared for their referral.
+            {consentOnFile ? (
+              <p className="flex items-start gap-3 rounded-md border border-border bg-background px-3 py-3 text-sm text-foreground">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>
+                  Referral consent on file since {formatOpsDay(consentOnFile)}.
                   <span className="mt-0.5 block text-muted-foreground">
-                    Their research consent does not cover this. Your confirmation is recorded.
+                    This report is recorded with who sent it and where it went.
                   </span>
                 </span>
-              </label>
-              <FieldError id={id('consent')} message={errors.consent} />
-            </div>
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <label
+                  htmlFor={id('consent')}
+                  className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-border bg-background px-3 py-3"
+                >
+                  <Checkbox
+                    id={id('consent')}
+                    className="mt-0.5"
+                    checked={consent}
+                    required
+                    onCheckedChange={(checked) => setConsent(checked === true)}
+                    {...fieldErrorProps(id('consent'), errors.consent)}
+                  />
+                  <span className="text-sm text-foreground">
+                    The patient agreed today to this report being shared for their referral.
+                    <span className="mt-0.5 block text-muted-foreground">
+                      No referral consent is on file. Record one on the Consent tab to skip this
+                      next time. Your confirmation is recorded.
+                    </span>
+                  </span>
+                </label>
+                <FieldError id={id('consent')} message={errors.consent} />
+              </div>
+            )}
 
             <p className="text-sm text-muted-foreground" aria-live="polite">
               <span className="font-medium text-foreground">What will be shared: </span>

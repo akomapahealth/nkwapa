@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import {
   BODY_MEASURE_UNITS,
@@ -11,7 +11,7 @@ import {
   type GlucoseUnit,
   type Hba1cUnit,
 } from '@nkwapa/db';
-import { ToSanitizedString } from '../../common/validation';
+import { ToOptionalName, ToSanitizedString } from '../../common/validation';
 import { IsCountryCode, IsIanaTimeZone, IsZoneCode } from '../../common/clinic-metadata.validator';
 
 /**
@@ -59,6 +59,27 @@ export class ClinicMetadataDto {
   @IsString()
   @MaxLength(100)
   region?: string;
+
+  /**
+   * Contact details printed on referral reports. `null` or an empty field clears one.
+   */
+  @IsOptional()
+  @ToOptionalName(32)
+  @IsString()
+  @MaxLength(32)
+  contactPhone?: string | null;
+
+  @IsOptional()
+  @ToOptionalName(254)
+  @IsEmail()
+  @MaxLength(254)
+  contactEmail?: string | null;
+
+  @IsOptional()
+  @ToOptionalName(200)
+  @IsString()
+  @MaxLength(200)
+  address?: string | null;
 
   /** Entry and display units. Omitted on create, they follow `countryCode`. */
   @IsOptional()

@@ -39,7 +39,7 @@ const glance = {
   care: { visits: 0, lastVisitAt: null, followUp: null },
 };
 
-function setup(overrides: { emailOk?: boolean } = {}) {
+function setup(overrides: { emailOk?: boolean; referralConsent?: object | null } = {}) {
   const none = jest.fn().mockResolvedValue(null);
   const empty = jest.fn().mockResolvedValue([]);
   const prisma = {
@@ -49,6 +49,9 @@ function setup(overrides: { emailOk?: boolean } = {}) {
         id: CLINIC,
         name: 'Bantama Clinic',
         region: 'Ashanti',
+        address: null,
+        contactPhone: '+233322000000',
+        contactEmail: null,
         timezone: 'Africa/Accra',
         glucoseUnit: 'MMOL_L',
         hba1cUnit: 'PERCENT',
@@ -69,6 +72,7 @@ function setup(overrides: { emailOk?: boolean } = {}) {
     eyeScreening: { findFirst: none },
     carePlan: { findFirst: none },
     clinicalNote: { findMany: empty },
+    patientConsent: { findFirst: jest.fn().mockResolvedValue(overrides.referralConsent ?? null) },
   };
   const chart = { getSummary: jest.fn().mockResolvedValue({ glance }) };
   const history = {
@@ -139,9 +143,41 @@ describe('ReferralReportService (#344)', () => {
       delivery: 'DOWNLOAD',
       recipientFacility: 'Regional Hospital',
       patientAgreedToday: true,
+      consentBasis: 'AGREED_TODAY',
+      consentId: null,
       sections: ['SUMMARY', 'HISTORY', 'READINGS', 'MEDICATIONS', 'ASSESSMENTS', 'PLAN'],
     });
     expect(JSON.stringify(entry)).not.toContain(result.passcode);
+  });
+
+  it('refuses without a referral consent on file or the patient agreeing today', async () => {
+    const { service, audit, prisma } = setup();
+    await expect(
+      service.create(CLINIC, PATIENT, doctor, dto({ patientAgreedToday: undefined })),
+    ).rejects.toMatchObject({ response: { code: 'REFERRAL_CONSENT_REQUIRED' } });
+    expect(prisma.patientConsent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          clinicId: CLINIC,
+          patientId: PATIENT,
+          consentType: 'REFERRAL_SHARING',
+          status: 'GRANTED',
+        },
+      }),
+    );
+    expect(audit.logWrite).not.toHaveBeenCalled();
+  });
+
+  it('rests on the referral consent on file when there is one, and says so in the audit', async () => {
+    const { service, audit } = setup({
+      referralConsent: { id: 'consent-7', grantedAt: new Date('2026-11-01T09:00:00Z') },
+    });
+    await service.create(CLINIC, PATIENT, doctor, dto({ patientAgreedToday: undefined }));
+    expect(JSON.parse(audit.logWrite.mock.calls[0][0].afterJson)).toMatchObject({
+      consentBasis: 'RECORDED_CONSENT',
+      consentId: 'consent-7',
+      patientAgreedToday: false,
+    });
   });
 
   it('emails the file with a cover note that names neither the patient nor anything clinical', async () => {
@@ -228,6 +264,8 @@ describe('ReferralReportService (#344)', () => {
       'ASSESSMENTS',
       'PLAN',
     ]);
+    // The region stands in for a missing address; empty contact fields are skipped.
+    expect(report.clinic.contact).toBe('Ashanti  ·  +233322000000');
     const readings = report.sections.find((s) => s.title === 'Readings')!;
     expect(readings.blocks).toEqual([
       {
@@ -259,6 +297,19 @@ describe('ReferralReportService (#344)', () => {
     const admin = { userId: 'admin-1', roles: [{ clinicId: null, role: UserRole.SYSTEM_ADMIN }] };
     expect(service.allowedSections(CLINIC, admin)).not.toContain('NOTES');
     expect(service.allowedSections(CLINIC, doctor)).toContain('NOTES');
+  });
+
+  it('gives a manager everything they can read on the chart, which leaves out signed notes', () => {
+    const { service } = setup();
+    const manager = { userId: 'manager-1', roles: [{ clinicId: CLINIC, role: UserRole.MANAGER }] };
+    expect(service.allowedSections(CLINIC, manager)).toEqual([
+      'SUMMARY',
+      'HISTORY',
+      'READINGS',
+      'MEDICATIONS',
+      'ASSESSMENTS',
+      'PLAN',
+    ]);
   });
 
   it('counts age in whole years', () => {

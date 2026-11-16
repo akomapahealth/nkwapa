@@ -115,6 +115,51 @@ test.describe('doctor', () => {
   });
 });
 
+test.describe('volunteer', () => {
+  test.use({ storageState: storageStateFor('volunteer') });
+
+  test('records referral consent once, and the report no longer asks', async ({ page }) => {
+    await createPatient(page);
+    const chart = page.url().split('?')[0];
+    await page.goto(`${chart}?tab=consent`);
+    await expect(page.getByRole('heading', { name: 'Research consent' })).toBeVisible();
+    await page.getByRole('link', { name: 'Record consent: referral consent' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Record referral consent' })).toBeVisible();
+    await expect(page.getByText('Referral Consent – Sharing Your Record')).toBeVisible();
+    await page.getByRole('checkbox').check();
+    await page.getByRole('button', { name: 'Record consent', exact: true }).click();
+    await page.waitForURL((url) => url.pathname === new URL(chart).pathname);
+
+    await page.goto(`${chart}?tab=consent`);
+    await expect(
+      page.getByRole('button', { name: 'Revoke consent: referral consent' }),
+    ).toBeVisible();
+    // Research consent is untouched: the two are recorded separately.
+    await expect(
+      page.getByRole('link', { name: 'Record consent: research consent' }),
+    ).toBeVisible();
+
+    const sheet = await openSheet(page);
+    await expect(sheet.getByText(/Referral consent on file since/)).toBeVisible();
+    await expect(sheet.getByRole('checkbox', { name: /The patient agreed today/ })).toHaveCount(0);
+    await sheet.getByLabel('Reason for referral').fill('Specialist review of blood pressure.');
+    await sheet.getByRole('button', { name: 'Make report' }).click();
+    await expect(page.getByTestId('referral-passcode')).toBeVisible();
+  });
+});
+
+test.describe('manager', () => {
+  test.use({ storageState: storageStateFor('manager') });
+
+  test('can make a report, without signed notes', async ({ page }) => {
+    await createPatient(page);
+    const sheet = await openSheet(page);
+    await expect(sheet.getByRole('checkbox', { name: /Readings/ })).toBeChecked();
+    await expect(sheet.getByRole('checkbox', { name: /Signed clinical notes/ })).toHaveCount(0);
+  });
+});
+
 test.describe('director', () => {
   test.use({ storageState: storageStateFor('director') });
 

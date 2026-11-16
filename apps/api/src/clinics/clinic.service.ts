@@ -33,6 +33,9 @@ export interface ResearchSettingsDto {
 }
 
 export interface CreateClinicDto {
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  address?: string | null;
   name: string;
   organizationId?: string;
   region?: string;
@@ -46,6 +49,9 @@ export interface CreateClinicDto {
 }
 
 export interface UpdateClinicDto {
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  address?: string | null;
   name?: string;
   region?: string;
   countryCode?: string;
@@ -302,6 +308,9 @@ export class ClinicService {
             organizationId,
             name: dto.name,
             region: dto.region ?? null,
+            contactPhone: dto.contactPhone ?? null,
+            contactEmail: dto.contactEmail ?? null,
+            address: dto.address ?? null,
             countryCode,
             timezone: dto.timezone ?? CLINIC_DEFAULT_TIMEZONE,
             glucoseUnit: dto.glucoseUnit ?? defaults.glucoseUnit,
@@ -361,6 +370,9 @@ export class ClinicService {
         data: {
           ...(dto.name != null && { name: dto.name }),
           ...(dto.region !== undefined && { region: dto.region }),
+          ...(dto.contactPhone !== undefined && { contactPhone: dto.contactPhone }),
+          ...(dto.contactEmail !== undefined && { contactEmail: dto.contactEmail }),
+          ...(dto.address !== undefined && { address: dto.address }),
           ...(dto.countryCode != null && { countryCode: normalizeCountryCode(dto.countryCode) }),
           ...(dto.timezone != null && { timezone: dto.timezone }),
           ...(locationCode !== undefined && { locationCode }),

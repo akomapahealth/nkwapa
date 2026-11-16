@@ -239,6 +239,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
     PERMISSIONS.CHAT_SEND,
     PERMISSIONS.CHAT_READ,
+    // Managers arrange onward care; signed notes stay out, as they need a clinical seat.
+    PERMISSIONS.REFERRAL_REPORT_EXPORT,
   ],
   [UserRole.DOCTOR]: [
     PERMISSIONS.PATIENT_READ,

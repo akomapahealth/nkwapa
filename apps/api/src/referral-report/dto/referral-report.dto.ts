@@ -1,7 +1,7 @@
 import {
   ArrayUnique,
-  Equals,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsIn,
   IsNotEmpty,
@@ -60,10 +60,10 @@ export class CreateReferralReportDto {
   recipientEmail?: string;
 
   /**
-   * The sender's statement that the patient agreed to this referral today. Required: the only
-   * consent the app records is for de-identified research, which does not cover sending a named
-   * record to another facility. Audited.
+   * The sender's statement that the patient agreed to this referral today. Required only when no
+   * referral consent (REFERRAL_SHARING) is on file; the service checks. Audited either way.
    */
-  @Equals(true, { message: 'Confirm that the patient agreed to this referral today.' })
-  patientAgreedToday!: boolean;
+  @IsOptional()
+  @IsBoolean()
+  patientAgreedToday?: boolean;
 }

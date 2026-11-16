@@ -76,6 +76,10 @@ export interface ClinicRow {
   isActive: boolean;
   organization: OrganizationSummary | null;
   metadataIssues: ClinicMetadataIssue[];
+  /** Printed on referral reports. Optional: an older API build does not send them. */
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  address?: string | null;
   /** Optional: an older API build does not send them. */
   glucoseUnit?: ClinicUnits['glucoseUnit'];
   bodyUnit?: ClinicUnits['bodyUnit'];
@@ -86,6 +90,9 @@ export interface ClinicRow {
 export interface ClinicFormValues extends ClinicUnits {
   name: string;
   region: string;
+  contactPhone: string;
+  contactEmail: string;
+  address: string;
   organizationId: string;
   timezone: string;
   locationCode: string;
@@ -110,12 +117,18 @@ export const CLINIC_FORM_FIELD_ORDER: ClinicFormField[] = [
   'zoneCode',
   'countryCode',
   'region',
+  'contactPhone',
+  'contactEmail',
+  'address',
 ];
 
 export function emptyClinicForm(organization?: OrganizationSummary | null): ClinicFormValues {
   return {
     name: '',
     region: '',
+    contactPhone: '',
+    contactEmail: '',
+    address: '',
     organizationId: organization?.id ?? '',
     timezone: organization?.timezone ?? CLINIC_DEFAULT_TIMEZONE,
     locationCode: '',
@@ -130,6 +143,9 @@ export function clinicFormFromRow(clinic: ClinicRow): ClinicFormValues {
   return {
     name: clinic.name,
     region: clinic.region ?? '',
+    contactPhone: clinic.contactPhone ?? '',
+    contactEmail: clinic.contactEmail ?? '',
+    address: clinic.address ?? '',
     organizationId: clinic.organizationId,
     timezone: clinic.timezone,
     locationCode: clinic.locationCode,
@@ -180,6 +196,13 @@ export function validateClinicForm(values: ClinicFormValues): ClinicFormErrors {
     errors.countryCode = 'Use a two-letter country code, such as GH.';
   }
 
+  if (
+    values.contactEmail.trim() &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contactEmail.trim())
+  ) {
+    errors.contactEmail = 'Enter an email address such as clinic@example.org, or leave this empty.';
+  }
+
   return errors;
 }
 
@@ -188,6 +211,10 @@ export function clinicFormToPayload(values: ClinicFormValues) {
   return {
     name: values.name.trim(),
     region: values.region.trim() || undefined,
+    // null clears a contact detail; region above predates that and cannot be cleared.
+    contactPhone: values.contactPhone.trim() || null,
+    contactEmail: values.contactEmail.trim() || null,
+    address: values.address.trim() || null,
     timezone: values.timezone.trim(),
     locationCode: normalizeLocationCode(values.locationCode),
     zoneCode: normalizeZoneCode(values.zoneCode),

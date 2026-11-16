@@ -15,7 +15,11 @@ import { redactLogValue, redactUrl } from './redaction';
 import { TelemetryService } from '../telemetry/telemetry.service';
 import { RedisService } from '../redis/redis.service';
 
+/** Set once a request has been counted, so a route copy of the guard never counts it twice. */
+const COUNTED = Symbol('rate-limit-counted');
+
 type RequestWithUser = {
+  [COUNTED]?: true;
   user?: { user?: { id?: string } };
   headers: Record<string, string | string[] | undefined>;
   method: string;
@@ -47,10 +51,15 @@ export class RateLimitGuard implements CanActivate {
       return this.checkDefaultLimit(request);
     }
 
-    const identity = this.resolveIdentity(request, config);
-    if (!identity) {
+    if (request[COUNTED]) {
       return true;
     }
+    const identity = this.resolveIdentity(request, config);
+    if (!identity) {
+      // Only a 'user' limit gets here with a real request: the route copy of the guard counts it.
+      return true;
+    }
+    request[COUNTED] = true;
 
     // Fails open while Redis is down (#199), and quietly: the client already logs the outage, so a
     // line per request would only bury it.

@@ -29,11 +29,12 @@ class Routes {
   push() {}
 }
 
-function contextFor(request: Record<string, unknown>) {
+// A fresh request per context: the guard marks a request it has counted.
+function contextFor(request: Record<string, unknown>, live = { ...request }) {
   return {
     getHandler: () => Routes.prototype.push,
     getClass: () => Routes,
-    switchToHttp: () => ({ getRequest: () => request }),
+    switchToHttp: () => ({ getRequest: () => live }),
   } as unknown as ExecutionContext;
 }
 
@@ -147,5 +148,37 @@ describe('RateLimitGuard default limit', () => {
     now.mockReturnValue(1_000 + 61_000);
     await expect(guard.canActivate(contextForOpen('203.0.113.9'))).resolves.toBe(true);
     now.mockRestore();
+  });
+});
+
+describe('RateLimitGuard user scope', () => {
+  beforeEach(() => {
+    mockIncr.mockReset();
+    redisReady = true;
+  });
+
+  it('puts the guard on the route itself, where the signed-in user is known', () => {
+    const guards = Reflect.getMetadata('__guards__', Routes.prototype.push) as unknown[];
+    expect(guards).toEqual([RateLimitGuard]);
+  });
+
+  it('counts a request once: passed over before sign-in, counted after it', async () => {
+    const guard = new RateLimitGuard(new Reflector(), redisService as never);
+    mockIncr.mockResolvedValue(1);
+    const live: Record<string, unknown> = { headers: {}, method: 'POST', ip: '10.0.0.7' };
+    const context = contextFor(live, live);
+
+    // The global copy, before JwtAuthGuard: no user yet, so nothing is counted.
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockIncr).not.toHaveBeenCalled();
+
+    // The route copy, after JwtAuthGuard.
+    live.user = { user: { id: 'user-42' } };
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(mockIncr).toHaveBeenCalledWith('rate-limit:sync_push:user-42');
+
+    // Any further pass over the same request is not a second request.
+    await guard.canActivate(context);
+    expect(mockIncr).toHaveBeenCalledTimes(1);
   });
 });

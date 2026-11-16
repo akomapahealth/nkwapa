@@ -7,7 +7,6 @@ import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
 import { RbacGuard } from '../auth/guards/rbac.guard';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { RateLimit } from '../common/rate-limit.decorator';
-import { RateLimitGuard } from '../common/rate-limit.guard';
 import { ClinicAndPatientParamsDto } from '../common/request-dto';
 import { CreateReferralReportDto } from './dto/referral-report.dto';
 import { ReferralReportService } from './referral-report.service';
@@ -30,22 +29,21 @@ const actorFrom = (request: ReportRequest) => ({
 export class ReferralReportController {
   constructor(private readonly service: ReferralReportService) {}
 
-  /** The sections this sender may include, so the sheet offers only those. */
+  /** The sections this sender may include, and any referral consent on file, for the sheet. */
   @Get('sections')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.REFERRAL_REPORT_EXPORT)
-  sections(@Param() params: ClinicAndPatientParamsDto, @Request() request: ReportRequest) {
-    return { sections: this.service.allowedSections(params.clinicId, actorFrom(request)) };
+  async sections(@Param() params: ClinicAndPatientParamsDto, @Request() request: ReportRequest) {
+    const consent = await this.service.referralConsent(params.clinicId, params.patientId);
+    return {
+      sections: this.service.allowedSections(params.clinicId, actorFrom(request)),
+      referralConsent: consent ? { grantedAt: consent.grantedAt } : null,
+    };
   }
 
   @Post()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.REFERRAL_REPORT_EXPORT)
-  /*
-    Also applied here, after the JWT guard: the global copy runs before any controller guard has
-    put the user on the request, so a 'user' scoped limit would find no identity and let it through.
-  */
-  @UseGuards(RateLimitGuard)
   @RateLimit({ key: 'referral_report', limit: 10, windowSeconds: 600, scope: 'user' })
   create(
     @Param() params: ClinicAndPatientParamsDto,

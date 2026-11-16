@@ -54,13 +54,13 @@ describe('ReferralReportController (#344)', () => {
       }),
     }) as unknown as ExecutionContext;
 
-  it.each([UserRole.DOCTOR, UserRole.VOLUNTEER])('lets a %s export', (role) => {
+  it.each([UserRole.DOCTOR, UserRole.VOLUNTEER, UserRole.MANAGER])('lets a %s export', (role) => {
     const ctx = context(inClinic(role), 'create');
     expect(clinicScope.canActivate(ctx)).toBe(true);
     expect(rbac.canActivate(ctx)).toBe(true);
   });
 
-  it.each([UserRole.DIRECTOR, UserRole.MANAGER, UserRole.PATIENT])('refuses a %s', (role) => {
+  it.each([UserRole.DIRECTOR, UserRole.PATIENT])('refuses a %s', (role) => {
     const ctx = context(inClinic(role), 'create');
     clinicScope.canActivate(ctx);
     expect(() => rbac.canActivate(ctx)).toThrow(ForbiddenException);

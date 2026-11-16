@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -110,6 +111,15 @@ export class ReferralReportService {
     return clinical ? sections : sections.filter((section) => section !== 'NOTES');
   }
 
+  /** The patient's current referral consent at this clinic, if one is granted (#344). */
+  referralConsent(clinicId: string, patientId: string) {
+    return this.prisma.patientConsent.findFirst({
+      where: { clinicId, patientId, consentType: 'REFERRAL_SHARING', status: 'GRANTED' },
+      orderBy: { grantedAt: 'desc' },
+      select: { id: true, grantedAt: true },
+    });
+  }
+
   async create(
     clinicId: string,
     patientId: string,
@@ -124,6 +134,19 @@ export class ReferralReportService {
       throw new ForbiddenException({
         code: 'REFERRAL_SECTION_FORBIDDEN',
         message: `You cannot include ${refused.join(', ').toLowerCase()} in a report.`,
+      });
+    }
+    const consent = await this.referralConsent(clinicId, patientId);
+    if (!consent && dto.patientAgreedToday !== true) {
+      throw new BadRequestException({
+        code: 'REFERRAL_CONSENT_REQUIRED',
+        message: 'Confirm that the patient agreed to this referral today.',
+        fieldErrors: [
+          {
+            field: 'patientAgreedToday',
+            message: 'Confirm that the patient agreed to this referral today.',
+          },
+        ],
       });
     }
 
@@ -180,7 +203,10 @@ export class ReferralReportService {
           dto.delivery === 'EMAIL' ? dto.recipientEmail!.split('@').pop() : null,
         urgency: dto.urgency ?? null,
         sections,
-        patientAgreedToday: dto.patientAgreedToday,
+        // What the share rested on: the consent on file, or the sender's word that the patient agreed.
+        consentBasis: consent ? 'RECORDED_CONSENT' : 'AGREED_TODAY',
+        consentId: consent?.id ?? null,
+        patientAgreedToday: dto.patientAgreedToday === true,
         sizeBytes: pdf.length,
       }),
     });
@@ -262,7 +288,13 @@ export class ReferralReportService {
     ].filter(Boolean);
 
     const report: ReferralReportContent = {
-      clinic: { name: clinic.name, contact: clinic.region ?? null },
+      clinic: {
+        name: clinic.name,
+        contact:
+          [clinic.address ?? clinic.region, clinic.contactPhone, clinic.contactEmail]
+            .filter(Boolean)
+            .join('  ·  ') || null,
+      },
       generatedAt: now,
       timezone,
       sender: { name: senderName, role: (role && ROLE_LABELS[role]) ?? 'Clinic staff' },

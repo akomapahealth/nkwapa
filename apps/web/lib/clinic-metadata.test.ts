@@ -25,6 +25,9 @@ const organization = {
 const validForm: ClinicFormValues = {
   name: 'Ridge Clinic',
   region: 'Greater Accra',
+  contactPhone: '030 222 0000',
+  contactEmail: '',
+  address: '',
   organizationId: 'org-1',
   timezone: 'Africa/Accra',
   locationCode: 'ridge-clinic',
@@ -140,6 +143,9 @@ describe('clinicFormToPayload', () => {
     ).toEqual({
       name: 'Ridge Clinic',
       region: 'Greater Accra',
+      contactPhone: '030 222 0000',
+      contactEmail: null,
+      address: null,
       timezone: 'Africa/Accra',
       locationCode: 'ridge-clinic',
       zoneCode: 'greater-accra',
@@ -153,6 +159,13 @@ describe('clinicFormToPayload', () => {
 
   it('sends a cleared zone code as null rather than an empty string', () => {
     expect(clinicFormToPayload({ ...validForm, zoneCode: '   ' }).zoneCode).toBeNull();
+  });
+
+  it('checks a contact email only when one is given (#344)', () => {
+    expect(validateClinicForm({ ...validForm, contactEmail: 'ridge@clinic' })).toEqual({
+      contactEmail: 'Enter an email address such as clinic@example.org, or leave this empty.',
+    });
+    expect(validateClinicForm({ ...validForm, contactEmail: 'ridge@clinic.gh' })).toEqual({});
   });
 
   it('omits an empty region rather than sending a blank one', () => {
