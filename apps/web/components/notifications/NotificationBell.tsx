@@ -19,6 +19,7 @@ export function NotificationBell({ active }: { active: boolean }) {
           variant="ghost"
           size="icon"
           className={cn('relative', active && 'bg-primary/10 text-primary')}
+          data-tour="notifications"
         >
           <Link href="/notifications" aria-label={label} aria-current={active ? 'page' : undefined}>
             <Bell aria-hidden="true" className="h-[18px] w-[18px]" />

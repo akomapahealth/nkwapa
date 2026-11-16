@@ -134,6 +134,7 @@ export function SyncStatusBar({
               <TooltipTrigger asChild>
                 <button
                   type="button"
+                  data-tour="sync-status"
                   onClick={() => setSyncCenterOpen(true)}
                   className={cn(
                     'relative flex min-h-11 min-w-11 items-center justify-center rounded-md py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

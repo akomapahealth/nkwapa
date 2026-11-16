@@ -142,7 +142,7 @@ export function OverviewPortalScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.READ_SELF">
       <div className="space-y-6">
-        <section className={PORTAL_HERO_GRID}>
+        <section className={PORTAL_HERO_GRID} data-tour="home-work">
           <PortalHero
             clinicName={clinicName}
             title="Your care snapshot"
