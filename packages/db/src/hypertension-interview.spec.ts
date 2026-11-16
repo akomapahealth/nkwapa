@@ -159,12 +159,28 @@ describe('deriveHypertensionEscalation', () => {
     expect(result.reasons).toEqual(['SEVERELY_ELEVATED_BP']);
   });
 
-  it('escalates a low reading', () => {
+  // #334: a low reading is urgent only with a symptom that makes it so.
+  it.each(['FAINTING', 'SEVERE_DIZZINESS', 'CONFUSION'] as const)(
+    'escalates a low reading with %s',
+    (symptom) => {
+      const result = deriveHypertensionEscalation({
+        symptoms: [symptom],
+        systolicBp: BP_HYPOTENSION_SYSTOLIC - 5,
+        diastolicBp: 55,
+      });
+      expect(result.reasons).toContain('HYPOTENSION');
+      expect(result.lowBpForReview).toBeUndefined();
+    },
+  );
+
+  it('makes a low reading without symptoms a medication review, not an urgent review', () => {
     const result = deriveHypertensionEscalation({
+      symptoms: ['NONE'],
       systolicBp: BP_HYPOTENSION_SYSTOLIC - 5,
       diastolicBp: 55,
     });
-    expect(result.reasons).toEqual(['HYPOTENSION']);
+    expect(result).toEqual({ urgentReviewRequired: false, reasons: [], lowBpForReview: true });
+    expect(reviewReasonsForEscalation(result)).toEqual(['LOW_BP_OR_DIZZINESS']);
   });
 
   describe('the repeat reading wins', () => {

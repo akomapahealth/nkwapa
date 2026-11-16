@@ -633,7 +633,19 @@ export interface HypertensionEscalationInput {
 export interface HypertensionEscalation {
   urgentReviewRequired: boolean;
   reasons: HypertensionEscalationReason[];
+  /**
+   * A low reading with no symptom that makes it urgent: a medication review for the plan, not a
+   * clinician now (#334). Absent means no.
+   */
+  lowBpForReview?: boolean;
 }
+
+/** Symptoms that make a low reading urgent (#334): without one, low blood pressure is a review. */
+const LOW_BP_URGENT_SYMPTOMS: readonly HypertensionSymptomValue[] = [
+  'FAINTING',
+  'SEVERE_DIZZINESS',
+  'CONFUSION',
+];
 
 /**
  * Decide whether this visit needs a clinician now, and say why.
@@ -668,12 +680,15 @@ export function deriveHypertensionEscalation(
     seen.add('SEVERELY_ELEVATED_BP');
     reasons.push('SEVERELY_ELEVATED_BP');
   }
-  if (isHypotensive(systolic, diastolic) && !seen.has('HYPOTENSION')) {
-    seen.add('HYPOTENSION');
-    reasons.push('HYPOTENSION');
-  }
+  const low = isHypotensive(systolic, diastolic);
+  const lowAndUnwell = low && LOW_BP_URGENT_SYMPTOMS.some((symptom) => symptoms.has(symptom));
+  if (lowAndUnwell) reasons.push('HYPOTENSION');
 
-  return { urgentReviewRequired: reasons.length > 0, reasons };
+  return {
+    urgentReviewRequired: reasons.length > 0,
+    reasons,
+    ...(low && !lowAndUnwell ? { lowBpForReview: true } : {}),
+  };
 }
 
 /**
@@ -691,6 +706,7 @@ export function reviewReasonsForEscalation(
     else if (reason === 'HYPOTENSION') out.add('LOW_BP_OR_DIZZINESS');
     else out.add('CONCERNING_SYMPTOMS');
   }
+  if (escalation.lowBpForReview) out.add('LOW_BP_OR_DIZZINESS');
   return [...out];
 }
 

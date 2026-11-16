@@ -61,6 +61,33 @@ export interface ScreeningAlert {
   findings: string[];
 }
 
+/**
+ * A screening flag whose visit now has a repeat reading and nothing urgent left (#334): the first
+ * reading was the only finding and the repeat did not confirm it, so managers are not told. No
+ * repeat, or anything still urgent on the hypertension or diabetes screen, and it escalates.
+ */
+async function settledByRepeat(tx: Prisma.TransactionClient, flagId: string): Promise<boolean> {
+  const flag = await tx.patientRiskFlag.findUnique({
+    where: { id: flagId },
+    select: {
+      kind: true,
+      encounter: {
+        select: {
+          hypertensionAssessment: {
+            select: { repeatSystolicBp: true, repeatDiastolicBp: true, urgentReviewReasons: true },
+          },
+          diabetesScreening: { select: { urgentReviewReasons: true } },
+        },
+      },
+    },
+  });
+  const htn = flag?.encounter?.hypertensionAssessment;
+  if (flag?.kind !== 'SCREENING_URGENT' || !htn) return false;
+  const repeated = htn.repeatSystolicBp !== null || htn.repeatDiastolicBp !== null;
+  const dmUrgent = flag.encounter?.diabetesScreening?.urgentReviewReasons.length ?? 0;
+  return repeated && htn.urgentReviewReasons.length === 0 && dmUrgent === 0;
+}
+
 /** The oldest a screening flag can be and still be taken: a same-day finding. */
 export function screeningFlagOpenSince(now = new Date()): Date {
   return new Date(now.getTime() - DEFAULT_FOLLOW_UP_CONFIG.screeningFlagOpenHours * 3_600_000);
@@ -536,6 +563,7 @@ export class FollowUpFlagService implements OnModuleInit {
     const flag = await this.system(
       { systemReason: 'Escalate an unacknowledged urgent flag' },
       async (tx) => {
+        if (await settledByRepeat(tx, flagId)) return null;
         const claimed = await tx.patientRiskFlag.updateMany({
           where: {
             id: flagId,

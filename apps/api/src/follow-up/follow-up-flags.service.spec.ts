@@ -370,6 +370,35 @@ describe('FollowUpFlagService', () => {
   });
 
   describe('escalate', () => {
+    // #334: a single crisis reading a calmer repeat did not confirm is not escalated.
+    it('stands down when a repeat settled the only finding, and escalates when it did not', async () => {
+      const visit = (repeat: number | null, htnReasons: string[], dmReasons: string[] = []) => ({
+        kind: 'SCREENING_URGENT',
+        encounter: {
+          hypertensionAssessment: {
+            repeatSystolicBp: repeat,
+            repeatDiastolicBp: repeat === null ? null : 80,
+            urgentReviewReasons: htnReasons,
+          },
+          diabetesScreening: { urgentReviewReasons: dmReasons },
+        },
+      });
+      const run = async (row: unknown) => {
+        const { service, tx, push } = setup();
+        tx.patientRiskFlag.findUnique.mockResolvedValueOnce(row).mockResolvedValueOnce({
+          clinicId: 'c1',
+          patientId: 'p1',
+          patient: { firstName: 'Ama', lastName: 'Mensah' },
+        });
+        await service.escalate('flag-s');
+        return push.notify.mock.calls.length;
+      };
+      expect(await run(visit(132, []))).toBe(0);
+      expect(await run(visit(null, []))).toBe(1);
+      expect(await run(visit(132, ['URGENT_SYMPTOM_CHEST_PAIN']))).toBe(1);
+      expect(await run(visit(132, [], ['HYPOGLYCEMIA']))).toBe(1);
+    });
+
     it('tells managers and directors once, after claiming the flag', async () => {
       const { service, tx, push } = setup();
       tx.patientRiskFlag.findUnique.mockResolvedValue({
