@@ -13,6 +13,7 @@ import { permissionsForClinic, type ScopedRole } from '../auth/clinic-roles';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { buildKeysetWhere, decodeKeysetCursor, encodeKeysetCursor } from '../common/keyset-cursor';
+import { buildChartGlance } from './patient-chart-glance';
 import type {
   ChartPage,
   ChartPendingAction,
@@ -131,7 +132,7 @@ export class PatientChartService {
     const has = (id: string) => sections.some((section) => section.id === id);
     const pendingActions: ChartPendingAction[] = [];
 
-    const summary: PatientChartSummary = {
+    const summary: Omit<PatientChartSummary, 'glance'> = {
       patientId,
       clinicId,
       sections: sections.map(({ id, label, description }) => ({ id, label, description })),
@@ -351,7 +352,18 @@ export class PatientChartService {
       }
     }
 
-    return summary;
+    const glance = await buildChartGlance(
+      this.prisma,
+      clinicId,
+      patientId,
+      {
+        has,
+        screening: this.can(clinicId, actor, PERMISSIONS.SCREENING_READ),
+        counselling: this.can(clinicId, actor, PERMISSIONS.COUNSELLING_READ),
+      },
+      summary,
+    );
+    return { ...summary, glance };
   }
 
   async listVitals(

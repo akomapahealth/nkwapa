@@ -29,13 +29,14 @@ import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { formatOpsDateTime } from '@/lib/ops';
 import { HYPERTENSION_LABELS, type HypertensionClassification } from '@/lib/hypertension';
 import {
-  buildChartHref,
   buildEncounterHref,
   type ChartPendingAction,
   type PatientChartSectionId,
   type PatientChartSummary,
 } from '@/lib/patient-chart';
 import styles from './patient-profile.module.css';
+import { SectionLink } from './ChartSectionLink';
+import { PatientChartGlance } from './PatientChartGlance';
 import { ChartLockedBadge, ChartStatusBadge } from './ChartStatusBadge';
 
 function SummaryCard({
@@ -67,38 +68,6 @@ function SummaryCard({
 
 function NotRecorded({ children }: { children: ReactNode }) {
   return <p className="text-muted-foreground">{children}</p>;
-}
-
-function SectionLink({
-  clinicId,
-  patientId,
-  section,
-  children,
-  onNavigate,
-}: {
-  clinicId: string;
-  patientId: string;
-  section: PatientChartSectionId;
-  children: ReactNode;
-  onNavigate?: (section: PatientChartSectionId) => void;
-}) {
-  return (
-    <Link
-      href={buildChartHref(clinicId, patientId, section)}
-      onClick={(event) => {
-        // Keep a real href so the link is shareable and can be opened in a new tab, but
-        // switch in place when we can: a full navigation would fail on an offline device.
-        if (onNavigate && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
-          event.preventDefault();
-          onNavigate(section);
-        }
-      }}
-      className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary underline-offset-4 transition-colors duration-150 hover:underline"
-    >
-      {children}
-      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-    </Link>
-  );
 }
 
 function PendingActionRow({
@@ -195,6 +164,15 @@ export function PatientChartOverview({
   const allergies = summary?.allergies ?? null;
   const medications = summary?.medications ?? null;
   const pendingActions = summary?.pendingActions ?? [];
+  const glanceBlock = summary?.glance ? (
+    <PatientChartGlance
+      clinicId={clinicId}
+      patientId={patientId}
+      glance={summary.glance}
+      sections={summary.sections}
+      onNavigate={onNavigate}
+    />
+  ) : null;
 
   return (
     <div className="space-y-4">
@@ -206,6 +184,8 @@ export function PatientChartOverview({
         />
       ) : null}
 
+      {/* The summary leads unless something is pending; then the pending work does. */}
+      {pendingActions.length === 0 ? glanceBlock : null}
       <Card>
         <CardHeader>
           <h2 className="type-section-title">Needs you now</h2>
@@ -236,6 +216,8 @@ export function PatientChartOverview({
           )}
         </CardContent>
       </Card>
+
+      {pendingActions.length > 0 ? glanceBlock : null}
 
       <section aria-label="Current clinical summary" className={styles.summary}>
         {summary?.vitals ? (

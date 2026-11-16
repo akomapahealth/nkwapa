@@ -151,6 +151,68 @@ export interface PatientChartSummary {
   visits: { total: number; open: number; lastVisitAt: string | null } | null;
   consent: { status: string | null; grantedAt: string | null; revokedAt: string | null } | null;
   pendingActions: ChartPendingAction[];
+  /** Optional: a summary cached by an older build has none. */
+  glance?: ChartGlance;
+}
+
+export type ChartTrendDirection = 'RISING' | 'FALLING' | 'STEADY' | 'NOT_ENOUGH_DATA';
+export type ChartGlanceScreeningKind =
+  | 'VITALS'
+  | 'HYPERTENSION'
+  | 'DIABETES'
+  | 'EYE'
+  | 'COUNSELLING'
+  | 'TOBACCO';
+
+/** The Overview's "At a glance" block (#341). A null part is one this role cannot read. */
+export interface ChartGlance {
+  generatedAt: string;
+  conditions: {
+    history: string[] | null;
+    screening: {
+      hypertension: string | null;
+      diabetes: string | null;
+      diabetesType: string | null;
+    } | null;
+  } | null;
+  bloodPressure: {
+    latest: ChartGlanceBpReading | null;
+    previous: ChartGlanceBpReading[];
+    direction: ChartTrendDirection;
+  } | null;
+  glucose: {
+    latest: { mgDl: number; type: string; recordedAt: string } | null;
+    previous: Array<{ mgDl: number; recordedAt: string }>;
+    direction: ChartTrendDirection;
+    hba1c: { percent: number; recordedAt: string } | null;
+  } | null;
+  medications: {
+    currentCount: number;
+    noKnownCurrentMedications: boolean;
+    lastReconciledAt: string | null;
+    adherence: { level: string; recordedAt: string } | null;
+  } | null;
+  risks: {
+    allergies: ChartAllergySummary | null;
+    familyHistory: Array<{ relationship: string; condition: string }> | null;
+    screening: {
+      tobacco: { smoking: string; smokeless: string; recordedAt: string } | null;
+      pregnantRecordedAt: string | null;
+    } | null;
+  } | null;
+  screenings: Array<{ kind: ChartGlanceScreeningKind; lastAt: string | null }>;
+  care: {
+    visits: number;
+    lastVisitAt: string | null;
+    followUp: { dueOn: string; state: 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE' | 'MET' } | null;
+  } | null;
+}
+
+export interface ChartGlanceBpReading {
+  systolic: number;
+  diastolic: number;
+  recordedAt: string;
+  repeat: boolean;
 }
 
 /** Query key used for the chart's deep links. */

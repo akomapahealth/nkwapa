@@ -187,7 +187,7 @@ jobs:
       # plus the registry's completed-screening filter (#224), who actually screened (#227), the
       # volunteer directory and roster (#226), and idempotency keys (#307) on that same footing.
       - name: Verify organization and zone isolation end to end
-        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts src/encounters/encounter-queue-filters.integration.spec.ts src/ops/station-performer.integration.spec.ts src/volunteers/volunteer-roster.integration.spec.ts src/idempotency/idempotency.integration.spec.ts
+        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts src/encounters/encounter-queue-filters.integration.spec.ts src/patient-chart/patient-chart-glance.integration.spec.ts src/ops/station-performer.integration.spec.ts src/volunteers/volunteer-roster.integration.spec.ts src/idempotency/idempotency.integration.spec.ts
         env:
           RUN_ORG_ZONE_ISOLATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
