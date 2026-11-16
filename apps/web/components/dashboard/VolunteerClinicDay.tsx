@@ -85,7 +85,7 @@ export function VolunteerClinicDay({
   const stations = view.data?.board.stations.filter((station) => station.active) ?? [];
 
   return (
-    <div className="space-y-6" data-main-role="VOLUNTEER">
+    <div className="space-y-6" data-main-role="VOLUNTEER" data-tour="home-work">
       {showLine ? (
         <section
           aria-labelledby="volunteer-line-title"

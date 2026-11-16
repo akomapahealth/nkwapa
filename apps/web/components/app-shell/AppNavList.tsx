@@ -106,6 +106,7 @@ export function AppNavList({
               const control = enabled ? (
                 <Link
                   href={href}
+                  data-tour={`nav:${item.href}`}
                   aria-label={item.label}
                   onClick={onNavigate}
                   aria-current={active ? 'page' : undefined}
@@ -116,6 +117,7 @@ export function AppNavList({
               ) : (
                 <button
                   type="button"
+                  data-tour={`nav:${item.href}`}
                   disabled
                   aria-disabled="true"
                   aria-label={item.label}
