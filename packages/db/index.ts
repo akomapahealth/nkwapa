@@ -457,3 +457,4 @@ export {
   type GlanceLine,
   type GlanceLinesInput,
 } from './src/patient-chart-glance-lines';
+export * from './src/follow-up-stratification';
