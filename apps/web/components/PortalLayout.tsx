@@ -58,6 +58,7 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-tour={`nav:${item.href}`}
                   aria-current={pathname === item.href ? 'page' : active ? 'location' : undefined}
                   className={cn(
                     'inline-flex min-h-14 flex-col items-center justify-center gap-1 border-b-2 px-1 text-center text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3',
