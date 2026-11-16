@@ -1,7 +1,17 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { EncounterStatus, UserRole } from '@prisma/client';
+import { EncounterStatus, Prisma, UserRole } from '@prisma/client';
 import { PatientChartService, type ChartActor } from './patient-chart.service';
 import { encodeKeysetCursor } from '../common/keyset-cursor';
+import {
+  assembleGlance,
+  dedupeConditions,
+  followUpState,
+  trendDirection,
+  worstAdherence,
+  BP_DEAD_BAND_MMHG,
+  GLUCOSE_DEAD_BAND_MG_DL,
+  type GlanceRow,
+} from './patient-chart-glance';
 
 const CLINIC = 'clinic-1';
 const PATIENT = 'patient-1';
@@ -58,6 +68,29 @@ function vitalsFixture(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const EMPTY_ROW: GlanceRow = {
+  history: null,
+  hypertension_status: null,
+  diabetes: null,
+  pregnancy: null,
+  bp: null,
+  glucose_latest: null,
+  glucose_previous: null,
+  hba1c: null,
+  adherence: null,
+  tobacco: null,
+  eye_at: null,
+  counselling_at: null,
+  follow_up_at: null,
+  timezone: 'Africa/Accra',
+};
+
+/** The SQL text and parameters of the glance query a test captured. */
+function capturedSql(mock: jest.Mock) {
+  const [strings, ...values] = mock.mock.calls[0];
+  return Prisma.sql(strings, ...values);
+}
+
 function createPrismaMock() {
   return {
     patient: { findFirst: jest.fn().mockResolvedValue({ id: PATIENT }) },
@@ -76,6 +109,7 @@ function createPrismaMock() {
       findFirst: jest.fn().mockResolvedValue(null),
     },
     patientConsent: { findFirst: jest.fn().mockResolvedValue(null) },
+    $queryRaw: jest.fn().mockResolvedValue([EMPTY_ROW]),
   };
 }
 
@@ -361,6 +395,268 @@ describe('PatientChartService', () => {
         diabetesScreening: false,
         prescriptions: 2,
       });
+    });
+  });
+
+  describe('at a glance (#341)', () => {
+    const day = (iso: string) => new Date(`${iso}T09:00:00.000Z`);
+    const fullAccess = { has: () => true, screening: true, counselling: true };
+    const baseSummary = {
+      patientId: PATIENT,
+      clinicId: CLINIC,
+      sections: [],
+      vitals: { latest: null },
+      diabetes: { latest: null },
+      hypertension: { latest: null },
+      allergies: { state: 'NOT_RECORDED' },
+      medications: { currentCount: 0, noKnownCurrentMedications: false, lastReconciledAt: null },
+      noteActivity: null,
+      visits: { total: 0, open: 0, lastVisitAt: null },
+      consent: null,
+      pendingActions: [],
+    };
+
+    describe('direction rule', () => {
+      it('needs three readings', () => {
+        expect(trendDirection(150, [140], BP_DEAD_BAND_MMHG)).toBe('NOT_ENOUGH_DATA');
+        expect(trendDirection(null, [140, 140], BP_DEAD_BAND_MMHG)).toBe('NOT_ENOUGH_DATA');
+      });
+
+      it.each([
+        [150, 'STEADY'], // exactly the dead band above the mean of 140
+        [151, 'RISING'],
+        [130, 'STEADY'],
+        [129, 'FALLING'],
+      ])('BP %i against previous 138 and 142 is %s', (latest, expected) => {
+        expect(trendDirection(latest, [138, 142], BP_DEAD_BAND_MMHG)).toBe(expected);
+      });
+
+      it.each([
+        [118, 'STEADY'],
+        [119, 'RISING'],
+        [81, 'FALLING'],
+      ])('glucose %i against a mean of 100 is %s', (latest, expected) => {
+        expect(trendDirection(latest, [90, 110], GLUCOSE_DEAD_BAND_MG_DL)).toBe(expected);
+      });
+    });
+
+    it('summarises adherence as the worst answer, ignoring unasked ones', () => {
+      expect(worstAdherence(['ALWAYS', 'SOMETIMES', 'NOT_ASSESSED'])).toBe('SOMETIMES');
+      expect(worstAdherence(['ALWAYS', 'NOT_TAKING'])).toBe('NOT_TAKING');
+      expect(worstAdherence(['NOT_ASSESSED'])).toBeNull();
+    });
+
+    it('drops history conditions the assessments already state, and repeats', () => {
+      const names = ['Hypertension', 'Type 2 diabetes', 'Asthma', 'asthma ', 'HTN'];
+      expect(dedupeConditions(names, { hypertension: true, diabetes: true })).toEqual(['Asthma']);
+      expect(dedupeConditions(names, { hypertension: false, diabetes: false })).toEqual([
+        'Hypertension',
+        'Type 2 diabetes',
+        'Asthma',
+        'HTN',
+      ]);
+    });
+
+    it.each([
+      ['2026-12-03', '2026-11-15', null, 'UPCOMING'],
+      ['2026-11-15', '2026-11-15', null, 'DUE_TODAY'],
+      ['2026-11-01', '2026-11-15', '2026-10-01', 'OVERDUE'],
+      ['2026-11-01', '2026-11-15', '2026-11-01', 'MET'],
+    ])('follow-up due %s on %s, last visit %s, is %s', (dueOn, today, last, state) => {
+      expect(followUpState(dueOn, today, last)).toBe(state);
+    });
+
+    it('builds every part from the records, using the repeat BP reading', () => {
+      const glance = assembleGlance(
+        {
+          ...EMPTY_ROW,
+          history: [
+            { category: 'CONDITION', details: { conditionName: 'Hypertension' } },
+            { category: 'CONDITION', details: { conditionName: 'Asthma' } },
+            {
+              category: 'FAMILY_HISTORY',
+              details: { relationship: 'Father', familyCondition: 'Stroke' },
+            },
+          ],
+          hypertension_status: 'KNOWN_HYPERTENSION',
+          diabetes: { status: 'KNOWN_DIABETES', type: 'TYPE_2' },
+          pregnancy: { answer: 'YES', at: '2026-11-01T09:00:00+00:00' },
+          bp: [
+            {
+              systolic: 170,
+              diastolic: 100,
+              repeatSystolic: 152,
+              repeatDiastolic: 94,
+              at: '2026-11-03T09:00:00+00:00',
+            },
+            {
+              systolic: 138,
+              diastolic: 88,
+              repeatSystolic: null,
+              repeatDiastolic: null,
+              at: '2026-10-03T09:00:00+00:00',
+            },
+            {
+              systolic: 140,
+              diastolic: 90,
+              repeatSystolic: null,
+              repeatDiastolic: null,
+              at: '2026-09-03T09:00:00+00:00',
+            },
+          ],
+          glucose_latest: { mgDl: 164, type: 'FASTING', at: '2026-11-03T09:00:00+00:00' },
+          glucose_previous: [
+            { mgDl: 130, at: '2026-10-03T09:00:00+00:00' },
+            { mgDl: 126, at: '2026-09-03T09:00:00+00:00' },
+          ],
+          adherence: { levels: ['ALWAYS', 'SOMETIMES'], at: '2026-11-03T09:00:00+00:00' },
+          tobacco: {
+            smoking: 'CURRENT_DAILY',
+            smokeless: 'NEVER',
+            at: '2026-11-03T09:00:00+00:00',
+          },
+          eye_at: day('2026-11-03'),
+          follow_up_at: day('2026-11-10'),
+        },
+        fullAccess,
+        { ...baseSummary, visits: { total: 4, open: 0, lastVisitAt: day('2026-11-03') } } as never,
+        day('2026-11-15'),
+      );
+
+      expect(glance.conditions).toEqual({
+        history: ['Asthma'],
+        screening: {
+          hypertension: 'KNOWN_HYPERTENSION',
+          diabetes: 'KNOWN_DIABETES',
+          diabetesType: 'TYPE_2',
+        },
+      });
+      expect(glance.bloodPressure).toMatchObject({
+        latest: { systolic: 152, diastolic: 94, repeat: true },
+        direction: 'RISING',
+      });
+      expect(glance.glucose).toMatchObject({
+        latest: { mgDl: 164, type: 'FASTING' },
+        direction: 'RISING',
+        hba1c: null,
+      });
+      expect(glance.medications?.adherence).toEqual({
+        level: 'SOMETIMES',
+        recordedAt: day('2026-11-03'),
+      });
+      expect(glance.risks).toMatchObject({
+        familyHistory: [{ relationship: 'Father', condition: 'Stroke' }],
+        screening: { tobacco: { smoking: 'CURRENT_DAILY' }, pregnantRecordedAt: day('2026-11-01') },
+      });
+      expect(glance.screenings).toEqual([
+        { kind: 'VITALS', lastAt: null },
+        { kind: 'HYPERTENSION', lastAt: null },
+        { kind: 'DIABETES', lastAt: null },
+        { kind: 'EYE', lastAt: day('2026-11-03') },
+        { kind: 'COUNSELLING', lastAt: null },
+        { kind: 'TOBACCO', lastAt: day('2026-11-03') },
+      ]);
+      expect(glance.care).toEqual({
+        visits: 4,
+        lastVisitAt: day('2026-11-03'),
+        followUp: { dueOn: '2026-11-10', state: 'OVERDUE' },
+      });
+    });
+
+    it('does not call a pregnancy answered a term ago current', () => {
+      const glance = assembleGlance(
+        { ...EMPTY_ROW, pregnancy: { answer: 'YES', at: '2026-01-01T09:00:00+00:00' } },
+        fullAccess,
+        baseSummary as never,
+        day('2026-11-15'),
+      );
+      expect(glance.risks?.screening?.pregnantRecordedAt).toBeNull();
+    });
+
+    it('gives a brand new patient a block of empty parts, not nulls', () => {
+      expect(assembleGlance(EMPTY_ROW, fullAccess, baseSummary as never)).toMatchObject({
+        conditions: { history: [], screening: { hypertension: null, diabetes: null } },
+        bloodPressure: { latest: null, previous: [], direction: 'NOT_ENOUGH_DATA' },
+        glucose: { latest: null, hba1c: null, direction: 'NOT_ENOUGH_DATA' },
+        medications: { currentCount: 0, adherence: null },
+        risks: { familyHistory: [], screening: { tobacco: null, pregnantRecordedAt: null } },
+        care: { visits: 0, followUp: null },
+      });
+    });
+
+    it('sends no BP, glucose, tobacco, eye or pregnancy without SCREENING.READ, and reads none', async () => {
+      const access = { has: () => true, screening: false, counselling: false };
+      // Even a row that held them would not reach the payload.
+      const glance = assembleGlance(
+        {
+          ...EMPTY_ROW,
+          bp: [
+            {
+              systolic: 1,
+              diastolic: 1,
+              repeatSystolic: null,
+              repeatDiastolic: null,
+              at: '2026-11-03T09:00:00+00:00',
+            },
+          ],
+        },
+        access,
+        { ...baseSummary, hypertension: null, diabetes: null } as never,
+      );
+      expect(glance.bloodPressure).toBeNull();
+      expect(glance.glucose).toBeNull();
+      expect(glance.conditions?.screening).toBeNull();
+      expect(glance.risks?.screening).toBeNull();
+      expect(glance.screenings.map((entry) => entry.kind)).toEqual(['VITALS']);
+
+      const { loadGlanceRow } = await import('./patient-chart-glance');
+      await loadGlanceRow(prisma as never, CLINIC, PATIENT, access);
+      const sql = capturedSql(prisma.$queryRaw).sql;
+      for (const table of [
+        '"Vitals"',
+        '"TobaccoScreening"',
+        '"EyeScreening"',
+        '"HypertensionAssessment"',
+        '"CounsellingRecord"',
+      ])
+        expect(sql).not.toContain(table);
+    });
+
+    it('drops the medical history and medication parts when their flags are off', async () => {
+      delete process.env.FEATURE_MEDICAL_HISTORY_ENABLED;
+      delete process.env.FEATURE_MEDICATION_RECONCILIATION_ENABLED;
+      const { glance } = await service.getSummary(CLINIC, PATIENT, actor(UserRole.DOCTOR));
+      expect(glance.conditions?.history).toBeNull();
+      expect(glance.risks?.familyHistory).toBeNull();
+      expect(glance.risks?.allergies).toBeNull();
+      expect(glance.medications).toBeNull();
+      const sql = capturedSql(prisma.$queryRaw).sql;
+      expect(sql).not.toContain('"MedicalHistoryRecord"');
+      expect(sql).not.toContain('"EncounterMedicationAdherence"');
+    });
+
+    it('leaves counselling out for a manager, who cannot read it', async () => {
+      const { glance } = await service.getSummary(CLINIC, PATIENT, actor(UserRole.MANAGER));
+      expect(glance.screenings.map((entry) => entry.kind)).not.toContain('COUNSELLING');
+      expect(capturedSql(prisma.$queryRaw).sql).not.toContain('"CounsellingRecord"');
+    });
+
+    it('binds the clinic and patient as parameters of the one glance query', async () => {
+      await service.getSummary(CLINIC, PATIENT, actor(UserRole.DOCTOR));
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      const query = capturedSql(prisma.$queryRaw);
+      expect(query.values).toEqual(expect.arrayContaining([CLINIC, PATIENT]));
+      expect(query.values.filter((value) => typeof value === 'string')).toEqual(
+        expect.arrayContaining([CLINIC, PATIENT]),
+      );
+      // Nothing else is interpolated: the gates are booleans and the probe limits small integers.
+      expect(
+        query.values.every(
+          (value) =>
+            [CLINIC, PATIENT, true, false].includes(value as never) ||
+            (Number.isInteger(value) && (value as number) <= 3),
+        ),
+      ).toBe(true);
     });
   });
 });
