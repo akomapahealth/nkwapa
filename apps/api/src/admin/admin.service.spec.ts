@@ -860,7 +860,7 @@ describe('AdminService', () => {
     expect(prisma.userClinicRole.create).not.toHaveBeenCalled();
   });
   describe('updateUserName (#225)', () => {
-    const NAME = { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' };
+    const NAME = { firstName: 'Ama', middleName: 'K', lastName: 'Mensah' };
 
     function seatedAt(...seats: Array<[string | null, UserRole]>) {
       return { clinicRoles: seats.map(([clinicId, role]) => ({ clinicId, role })) };

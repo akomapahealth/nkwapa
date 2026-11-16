@@ -6,7 +6,7 @@ describe('UserRepository.syncKeycloakProfile', () => {
       user: {
         findUnique: jest.fn().mockResolvedValue({
           phoneE164: null,
-          middleInitial: null,
+          middleName: null,
           displayName: 'Someone',
           email: 'ama@clinic.org',
           keycloakSub: 'kc-1',
@@ -31,7 +31,7 @@ describe('UserRepository.syncKeycloakProfile', () => {
     const { prisma, repository } = repositoryWith({
       firstName: null,
       lastName: null,
-      middleInitial: 'K',
+      middleName: 'K',
     });
 
     await repository.syncKeycloakProfile('user-1', { firstName: 'Ama', lastName: 'Mensah' });

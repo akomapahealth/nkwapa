@@ -29,6 +29,7 @@ const mockPatient: Patient = {
   patientCode: 'NKP-2025-000001',
   primaryClinicId: 'clinic-1',
   firstName: 'John',
+  middleName: null,
   lastName: 'Doe',
   dob: null,
   sex: 'UNKNOWN',
@@ -182,6 +183,7 @@ describe('PatientService - national_id dedup conflict', () => {
         id: mockPatient.id,
         patientCode: mockPatient.patientCode,
         firstName: mockPatient.firstName,
+        middleName: mockPatient.middleName,
         lastName: mockPatient.lastName,
         nationalIdLast4: mockPatient.nationalIdLast4,
       });
@@ -276,6 +278,18 @@ describe('PatientService - update', () => {
         afterJson: JSON.stringify(updatedPatient),
       }),
     );
+  });
+
+  it('sets and clears the middle name only when the edit sends it (#342)', async () => {
+    const audit = { clinicId: 'clinic-1', actorUserId: 'user-1' };
+    await service.update('patient-1', { middleName: 'Kwame Agyei' }, audit);
+    expect(mockRepoUpdate).toHaveBeenLastCalledWith('patient-1', { middleName: 'Kwame Agyei' });
+
+    await service.update('patient-1', { middleName: null }, audit);
+    expect(mockRepoUpdate).toHaveBeenLastCalledWith('patient-1', { middleName: null });
+
+    await service.update('patient-1', { firstName: 'Nana' }, audit);
+    expect(mockRepoUpdate.mock.calls.at(-1)[1]).not.toHaveProperty('middleName');
   });
 
   it('normalizes phone number on update', async () => {

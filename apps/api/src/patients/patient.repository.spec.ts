@@ -69,6 +69,14 @@ describe('PatientRepository - residential location filters', () => {
     expect(where.residentialRegion).toBe('VOLTA');
     expect(Array.isArray(where.OR)).toBe(true);
   });
+
+  it('matches a search on the middle name too (#342)', async () => {
+    await repository.findMany({ primaryClinicId: 'clinic-1', search: 'Agyei' });
+
+    expect(whereOf().OR).toEqual(
+      expect.arrayContaining([{ middleName: { contains: 'Agyei', mode: 'insensitive' } }]),
+    );
+  });
 });
 
 describe('PatientRepository - completed screening filter', () => {

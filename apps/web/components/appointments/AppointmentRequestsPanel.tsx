@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarPlus,
@@ -585,7 +586,7 @@ export function AppointmentRequestsPanel({
 /** Staff see the patient's name; the portal's own view of a request never carries one. */
 function patientName(request: AppointmentRequestRecord) {
   if (!request.patient) return 'A patient';
-  return `${request.patient.firstName} ${request.patient.lastName}`.trim() || 'A patient';
+  return formatPersonName(request.patient, 'short') || 'A patient';
 }
 
 function requestSummary(request: AppointmentRequestRecord, timezone: string) {

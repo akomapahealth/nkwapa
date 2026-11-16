@@ -8,7 +8,7 @@ describe('UserProfileService.updateName', () => {
     email: 'mensah@clinic.org',
     keycloakSub: 'kc-sub-1',
     firstName: null,
-    middleInitial: null,
+    middleName: null,
     lastName: null,
     displayName: 'mensah@clinic.org',
   };
@@ -40,24 +40,24 @@ describe('UserProfileService.updateName', () => {
 
     const result = await service.updateName(
       'user-1',
-      { firstName: ' Ama ', middleInitial: 'k.', lastName: 'Mensah' },
+      { firstName: ' Ama ', middleName: '  Kukua   Adɔma ', lastName: 'Mensah' },
       CONTEXT,
     );
 
     expect(result).toEqual({
       userId: 'user-1',
       firstName: 'Ama',
-      middleInitial: 'K',
+      middleName: 'Kukua Adɔma',
       lastName: 'Mensah',
-      displayName: 'Ama K. Mensah',
+      displayName: 'Ama Kukua Adɔma Mensah',
     });
     expect(tx.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: {
           firstName: 'Ama',
-          middleInitial: 'K',
+          middleName: 'Kukua Adɔma',
           lastName: 'Mensah',
-          displayName: 'Ama K. Mensah',
+          displayName: 'Ama Kukua Adɔma Mensah',
         },
       }),
     );
@@ -70,7 +70,7 @@ describe('UserProfileService.updateName', () => {
       source: 'SELF',
     });
     expect(JSON.parse(event.afterJson)).toMatchObject({
-      displayName: 'Ama K. Mensah',
+      displayName: 'Ama Kukua Adɔma Mensah',
       source: 'SELF',
     });
     expect(keycloak.updateIdentityNames).toHaveBeenCalledWith('kc-sub-1', {

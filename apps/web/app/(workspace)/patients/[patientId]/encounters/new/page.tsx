@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { formatOpsDay } from '@/lib/ops';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -32,6 +33,7 @@ import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 type WizardPatient = {
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   patientCode: string;
   dob?: string | null;
@@ -218,9 +220,7 @@ function NewEncounterFlow({ clinicId }: { clinicId: string }) {
         <div className={styles.identityRow}>
           <div className={styles.identity}>
             <p className="text-sm text-muted-foreground">New visit</p>
-            <h1 className="mt-1 type-page-title">
-              {patient.firstName} {patient.lastName}
-            </h1>
+            <h1 className="mt-1 type-page-title">{formatPersonName(patient)}</h1>
             <div className={styles.metadata}>
               <span className="font-mono tabular-nums" translate="no">
                 {patient.patientCode}

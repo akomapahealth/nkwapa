@@ -822,6 +822,33 @@ describe('SyncService', () => {
       expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
     });
 
+    it('stores the middle names a queued registration sends, and none from an older client (#342)', async () => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+      (patientRepo.findById as jest.Mock).mockResolvedValue(null);
+      const base = {
+        nationalId: '9876543210',
+        primaryClinicId: 'clinic-1',
+        firstName: 'Nana',
+        lastName: 'Tuffour',
+      };
+      await push([{ clinicId: 'clinic-1', role: 'VOLUNTEER' }], 'patient', {
+        ...base,
+        patientCode: 'NKP-2025-000901',
+        middleName: '  Kwame   Agyei ',
+      });
+      expect((prisma.patient.upsert as jest.Mock).mock.calls.at(-1)[0].create.middleName).toBe(
+        'Kwame Agyei',
+      );
+
+      await push([{ clinicId: 'clinic-1', role: 'VOLUNTEER' }], 'patient', {
+        ...base,
+        patientCode: 'NKP-2025-000902',
+      });
+      const older = (prisma.patient.upsert as jest.Mock).mock.calls.at(-1)[0];
+      expect(older.create).not.toHaveProperty('middleName');
+      expect(older.update).not.toHaveProperty('middleName');
+    });
+
     it('lets a volunteer register a patient but not edit an existing chart', async () => {
       process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
       (patientRepo.findById as jest.Mock).mockResolvedValue(null);

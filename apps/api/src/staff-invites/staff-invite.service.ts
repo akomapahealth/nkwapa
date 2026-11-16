@@ -374,7 +374,7 @@ export class StaffInviteService {
         isActive: true,
         keycloakSub: true,
         firstName: true,
-        middleInitial: true,
+        middleName: true,
         lastName: true,
         displayName: true,
       },
@@ -500,7 +500,7 @@ export class StaffInviteService {
    */
   private async adoptInviteName(
     user: Parameters<UserProfileService['applyName']>[1],
-    invite: Pick<StaffInvite, 'clinicId' | 'firstName' | 'middleInitial' | 'lastName'>,
+    invite: Pick<StaffInvite, 'clinicId' | 'firstName' | 'middleName' | 'lastName'>,
     requestId?: string,
   ) {
     const firstName = user.firstName ?? invite.firstName;
@@ -509,7 +509,7 @@ export class StaffInviteService {
     await this.userProfileService.applyName(
       this.prisma,
       user,
-      { firstName, lastName, middleInitial: user.middleInitial ?? invite.middleInitial },
+      { firstName, lastName, middleName: user.middleName ?? invite.middleName },
       { actorUserId: user.id, source: 'INVITE', clinicId: invite.clinicId, requestId },
     );
   }
@@ -517,7 +517,7 @@ export class StaffInviteService {
   /** The inviter's optional name for the invitee: both parts or neither, never the address. */
   private inviteeName(dto: CreateStaffInviteDto, email: string) {
     if (!dto.firstName && !dto.lastName) {
-      return { firstName: null, middleInitial: null, lastName: null };
+      return { firstName: null, middleName: null, lastName: null };
     }
     const fieldErrors = (['firstName', 'lastName'] as const).flatMap((field) => {
       const value = dto[field];
@@ -537,7 +537,7 @@ export class StaffInviteService {
     }
     return {
       firstName: dto.firstName ?? null,
-      middleInitial: dto.middleInitial ?? null,
+      middleName: dto.middleName ?? null,
       lastName: dto.lastName ?? null,
     };
   }
@@ -745,7 +745,7 @@ export class StaffInviteService {
       | 'clinicId'
       | 'email'
       | 'firstName'
-      | 'middleInitial'
+      | 'middleName'
       | 'lastName'
       | 'role'
       | 'status'
@@ -776,7 +776,7 @@ export class StaffInviteService {
         invite.firstName && invite.lastName
           ? formatStaffDisplayName({
               firstName: invite.firstName,
-              middleInitial: invite.middleInitial,
+              middleName: invite.middleName,
               lastName: invite.lastName,
             })
           : null,

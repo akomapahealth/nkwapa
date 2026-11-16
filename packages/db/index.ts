@@ -188,6 +188,7 @@ export {
   DUPLICATE_MATCH_REASONS,
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_MATCH_WEIGHTS,
+  DUPLICATE_MIDDLE_NAME_ADJUSTMENT,
   DUPLICATE_NAME_EDIT_DISTANCE,
   duplicatePairKey,
   editDistanceWithin,
@@ -429,11 +430,16 @@ export * from './src/diabetes-interview';
 export * from './src/medication-adherence';
 export * from './src/staff-agreement';
 export {
-  MIDDLE_INITIAL_MESSAGE,
+  PERSON_NAME_MAX_LENGTH,
+  formatPersonName,
+  normalizeMiddleName,
+  type PersonNameParts,
+  type PersonNameStyle,
+} from './src/person-name';
+export {
   STAFF_NAME_MAX_LENGTH,
   formatStaffDisplayName,
-  middleInitialError,
-  normalizeMiddleInitial,
+  middleNameError,
   normalizeStaffNamePart,
   staffNameMessage,
   staffNamePartError,

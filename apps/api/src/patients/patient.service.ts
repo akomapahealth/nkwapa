@@ -52,6 +52,7 @@ export interface ExistingPatientSummary {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   nationalIdLast4: string | null;
 }
@@ -60,6 +61,7 @@ export interface PatientRegistryItem {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   phoneE164: string | null;
   email: string | null;
@@ -234,6 +236,7 @@ export class PatientService {
           patientCode,
           primaryClinicId: dto.primaryClinicId,
           firstName: dto.firstName,
+          middleName: dto.middleName ?? null,
           lastName: dto.lastName,
           dob: dto.dob,
           sex: dto.sex ?? 'UNKNOWN',
@@ -270,6 +273,7 @@ export class PatientService {
       id: p.id,
       patientCode: p.patientCode,
       firstName: p.firstName,
+      middleName: p.middleName,
       lastName: p.lastName,
       nationalIdLast4: p.nationalIdLast4,
     };
@@ -508,6 +512,7 @@ export class PatientService {
 
     const data: Record<string, unknown> = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName;
+    if (dto.middleName !== undefined) data.middleName = dto.middleName;
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
     if (dto.dob !== undefined) data.dob = new Date(dto.dob);
     if (dto.sex !== undefined) data.sex = dto.sex;
@@ -755,6 +760,7 @@ export class PatientService {
       id: patient.id,
       patientCode: patient.patientCode,
       firstName: patient.firstName,
+      middleName: patient.middleName,
       lastName: patient.lastName,
       phoneE164: patient.phoneE164,
       email: patient.email,

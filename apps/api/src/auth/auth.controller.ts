@@ -1,3 +1,4 @@
+import { formatPersonName } from '@nkwapa/db';
 import {
   BadRequestException,
   Body,
@@ -118,7 +119,7 @@ export interface WhoAmIResponse {
   profile: {
     needsName: boolean;
     firstName: string | null;
-    middleInitial: string | null;
+    middleName: string | null;
     lastName: string | null;
     email: string | null;
     phoneE164: string | null;
@@ -225,7 +226,7 @@ export class AuthController {
         staffAgreementVersion: true,
         staffAgreementAcceptedAt: true,
         firstName: true,
-        middleInitial: true,
+        middleName: true,
         lastName: true,
         email: true,
         phoneE164: true,
@@ -271,7 +272,7 @@ export class AuthController {
       profile: {
         needsName,
         firstName: profile?.firstName ?? null,
-        middleInitial: profile?.middleInitial ?? null,
+        middleName: profile?.middleName ?? null,
         lastName: profile?.lastName ?? null,
         email: profile?.email ?? null,
         phoneE164: profile?.phoneE164 ?? null,
@@ -340,7 +341,7 @@ export class AuthController {
     }
     const profile = await this.prisma.user.findUnique({
       where: { id: user.id },
-      select: { firstName: true, middleInitial: true, lastName: true },
+      select: { firstName: true, middleName: true, lastName: true },
     });
     if (!profile || !signatureMatchesName(dto.signedName, profile)) {
       throw new BadRequestException({
@@ -456,6 +457,7 @@ export class AuthController {
             id: true,
             patientCode: true,
             firstName: true,
+            middleName: true,
             lastName: true,
           },
         },
@@ -474,7 +476,7 @@ export class AuthController {
         clinicId: invite.clinicId,
         clinicName: invite.clinic.name,
         patientId: invite.patientId,
-        patientName: `${invite.patient.firstName} ${invite.patient.lastName}`.trim(),
+        patientName: formatPersonName(invite.patient, 'full'),
         patientCode: invite.patient.patientCode,
         email: invite.email,
         phoneE164: invite.phoneE164,

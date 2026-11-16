@@ -187,7 +187,7 @@ npm run db:assign-system-admin
 Nobody needs Keycloak credentials to add a colleague. On `/admin/users`, with the clinic
 selected, a director of that clinic or a system admin uses **Invite a colleague**:
 
-1. Enter the person's name if you know it (first name, optional middle initial, last name), an
+1. Enter the person's name if you know it (first name, optional middle names, last name), an
    address only that person reads, the role (Manager, Doctor or Volunteer) and how long the
    invitation stays open (24 hours, 3 days, or 7 days; 3 days by default). The name is optional.
 2. Nkwapa creates the Keycloak account and Keycloak emails a "Choose your Nkwapa password" link.
@@ -219,9 +219,11 @@ Every step is audited: `STAFF.INVITE.CREATE`, `.RESEND`, `.CANCEL`, `.IDENTITY`,
 
 ### Staff names
 
-Every staff account has a first name, a last name and an optional middle initial (#225). The
-display name used across the app is built from them, as "Ama K. Mensah", and Nkwapa is the source
-of truth: a later sign-in never overwrites a name set here with what Keycloak holds.
+Every staff account has a first name, a last name and optional middle names (#225, #342), any
+number of them in one field. The display name used across the app is built from them, as "Ama
+Kukua Mensah". An initial saved before #342 is kept and still shows as "Ama K. Mensah" until the
+person edits it. Nkwapa is the source of truth: a later sign-in never overwrites a name set here
+with what Keycloak holds, and Keycloak receives the first and last name only.
 
 - **Anyone on staff** without a name is held on the **Your name** step at their next sign-in,
   until they save one. Sign-out stays available. Patients are never asked; their name lives on the

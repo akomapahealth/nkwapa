@@ -231,8 +231,8 @@ export function DuplicateReviewScreen() {
         enableSorting: false,
         cell: ({ row: params }) => (
           <div className="py-2 text-sm leading-5">
-            {params.original.patients.map((patient, index) => (
-              <p key={patient.id} className={index === 0 ? 'text-foreground' : 'text-foreground'}>
+            {params.original.patients.map((patient) => (
+              <p key={patient.id} className="text-foreground [overflow-wrap:anywhere]">
                 <span className="font-medium">{patientDisplayName(patient)}</span>
                 <span className="text-muted-foreground"> · {patient.patientCode}</span>
               </p>

@@ -79,6 +79,7 @@ interface PatientWithEncounters {
     id: string;
     patientCode: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     dob?: string | null;
     sex: string;
@@ -601,7 +602,7 @@ function PatientChartWorkspace() {
   return (
     <div className={`space-y-6 ${profileStyles.workspace}`}>
       <PatientProfileHeader
-        name={`${patient.firstName} ${patient.lastName}`}
+        person={patient}
         patientCode={patient.patientCode}
         sex={
           patient.sex && patient.sex !== 'UNKNOWN' ? statusLabel(patient.sex) : 'Sex not recorded'

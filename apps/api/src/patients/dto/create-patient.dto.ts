@@ -4,6 +4,7 @@ import { GhanaRegion, NationalIdType, PatientLocationStatus, Sex } from '@prisma
 export interface CreatePatientDto {
   primaryClinicId: string; // set by controller from :clinicId
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   dob?: Date;
   sex?: Sex;

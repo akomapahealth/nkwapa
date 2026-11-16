@@ -1,3 +1,4 @@
+import { formatPersonName } from '@nkwapa/db';
 import {
   BadRequestException,
   ConflictException,
@@ -157,7 +158,7 @@ export class ClinicalNoteService {
     const encounter = await this.prisma.encounter.findFirst({
       where: { id: encounterId, clinicId },
       select: {
-        patient: { select: { firstName: true, lastName: true } },
+        patient: { select: { firstName: true, middleName: true, lastName: true } },
         vitals: { select: { systolicBp: true, diastolicBp: true, pulseBpm: true } },
         clinic: { select: { glucoseUnit: true, bodyUnit: true, hba1cUnit: true } },
         hypertensionAssessment: true,
@@ -217,7 +218,7 @@ export class ClinicalNoteService {
       clinicId,
       PERMISSIONS.CAREPLAN_CLINICIAN_PLAN,
     );
-    const patientName = `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim();
+    const patientName = formatPersonName(encounter.patient, 'full');
 
     const sections: HapSections[] = [];
     /*

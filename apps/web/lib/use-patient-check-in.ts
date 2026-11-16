@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from './person-name';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { getErrorMessage } from './api';
@@ -33,7 +34,7 @@ export function usePatientCheckIn(clinicId: string | null) {
 
   async function checkIn(patient: CheckInPatient) {
     if (!submit) return;
-    const name = [patient.firstName, patient.lastName].filter(Boolean).join(' ') || 'The patient';
+    const name = formatPersonName(patient, 'short') || 'The patient';
     const boardLink = opsDestination
       ? {
           href: opsDestination,

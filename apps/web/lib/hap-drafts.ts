@@ -1,3 +1,4 @@
+import { formatPersonName } from './person-name';
 import { apiFetch, readApiError, type GetToken } from './api';
 
 /** One of the signed-in author's own HAP drafts, oldest first (#307). */
@@ -19,4 +20,4 @@ export async function fetchMyHapDrafts(clinicId: string, getToken: GetToken): Pr
 }
 
 export const hapDraftPatientName = (draft: HapDraft) =>
-  `${draft.patient.firstName} ${draft.patient.lastName}`.trim() || draft.patient.patientCode;
+  formatPersonName(draft.patient, 'short') || draft.patient.patientCode;

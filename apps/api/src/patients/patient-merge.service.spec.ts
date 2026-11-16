@@ -401,6 +401,7 @@ describe('PatientMergeService.preview', () => {
           'firstName',
           'id',
           'lastName',
+          'middleName',
           'nationalIdLast4',
           'nationalIdType',
           'patientCode',

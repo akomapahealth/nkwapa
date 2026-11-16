@@ -18,6 +18,7 @@ export interface PortalMeResponse {
     id: string;
     patientCode: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     dob: string | null;
     sex: string;

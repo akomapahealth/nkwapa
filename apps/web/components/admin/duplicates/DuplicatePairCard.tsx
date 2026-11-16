@@ -47,7 +47,7 @@ export function DuplicatePairCard({
       <dl className="mt-3 space-y-2">
         {candidate.patients.map((patient) => (
           <div key={patient.id}>
-            <dt className="text-base font-semibold text-foreground">
+            <dt className="text-base font-semibold text-foreground [overflow-wrap:anywhere]">
               {patientDisplayName(patient)}
             </dt>
             <dd className="text-sm text-muted-foreground">

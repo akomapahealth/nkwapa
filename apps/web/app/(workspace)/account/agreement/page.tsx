@@ -62,12 +62,16 @@ function SignForm({
   const [saving, setSaving] = useState(false);
   const profile: {
     firstName?: string | null;
-    middleInitial?: string | null;
+    middleName?: string | null;
     lastName?: string | null;
   } = bootstrap.profile ?? {};
   const nameOnFile =
     profile.firstName && profile.lastName
-      ? formatStaffDisplayName({ firstName: profile.firstName, lastName: profile.lastName })
+      ? formatStaffDisplayName({
+          firstName: profile.firstName,
+          middleName: profile.middleName,
+          lastName: profile.lastName,
+        })
       : bootstrap.displayName;
 
   const submit = async (event: React.FormEvent) => {

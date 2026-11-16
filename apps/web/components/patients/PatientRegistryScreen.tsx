@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -61,6 +62,7 @@ interface PatientSummary {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   phoneE164?: string | null;
   nationalIdLast4?: string | null;
@@ -255,12 +257,12 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     {
       // Name over code, as in the pilot: one identity per row, read in one glance.
       id: 'name',
-      accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
+      accessorFn: (row) => formatPersonName(row, 'short'),
       header: 'Patient',
       meta: { className: 'min-w-56 max-w-80 whitespace-normal' },
       cell: ({ row }) => (
         <PatientIdentity
-          name={`${row.original.firstName} ${row.original.lastName}`.trim()}
+          name={formatPersonName(row.original, 'short')}
           code={row.original.patientCode}
           idLast4={row.original.nationalIdLast4}
         />

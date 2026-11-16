@@ -99,7 +99,7 @@ const sections: LegalSection[] = [
         <p>
           Nkwapa asks only for information a clinic needs to care for a patient, run the clinic or
           keep the record trustworthy. Many fields are optional, including a patient&rsquo;s
-          national ID number, email address and middle initial, and a staff member&rsquo;s phone
+          national ID number, email address and middle names, and a staff member&rsquo;s phone
           number. Leaving an optional field empty never affects care.
         </p>
         <p>Nkwapa does not collect:</p>

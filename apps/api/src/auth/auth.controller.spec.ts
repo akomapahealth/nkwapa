@@ -626,7 +626,7 @@ describe('AuthController', () => {
     it('holds a staff member without a last name on the name step, prefilled', async () => {
       prisma.user.findUnique.mockResolvedValue({
         firstName: 'Ama',
-        middleInitial: null,
+        middleName: null,
         lastName: null,
         email: 'ama@clinic.org',
       });
@@ -637,7 +637,7 @@ describe('AuthController', () => {
       expect(response.profile).toEqual({
         needsName: true,
         firstName: 'Ama',
-        middleInitial: null,
+        middleName: null,
         lastName: null,
         email: 'ama@clinic.org',
         phoneE164: null,
@@ -666,7 +666,7 @@ describe('AuthController', () => {
       ...reqUser,
       roles: [{ clinicId: 'clinic-1', role }],
     });
-    const named = { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' };
+    const named = { firstName: 'Ama', middleName: 'K', lastName: 'Mensah' };
     const sign = (signedName: string, version: number = STAFF_AGREEMENT.version) =>
       controller.signStaffAgreement(
         { user: withRole(UserRole.VOLUNTEER), ip: '10.0.0.1', headers: { 'user-agent': 'jest' } },

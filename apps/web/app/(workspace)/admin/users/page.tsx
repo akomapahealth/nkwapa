@@ -104,7 +104,7 @@ interface ClinicRosterRow {
   keycloakSub?: string;
   displayName: string;
   firstName: string | null;
-  middleInitial?: string | null;
+  middleName?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
@@ -127,7 +127,7 @@ interface AllUsersRow {
   keycloakSub: string;
   displayName: string;
   firstName: string | null;
-  middleInitial?: string | null;
+  middleName?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
@@ -158,7 +158,7 @@ interface StaffAccessRow {
   keycloakSub?: string;
   displayName: string;
   firstName: string | null;
-  middleInitial?: string | null;
+  middleName?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
@@ -212,7 +212,7 @@ function nameForRow(row: StaffAccessRow) {
   return row.firstName && row.lastName
     ? formatStaffDisplayName({
         firstName: row.firstName,
-        middleInitial: row.middleInitial ?? null,
+        middleName: row.middleName ?? null,
         lastName: row.lastName,
       })
     : row.displayName;
@@ -319,7 +319,7 @@ function normalizeClinicRow(row: ClinicRosterRow, clinicId: string, clinicName: 
     keycloakSub: row.keycloakSub,
     displayName: row.displayName,
     firstName: row.firstName,
-    middleInitial: row.middleInitial ?? null,
+    middleName: row.middleName ?? null,
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,
@@ -361,7 +361,7 @@ function normalizeAllUsersRow(
     keycloakSub: row.keycloakSub,
     displayName: row.displayName,
     firstName: row.firstName,
-    middleInitial: row.middleInitial ?? null,
+    middleName: row.middleName ?? null,
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,

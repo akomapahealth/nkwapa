@@ -1,3 +1,4 @@
+import { formatPersonName } from '@nkwapa/db';
 import {
   claimRefusal,
   expiredInviteRefusal,
@@ -145,6 +146,7 @@ export interface PortalPatientSummary {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   dob: Date | null;
   sex: string;
@@ -288,6 +290,7 @@ export class PatientPortalService {
         id: patient.id,
         patientCode: patient.patientCode,
         firstName: patient.firstName,
+        middleName: patient.middleName,
         lastName: patient.lastName,
         dob: patient.dob?.toISOString().slice(0, 10) ?? null,
         sex: patient.sex,
@@ -1798,6 +1801,7 @@ export class PatientPortalService {
           select: {
             id: true,
             firstName: true,
+            middleName: true,
             lastName: true,
             patientCode: true,
             primaryClinicId: true,
@@ -1812,7 +1816,7 @@ export class PatientPortalService {
       clinicId: invite.clinicId,
       clinicName: invite.clinic.name,
       patientId: invite.patientId,
-      patientName: `${invite.patient.firstName} ${invite.patient.lastName}`.trim(),
+      patientName: formatPersonName(invite.patient, 'full'),
       patientCode: invite.patient.patientCode,
       email: invite.email,
       phoneE164: invite.phoneE164,
@@ -2042,6 +2046,7 @@ export class PatientPortalService {
             id: true,
             patientCode: true,
             firstName: true,
+            middleName: true,
             lastName: true,
             dob: true,
             sex: true,
@@ -2063,6 +2068,7 @@ export class PatientPortalService {
         id: true,
         patientCode: true,
         firstName: true,
+        middleName: true,
         lastName: true,
         dob: true,
         sex: true,
@@ -2553,6 +2559,7 @@ export class PatientPortalService {
               OR: [
                 { patientCode: { contains: patientSearch, mode: 'insensitive' } },
                 { firstName: { contains: patientSearch, mode: 'insensitive' } },
+                { middleName: { contains: patientSearch, mode: 'insensitive' } },
                 { lastName: { contains: patientSearch, mode: 'insensitive' } },
               ],
             },
@@ -3121,7 +3128,7 @@ export class PatientPortalService {
         patientCode: appointment.patient.patientCode,
         firstName: appointment.patient.firstName,
         lastName: appointment.patient.lastName,
-        displayName: `${appointment.patient.firstName} ${appointment.patient.lastName}`.trim(),
+        displayName: formatPersonName(appointment.patient, 'short'),
       },
       assignedDoctor: appointment.assignedDoctor
         ? {

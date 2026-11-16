@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -160,9 +161,7 @@ async function readQueue(
     id: e.id,
     encounterId: e.id,
     patientCode: e.patient?.patientCode ?? 'No code',
-    patientName: e.patient
-      ? `${e.patient.firstName} ${e.patient.lastName}`.trim()
-      : 'Unknown patient',
+    patientName: e.patient ? formatPersonName(e.patient, 'short') : 'Unknown patient',
     createdAt: e.createdAt,
     bpStage: e.hypertensionAssessment?.classification ?? '',
     // The fasting/random thresholds live on the server, next to the filter that uses them.
@@ -299,7 +298,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                   id: note.id,
                   encounterId: note.encounterId,
                   patientCode: note.patient.patientCode,
-                  patientName: `${note.patient.firstName} ${note.patient.lastName}`.trim(),
+                  patientName: formatPersonName(note.patient, 'short'),
                   createdAt: note.submittedAt,
                   status: `HAP note by ${note.author.displayName}`,
                 })),
