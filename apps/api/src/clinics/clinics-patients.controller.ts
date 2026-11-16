@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { hasPermissionAtClinic } from '../auth/clinic-roles';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -95,7 +97,14 @@ export class ClinicsPatientsController {
   async listRegistry(
     @Param() params: ClinicIdParamDto,
     @Query() query: ListPatientRegistryQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
   ) {
+    const mayReadTier =
+      isApiFeatureEnabled('followUpStratification') &&
+      hasPermissionAtClinic(req.user.roles, params.clinicId, PERMISSIONS.FOLLOW_UP_READ);
+    if (query.riskTier && !mayReadTier) {
+      throw new ForbiddenException('Filtering by follow-up tier needs FOLLOW_UP.READ');
+    }
     return this.patientService.listRegistry(
       params.clinicId,
       query.q ?? '',
@@ -113,6 +122,8 @@ export class ClinicsPatientsController {
           residentialDetail: query.residentialDetail,
         },
         screened: { from: query.screenedFrom, to: query.screenedTo },
+        riskTier: query.riskTier,
+        withRiskTier: mayReadTier,
       },
     );
   }

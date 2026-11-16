@@ -1,3 +1,4 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import {
   BadRequestException,
   ConflictException,
@@ -76,6 +77,7 @@ export class HypertensionAssessmentService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly push?: PushService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   async list(
@@ -341,6 +343,11 @@ export class HypertensionAssessmentService {
         record: 'hypertension assessment',
       });
     }
+    await this.risk?.recomputeEncounterAfterCommit({
+      encounterId,
+      trigger: 'HYPERTENSION',
+      actorUserId: actor.userId,
+    });
     return this.toResponse(saved, actor.roles, clinicId);
   }
 

@@ -498,8 +498,13 @@ export interface FollowUpInput {
   sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN' | null;
   /** Newest first. Order is re-checked, so an unsorted list is still read correctly. */
   readings?: readonly FollowUpBpReading[] | null;
-  /** The latest glucose, stored whole mg/dL. */
+  /** The latest glucose measured by staff, stored whole mg/dL. */
   glucose?: { mgDl: number; context: DiabetesGlucoseContext; at: Date } | null;
+  /**
+   * The latest glucose the patient reported (home meter, phone). Checked for danger signs only:
+   * it never decides whether diabetes is at target or which chart applies.
+   */
+  selfReportedGlucose?: { mgDl: number; context: DiabetesGlucoseContext; at: Date } | null;
   hba1c?: { percent: number; at: Date } | null;
   /** Symptoms the patient has now, from the latest assessment or phone contact. */
   symptoms?: {
@@ -693,7 +698,9 @@ function dangerSigns({ input, config }: Facts): FollowUpReason[] {
   const reasons: FollowUpReason[] = [];
   const since = addDays(input.today, -config.dangerSignWindowDays);
   const recentReadings = (input.readings ?? []).filter((r) => r.at >= since);
-  const glucose = input.glucose && input.glucose.at >= since ? input.glucose : null;
+  const glucoses = [input.glucose, input.selfReportedGlucose].filter(
+    (g): g is NonNullable<typeof g> => !!g && g.at >= since,
+  );
   const htnSymptoms = input.symptoms?.hypertension ?? [];
   const dmSymptoms = input.symptoms?.diabetes ?? [];
 
@@ -703,20 +710,18 @@ function dangerSigns({ input, config }: Facts): FollowUpReason[] {
   ) {
     reasons.push('DANGER_BP_WITH_SYMPTOMS');
   }
-  if (glucose && glucose.mgDl > mgDl(config.dangerGlucoseMmol)) {
+  if (glucoses.some((g) => g.mgDl > mgDl(config.dangerGlucoseMmol))) {
     reasons.push('DANGER_GLUCOSE_VERY_HIGH');
   }
   if (
-    glucose &&
-    glucose.mgDl > mgDl(config.ketoneGlucoseMmol) &&
+    glucoses.some((g) => g.mgDl > mgDl(config.ketoneGlucoseMmol)) &&
     input.ketonesPresent === true &&
     dmSymptoms.some((s) => config.ketoneSymptoms.includes(s))
   ) {
     reasons.push('DANGER_GLUCOSE_HIGH_WITH_KETONES');
   }
   if (
-    glucose &&
-    glucose.mgDl <= mgDl(config.hypoglycaemiaMmol) &&
+    glucoses.some((g) => g.mgDl <= mgDl(config.hypoglycaemiaMmol)) &&
     input.hypoglycaemiaSymptoms === true
   ) {
     reasons.push('DANGER_LOW_GLUCOSE_WITH_SYMPTOMS');
@@ -724,8 +729,9 @@ function dangerSigns({ input, config }: Facts): FollowUpReason[] {
   const pregnant = input.pregnant === true || input.conditions?.includes('PREGNANCY') === true;
   if (
     pregnant &&
-    glucose &&
-    glucoseAtOrAbove(glucose, config.pregnancyRaisedFastingMmol, config.pregnancyRaisedRandomMmol)
+    glucoses.some((g) =>
+      glucoseAtOrAbove(g, config.pregnancyRaisedFastingMmol, config.pregnancyRaisedRandomMmol),
+    )
   ) {
     reasons.push('DANGER_PREGNANT_RAISED_GLUCOSE');
   }
@@ -992,6 +998,37 @@ function screeningGroupFor(
       isFastingContext(glucose.context) &&
       glucose.mgDl >= mgDl(config.prediabetesFastingMmol));
   return { group: riskFactor ? 'NORMAL_WITH_RISK_FACTORS' : null, confirmed: true };
+}
+
+/* ------------------------------------------------------------------ Danger signs alone */
+
+export interface DangerSignCheck {
+  /** The Check 1 rules that fire. Any one means: refer today. */
+  reasons: FollowUpReason[];
+  /**
+   * Set when a reading is at or above the danger line but no danger symptom is recorded: repeat
+   * the reading now and ask about these symptoms. Empty otherwise.
+   */
+  askAboutSymptoms: readonly HypertensionSymptomValue[];
+}
+
+/**
+ * Check 1 on its own, for a form to run as values are typed (#336). Needs no age, history or
+ * network: it reads only what is passed in, so it works offline and before anything is saved.
+ */
+export function checkDangerSigns(
+  input: FollowUpInput,
+  config: FollowUpConfig = DEFAULT_FOLLOW_UP_CONFIG,
+): DangerSignCheck {
+  const facts = gatherFacts(input, config);
+  const reasons = dangerSigns(facts);
+  const since = addDays(input.today, -config.dangerSignWindowDays);
+  const severe = (input.readings ?? []).some((r) => r.at >= since && atOrAbove(r, config.dangerBp));
+  return {
+    reasons,
+    askAboutSymptoms:
+      severe && !reasons.includes('DANGER_BP_WITH_SYMPTOMS') ? config.dangerBpSymptoms : [],
+  };
 }
 
 /* ---------------------------------------------------------------------------- Assess */

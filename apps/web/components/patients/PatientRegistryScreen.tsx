@@ -44,6 +44,10 @@ import {
   ResidentialLocationFilters,
 } from '@/components/patients/ResidentialLocationFilters';
 import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
+import { FollowUpTierBadge } from '@/components/patients/follow-up/FollowUpTierBadge';
+import { FollowUpTierFilter } from '@/components/patients/follow-up/FollowUpTierFilter';
+import { canSeeFollowUpTier } from '@/lib/follow-up';
+import { FOLLOW_UP_TIER_LABELS, type FollowUpTier } from '@nkwapa/db/follow-up-stratification';
 import {
   PatientIdentity,
   PatientRegistryCard,
@@ -75,6 +79,8 @@ interface PatientSummary {
   lastVisitAt?: string | null;
   /** Only while the screened filter is on. */
   matchingScreenings?: MatchingScreening[];
+  /** Only for a reader allowed to see tiers (#336); null until computed. */
+  followUpTier?: FollowUpTier | null;
 }
 
 interface PatientRegistryResponse {
@@ -129,6 +135,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     return () => window.removeEventListener('keydown', focusSearch);
   }, []);
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
+  const canSeeTier = canSeeFollowUpTier(perms);
 
   /*
     Every filter, the page and the sort live in one view, seeded from the URL so a follow-up
@@ -269,6 +276,17 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         />
       ),
     },
+    ...(canSeeTier
+      ? [
+          {
+            id: 'tier',
+            header: 'Tier',
+            enableSorting: false,
+            meta: { className: 'w-40' },
+            cell: ({ row }) => <FollowUpTierBadge tier={row.original.followUpTier} />,
+          } satisfies DataTableColumn<PatientSummary>,
+        ]
+      : []),
     ...(screenedActive
       ? [
           {
@@ -395,6 +413,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       location: EMPTY_LOCATION_FILTER,
       screenedFrom: '',
       screenedTo: '',
+      riskTier: '',
       sorting: sorting[0]?.id === 'screened' ? [] : sorting,
     });
   };
@@ -436,6 +455,11 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               .join(' – ')
           : null,
       onRemove: clearScreened,
+    },
+    {
+      label: 'Tier',
+      value: committedView.riskTier ? FOLLOW_UP_TIER_LABELS[committedView.riskTier] : null,
+      onRemove: () => updateView({ riskTier: '' }),
     },
   ].filter((filter) => Boolean(filter.value));
 
@@ -554,6 +578,15 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
               onChange={(next) => setScreened(next.from, next.to)}
             />
           </div>
+          {canSeeTier ? (
+            <div className="border-t border-border/70 pt-4 sm:max-w-xs">
+              <FollowUpTierFilter
+                id="filter-risk-tier"
+                value={committedView.riskTier}
+                onChange={(next) => updateView({ riskTier: next })}
+              />
+            </div>
+          ) : null}
         </ListFilters>
         {canCreateOpsCheckIn ? (
           // Only where the phone list is what shows, and only for a finger: the gesture's one hint.
@@ -621,6 +654,9 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                   busy={checkIn.busyPatientId === row.id}
                   onCheckIn={() => void submitCheckIn(row)}
                 >
+                  {canSeeTier ? (
+                    <FollowUpTierBadge tier={row.followUpTier} className="mt-2" />
+                  ) : null}
                   {screenedActive ? (
                     <div className="mt-2 text-sm">
                       <p className="font-medium">Screened</p>

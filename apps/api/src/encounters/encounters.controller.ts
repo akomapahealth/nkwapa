@@ -10,8 +10,12 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { EncounterStatus, HypertensionClassification } from '@prisma/client';
+import { EncounterStatus, FollowUpTier, HypertensionClassification } from '@prisma/client';
+import { hasPermissionAtClinic } from '../auth/clinic-roles';
+import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import type { Response } from 'express';
 import {
   IsBoolean,
@@ -78,6 +82,11 @@ export class EncounterListQueryDto {
   @IsEnum(HypertensionClassification)
   bpClassification?: HypertensionClassification;
 
+  /** Only patients at this follow-up tier (#336). Needs FOLLOW_UP.READ. */
+  @IsOptional()
+  @IsEnum(FollowUpTier)
+  riskTier?: FollowUpTier;
+
   @IsOptional()
   @ToOptionalBoolean()
   @IsBoolean()
@@ -106,7 +115,14 @@ export class EncountersController {
     @Param() params: ClinicIdParamDto,
     @Query() query: EncounterListQueryDto,
     @Res({ passthrough: true }) res: Response,
+    @Request() req: { user: ReqUserWithRoles },
   ) {
+    const mayReadTier =
+      isApiFeatureEnabled('followUpStratification') &&
+      hasPermissionAtClinic(req.user.roles, params.clinicId, PERMISSIONS.FOLLOW_UP_READ);
+    if (query.riskTier && !mayReadTier) {
+      throw new ForbiddenException('Filtering by follow-up tier needs FOLLOW_UP.READ');
+    }
     const { rows, total } = await this.encounterService.listQueuePage(
       params.clinicId,
       {
@@ -118,6 +134,8 @@ export class EncountersController {
         search: query.search,
         bpClassification: query.bpClassification,
         glucoseFlagged: query.glucoseFlagged,
+        riskTier: query.riskTier,
+        withRiskTier: mayReadTier,
       },
       { from: query.createdFrom, to: query.createdTo },
     );

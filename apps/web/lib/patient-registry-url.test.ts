@@ -8,6 +8,7 @@ describe('registry view in the URL', () => {
       location: { region: '', district: '', community: '', status: '', detail: '' },
       screenedFrom: '',
       screenedTo: '',
+      riskTier: '',
       page: 0,
       pageSize: 10,
       sorting: [],

@@ -1,3 +1,4 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import {
   BadRequestException,
   ConflictException,
@@ -78,6 +79,7 @@ export class DiabetesScreeningService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly push?: PushService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   async list(
@@ -334,6 +336,11 @@ export class DiabetesScreeningService {
         record: 'diabetes screening',
       });
     }
+    await this.risk?.recomputeEncounterAfterCommit({
+      encounterId,
+      trigger: 'DIABETES',
+      actorUserId: actor.userId,
+    });
     return this.toResponse(screening, actor.roles, clinicId);
   }
 
@@ -440,6 +447,11 @@ export class DiabetesScreeningService {
       before: priorFindings,
       after: screening.urgentReviewReasons,
       labels: DIABETES_ESCALATION_REASON_LABELS,
+    });
+    await this.risk?.recomputeEncounterAfterCommit({
+      encounterId,
+      trigger: 'DIABETES',
+      actorUserId: actor.userId,
     });
     return this.toResponse(screening, actor.roles, clinicId);
   }

@@ -175,6 +175,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
     "A person's in-app notifications: short operational text addressed to one staff member.",
   StaffAgreementAcceptance:
     "A staff member's signature on the confidentiality agreement (#330): about staff, never a patient.",
+  PatientRiskAssessment:
+    'A derived follow-up tier (#336) from draft criteria awaiting clinical sign-off (#334); its inputs are exported in their own models.',
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
   ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",

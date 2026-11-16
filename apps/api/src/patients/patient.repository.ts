@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  type FollowUpTier,
   GhanaRegion,
   Patient,
   PatientLocationStatus,
@@ -29,6 +30,8 @@ export interface PatientFindManyFilters {
   sort?: PatientRegistrySort;
   /** Only patients with a completed screening at `clinicId` between `start` and `end`. */
   screened?: ScreenedFilter;
+  /** Only patients at this follow-up tier (#336). NOT_TIERED includes never computed. */
+  riskTier?: FollowUpTier;
 }
 
 export interface ScreenedFilter {
@@ -329,6 +332,13 @@ export class PatientRepository {
         orConditions.push({ phoneE164: filters.phoneE164 });
       }
       where.OR = orConditions;
+    }
+    if (filters.riskTier) {
+      where.AND = [
+        filters.riskTier === 'NOT_TIERED'
+          ? { OR: [{ currentRiskTier: 'NOT_TIERED' }, { currentRiskTier: null }] }
+          : { currentRiskTier: filters.riskTier },
+      ];
     }
     return where;
   }

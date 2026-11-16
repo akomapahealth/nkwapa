@@ -973,6 +973,7 @@ model Clinic {
   screeningEvents           ScreeningEvent[]
   screeningAssignments      ScreeningEventAssignment[]
   patientDataRequests       PatientDataRequest[]
+  patientRiskAssessments    PatientRiskAssessment[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -1173,6 +1174,10 @@ model Patient {
   mergedAt            DateTime?
   mergedByUserId      String?   @db.Uuid
 
+  /// The latest follow-up tier (#336), copied here so lists can filter and sort without a join.
+  currentRiskAssessmentId String?       @unique @db.Uuid
+  currentRiskTier         FollowUpTier?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1205,6 +1210,8 @@ model Patient {
   mergeRecordsAsCanonical   PatientMergeRecord[]            @relation("PatientMergeRecordCanonical")
   mergeRecordAsSource       PatientMergeRecord?             @relation("PatientMergeRecordSource")
   dataRequests              PatientDataRequest[]
+  riskAssessments           PatientRiskAssessment[]         @relation("PatientRiskAssessments")
+  currentRiskAssessment     PatientRiskAssessment?          @relation("CurrentRiskAssessment", fields: [currentRiskAssessmentId], references: [id], onDelete: SetNull)
 
   @@index([primaryClinicId])
   @@index([portalUserId])
@@ -1215,6 +1222,7 @@ model Patient {
   @@index([primaryClinicId, updatedAt, id])
   @@index([primaryClinicId, residentialRegion])
   @@index([primaryClinicId, residentialLocationStatus])
+  @@index([primaryClinicId, currentRiskTier])
 }
 
 model PatientConsent {
@@ -3075,4 +3083,65 @@ model PatientDataRequest {
 
   @@index([clinicId, status, dueAt])
   @@index([patientId, createdAt])
+}
+
+/// Follow-up stratification (#333, #336). Codes match `packages/db/src/follow-up-stratification.ts`.
+enum FollowUpTier {
+  URGENT
+  HIGH
+  MODERATE
+  LOW_MODERATE
+  STABLE
+  LOW
+  NOT_TIERED
+}
+
+enum FollowUpCaughtBy {
+  DANGER_SIGNS
+  AUTO_HIGH
+  RISK_CHART
+  CONTROL_ONLY
+}
+
+enum FollowUpMovement {
+  UP
+  DOWN
+  SAME
+  NEW
+}
+
+/// One computed follow-up tier for a patient (#336). Append-only: the application inserts and
+/// reads, never updates or deletes. `Patient.currentRiskAssessmentId` points at the latest.
+/// Reasons, missing items and actions are the engine's codes as text, so a new rule needs no
+/// migration. Clinical data: never logged or sent to analytics.
+model PatientRiskAssessment {
+  id                String            @id @default(uuid()) @db.Uuid
+  clinicId          String            @db.Uuid
+  patientId         String            @db.Uuid
+  tier              FollowUpTier
+  caughtBy          FollowUpCaughtBy?
+  reasons           String[]
+  missing           String[]
+  actions           String[]
+  cvdRiskPercent    Int?
+  chart             String?           @db.VarChar(16)
+  atTarget          Boolean?
+  controlStatus     String            @db.VarChar(32)
+  screeningGroup    String?           @db.VarChar(40)
+  /// The engine input this was computed from, so a tier can be traced to its data.
+  inputSnapshot     Json
+  configVersion     String            @db.VarChar(64)
+  /// What caused the recompute: a save (VITALS, HYPERTENSION, ...), SWEEP, BACKFILL or MERGE.
+  trigger           String            @db.VarChar(40)
+  triggeredByUserId String?           @db.Uuid
+  previousTier      FollowUpTier?
+  movement          FollowUpMovement
+  movementTrigger   String?           @db.VarChar(40)
+  computedAt        DateTime          @default(now())
+
+  clinic     Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient    Patient  @relation("PatientRiskAssessments", fields: [patientId], references: [id], onDelete: Cascade)
+  currentFor Patient? @relation("CurrentRiskAssessment")
+
+  @@index([clinicId, patientId, computedAt])
 }

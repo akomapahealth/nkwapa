@@ -149,4 +149,53 @@ describe('PrismaService tenant context', () => {
 
     expect(prisma.getCurrentRlsContext()).toBeNull();
   });
+
+  describe('afterCommit (#336)', () => {
+    const context = { requestId: 'r', userId: 'u', clinicIds: [], isSystemAdmin: true } as never;
+
+    beforeEach(() => {
+      (prisma as unknown as { logger: { warn: jest.Mock } }).logger = { warn: jest.fn() };
+    });
+
+    it('runs queued work after the transaction, outside its context, once per key', async () => {
+      const seen: unknown[] = [];
+      const work = jest.fn(async () => {
+        seen.push(prisma.getCurrentRlsContext());
+      });
+      await prisma.withRlsContext(context, async () => {
+        await prisma.afterCommit(work, 'patient-1');
+        await prisma.afterCommit(work, 'patient-1');
+        expect(work).not.toHaveBeenCalled();
+      });
+      expect(work).toHaveBeenCalledTimes(1);
+      expect(seen).toEqual([null]);
+    });
+
+    it('drops queued work when the transaction fails', async () => {
+      const work = jest.fn(async () => undefined);
+      await expect(
+        prisma.withRlsContext(context, async () => {
+          await prisma.afterCommit(work);
+          throw new Error('rolled back');
+        }),
+      ).rejects.toThrow('rolled back');
+      expect(work).not.toHaveBeenCalled();
+    });
+
+    it('never fails the caller when the work fails', async () => {
+      const result = await prisma.withRlsContext(context, async () => {
+        await prisma.afterCommit(async () => {
+          throw new Error('recompute broke');
+        });
+        return 'saved';
+      });
+      expect(result).toBe('saved');
+    });
+
+    it('runs at once when no transaction is open', async () => {
+      const work = jest.fn(async () => undefined);
+      await prisma.afterCommit(work);
+      expect(work).toHaveBeenCalledTimes(1);
+    });
+  });
 });

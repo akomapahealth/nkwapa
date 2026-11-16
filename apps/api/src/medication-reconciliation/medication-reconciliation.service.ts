@@ -1,8 +1,10 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { MedicationReconciliationOutcome, PatientMedicationStatus, Prisma } from '@prisma/client';
 import { isUniqueViolation } from '../common/prisma-errors';
@@ -62,6 +64,7 @@ export class MedicationReconciliationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   async list(clinicId: string, patientId: string) {
@@ -136,6 +139,7 @@ export class MedicationReconciliationService {
         record,
         context,
       );
+      await this.risk?.recomputeAfterCommit({ patientId, trigger: 'MEDICATION', actorUserId });
       return record;
     } catch (error) {
       if (this.isUniqueConflict(error)) {
@@ -191,6 +195,7 @@ export class MedicationReconciliationService {
       record,
       context,
     );
+    await this.risk?.recomputeAfterCommit({ patientId, trigger: 'MEDICATION', actorUserId });
     return record;
   }
 
@@ -304,6 +309,7 @@ export class MedicationReconciliationService {
       event,
       context,
     );
+    await this.risk?.recomputeAfterCommit({ patientId, trigger: 'MEDICATION', actorUserId });
     return event;
   }
 

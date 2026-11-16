@@ -9,6 +9,7 @@
     "docs:identity-matrix": "ts-node --transpile-only scripts/generate-identity-matrix.ts",
     "docs:offline-job-matrix": "ts-node --transpile-only scripts/generate-offline-job-matrix.ts",
     "screening:import": "ts-node --transpile-only scripts/import-screening-sheet.ts",
+    "follow-up:backfill": "ts-node --transpile-only scripts/backfill-follow-up-tiers.ts",
     "dev": "nest start --watch",
     "start": "nest start",
     "start:prod": "node dist/main",

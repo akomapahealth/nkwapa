@@ -38,6 +38,7 @@ import { RateLimitGuard } from './common/rate-limit.guard';
 import { MedicalHistoryModule } from './medical-history/medical-history.module';
 import { PatientChartModule } from './patient-chart/patient-chart.module';
 import { ReferralReportModule } from './referral-report/referral-report.module';
+import { FollowUpModule } from './follow-up/follow-up.module';
 import { MedicationReconciliationModule } from './medication-reconciliation/medication-reconciliation.module';
 import { DiabetesScreeningModule } from './diabetes-screening/diabetes-screening.module';
 import { HypertensionAssessmentModule } from './hypertension-assessment/hypertension-assessment.module';
@@ -87,6 +88,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     MedicalHistoryModule,
     PatientChartModule,
     ReferralReportModule,
+    FollowUpModule,
     MedicationReconciliationModule,
     DiabetesScreeningModule,
     HypertensionAssessmentModule,
