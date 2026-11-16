@@ -452,3 +452,8 @@ export {
   type StaffNameError,
   type StaffNameParts,
 } from './src/staff-name';
+export {
+  glanceLines,
+  type GlanceLine,
+  type GlanceLinesInput,
+} from './src/patient-chart-glance-lines';
