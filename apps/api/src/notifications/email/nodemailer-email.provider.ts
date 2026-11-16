@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
 import { redactLogValue } from '../../common/redaction';
-import type { EmailProvider, EmailSendResult } from './email-provider.interface';
+import type { EmailAttachment, EmailProvider, EmailSendResult } from './email-provider.interface';
 
 export interface SmtpTransportConfig {
   host: string;
@@ -140,6 +140,7 @@ export class NodemailerEmailProvider implements EmailProvider {
     subject: string,
     htmlBody: string,
     textBody?: string,
+    attachments?: EmailAttachment[],
   ): Promise<EmailSendResult> {
     try {
       const info = await this.transporter.sendMail({
@@ -148,6 +149,7 @@ export class NodemailerEmailProvider implements EmailProvider {
         subject,
         html: htmlBody,
         ...(textBody ? { text: textBody } : {}),
+        ...(attachments?.length ? { attachments } : {}),
         ...(this.config.replyTo ? { replyTo: this.config.replyTo } : {}),
       });
       return { success: true, providerMessageId: info.messageId };

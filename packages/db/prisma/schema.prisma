@@ -65,6 +65,8 @@ enum UserRole {
 
 enum ConsentType {
   RESEARCH_DEIDENTIFIED
+  /// Sharing the patient's named record with another facility for their referral (#344).
+  REFERRAL_SHARING
 }
 
 enum ConsentStatus {
@@ -903,6 +905,10 @@ model Clinic {
   organizationId String          @db.Uuid
   name           String
   region         String?
+  /// Printed on referral reports so the receiving facility can reach the sender. All optional.
+  contactPhone   String?         @db.VarChar(32)
+  contactEmail   String?         @db.VarChar(254)
+  address        String?         @db.VarChar(200)
   countryCode    String          @default("GH") @db.VarChar(2) // ISO-3166 alpha-2, v1 default GH
   timezone       String          @default("Africa/Accra") @db.VarChar(64)
   /// Units staff type and read screening values in. Storage is always mg/dL, kg, cm and %;

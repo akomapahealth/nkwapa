@@ -167,7 +167,11 @@ export function NeedsYouNow({
   const rows = workRows({ volunteer, doctor, review, clinic, worklistHref });
 
   return (
-    <section aria-labelledby="needs-you-now" className="border-t-2 border-rule-strong pt-4">
+    <section
+      aria-labelledby="needs-you-now"
+      data-tour="home-work"
+      className="border-t-2 border-rule-strong pt-4"
+    >
       <div className="flex items-baseline gap-2">
         <h2 id="needs-you-now" className="type-section-title text-foreground">
           {title}

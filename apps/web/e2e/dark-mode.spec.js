@@ -77,6 +77,37 @@ test.describe('the patient portal in dark mode', () => {
   }
 });
 
+test.describe('the welcome tour in dark mode', () => {
+  test.use({ storageState: storageStateFor('volunteer'), viewport: { width: 1280, height: 800 } });
+
+  test('its spotlight renders dark with no contrast or ARIA violations', async ({ page }) => {
+    await useDarkMode(page);
+    await page.goto('/dashboard');
+    await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    await page.getByRole('button', { name: 'User menu' }).click();
+    await page.getByRole('menuitem', { name: 'Take the tour' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Next' }).click();
+    await expect(dialog).toHaveAttribute('data-spotlight', 'home-work');
+    // Mid-move the card is translucent, and axe would blend it with the page. Only the tour's own
+    // animations: the dashboard has looping ones that never finish.
+    await dialog.evaluate((el) =>
+      Promise.all(
+        el.parentElement.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      ),
+    );
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const summary = results.violations.map(
+      (violation) => `tour: ${violation.id} (${violation.nodes.length}) — ${violation.help}`,
+    );
+    expect(summary, summary.join('\n')).toEqual([]);
+  });
+});
+
 test.describe('the theme itself', () => {
   test.use({ storageState: storageStateFor('staff') });
 

@@ -1,4 +1,5 @@
 import { describeAdherence, type MedicationAdherenceEntry } from '@nkwapa/db';
+import type { EncounterMedicationAdherence, PatientMedicationRevision } from '@prisma/client';
 
 /**
  * What the generated note says about one medication.
@@ -57,4 +58,41 @@ function describeMedication(row: AdherenceNarrativeRow): string {
 function compare(left: string, right: string): number {
   if (left === right) return 0;
   return left < right ? -1 : 1;
+}
+
+type AdherenceRecord = EncounterMedicationAdherence & {
+  observedRevision: Pick<
+    PatientMedicationRevision,
+    'medicationName' | 'strength' | 'dose' | 'doseUnit' | 'frequency'
+  >;
+};
+
+/** One context's adherence rows, rendered: what a hypertension or diabetes narrative is given. */
+export function medicationLinesFor(
+  records: readonly AdherenceRecord[],
+  context: 'HYPERTENSION' | 'DIABETES',
+): string[] {
+  return renderMedicationLines(
+    records
+      .filter((row) => row.context === context)
+      .map(
+        (row): AdherenceNarrativeRow => ({
+          entry: {
+            medicationRecordId: row.medicationRecordId,
+            observedRevisionId: row.observedRevisionId,
+            tookToday: row.tookToday,
+            dosesMissed7d: row.dosesMissed7d,
+            takingAsPrescribed: row.takingAsPrescribed,
+            supplyRemaining: row.supplyRemaining,
+            problems: row.problems,
+            problemsOther: row.problemsOther,
+          },
+          medicationName: row.observedRevision.medicationName,
+          strength: row.observedRevision.strength,
+          dose: row.observedRevision.dose,
+          doseUnit: row.observedRevision.doseUnit,
+          frequency: row.observedRevision.frequency,
+        }),
+      ),
+  );
 }

@@ -23,7 +23,7 @@ import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { renderHypertensionNarrative } from './narrative/hypertension-narrative';
 import { renderDiabetesNarrative } from './narrative/diabetes-narrative';
-import { renderMedicationLines, type AdherenceNarrativeRow } from './narrative/medication-lines';
+import { medicationLinesFor } from './narrative/medication-lines';
 import type { HapSections } from './narrative/narrative-types';
 
 type ClinicalActor = {
@@ -189,29 +189,7 @@ export class ClinicalNoteService {
     if (!encounter) throw new NotFoundException('Encounter not found');
 
     const medicationsFor = (context: 'HYPERTENSION' | 'DIABETES') =>
-      renderMedicationLines(
-        encounter.medicationAdherence
-          .filter((row) => row.context === context)
-          .map(
-            (row): AdherenceNarrativeRow => ({
-              entry: {
-                medicationRecordId: row.medicationRecordId,
-                observedRevisionId: row.observedRevisionId,
-                tookToday: row.tookToday,
-                dosesMissed7d: row.dosesMissed7d,
-                takingAsPrescribed: row.takingAsPrescribed,
-                supplyRemaining: row.supplyRemaining,
-                problems: row.problems,
-                problemsOther: row.problemsOther,
-              },
-              medicationName: row.observedRevision.medicationName,
-              strength: row.observedRevision.strength,
-              dose: row.observedRevision.dose,
-              doseUnit: row.observedRevision.doseUnit,
-              frequency: row.observedRevision.frequency,
-            }),
-          ),
-      );
+      medicationLinesFor(encounter.medicationAdherence, context);
 
     const maySeePlan = hasPermissionAtClinic(
       actor.roles,

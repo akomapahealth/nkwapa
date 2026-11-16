@@ -57,6 +57,10 @@
       "types": "./dist/src/patient-chart-sections.d.ts",
       "default": "./dist/src/patient-chart-sections.js"
     },
+    "./patient-chart-glance-lines": {
+      "types": "./dist/src/patient-chart-glance-lines.d.ts",
+      "default": "./dist/src/patient-chart-glance-lines.js"
+    },
     "./clinical-vocabulary": {
       "types": "./dist/src/clinical-vocabulary.d.ts",
       "default": "./dist/src/clinical-vocabulary.js"

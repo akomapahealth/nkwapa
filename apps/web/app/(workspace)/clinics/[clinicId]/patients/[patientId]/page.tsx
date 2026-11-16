@@ -27,7 +27,14 @@ import {
 } from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, FileCheck, Pencil, Stethoscope } from 'lucide-react';
+import { ArrowLeft, FileCheck, FileLock2, Pencil, Stethoscope } from 'lucide-react';
+import { ReferralReportSheet } from '@/components/patients/chart/ReferralReportSheet';
+import {
+  CONSENT_DOCUMENTS,
+  CONSENT_DOCUMENT_TYPES,
+  type ConsentDocumentType,
+} from '@/lib/consent-text';
+import { formatPersonName } from '@/lib/person-name';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { ScheduleFollowUpReminderCard } from '@/components/patients/ScheduleFollowUpReminderCard';
 import { PortalAccessCard } from '@/components/patients/PortalAccessCard';
@@ -151,6 +158,8 @@ function PatientChartWorkspace() {
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const canScheduleReminder = hasPermission(perms, 'REMINDER.CREATE');
   const canRecordConsent = hasPermission(perms, 'CONSENT.RECORD');
+  const canExportReferral = hasPermission(perms, 'REFERRAL_REPORT.EXPORT');
+  const [referralOpen, setReferralOpen] = useState(false);
   const patientCheckIn = usePatientCheckIn(clinicId);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
@@ -481,12 +490,11 @@ function PatientChartWorkspace() {
   );
   const hasGrantedResearchConsent = researchConsent?.status === 'GRANTED';
 
-  const handleRevoke = async () => {
-    if (!hasGrantedResearchConsent) return;
+  const handleRevoke = async (consentType: ConsentDocumentType) => {
+    const document = CONSENT_DOCUMENTS[consentType];
     const confirmed = await confirmAction({
-      title: 'Revoke research consent?',
-      description:
-        'This patient will be left out of every research export built from now on. Record it only when the patient has asked to withdraw. Consent can be recorded again later, but exports already released are not recalled.',
+      title: `Revoke ${document.name.toLowerCase()}?`,
+      description: document.revokeDescription,
       confirmLabel: 'Revoke consent',
     });
     if (!confirmed) return;
@@ -497,7 +505,7 @@ function PatientChartWorkspace() {
         `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/consents/revoke`,
         {
           method: 'POST',
-          body: JSON.stringify({ consentType: 'RESEARCH_DEIDENTIFIED' }),
+          body: JSON.stringify({ consentType }),
           getToken,
           activeClinicId: clinicId,
         },
@@ -509,7 +517,10 @@ function PatientChartWorkspace() {
         const consents = await db.patient_consents
           .where('patientId')
           .equals(patientId)
-          .filter((c) => c.clinicId === clinicId && c.status === 'GRANTED')
+          .filter(
+            (c) =>
+              c.clinicId === clinicId && c.status === 'GRANTED' && c.consentType === consentType,
+          )
           .toArray();
         const consent = consents[0];
         if (consent) {
@@ -528,7 +539,7 @@ function PatientChartWorkspace() {
             payloadJson: {
               patientId,
               clinicId,
-              consentType: 'RESEARCH_DEIDENTIFIED',
+              consentType,
               status: 'REVOKED',
               consentVersion: 'v1-en',
               consentTextSnapshot: consent.consentTextSnapshot ?? '',
@@ -645,6 +656,26 @@ function PatientChartWorkspace() {
                 </Link>
               </Button>
             ) : null}
+            {canExportReferral ? (
+              <Button
+                variant="outline"
+                disabled={!isOnline}
+                aria-describedby={isOnline ? undefined : 'referral-offline'}
+                onClick={() => setReferralOpen(true)}
+              >
+                <FileLock2 className="h-4 w-4" />
+                Referral report
+              </Button>
+            ) : null}
+            {canExportReferral && !isOnline ? (
+              // A direct child of the action row, so it wraps with the buttons instead of under one.
+              <span
+                id="referral-offline"
+                className="inline-flex items-center text-sm text-muted-foreground"
+              >
+                Referral report needs a connection
+              </span>
+            ) : null}
             {canCreateOpsCheckIn ? (
               <Button
                 onClick={() =>
@@ -664,6 +695,16 @@ function PatientChartWorkspace() {
           </>
         }
       />
+
+      {canExportReferral ? (
+        <ReferralReportSheet
+          open={referralOpen && isOnline}
+          onOpenChange={setReferralOpen}
+          clinicId={clinicId}
+          patientId={patientId}
+          patientName={formatPersonName(patient)}
+        />
+      ) : null}
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {mergedFrom ? (
@@ -1002,47 +1043,64 @@ function PatientChartWorkspace() {
               );
             case 'consent':
               return (
-                <Card>
-                  <CardHeader>
-                    <h2 className="type-section-title">Research consent</h2>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      {hasGrantedResearchConsent
-                        ? researchConsent?.grantedAt
-                          ? `Granted on ${formatOpsDay(researchConsent.grantedAt)}. De-identified data from this patient's visits can be used in research exports.`
-                          : "Granted. De-identified data from this patient's visits can be used in research exports."
-                        : researchConsent?.status === 'REVOKED'
-                          ? 'Research consent has been revoked.'
-                          : 'Research consent has not been recorded yet.'}
-                    </p>
-                    {canRecordConsent ? (
-                      <div className="flex gap-2">
-                        {hasGrantedResearchConsent ? (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => void handleRevoke()}
-                            disabled={loading}
-                          >
-                            Revoke consent
-                          </Button>
-                        ) : (
-                          <Button asChild size="sm">
-                            <Link href={`/clinics/${clinicId}/patients/${patientId}/consent`}>
-                              <FileCheck className="mr-2 h-4 w-4" />
-                              Record consent
-                            </Link>
-                          </Button>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Your role can view consent but not record or revoke it.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
+                <div className="space-y-4">
+                  {CONSENT_DOCUMENT_TYPES.map((consentType) => {
+                    const document = CONSENT_DOCUMENTS[consentType];
+                    const consent = data?.consentStatus?.find((c) => c.consentType === consentType);
+                    const granted = consent?.status === 'GRANTED';
+                    return (
+                      <Card key={consentType}>
+                        <CardHeader>
+                          <h2 className="type-section-title">{document.name}</h2>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <p className="text-sm text-muted-foreground">
+                            {granted
+                              ? consent?.grantedAt
+                                ? `Granted on ${formatOpsDay(consent.grantedAt)}. ${document.granted}`
+                                : `Granted. ${document.granted}`
+                              : consent?.status === 'REVOKED'
+                                ? `${document.name} has been revoked.`
+                                : `${document.name} has not been recorded yet.`}
+                          </p>
+                          {canRecordConsent ? (
+                            <div className="flex gap-2">
+                              {granted ? (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  aria-label={`Revoke consent: ${document.name.toLowerCase()}`}
+                                  onClick={() => void handleRevoke(consentType)}
+                                  disabled={loading}
+                                >
+                                  Revoke consent
+                                </Button>
+                              ) : (
+                                <Button asChild size="sm">
+                                  <Link
+                                    aria-label={`Record consent: ${document.name.toLowerCase()}`}
+                                    href={`/clinics/${clinicId}/patients/${patientId}/consent${
+                                      consentType === 'RESEARCH_DEIDENTIFIED'
+                                        ? ''
+                                        : `?type=${consentType}`
+                                    }`}
+                                  >
+                                    <FileCheck className="mr-2 h-4 w-4" />
+                                    Record consent
+                                  </Link>
+                                </Button>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Your role can view consent but not record or revoke it.
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               );
             default:
               return null;

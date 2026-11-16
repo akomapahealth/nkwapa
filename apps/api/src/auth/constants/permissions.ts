@@ -47,6 +47,11 @@ export const PERMISSIONS = {
   CLINICAL_NOTE_COSIGN: 'CLINICAL_NOTE.COSIGN',
   CLINICAL_NOTE_ADDENDUM: 'CLINICAL_NOTE.ADDENDUM',
   CLINICAL_NOTE_STATUS_READ: 'CLINICAL_NOTE.STATUS.READ',
+  /**
+   * Build a password-protected PDF of a patient's record to hand to another facility (#344).
+   * The report holds only what the sender may already read, section by section.
+   */
+  REFERRAL_REPORT_EXPORT: 'REFERRAL_REPORT.EXPORT',
   // Drug
   DRUG_READ: 'DRUG.READ',
   DRUG_MANAGE: 'DRUG.MANAGE',
@@ -241,6 +246,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
     PERMISSIONS.CHAT_SEND,
     PERMISSIONS.CHAT_READ,
+    // Managers arrange onward care; signed notes stay out, as they need a clinical seat.
+    PERMISSIONS.REFERRAL_REPORT_EXPORT,
   ],
   [UserRole.DOCTOR]: [
     PERMISSIONS.PATIENT_READ,
@@ -286,6 +293,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.CLINICAL_NOTE_COSIGN,
     PERMISSIONS.CLINICAL_NOTE_ADDENDUM,
     PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
+    PERMISSIONS.REFERRAL_REPORT_EXPORT,
     PERMISSIONS.CHAT_SEND,
     PERMISSIONS.CHAT_READ,
   ],
@@ -324,6 +332,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.REMINDER_READ,
     PERMISSIONS.REMINDER_CREATE,
     PERMISSIONS.APPOINTMENT_READ,
+    PERMISSIONS.REFERRAL_REPORT_EXPORT,
     PERMISSIONS.CHAT_SEND,
     PERMISSIONS.CHAT_READ,
   ],
