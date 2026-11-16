@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Encounter } from '@prisma/client';
+import { CLINIC_DEFAULT_TIMEZONE, clinicDayWindow } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
@@ -71,8 +72,49 @@ export class EncounterService {
     return this.encounterRepository.findById(id, include);
   }
 
-  async listByClinic(clinicId: string, filters?: EncounterFindManyFilters): Promise<Encounter[]> {
-    return this.encounterRepository.findManyByClinic(clinicId, filters);
+  /**
+   * One page of a lane plus how many encounters match its filters (#340). `createdFrom` and
+   * `createdTo` are clinic-local days (YYYY-MM-DD), each optional, both inclusive.
+   */
+  async listQueuePage(
+    clinicId: string,
+    filters: Omit<EncounterFindManyFilters, 'createdFrom' | 'createdTo'>,
+    created: { from?: string; to?: string } = {},
+  ) {
+    const scoped: EncounterFindManyFilters = { ...filters };
+    if (created.from || created.to) {
+      for (const [field, day] of [
+        ['createdFrom', created.from],
+        ['createdTo', created.to],
+      ] as const) {
+        if (day && !isCalendarDate(day)) {
+          throw new BadRequestException({
+            message: 'That date does not exist.',
+            fieldErrors: [{ field, message: 'That date does not exist.' }],
+          });
+        }
+      }
+      if (created.from && created.to && created.from > created.to) {
+        throw new BadRequestException({
+          message: 'The start date must be on or before the end date.',
+          fieldErrors: [
+            { field: 'createdTo', message: 'The start date must be on or before the end date.' },
+          ],
+        });
+      }
+      const clinic = await this.prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { timezone: true },
+      });
+      const zone = clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
+      if (created.from) scoped.createdFrom = clinicDayWindow(created.from, zone).start;
+      if (created.to) scoped.createdTo = clinicDayWindow(created.to, zone).end;
+    }
+    const [rows, total] = await Promise.all([
+      this.encounterRepository.findManyByClinic(clinicId, scoped),
+      this.encounterRepository.countByClinic(clinicId, scoped),
+    ]);
+    return { rows, total };
   }
 
   /** Uncapped totals for the queue lanes, with the same filters the lane lists use (#307). */
@@ -262,4 +304,9 @@ export class EncounterService {
       });
     }
   }
+}
+
+function isCalendarDate(value: string): boolean {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
