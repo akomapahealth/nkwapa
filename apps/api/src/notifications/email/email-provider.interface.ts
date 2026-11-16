@@ -14,11 +14,19 @@ export interface EmailSendResult {
   retryable?: boolean;
 }
 
+/** A file sent with the message, held in memory only (#344: a referral report is never stored). */
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 export interface EmailProvider {
   send(
     toAddress: string,
     subject: string,
     htmlBody: string,
     textBody?: string,
+    attachments?: EmailAttachment[],
   ): Promise<EmailSendResult>;
 }

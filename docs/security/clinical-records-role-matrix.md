@@ -202,6 +202,21 @@ Read-only. Each tab is additionally gated by the permission of the record it sho
 
 Offline: not queued. Every read and write requires a live connection.
 
+## Referral report (password-protected PDF)
+
+Online-only and never stored. Each section is included only when the sender holds the permission that reads it on the chart. Every export is audited without its passcode.
+
+| Role | Read | Write |
+| --- | --- | --- |
+| SYSTEM_ADMIN | yes | yes |
+| DIRECTOR | yes | no |
+| MANAGER | yes | no |
+| DOCTOR | yes | yes |
+| VOLUNTEER | yes | yes |
+| PATIENT | no | no |
+
+Offline: not queued. Every read and write requires a live connection.
+
 ## Permissions by role
 
 | Permission | SYSTEM_ADMIN | DIRECTOR | MANAGER | DOCTOR | VOLUNTEER | PATIENT |
@@ -221,6 +236,7 @@ Offline: not queued. Every read and write requires a live connection.
 | `PATIENT.UPDATE` | yes | yes | yes | yes | no | no |
 | `PRESCRIPTION.READ` | yes | yes | yes | yes | no | no |
 | `PRESCRIPTION.WRITE` | yes | no | no | yes | no | no |
+| `REFERRAL_REPORT.EXPORT` | yes | no | no | yes | yes | no |
 | `SCREENING.READ` | yes | yes | yes | yes | yes | no |
 | `SCREENING.WRITE` | yes | no | no | yes | yes | no |
 

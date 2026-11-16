@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { EmailProvider, EmailSendResult } from './email-provider.interface';
+import type { EmailAttachment, EmailProvider, EmailSendResult } from './email-provider.interface';
 
 /**
  * The local and test provider.
@@ -13,10 +13,11 @@ export class FakeEmailProvider implements EmailProvider {
     subject: string,
     htmlBody: string,
     textBody?: string,
+    attachments?: EmailAttachment[],
   ): Promise<EmailSendResult> {
     const providerMessageId = `fake-email:${randomUUID()}`;
     console.log(
-      `[FakeEmail] subjectLength=${subject.length} bodyLength=${htmlBody.length} textLength=${textBody?.length ?? 0} providerMessageId=${providerMessageId}`,
+      `[FakeEmail] subjectLength=${subject.length} bodyLength=${htmlBody.length} textLength=${textBody?.length ?? 0} attachments=${attachments?.length ?? 0} providerMessageId=${providerMessageId}`,
     );
     return { success: true, providerMessageId };
   }

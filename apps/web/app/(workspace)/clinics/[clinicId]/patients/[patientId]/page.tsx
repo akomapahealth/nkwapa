@@ -27,7 +27,9 @@ import {
 } from '@/components/patients/RecordSection';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, FileCheck, Pencil, Stethoscope } from 'lucide-react';
+import { ArrowLeft, FileCheck, FileLock2, Pencil, Stethoscope } from 'lucide-react';
+import { ReferralReportSheet } from '@/components/patients/chart/ReferralReportSheet';
+import { formatPersonName } from '@/lib/person-name';
 import { MedicalHistoryPanel } from '@/components/patients/MedicalHistoryPanel';
 import { ScheduleFollowUpReminderCard } from '@/components/patients/ScheduleFollowUpReminderCard';
 import { PortalAccessCard } from '@/components/patients/PortalAccessCard';
@@ -137,6 +139,8 @@ function PatientChartWorkspace() {
   const canCreateOpsCheckIn = hasPermission(perms, 'OPS.CHECKIN.CREATE');
   const canScheduleReminder = hasPermission(perms, 'REMINDER.CREATE');
   const canRecordConsent = hasPermission(perms, 'CONSENT.RECORD');
+  const canExportReferral = hasPermission(perms, 'REFERRAL_REPORT.EXPORT');
+  const [referralOpen, setReferralOpen] = useState(false);
   const patientCheckIn = usePatientCheckIn(clinicId);
 
   const [data, setData] = useState<PatientWithEncounters | null>(null);
@@ -625,6 +629,26 @@ function PatientChartWorkspace() {
                 </Link>
               </Button>
             ) : null}
+            {canExportReferral ? (
+              <Button
+                variant="outline"
+                disabled={!isOnline}
+                aria-describedby={isOnline ? undefined : 'referral-offline'}
+                onClick={() => setReferralOpen(true)}
+              >
+                <FileLock2 className="h-4 w-4" />
+                Referral report
+              </Button>
+            ) : null}
+            {canExportReferral && !isOnline ? (
+              // A direct child of the action row, so it wraps with the buttons instead of under one.
+              <span
+                id="referral-offline"
+                className="inline-flex items-center text-sm text-muted-foreground"
+              >
+                Referral report needs a connection
+              </span>
+            ) : null}
             {canCreateOpsCheckIn ? (
               <Button
                 onClick={() =>
@@ -644,6 +668,16 @@ function PatientChartWorkspace() {
           </>
         }
       />
+
+      {canExportReferral ? (
+        <ReferralReportSheet
+          open={referralOpen && isOnline}
+          onOpenChange={setReferralOpen}
+          clinicId={clinicId}
+          patientId={patientId}
+          patientName={formatPersonName(patient)}
+        />
+      ) : null}
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {mergedFrom ? (
