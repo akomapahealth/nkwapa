@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { FollowUpTier, Prisma } from '@prisma/client';
 import {
   assessFollowUp,
@@ -16,6 +16,7 @@ import {
   HYPERTENSION_DRUG_CATEGORIES,
   type FollowUpRecords,
 } from './follow-up-input';
+import { FollowUpFlagService, type TierChange } from './follow-up-flags.service';
 
 /** What caused a recompute. Stored on the row; never a free-text reason. */
 export type RiskRecomputeTrigger =
@@ -79,6 +80,7 @@ export class FollowUpRiskService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    @Optional() private readonly flags?: FollowUpFlagService,
   ) {}
 
   /** Whether tiers are computed and shown. Off until the clinical sign-off in #334. */
@@ -113,10 +115,13 @@ export class FollowUpRiskService {
 
   async recompute(request: RiskRecomputeRequest): Promise<RiskRecomputeOutcome> {
     if (!this.enabled) return 'SKIPPED';
-    return this.prisma.withSystemContext(
+    const { outcome, change } = await this.prisma.withSystemContext(
       { systemReason: 'Recompute a patient follow-up risk tier' },
       (tx) => this.recomputeIn(tx, request, new Date()),
     );
+    // After the commit, so nobody is told about a tier that rolled back. Never throws.
+    if (change) await this.flags?.raise(change);
+    return outcome;
   }
 
   /**
@@ -161,7 +166,7 @@ export class FollowUpRiskService {
     tx: Prisma.TransactionClient,
     request: RiskRecomputeRequest,
     today: Date,
-  ): Promise<RiskRecomputeOutcome> {
+  ): Promise<{ outcome: RiskRecomputeOutcome; change?: TierChange }> {
     const patient = await tx.patient.findUnique({
       where: { id: request.patientId },
       select: {
@@ -174,14 +179,14 @@ export class FollowUpRiskService {
         currentRiskAssessment: true,
       },
     });
-    if (!patient || patient.mergedIntoPatientId) return 'SKIPPED';
+    if (!patient || patient.mergedIntoPatientId) return { outcome: 'SKIPPED' };
 
     const records = await this.loadRecords(tx, patient, today);
     const input = assembleFollowUpInput(records);
     const result = assessFollowUp(input);
     const previous = patient.currentRiskAssessment;
 
-    if (previous && sameAnswer(previous, result)) return 'UNCHANGED';
+    if (previous && sameAnswer(previous, result)) return { outcome: 'UNCHANGED' };
 
     const move = movement(
       previous
@@ -244,7 +249,19 @@ export class FollowUpRiskService {
         tx,
       );
     }
-    return 'CREATED';
+    return {
+      outcome: 'CREATED',
+      change: {
+        clinicId: patient.primaryClinicId,
+        patientId: patient.id,
+        assessmentId: row.id,
+        previous: previous ? { tier: previous.tier, reasons: previous.reasons } : null,
+        current: { tier: result.tier, reasons: result.reasons },
+        direction: move.direction,
+        trigger: request.trigger,
+        actorUserId: request.actorUserId ?? null,
+      },
+    };
   }
 
   private async loadRecords(

@@ -68,3 +68,68 @@ describe('tier badge', () => {
     expect(host.querySelector('[data-tier="NOT_TIERED"]')).not.toBeNull();
   });
 });
+
+jest.mock('@/lib/auth-context', () => ({ useAuth: () => async () => 'token' }));
+jest.mock('@/lib/api', () => ({ apiFetch: jest.fn() }));
+
+describe('urgent flag banner (#337)', () => {
+  const { UrgentFlagBanner } = require('./UrgentFlagBanner') as typeof import('./UrgentFlagBanner');
+  const { apiFetch } = require('@/lib/api') as { apiFetch: jest.Mock };
+  const base = {
+    clinicId: 'c1',
+    patientId: 'p1',
+    reasons: ['DANGER_BP_WITH_SYMPTOMS' as const],
+    userId: 'me',
+  };
+  const flag = {
+    id: 'f1',
+    kind: 'URGENT' as const,
+    raisedAt: new Date().toISOString(),
+    detail: null,
+    acknowledgement: null,
+  };
+
+  it('offers "I\'m on it" and then names who took it', async () => {
+    apiFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ userId: 'me', displayName: 'Kofi', at: new Date().toISOString() }),
+    });
+    const host = render(createElement(UrgentFlagBanner, { ...base, flag, canTake: true }));
+    expect(host.textContent).toContain('Very high blood pressure with a danger symptom');
+    const button = [...host.querySelectorAll('button')].find((b) => b.textContent === "I'm on it");
+    await act(async () => button!.click());
+    expect(apiFetch.mock.calls[0][0]).toBe('/clinics/c1/patients/p1/follow-up/acknowledge');
+    expect(host.querySelector('[data-testid="urgent-flag-owner"]')?.textContent).toContain(
+      "You're on it",
+    );
+  });
+
+  it('shows a colleague as the owner, and no button to those who cannot take it', () => {
+    const taken = render(
+      createElement(UrgentFlagBanner, {
+        ...base,
+        flag: { ...flag, acknowledgement: { userId: 'k', displayName: 'Kofi', at: flag.raisedAt } },
+        canTake: true,
+      }),
+    );
+    expect(taken.textContent).toContain('Kofi is on it');
+    const readOnly = render(createElement(UrgentFlagBanner, { ...base, flag, canTake: false }));
+    expect(readOnly.querySelector('button')).toBeNull();
+    expect(readOnly.textContent).toContain('Nobody has taken this patient yet.');
+  });
+
+  it('words a screening finding as its own, with what was found and no tier reasons', () => {
+    const host = render(
+      createElement(UrgentFlagBanner, {
+        ...base,
+        reasons: [],
+        flag: { ...flag, kind: 'SCREENING_URGENT' as const, detail: 'Chest pain' },
+        canTake: true,
+      }),
+    );
+    expect(host.textContent).toContain('Urgent at screening: see today');
+    expect(host.textContent).toContain('Chest pain');
+    expect(host.textContent).not.toContain('Danger signs recorded');
+  });
+});

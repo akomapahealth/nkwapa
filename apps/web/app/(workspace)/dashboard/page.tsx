@@ -190,6 +190,7 @@ export default function DashboardPage() {
               key={clinicId}
               clinicId={clinicId}
               volunteer={data.volunteer}
+              urgent={data.urgent}
               worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
             />
           ) : null}
@@ -213,6 +214,7 @@ export default function DashboardPage() {
             <NeedsYouNow
               steps
               volunteer={data.volunteer}
+              urgent={data.urgent}
               worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
             />
             <DashboardSectionHeader

@@ -12,8 +12,15 @@ export const MAINTENANCE_QUEUE = 'maintenance';
 export interface MaintenanceSweep {
   /** The BullMQ job and scheduler name. Unique across sweeps. */
   readonly jobName: string;
-  readonly everyMs: number;
-  run(): Promise<void>;
+  /** Omitted for a task that only runs when `delay` asks, never on a schedule. */
+  readonly everyMs?: number;
+  /**
+   * A time of day instead of an interval: a cron pattern read in `tz`. For work people expect at
+   * a set hour, which an interval counted from the last deploy drifts away from.
+   */
+  readonly cron?: { pattern: string; tz: string };
+  /** `data` is what `delay` was given; a scheduled run has none. */
+  run(data?: unknown): Promise<void>;
 }
 
 /*
@@ -45,20 +52,51 @@ export class MaintenanceScheduler {
       throw new Error(`Maintenance sweep "${sweep.jobName}" is registered twice`);
     }
     this.sweeps.set(sweep.jobName, sweep);
-    void this.schedule(sweep);
+    if (sweep.cron) void this.schedule(sweep, sweep.cron);
+    else if (sweep.everyMs) void this.schedule(sweep, { every: sweep.everyMs });
+  }
+
+  /**
+   * Run a registered task once, `delayMs` from now, on this same queue and worker. One pending
+   * job per `jobId`: asking twice keeps the first. Never throws; a task that matters must also be
+   * caught by a sweep, because a job asked for while Redis is down is lost.
+   */
+  async delay(jobName: string, jobId: string, data: unknown, delayMs: number): Promise<void> {
+    try {
+      await this.queue.add(jobName, data, {
+        jobId,
+        delay: delayMs,
+        removeOnComplete: true,
+        removeOnFail: 100,
+      });
+    } catch (err) {
+      this.logger.warn(
+        JSON.stringify({ message: 'Delayed task not queued', jobName, error: redactLogValue(err) }),
+      );
+    }
+  }
+
+  /** Drop a pending `delay` job. Never throws: the task re-checks its own conditions anyway. */
+  async cancel(jobId: string): Promise<void> {
+    try {
+      await this.queue.remove(jobId);
+    } catch (err) {
+      this.logger.warn(
+        JSON.stringify({ message: 'Delayed task not cancelled', error: redactLogValue(err) }),
+      );
+    }
   }
 
   find(jobName: string): MaintenanceSweep | undefined {
     return this.sweeps.get(jobName);
   }
 
-  private async schedule(sweep: MaintenanceSweep): Promise<void> {
+  private async schedule(
+    sweep: MaintenanceSweep,
+    repeat: { every: number } | { pattern: string; tz: string },
+  ): Promise<void> {
     try {
-      await this.queue.upsertJobScheduler(
-        sweep.jobName,
-        { every: sweep.everyMs },
-        { name: sweep.jobName },
-      );
+      await this.queue.upsertJobScheduler(sweep.jobName, repeat, { name: sweep.jobName });
     } catch (err) {
       // Redis must not be in the blast radius of API boot. Every sweep is housekeeping whose
       // absence leaves a label stale, never a rule unenforced; each says what in its own comment.

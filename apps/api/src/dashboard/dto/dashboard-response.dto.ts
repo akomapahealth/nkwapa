@@ -140,8 +140,19 @@ export interface SystemAdminMetrics {
   appliedZoneCode: string | null;
 }
 
+/** An Urgent patient nobody has said "I'm on it" for (#337), oldest flag first. */
+export interface UrgentWorkItem {
+  patientId: string;
+  patientCode: string;
+  patientName: string;
+  /** When they became Urgent; null for a patient tiered before flags existed. */
+  raisedAt: string | null;
+}
+
 export interface DashboardResponse {
   summary: DashboardSummary;
+  /** With follow-up stratification on, for someone holding FOLLOW_UP.READ. */
+  urgent?: { unclaimed: number; items: UrgentWorkItem[] };
   doctor?: DoctorMetrics;
   review?: ReviewMetrics;
   director?: DirectorMetrics;

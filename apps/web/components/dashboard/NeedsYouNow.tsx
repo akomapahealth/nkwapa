@@ -1,10 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { CheckCircle, ClipboardList, Eye, FileEdit, ListOrdered } from 'lucide-react';
+import { CheckCircle, ClipboardList, Eye, FileEdit, ListOrdered, OctagonAlert } from 'lucide-react';
 import { AppActionRow, type AppActionRowProps } from '@/components/app-shell/AppActionRow';
 import { Button } from '@/components/ui/button';
-import { describeWorkItems, type DashboardWorkItem } from '@/lib/dashboard-work-items';
+import {
+  describeWorkItems,
+  type DashboardWorkItem,
+  type UrgentWork,
+} from '@/lib/dashboard-work-items';
 import styles from './volunteer-welcome.module.css';
 
 interface NeedsYouNowProps {
@@ -26,6 +30,11 @@ interface NeedsYouNowProps {
    * (`DashboardData.summary`) and, for managers and directors, its pending HAP cosigns.
    */
   clinic?: { pendingReview: number; readyToFinalize: number; pendingClinicalNoteCosigns?: number };
+  /**
+   * Urgent patients nobody has taken (#337). Sent only with follow-up stratification on, to
+   * someone who reads tiers; always the first row, whatever else is waiting.
+   */
+  urgent?: UrgentWork;
   /** Where this person's next patient is: their station, Today board or My assigned. */
   worklistHref: string | null;
   /** "Needs attention" on a manager's home, where the rows are the clinic's, not theirs. */
@@ -57,8 +66,32 @@ type Row = Omit<AppActionRowProps, 'action'> & { href?: string; label?: string }
 type WorkInputs = Omit<NeedsYouNowProps, 'steps' | 'title'>;
 
 /** The rows of waiting work for these inputs; shared by Needs you now and Also on your plate. */
-export function workRows({ volunteer, doctor, review, clinic, worklistHref }: WorkInputs): Row[] {
+export function workRows({
+  volunteer,
+  doctor,
+  review,
+  clinic,
+  urgent,
+  worklistHref,
+}: WorkInputs): Row[] {
   const rows: Row[] = [];
+  if (urgent && urgent.unclaimed > 0) {
+    // Items come longest-waiting first. Some are urgent at screening only, so the Urgent tier
+    // filter would miss them: the button opens the chart that has waited longest instead.
+    const [first] = urgent.items;
+    rows.push({
+      title: `${plural(urgent.unclaimed, 'urgent patient', 'urgent patients')} nobody has taken`,
+      detail: `${urgent.items
+        .map((item) => `${item.patientName} (${item.patientCode})`)
+        .join(
+          ', ',
+        )}${urgent.unclaimed > urgent.items.length ? ` and ${urgent.unclaimed - urgent.items.length} more` : ''}. See them today.`,
+      icon: OctagonAlert,
+      tone: 'destructive',
+      href: first ? `/patients/${first.patientId}?tab=overview` : '/notifications',
+      label: urgent.unclaimed === 1 ? 'Open chart' : 'Open longest waiting',
+    });
+  }
   const worklist = worklistHref ? WORKLIST_LABELS[worklistHref] : undefined;
   if (volunteer && worklist && worklistHref) {
     rows.push({
@@ -159,12 +192,13 @@ export function NeedsYouNow({
   doctor,
   review,
   clinic,
+  urgent,
   worklistHref,
   steps = false,
   title = 'Needs you now',
 }: NeedsYouNowProps) {
   if (!volunteer && !doctor && !review && !clinic) return null;
-  const rows = workRows({ volunteer, doctor, review, clinic, worklistHref });
+  const rows = workRows({ volunteer, doctor, review, clinic, urgent, worklistHref });
 
   return (
     <section

@@ -974,6 +974,7 @@ model Clinic {
   screeningAssignments      ScreeningEventAssignment[]
   patientDataRequests       PatientDataRequest[]
   patientRiskAssessments    PatientRiskAssessment[]
+  patientRiskFlags          PatientRiskFlag[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -1069,6 +1070,7 @@ model User {
   idempotencyRecords              IdempotencyRecord[]
   pushSubscriptions               PushSubscription[]
   inboxNotifications              InboxNotification[]
+  riskFlagAcknowledgements        RiskFlagAcknowledgement[]
   staffAgreementAcceptances       StaffAgreementAcceptance[]
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
@@ -1211,6 +1213,7 @@ model Patient {
   mergeRecordAsSource       PatientMergeRecord?             @relation("PatientMergeRecordSource")
   dataRequests              PatientDataRequest[]
   riskAssessments           PatientRiskAssessment[]         @relation("PatientRiskAssessments")
+  riskFlags                 PatientRiskFlag[]
   currentRiskAssessment     PatientRiskAssessment?          @relation("CurrentRiskAssessment", fields: [currentRiskAssessmentId], references: [id], onDelete: SetNull)
 
   @@index([primaryClinicId])
@@ -1297,6 +1300,7 @@ model Encounter {
   counsellingRecord          CounsellingRecord?
   eyeScreening               EyeScreening?
   stationVisits              PatientStationVisit[]
+  riskFlags                  PatientRiskFlag[]
 
   // Windowed per-clinic reads: clinic dashboards (today, trends) and organization rollups (#13).
   @@index([clinicId, createdAt])
@@ -2903,29 +2907,37 @@ enum InboxNotificationKind {
   REMINDER_FAILED
   /// The reader's own role was granted or removed (#329).
   ACCESS_CHANGE
+  /// A patient's follow-up tier went up, or they need a clinician's review (#337).
+  RISK_TIER_CHANGE
+  /// Follow-up work is due: a missed contact (#338) or the directors' daily counts (#337).
+  FOLLOW_UP_DUE
 }
 
 model InboxNotification {
-  id        String                @id @default(uuid()) @db.Uuid
-  userId    String                @db.Uuid
+  id         String                @id @default(uuid()) @db.Uuid
+  userId     String                @db.Uuid
   /// The clinic it is about. Listed only while the reader still has a role there.
-  clinicId  String?               @db.Uuid
-  kind      InboxNotificationKind
-  title     String                @db.VarChar(200)
-  body      String?               @db.VarChar(500)
+  clinicId   String?               @db.Uuid
+  kind       InboxNotificationKind
+  title      String                @db.VarChar(200)
+  body       String?               @db.VarChar(500)
   /// Same-origin path the tile opens.
-  url       String                @db.VarChar(500)
+  url        String                @db.VarChar(500)
   /// An unread notification with the same tag is updated in place rather than stacked.
-  tag       String?               @db.VarChar(120)
+  tag        String?               @db.VarChar(120)
   /// How many events the unread notification stands for, e.g. three messages in one chat.
-  count     Int                   @default(1)
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @default(now()) @updatedAt
-  readAt    DateTime?
+  count      Int                   @default(1)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @default(now()) @updatedAt
+  readAt     DateTime?
+  /// The risk flag this tile is about, so it can offer "I'm on it" and show who took it (#337).
+  riskFlagId String?               @db.Uuid
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  riskFlag PatientRiskFlag? @relation(fields: [riskFlagId], references: [id], onDelete: SetNull)
 
   @@index([userId, updatedAt])
+  @@index([riskFlagId])
 }
 
 /// One signature on one version of a staff agreement (#330). Append-only: the application role
@@ -3139,9 +3151,67 @@ model PatientRiskAssessment {
   movementTrigger   String?           @db.VarChar(40)
   computedAt        DateTime          @default(now())
 
-  clinic     Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient    Patient  @relation("PatientRiskAssessments", fields: [patientId], references: [id], onDelete: Cascade)
-  currentFor Patient? @relation("CurrentRiskAssessment")
+  clinic     Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient    Patient           @relation("PatientRiskAssessments", fields: [patientId], references: [id], onDelete: Cascade)
+  currentFor Patient?          @relation("CurrentRiskAssessment")
+  flags      PatientRiskFlag[]
 
   @@index([clinicId, patientId, computedAt])
+}
+
+enum RiskFlagKind {
+  /// Moved into Urgent: danger signs.
+  URGENT
+  /// Moved up to High.
+  HIGH
+  /// Very high blood pressure without danger symptoms, confirmed on repeat.
+  SEVERE_BP
+  /// Still High `notImprovingMonths` after becoming High.
+  NOT_IMPROVING
+  /// An urgent finding at screening on a patient the engine does not (yet) call Urgent, such as
+  /// chest pain alone or low blood pressure. Open for a day, so it too has an owner (#337).
+  SCREENING_URGENT
+}
+
+/// A follow-up event someone was told about (#337): one row per assessment and kind, so a
+/// recompute or a sweep never tells anyone twice. Written by the system only.
+model PatientRiskFlag {
+  id           String       @id @default(uuid()) @db.Uuid
+  clinicId     String       @db.Uuid
+  patientId    String       @db.Uuid
+  /// The assessment that raised it; for NOT_IMPROVING, the first of the High run. Null for
+  /// SCREENING_URGENT, which a visit raises instead.
+  assessmentId String?      @db.Uuid
+  /// The visit a SCREENING_URGENT flag came from.
+  encounterId  String?      @db.Uuid
+  kind         RiskFlagKind
+  /// The findings in plain words, for the chart banner. SCREENING_URGENT only.
+  detail       String?      @db.VarChar(300)
+  raisedAt     DateTime     @default(now())
+  /// When managers and directors were told nobody had taken an urgent flag. Set once.
+  escalatedAt  DateTime?
+
+  clinic          Clinic                   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient         Patient                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  assessment      PatientRiskAssessment?   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  encounter       Encounter?               @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  acknowledgement RiskFlagAcknowledgement?
+  notifications   InboxNotification[]
+
+  @@unique([assessmentId, kind])
+  @@unique([encounterId, kind])
+  @@index([patientId, kind, raisedAt])
+}
+
+/// "I'm on it" (#337): who took an urgent flag, and when. One per flag; append-only.
+/// Acknowledging is not resolving: the patient stays Urgent until their data changes.
+model RiskFlagAcknowledgement {
+  id        String   @id @default(uuid()) @db.Uuid
+  clinicId  String   @db.Uuid
+  flagId    String   @unique @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  flag PatientRiskFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  user User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

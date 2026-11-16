@@ -12,7 +12,17 @@ export type InboxKind =
   | 'APPOINTMENT_REQUEST'
   | 'INVITE'
   | 'REMINDER_FAILED'
-  | 'ACCESS_CHANGE';
+  | 'ACCESS_CHANGE'
+  | 'RISK_TIER_CHANGE'
+  | 'FOLLOW_UP_DUE';
+
+/** The urgent flag a tile is about (#337), with who took it. Absent with the flag off. */
+export interface InboxRiskFlag {
+  patientId: string;
+  /** The patient is Urgent now, so "I'm on it" still applies. */
+  open: boolean;
+  acknowledgedBy: { userId: string; displayName: string; at: string } | null;
+}
 
 export interface InboxItem {
   id: string;
@@ -25,6 +35,7 @@ export interface InboxItem {
   clinicId: string | null;
   updatedAt: string;
   readAt: string | null;
+  riskFlag?: InboxRiskFlag | null;
 }
 
 export interface InboxPage {
