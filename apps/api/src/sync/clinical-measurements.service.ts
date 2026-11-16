@@ -1,3 +1,4 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import {
   BadRequestException,
   ConflictException,
@@ -88,6 +89,7 @@ export class ClinicalMeasurementsService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly push?: PushService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   async applyBundle(params: {
@@ -118,10 +120,11 @@ export class ClinicalMeasurementsService {
     let severeBefore = false;
     let severeReading: string | null = null;
     let overwrittenUserId: string | null | undefined;
+    let patientId: string | undefined;
     await this.prisma.$transaction(async (tx) => {
       const encounter = await tx.encounter.findUnique({
         where: { id: bundle.encounterId },
-        select: { clinicId: true, status: true },
+        select: { clinicId: true, status: true, patientId: true },
       });
       if (!encounter || encounter.clinicId !== params.clinicId) {
         throw new NotFoundException('Encounter not found in the active clinic');
@@ -133,6 +136,7 @@ export class ClinicalMeasurementsService {
           existingStatus: EncounterStatus.FINALIZED,
         });
       }
+      patientId = encounter.patientId;
 
       const [existingVitals, existingTobacco] = await Promise.all([
         tx.vitals.findUnique({ where: { encounterId: bundle.encounterId } }),
@@ -277,6 +281,13 @@ export class ClinicalMeasurementsService {
         actorUserId: params.actorUserId,
         overwrittenUserId,
         record: 'vitals',
+      });
+    }
+    if (patientId) {
+      await this.risk?.recomputeAfterCommit({
+        patientId,
+        trigger: 'VITALS',
+        actorUserId: params.actorUserId,
       });
     }
     return { overwrote: overwrittenUserId !== undefined };

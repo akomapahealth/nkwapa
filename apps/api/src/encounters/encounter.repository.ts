@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Encounter, EncounterStatus, HypertensionClassification, Prisma } from '@prisma/client';
+import {
+  Encounter,
+  EncounterStatus,
+  type FollowUpTier,
+  HypertensionClassification,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type QueueStage = 'DRAFT' | 'REVIEW' | 'DOCTOR_READY' | 'PRECEPTOR';
@@ -13,6 +19,10 @@ export interface EncounterFindManyFilters {
   search?: string;
   bpClassification?: HypertensionClassification;
   glucoseFlagged?: boolean;
+  /** Only patients at this follow-up tier (#336); NOT_TIERED includes never computed. */
+  riskTier?: FollowUpTier;
+  /** Return `patient.currentRiskTier`. The caller checks FOLLOW_UP.READ. */
+  withRiskTier?: boolean;
   /** Inclusive UTC instants; the service turns clinic-local days into these. */
   createdFrom?: Date;
   createdTo?: Date;
@@ -66,6 +76,16 @@ function clinicEncounterWhere(
   if (filters.createdFrom || filters.createdTo) {
     where.createdAt = { gte: filters.createdFrom, lte: filters.createdTo };
   }
+  if (filters.riskTier) {
+    where.AND = [
+      {
+        patient:
+          filters.riskTier === 'NOT_TIERED'
+            ? { OR: [{ currentRiskTier: 'NOT_TIERED' }, { currentRiskTier: null }] }
+            : { currentRiskTier: filters.riskTier },
+      },
+    ];
+  }
   if (filters.stage) {
     switch (filters.stage) {
       case 'DRAFT':
@@ -109,7 +129,13 @@ export class EncounterRepository {
     const rows = await this.prisma.encounter.findMany({
       where: clinicEncounterWhere(clinicId, filters),
       include: queue
-        ? { patient: true, vitals: true, hypertensionAssessment: true, diabetesScreening: true }
+        ? {
+            // The tier column is omitted globally; ask for it back only for a reader allowed it.
+            patient: filters.withRiskTier ? { omit: { currentRiskTier: false } } : true,
+            vitals: true,
+            hypertensionAssessment: true,
+            diabetesScreening: true,
+          }
         : undefined,
       skip: filters.skip,
       take: filters.take ?? 50,

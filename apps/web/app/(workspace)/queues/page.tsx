@@ -27,6 +27,10 @@ import {
   type DataTableColumn,
 } from '@/components/ui/data-table';
 import { PatientIdentity } from '@/components/patients/PatientRegistryCard';
+import { FollowUpTierBadge } from '@/components/patients/follow-up/FollowUpTierBadge';
+import { FollowUpTierFilter } from '@/components/patients/follow-up/FollowUpTierFilter';
+import { canSeeFollowUpTier } from '@/lib/follow-up';
+import { FOLLOW_UP_TIER_LABELS, type FollowUpTier } from '@nkwapa/db/follow-up-stratification';
 import { RelativeTime } from '@/components/app-shell/RelativeTime';
 import { ListFilters, ListSearch, type ListFilterChip } from '@/components/app-shell/ListToolbar';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -64,6 +68,8 @@ interface QueueRow {
   createdAt: string;
   bpStage?: string;
   glucoseFlag?: boolean;
+  /** Undefined when the reader may not see tiers; null when not yet computed (#336). */
+  followUpTier?: FollowUpTier | null;
   status: string;
 }
 type Lane = 'drafts' | 'review' | 'finalize' | 'cosign';
@@ -153,7 +159,12 @@ async function readQueue(
     id: string;
     status: string;
     createdAt: string;
-    patient?: { patientCode: string; firstName: string; lastName: string };
+    patient?: {
+      patientCode: string;
+      firstName: string;
+      lastName: string;
+      currentRiskTier?: FollowUpTier | null;
+    };
     hypertensionAssessment?: { classification?: string };
     glucoseFlagged?: boolean;
   }>;
@@ -166,6 +177,7 @@ async function readQueue(
     bpStage: e.hypertensionAssessment?.classification ?? '',
     // The fasting/random thresholds live on the server, next to the filter that uses them.
     glucoseFlag: e.glucoseFlagged === true,
+    followUpTier: e.patient?.currentRiskTier,
     status: e.status,
   }));
   const matches = res.headers.get('X-Total-Count');
@@ -196,6 +208,8 @@ function filterCosign(rows: QueueRow[], filters: QueueFilters) {
 
 function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }) {
   const router = useRouter();
+  const bootstrap = useBootstrap()?.bootstrap ?? null;
+  const canSeeTier = canSeeFollowUpTier(bootstrap?.effectivePermissionsForActiveClinic ?? []);
   const searchParams = useSearchParams();
   const getToken = useAuth();
   const requested = searchParams.get('tab');
@@ -393,6 +407,11 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
       onRemove: () => updateFilters({ glucoseFlagged: false }),
     },
     {
+      label: 'Tier',
+      value: filters.riskTier ? FOLLOW_UP_TIER_LABELS[filters.riskTier] : '',
+      onRemove: () => updateFilters({ riskTier: '' }),
+    },
+    {
       label: 'Created from',
       value: day(filters.createdFrom),
       onRemove: () => updateFilters({ createdFrom: '' }),
@@ -475,6 +494,15 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
               </SelectContent>
             </Select>
           </div>
+          {canSeeTier ? (
+            <div className="border-t border-border/70 pt-4">
+              <FollowUpTierFilter
+                id="queue-risk-tier"
+                value={filters.riskTier}
+                onChange={(next) => updateFilters({ riskTier: next })}
+              />
+            </div>
+          ) : null}
           <div className="flex items-start gap-3 border-t border-border/70 pt-4">
             <Checkbox
               id="queue-glucose"
@@ -604,10 +632,11 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                           : `${total ?? page.rows.length} of ${laneSize} match`}
                       </p>
                     ) : null}
-                    {lane === 'cosign' && (applied.bpClassification || applied.glucoseFlagged) ? (
+                    {lane === 'cosign' &&
+                    (applied.bpClassification || applied.glucoseFlagged || applied.riskTier) ? (
                       <p className="text-sm text-muted-foreground">
-                        HAP notes are filtered by search and dates only. BP and glucose filters do
-                        not apply to them.
+                        HAP notes are filtered by search and dates only. BP, glucose and tier
+                        filters do not apply to them.
                       </p>
                     ) : null}
                     {snapshot.counts === null && lane !== 'cosign' ? (
@@ -729,10 +758,13 @@ function QueueTime({ row }: { row: QueueRow }) {
 }
 /** BP stage and the glucose flag together. Nothing raised is "Nothing flagged", never "normal". */
 function QueueFlags({ row }: { row: QueueRow }) {
+  const tier =
+    row.followUpTier === undefined ? null : <FollowUpTierBadge tier={row.followUpTier} />;
   if (!row.bpStage && !row.glucoseFlag)
-    return <span className="text-muted-foreground">Nothing flagged</span>;
+    return tier ?? <span className="text-muted-foreground">Nothing flagged</span>;
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
+      {tier}
       {row.bpStage ? (
         <span className="inline-flex items-center gap-1">
           <span className="text-xs text-muted-foreground">BP</span>

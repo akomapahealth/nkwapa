@@ -1,5 +1,7 @@
 /** Queue lanes page through the API 50 at a time; the tab count comes from /encounters/counts (#307). */
 
+import type { FollowUpTier } from '@nkwapa/db/follow-up-stratification';
+import { parseFollowUpTier } from '@/components/patients/follow-up/FollowUpTierFilter';
 import { HYPERTENSION_CLASSIFICATIONS, type HypertensionClassification } from '@/lib/hypertension';
 
 export const QUEUE_PAGE_SIZE = 50;
@@ -17,6 +19,8 @@ export interface QueueFilters {
   search: string;
   bpClassification: HypertensionClassification | '';
   glucoseFlagged: boolean;
+  /** Follow-up tier (#336); the API refuses it without FOLLOW_UP.READ. */
+  riskTier: FollowUpTier | '';
   /** Clinic-local days, YYYY-MM-DD, both inclusive. */
   createdFrom: string;
   createdTo: string;
@@ -26,6 +30,7 @@ export const NO_QUEUE_FILTERS: QueueFilters = {
   search: '',
   bpClassification: '',
   glucoseFlagged: false,
+  riskTier: '',
   createdFrom: '',
   createdTo: '',
 };
@@ -45,6 +50,7 @@ export function parseQueueFilters(params: URLSearchParams): QueueFilters {
       ? (bp as HypertensionClassification)
       : '',
     glucoseFlagged: params.get('glucoseFlagged') === 'true',
+    riskTier: parseFollowUpTier(params.get('riskTier')),
     createdFrom: date('createdFrom'),
     createdTo: date('createdTo'),
   };
@@ -56,6 +62,7 @@ export function queueFilterParams(filters: QueueFilters, params = new URLSearchP
   if (search) params.set('search', search);
   if (filters.bpClassification) params.set('bpClassification', filters.bpClassification);
   if (filters.glucoseFlagged) params.set('glucoseFlagged', 'true');
+  if (filters.riskTier) params.set('riskTier', filters.riskTier);
   if (filters.createdFrom) params.set('createdFrom', filters.createdFrom);
   if (filters.createdTo) params.set('createdTo', filters.createdTo);
   return params;

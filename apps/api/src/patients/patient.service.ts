@@ -1,10 +1,12 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import { Encounter, NationalIdType, Patient } from '@prisma/client';
+import { Encounter, type FollowUpTier, NationalIdType, Patient } from '@prisma/client';
 import { isUniqueViolation } from '../common/prisma-errors';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
@@ -74,6 +76,8 @@ export interface PatientRegistryItem {
   lastVisitAt: Date | null;
   /** Present only when the screened date filter is active. */
   matchingScreenings?: MatchingScreening[];
+  /** Present only for a reader holding FOLLOW_UP.READ with the flag on; null until computed. */
+  followUpTier?: FollowUpTier | null;
 }
 
 export interface PatientRegistryPage {
@@ -187,6 +191,7 @@ export class PatientService {
     // of two true things is happening — the invitation email is on its way, or nothing
     // was sent and here is what to read out instead.
     private readonly emailStatus: EmailStatusService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   async create(dto: CreatePatientDto, auditContext?: AuditContext): Promise<Patient> {
@@ -313,6 +318,10 @@ export class PatientService {
       sort?: PatientRegistrySort;
       /** Clinic-local `YYYY-MM-DD` days a completed screening must fall on. */
       screened?: { from?: string; to?: string };
+      /** Filter by follow-up tier. The caller checks FOLLOW_UP.READ. */
+      riskTier?: FollowUpTier;
+      /** Attach each patient's follow-up tier. The caller checks FOLLOW_UP.READ. */
+      withRiskTier?: boolean;
     },
   ): Promise<PatientRegistryPage> {
     const screenedRange = parseScreenedRange(options?.screened?.from, options?.screened?.to);
@@ -363,6 +372,7 @@ export class PatientService {
       residentialLocationStatus: options?.location?.residentialLocationStatus,
       residentialDetail: options?.location?.residentialDetail,
       sort: options?.sort,
+      riskTier: options?.riskTier,
     };
     const screenedDays = screenedRange
       ? screenedWindow(screenedRange, await this.clinicTimeZone(primaryClinicId))
@@ -425,6 +435,15 @@ export class PatientService {
     );
     const mappedItems = items.map((item) => this.toRegistryItem(item, lastVisits));
     const effectivePageSize = options?.cursor ? normalizedLimit : normalizedPageSize;
+    if (options?.withRiskTier && mappedItems.length > 0) {
+      // Selected by name: the column is omitted from every query that does not ask for it.
+      const tiers = await this.prisma.patient.findMany({
+        where: { id: { in: mappedItems.map((item) => item.id) } },
+        select: { id: true, currentRiskTier: true },
+      });
+      const byId = new Map(tiers.map((t) => [t.id, t.currentRiskTier]));
+      for (const item of mappedItems) item.followUpTier = byId.get(item.id) ?? null;
+    }
     if (screenedDays && filters.screened) {
       const screenings = groupMatchingScreenings(
         await this.patientRepository.findMatchingScreenings(
@@ -546,6 +565,14 @@ export class PatientService {
       });
     }
 
+    // Age and sex pick the chart and the BP target.
+    if (data.dob !== undefined || data.sex !== undefined) {
+      await this.risk?.recomputeAfterCommit({
+        patientId: id,
+        trigger: 'PATIENT',
+        actorUserId: auditContext?.actorUserId,
+      });
+    }
     return updated;
   }
 

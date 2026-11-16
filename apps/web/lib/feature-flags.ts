@@ -9,6 +9,7 @@ const webFeatureFlagReaders = {
   guidedChronicTabs: () => process.env.NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED,
   stationWorkflow: () => process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED,
   pwaInstall: () => process.env.NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED,
+  followUpStratification: () => process.env.NEXT_PUBLIC_FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED,
 } as const;
 
 export type WebFeatureFlag = keyof typeof webFeatureFlagReaders;

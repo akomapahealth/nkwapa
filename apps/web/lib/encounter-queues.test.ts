@@ -28,13 +28,14 @@ describe('encounter queue filters (#340)', () => {
     search: '  Abena ',
     bpClassification: 'STAGE2' as const,
     glucoseFlagged: true,
+    riskTier: 'HIGH' as const,
     createdFrom: '2026-10-01',
     createdTo: '2026-10-31',
   };
 
   it('sends every set filter with the page, and nothing for unset ones', () => {
     expect(encounterQueueQuery('DRAFT', 50, filters)).toBe(
-      'status=DRAFT&take=50&skip=50&search=Abena&bpClassification=STAGE2&glucoseFlagged=true&createdFrom=2026-10-01&createdTo=2026-10-31',
+      'status=DRAFT&take=50&skip=50&search=Abena&bpClassification=STAGE2&glucoseFlagged=true&riskTier=HIGH&createdFrom=2026-10-01&createdTo=2026-10-31',
     );
     expect(encounterQueueQuery('REVIEW', 0, { ...NO_QUEUE_FILTERS, search: '   ' })).toBe(
       'status=IN_REVIEW&stage=REVIEW&take=50',
@@ -47,7 +48,9 @@ describe('encounter queue filters (#340)', () => {
     expect(parseQueueFilters(params)).toEqual({ ...filters, search: 'Abena' });
     expect(
       parseQueueFilters(
-        new URLSearchParams('bpClassification=STAGE3&glucoseFlagged=yes&createdFrom=10/01/2026'),
+        new URLSearchParams(
+          'bpClassification=STAGE3&glucoseFlagged=yes&riskTier=SEVERE&createdFrom=10/01/2026',
+        ),
       ),
     ).toEqual(NO_QUEUE_FILTERS);
   });

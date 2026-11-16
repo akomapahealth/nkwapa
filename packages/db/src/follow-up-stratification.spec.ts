@@ -39,6 +39,7 @@ import {
   FOLLOW_UP_TIER_LABELS,
   addMonths,
   assessFollowUp,
+  checkDangerSigns,
   movement,
   nextContact,
   type FollowUpBpReading,
@@ -368,6 +369,52 @@ describe('Check 1: danger signs make a patient Urgent', () => {
     const result = assessFollowUp({ today: TODAY, readings: [bp(186, 114)], symptoms: chestPain });
     expect(result.tier).toBe('URGENT');
     expect(result.missing).toEqual(expect.arrayContaining(['conditions']));
+  });
+});
+
+describe('checking danger signs alone, as a form is filled in', () => {
+  it('needs nothing but the values being typed', () => {
+    const check = checkDangerSigns({
+      today: TODAY,
+      readings: [bp(182, 112)],
+      symptoms: { hypertension: ['CHEST_PAIN'] },
+    });
+    expect(check).toEqual({ reasons: ['DANGER_BP_WITH_SYMPTOMS'], askAboutSymptoms: [] });
+  });
+
+  it('a very high reading with no symptom ticked asks about each danger symptom', () => {
+    const check = checkDangerSigns({ today: TODAY, readings: [bp(182, 100)] });
+    expect(check.reasons).toEqual([]);
+    expect(check.askAboutSymptoms).toEqual(DEFAULT_FOLLOW_UP_CONFIG.dangerBpSymptoms);
+  });
+
+  it('a normal reading asks nothing', () => {
+    expect(checkDangerSigns({ today: TODAY, readings: [bp(150, 95)] })).toEqual({
+      reasons: [],
+      askAboutSymptoms: [],
+    });
+  });
+});
+
+describe('a blood sugar the patient reported', () => {
+  const reported = (mgDl: number) => ({ mgDl, context: 'RANDOM' as const, at: daysAgo(1) });
+
+  it('raises a danger sign like a clinic reading', () => {
+    expect(assessFollowUp(patient({ selfReportedGlucose: reported(400) })).tier).toBe('URGENT');
+    expect(
+      assessFollowUp(patient({ selfReportedGlucose: reported(60), hypoglycaemiaSymptoms: true }))
+        .reasons,
+    ).toContain('DANGER_LOW_GLUCOSE_WITH_SYMPTOMS');
+  });
+
+  it('never decides whether diabetes is at target', () => {
+    const result = assessFollowUp(
+      treatedDiabetic({
+        hba1c: null,
+        selfReportedGlucose: { ...reported(100), context: 'FASTING' },
+      }),
+    );
+    expect(result.atTarget).toBeNull();
   });
 });
 

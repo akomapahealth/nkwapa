@@ -56,6 +56,8 @@ const mockPatient: Patient = {
   residentialPositionSource: null,
   residentialPositionAccuracyM: null,
   residentialPositionCapturedAt: null,
+  currentRiskAssessmentId: null,
+  currentRiskTier: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

@@ -51,6 +51,8 @@ export type MergeRelationKey = (typeof MERGE_RELATIONS)[number]['key'];
  * written down and justified before the test will accept it.
  */
 export const MERGE_SPECIAL_CASE_MODELS: Record<string, string> = {
+  PatientRiskAssessment:
+    "Derived, not recorded (#336). Each chart keeps its own tier history; the merge recomputes the surviving chart from the moved records, and appending history rows is the system role's alone.",
   PatientAccountLink:
     'One row per chart by unique constraint, so the two are collapsed into one according to the portal link strategy rather than moved.',
   PatientPortalInvite:

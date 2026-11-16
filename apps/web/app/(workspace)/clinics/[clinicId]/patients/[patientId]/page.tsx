@@ -43,6 +43,10 @@ import { PatientChartOverview } from '@/components/patients/chart/PatientChartOv
 import { PatientVitalsPanel } from '@/components/patients/chart/PatientVitalsPanel';
 import { PatientVisitsPanel } from '@/components/patients/chart/PatientVisitsPanel';
 import { RouteGuard } from '@/components/RouteGuard';
+import { FollowUpTierSummary } from '@/components/patients/follow-up/FollowUpTierSummary';
+import { FollowUpTierHistory } from '@/components/patients/follow-up/FollowUpTierHistory';
+import { canSeeFollowUpTier, fetchFollowUp } from '@/lib/follow-up';
+import { useAsyncResource } from '@/lib/use-async-resource';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import {
   fetchPatientChartSummary,
@@ -128,6 +132,16 @@ function PatientChartWorkspace() {
     [bootstrap, clinicId],
   );
   const canUpdatePatient = hasPermission(perms, 'PATIENT.UPDATE');
+  const canSeeTier = canSeeFollowUpTier(perms);
+  // Keyed on the patient only: every visit to the chart reads it afresh, so a save made on the
+  // encounter page shows here on return. Offline, the last result stays on screen as last known.
+  const followUp = useAsyncResource({
+    fetcher: (getToken, signal) => fetchFollowUp(clinicId, patientId, getToken, signal),
+    resourceKey: `${clinicId}:${patientId}`,
+    errorMessage: 'Could not load the follow-up tier.',
+    enabled: canSeeTier,
+    requiresOnline: true,
+  });
   const canViewSelfReports = hasPermission(perms, 'PATIENT.SELF_REPORT.READ');
   const canLinkPortal = hasPermission(perms, 'PATIENT.PORTAL.LINK');
   const canWriteMedicalHistory = hasPermission(perms, 'MEDICAL_HISTORY.WRITE');
@@ -612,6 +626,12 @@ function PatientChartWorkspace() {
         clinicId={clinicId}
         badges={
           <>
+            {canSeeTier && followUp.data ? (
+              <FollowUpTierSummary
+                assessment={followUp.data.current}
+                stale={followUp.isStale || followUp.isOfflineBlocked}
+              />
+            ) : null}
             {hasGrantedResearchConsent ? <Badge variant="finalized">Consent granted</Badge> : null}
           </>
         }
@@ -876,6 +896,9 @@ function PatientChartWorkspace() {
                   </div>
                   {canScheduleReminder ? (
                     <ScheduleFollowUpReminderCard clinicId={clinicId} patientId={patient.id} />
+                  ) : null}
+                  {canSeeTier && followUp.data ? (
+                    <FollowUpTierHistory history={followUp.data.history} />
                   ) : null}
                 </PatientChartOverview>
               );

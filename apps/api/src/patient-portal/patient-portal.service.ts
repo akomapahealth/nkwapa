@@ -1,3 +1,4 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import { formatPersonName } from '@nkwapa/db';
 import {
   claimRefusal,
@@ -238,6 +239,7 @@ export class PatientPortalService {
     private readonly emailDeliverabilityService: EmailDeliverabilityService,
     private readonly keycloakAdminService: KeycloakAdminService,
     @Optional() private readonly push?: PushService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   async getMe(clinicId: string, userId: string) {
@@ -2444,6 +2446,13 @@ export class PatientPortalService {
       requestId: params.requestId,
     });
 
+    if (created.type === 'BP' || created.type === 'GLUCOSE') {
+      await this.risk?.recomputeAfterCommit({
+        patientId: params.patient.id,
+        trigger: 'MEASUREMENT',
+        actorUserId: params.actorUserId,
+      });
+    }
     return this.serializeMeasurement(created);
   }
 

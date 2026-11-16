@@ -8,6 +8,7 @@ const apiFeatureFlagReaders = {
   clinicalNotes: () => process.env.FEATURE_CLINICAL_NOTES_ENABLED,
   guidedChronicTabs: () => process.env.FEATURE_GUIDED_CHRONIC_TABS_ENABLED,
   stationWorkflow: () => process.env.FEATURE_STATION_WORKFLOW_ENABLED,
+  followUpStratification: () => process.env.FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED,
 } as const;
 
 export type ApiFeatureFlag = keyof typeof apiFeatureFlagReaders;

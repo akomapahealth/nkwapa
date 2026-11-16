@@ -1,9 +1,11 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, UserRole, type PatientAccountLink } from '@prisma/client';
 import {
@@ -202,6 +204,7 @@ export class PatientMergeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   /**
@@ -505,6 +508,12 @@ export class PatientMergeService {
       requestId,
     });
 
+    // The surviving chart now holds both histories. The source keeps its last tier as history.
+    await this.risk?.recomputeAfterCommit({
+      patientId: canonical.id,
+      trigger: 'MERGE',
+      actorUserId: actor.userId,
+    });
     return {
       success: true,
       clinicId: canonical.primaryClinicId,

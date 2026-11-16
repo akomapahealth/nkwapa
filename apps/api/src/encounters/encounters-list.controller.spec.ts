@@ -9,6 +9,10 @@ import { EncounterService } from './encounter.service';
 import { EncounterListQueryDto, EncountersController } from './encounters.controller';
 
 /** Queue search and filters on GET /clinics/:clinicId/encounters (#340). */
+const DOCTOR = {
+  user: { user: { id: 'doctor-1' }, roles: [{ clinicId: 'clinic-1', role: 'DOCTOR' as const }] },
+} as never;
+
 describe('encounter list search and filters', () => {
   const invalid = async (query: object) =>
     (await validate(plainToInstance(EncounterListQueryDto, query))).map((e) => e.property);
@@ -79,6 +83,7 @@ describe('encounter list search and filters', () => {
         createdTo: '2026-10-09',
       },
       res as never,
+      DOCTOR,
     );
     const where = prisma.encounter.findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({
@@ -96,6 +101,49 @@ describe('encounter list search and filters', () => {
     expect(where.patient.OR).toHaveLength(5); // first, middle (#342) and last name, code, alias
     expect(prisma.encounter.count.mock.calls[0][0].where).toEqual(where);
     expect(res.setHeader).toHaveBeenCalledWith('X-Total-Count', '73');
+  });
+
+  describe('follow-up tier (#336)', () => {
+    const original = process.env.FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED;
+    afterEach(() => {
+      process.env.FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED = original;
+    });
+
+    it('filters by tier and returns it to a clinician', async () => {
+      process.env.FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED = 'true';
+      const { prisma, controller } = setup();
+      await controller.list(
+        { clinicId: 'clinic-1' },
+        { status: 'DRAFT', riskTier: 'NOT_TIERED' },
+        { setHeader: jest.fn() } as never,
+        DOCTOR,
+      );
+      const query = prisma.encounter.findMany.mock.calls[0][0];
+      expect(query.where.AND).toEqual([
+        { patient: { OR: [{ currentRiskTier: 'NOT_TIERED' }, { currentRiskTier: null }] } },
+      ]);
+      expect(query.include.patient).toEqual({ omit: { currentRiskTier: false } });
+    });
+
+    it('refuses the filter, and leaves the tier out, while the flag is off', async () => {
+      process.env.FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED = 'false';
+      const { prisma, controller } = setup();
+      await expect(
+        controller.list(
+          { clinicId: 'clinic-1' },
+          { status: 'DRAFT', riskTier: 'HIGH' },
+          { setHeader: jest.fn() } as never,
+          DOCTOR,
+        ),
+      ).rejects.toThrow('FOLLOW_UP.READ');
+      await controller.list(
+        { clinicId: 'clinic-1' },
+        { status: 'DRAFT' },
+        { setHeader: jest.fn() } as never,
+        DOCTOR,
+      );
+      expect(prisma.encounter.findMany.mock.calls[0][0].include.patient).toBe(true);
+    });
   });
 
   it.each([

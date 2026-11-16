@@ -1,5 +1,6 @@
 'use client';
 
+import { DangerSignNotice, readingNow } from '@/components/patients/follow-up/DangerSignNotice';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ALCOHOL_USE_STATUSES,
@@ -476,27 +477,39 @@ export function HypertensionInterviewForm({
         saveLabel="Save assessment"
         save={{ saving, message: saveMessage, error: saveError }}
         alert={
-          escalation.urgentReviewRequired ? (
-            <InlineNotice tone="error">
-              <span className="block font-medium">This visit needs a clinician now.</span>
-              <span className="block">
-                {escalation.reasons
-                  .map((reason) => HYPERTENSION_ESCALATION_REASON_LABELS[reason])
-                  .join(' · ')}
-              </span>
-              {canEdit ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={applyEscalationReasons}
-                >
-                  Add to the reasons for clinician review
-                </Button>
-              ) : null}
-            </InlineNotice>
-          ) : null
+          <>
+            <DangerSignNotice
+              className="mb-3"
+              input={{
+                readings: [
+                  ...(readingNow(todaysVitals?.systolicBp, todaysVitals?.diastolicBp) ?? []),
+                  ...(readingNow(values.repeatSystolicBp, values.repeatDiastolicBp) ?? []),
+                ],
+                symptoms: { hypertension: values.currentSymptoms as never },
+              }}
+            />
+            {escalation.urgentReviewRequired ? (
+              <InlineNotice tone="error">
+                <span className="block font-medium">This visit needs a clinician now.</span>
+                <span className="block">
+                  {escalation.reasons
+                    .map((reason) => HYPERTENSION_ESCALATION_REASON_LABELS[reason])
+                    .join(' · ')}
+                </span>
+                {canEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={applyEscalationReasons}
+                  >
+                    Add to the reasons for clinician review
+                  </Button>
+                ) : null}
+              </InlineNotice>
+            ) : null}
+          </>
         }
       >
         <InterviewSection id="history" title="Hypertension history">

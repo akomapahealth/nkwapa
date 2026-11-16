@@ -1,3 +1,4 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import {
   BadRequestException,
   ConflictException,
@@ -121,6 +122,7 @@ export class SyncService {
     private readonly opsService: OpsService,
     private readonly clinicianPlanSeal: ClinicianPlanSealService,
     @Optional() private readonly telemetry?: TelemetryService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   async applyMutations(
@@ -714,6 +716,7 @@ export class SyncService {
           update: demographics,
         })
       : await this.prisma.patient.update({ where: { id: mut.entityId }, data: demographics });
+    await this.risk?.recomputeAfterCommit({ patientId: patient.id, trigger: 'SYNC', actorUserId });
 
     await this.auditService.logWrite({
       clinicId: patient.primaryClinicId,
@@ -1769,6 +1772,15 @@ export class SyncService {
         this.prisma.prescription.deleteMany({ where: { id: mut.entityId, clinicId } }),
     };
     await deleteMap[entityType]!();
+    // Every deletable clinical row hangs off an encounter; consents and care plans don't move a tier.
+    const deletedFrom = (beforeRecord as { encounterId?: string } | null)?.encounterId;
+    if (deletedFrom && entityType !== 'care_plan' && entityType !== 'patient_consent') {
+      await this.risk?.recomputeEncounterAfterCommit({
+        encounterId: deletedFrom,
+        trigger: 'SYNC',
+        actorUserId,
+      });
+    }
 
     const actionMap: Record<string, string> = {
       vitals: 'VITALS.DELETE',
