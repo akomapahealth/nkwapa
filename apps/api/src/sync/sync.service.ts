@@ -33,7 +33,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { UpsertHypertensionClinicianPlanDto } from '../hypertension-assessment/dto/hypertension-assessment.dto';
 import { UpsertDiabetesClinicianPlanDto } from '../diabetes-screening/dto/diabetes-screening.dto';
-import { flattenValidationErrors } from '../common/validation';
+import { flattenValidationErrors, sanitizePlainText } from '../common/validation';
 import {
   classifySyncFailure,
   isTerminalOutcome,
@@ -660,6 +660,15 @@ export class SyncService {
     const demographics = {
       patientCode,
       firstName: payload.firstName as string,
+      // Absent from a client that predates #342: leave what is stored, rather than clear it.
+      ...(payload.middleName !== undefined
+        ? {
+            middleName:
+              typeof payload.middleName === 'string'
+                ? (sanitizePlainText(payload.middleName, { maxLength: 120 }) as string) || null
+                : null,
+          }
+        : {}),
       lastName: payload.lastName as string,
       dob: payload.dob ? new Date(payload.dob as string) : null,
       sex: (payload.sex as Sex) ?? 'UNKNOWN',

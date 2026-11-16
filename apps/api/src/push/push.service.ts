@@ -1,3 +1,4 @@
+import { formatPersonName } from '@nkwapa/db';
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { InboxNotificationKind } from '@prisma/client';
@@ -184,9 +185,7 @@ export class PushService {
         )
         .then(([actor, encounter]) => {
           const who = actor?.displayName || 'Someone';
-          const patient = encounter
-            ? `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim()
-            : '';
+          const patient = encounter ? formatPersonName(encounter.patient, 'short') : '';
           this.notify([target], {
             title: 'A save replaced yours',
             body: 'Open Nkwapa to review it.',
@@ -250,9 +249,7 @@ export class PushService {
               where: { clinicId: params.clinicId, role: 'DOCTOR' },
               select: { userId: true },
             });
-        const name = encounter
-          ? `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim()
-          : '';
+        const name = encounter ? formatPersonName(encounter.patient, 'short') : '';
         return {
           recipients: doctors.map((d) => d.userId).filter((id) => id !== params.actorUserId),
           patientName: name || 'A patient',

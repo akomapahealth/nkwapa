@@ -92,7 +92,7 @@ export interface WhoAmIResponse {
   profile?: {
     needsName: boolean;
     firstName: string | null;
-    middleInitial: string | null;
+    middleName: string | null;
     lastName: string | null;
     email: string | null;
     /** Optional so an older API still parses. */

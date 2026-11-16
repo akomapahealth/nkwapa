@@ -6,9 +6,10 @@ import { SELECTABLE_STAFF_INVITE_TTL_HOURS } from '../../common/staff-invite-lif
 import { ToNormalizedEmail, ToOptionalBoolean } from '../../common/validation';
 import { ClinicIdParamDto } from '../../common/request-dto';
 import {
-  IsMiddleInitial,
+  IsMiddleName,
+  MiddleInitialAlias,
   IsStaffNamePart,
-  ToMiddleInitial,
+  ToMiddleName,
   ToStaffNamePart,
 } from '../../common/staff-name.validation';
 
@@ -37,10 +38,14 @@ export class CreateStaffInviteDto {
   @IsStaffNamePart()
   firstName?: string;
 
-  @ToMiddleInitial()
+  @ToMiddleName()
   @IsOptional()
-  @IsMiddleInitial()
-  middleInitial?: string | null;
+  @IsMiddleName()
+  middleName?: string | null;
+
+  /** @deprecated Pre-#342 clients; read into `middleName`. Remove next release. */
+  @MiddleInitialAlias()
+  middleInitial?: unknown;
 
   @ToStaffNamePart()
   @IsOptional()

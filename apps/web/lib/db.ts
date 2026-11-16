@@ -6,6 +6,8 @@ export interface PatientRecord {
   primaryClinicId: string;
   patientCode: string;
   firstName: string;
+  /** Absent on a record cached before #342. */
+  middleName?: string | null;
   lastName: string;
   dob?: string;
   sex?: string;

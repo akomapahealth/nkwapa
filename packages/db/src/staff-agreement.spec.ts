@@ -15,7 +15,7 @@ describe('requiresStaffAgreement', () => {
 });
 
 describe('signatureMatchesName', () => {
-  const name = { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' };
+  const name = { firstName: 'Ama', middleName: 'K', lastName: 'Mensah' };
   it.each(['Ama Mensah', '  ama   MENSAH ', 'Ama K. Mensah', 'ama k mensah'])(
     'accepts %p',
     (typed) => expect(signatureMatchesName(typed, name)).toBe(true),
@@ -23,6 +23,25 @@ describe('signatureMatchesName', () => {
   it.each(['Ama', 'Mensah Ama', 'Ama J. Mensah', 'Kofi Mensah', ''])('refuses %p', (typed) =>
     expect(signatureMatchesName(typed, name)).toBe(false),
   );
+  it.each(['Nana Tuffour', 'Nana Kwame Agyei Tuffour', 'nana  kwame agyei  TUFFOUR'])(
+    'accepts %p for a name with several middle names',
+    (typed) =>
+      expect(
+        signatureMatchesName(typed, {
+          firstName: 'Nana',
+          middleName: 'Kwame Agyei',
+          lastName: 'Tuffour',
+        }),
+      ).toBe(true),
+  );
+  it('refuses part of the middle names', () =>
+    expect(
+      signatureMatchesName('Nana Kwame Tuffour', {
+        firstName: 'Nana',
+        middleName: 'Kwame Agyei',
+        lastName: 'Tuffour',
+      }),
+    ).toBe(false));
   it('refuses everything while the account has no name', () => {
     expect(signatureMatchesName(' ', { firstName: null, lastName: null })).toBe(false);
   });

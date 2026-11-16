@@ -16,6 +16,7 @@ export const SYNC_PATIENT_SELECT = {
   patientCode: true,
   primaryClinicId: true,
   firstName: true,
+  middleName: true,
   lastName: true,
   dob: true,
   sex: true,

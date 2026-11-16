@@ -107,6 +107,7 @@ export interface MergePreviewPatient {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   dob: string | null;
   sex: string;
@@ -756,6 +757,7 @@ function toPreviewPatient(chart: MergeChart): MergePreviewPatient {
     id: chart.id,
     patientCode: chart.patientCode,
     firstName: chart.firstName,
+    middleName: chart.middleName,
     lastName: chart.lastName,
     dob: chart.dob ? chart.dob.toISOString() : null,
     sex: chart.sex,
@@ -779,6 +781,7 @@ function toDuplicateInput(chart: MergeChart) {
   return {
     id: chart.id,
     firstName: chart.firstName,
+    middleName: chart.middleName,
     lastName: chart.lastName,
     dob: chart.dob,
     phoneE164: chart.phoneE164,

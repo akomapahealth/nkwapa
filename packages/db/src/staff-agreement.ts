@@ -82,16 +82,16 @@ const fold = (value: string | null | undefined) =>
 
 /**
  * Whether a typed signature is this person's name: first and last name, with or without the
- * middle initial, ignoring case, periods and extra spaces.
+ * middle names, ignoring case, periods and extra spaces. A stored initial ("K") matches "K." too.
  */
 export function signatureMatchesName(
   typed: string,
-  name: { firstName?: string | null; middleInitial?: string | null; lastName?: string | null },
+  name: { firstName?: string | null; middleName?: string | null; lastName?: string | null },
 ): boolean {
   const first = fold(name.firstName);
   const last = fold(name.lastName);
   if (!first || !last) return false;
   const signed = fold(typed);
-  const initial = fold(name.middleInitial);
-  return signed === `${first} ${last}` || (!!initial && signed === `${first} ${initial} ${last}`);
+  const middle = fold(name.middleName);
+  return signed === `${first} ${last}` || (!!middle && signed === `${first} ${middle} ${last}`);
 }

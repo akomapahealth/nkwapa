@@ -10,7 +10,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { IsAllowedEmailDomain } from '../../common/email-policy';
-import { ToNormalizedEmail, ToSanitizedString } from '../../common/validation';
+import { ToNormalizedEmail, ToOptionalName, ToSanitizedString } from '../../common/validation';
 import { ResidentialLocationDto } from './residential-location.dto';
 
 /** Body DTO for POST /clinics/:clinicId/patients; primaryClinicId from route. */
@@ -19,6 +19,13 @@ export class CreatePatientBodyDto extends ResidentialLocationDto {
   @IsString()
   @MaxLength(120)
   firstName!: string;
+
+  /** Any number of middle names, separated by spaces (#342). */
+  @IsOptional()
+  @ToOptionalName()
+  @IsString()
+  @MaxLength(120)
+  middleName?: string | null;
 
   @ToSanitizedString({ maxLength: 120 })
   @IsString()

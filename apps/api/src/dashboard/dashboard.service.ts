@@ -1,3 +1,4 @@
+import { formatPersonName } from '@nkwapa/db';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -163,7 +164,7 @@ export class DashboardService {
     return encounters.map((encounter) => ({
       encounterId: encounter.id,
       patientCode: encounter.patient.patientCode,
-      patientName: `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim(),
+      patientName: formatPersonName(encounter.patient, 'short'),
       station: stationByEncounter.get(encounter.id) ?? null,
     }));
   }
@@ -280,7 +281,7 @@ export class DashboardService {
     const recentEncounters: EncounterSummary[] = recentRaw.map((e) => ({
       id: e.id,
       patientCode: e.patient.patientCode,
-      patientName: `${e.patient.firstName} ${e.patient.lastName}`,
+      patientName: formatPersonName(e.patient, 'short'),
       status: e.status,
       createdAt: e.createdAt.toISOString(),
     }));
@@ -360,7 +361,7 @@ export class DashboardService {
     const recentReviews: EncounterSummary[] = recentRaw.map((e) => ({
       id: e.id,
       patientCode: e.patient.patientCode,
-      patientName: `${e.patient.firstName} ${e.patient.lastName}`,
+      patientName: formatPersonName(e.patient, 'short'),
       status: e.status,
       createdAt: e.createdAt.toISOString(),
     }));

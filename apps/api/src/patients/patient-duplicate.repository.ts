@@ -22,6 +22,7 @@ export type DuplicatePatientRecord = Prisma.PatientGetPayload<{
     id: true;
     patientCode: true;
     firstName: true;
+    middleName: true;
     lastName: true;
     dob: true;
     sex: true;
@@ -51,6 +52,7 @@ const DUPLICATE_PATIENT_SELECT = {
   id: true,
   patientCode: true,
   firstName: true,
+  middleName: true,
   lastName: true,
   dob: true,
   sex: true,

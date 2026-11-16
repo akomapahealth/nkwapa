@@ -25,7 +25,9 @@ const OPEN_STATUSES: PatientDataRequestStatus[] = [
 const isOpen = (status: PatientDataRequestStatus) => OPEN_STATUSES.includes(status);
 
 const STAFF_INCLUDE = {
-  patient: { select: { id: true, patientCode: true, firstName: true, lastName: true } },
+  patient: {
+    select: { id: true, patientCode: true, firstName: true, middleName: true, lastName: true },
+  },
   respondedBy: { select: { id: true, displayName: true } },
 } satisfies Prisma.PatientDataRequestInclude;
 

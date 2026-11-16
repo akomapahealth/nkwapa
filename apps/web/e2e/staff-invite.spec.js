@@ -212,8 +212,13 @@ test('the name step holds them until they save, then lets them in', async () => 
   await expect(inviteePage.getByText(/last name can only use letters/i)).toBeVisible();
   await expect(inviteePage.getByLabel('First name')).toHaveValue('Ama');
 
-  await fillStaffName(inviteePage, { firstName: 'Ama', middleInitial: 'k.', lastName: 'Mensah' });
-  await expect(inviteePage.getByText('Ama K. Mensah')).toBeVisible();
+  // Every middle name is kept, not cut to an initial (#342).
+  await fillStaffName(inviteePage, {
+    firstName: 'Ama',
+    middleName: '  Kukua   Agyei ',
+    lastName: 'Mensah',
+  });
+  await expect(inviteePage.getByText('Ama Kukua Agyei Mensah')).toBeVisible();
   await inviteePage.getByRole('button', { name: 'Save and continue' }).click();
   await expect(inviteePage.getByText('Saved', { exact: true })).toBeVisible({ timeout: 30_000 });
   // A volunteer signs the confidentiality agreement before anything else opens (#330).
@@ -235,12 +240,13 @@ test('the agreement holds a volunteer until they sign with their own name', asyn
     inviteePage.getByText(/type your name as it appears on your account/i),
   ).toBeVisible();
 
+  // First and last name are enough; the middle names may be left out of the signature.
   await inviteePage.getByLabel(/type your full name to sign/i).fill('ama mensah');
   await inviteePage.getByRole('button', { name: 'Sign and continue' }).click();
   await inviteePage.waitForURL(/\/dashboard/, { timeout: 60_000 });
   // A brand-new account meets the welcome tour on its first workspace page.
   await skipWelcomeTour(inviteePage);
-  await expectMenuName(inviteePage, 'Ama K. Mensah');
+  await expectMenuName(inviteePage, 'Ama Kukua Agyei Mensah');
   // Signed once: the account page says when, and the step does not come back.
   await inviteePage.goto('/account');
   await expect(inviteePage.getByText(/confidentiality agreement signed on/i)).toBeVisible();
@@ -289,7 +295,7 @@ test('the profile page edits the name and phone, and the header follows without 
 
   await fillStaffName(inviteePage, {
     firstName: 'Ama',
-    middleInitial: 'B',
+    middleName: 'B',
     lastName: 'Mensah-Owusu',
   });
   await inviteePage.getByRole('button', { name: 'Save name' }).click();
@@ -306,6 +312,7 @@ test('the profile page edits the name and phone, and the header follows without 
 
 test('an admin corrects the name, and only an admin can', async () => {
   const path = `/admin/users/${inviteeUserId}/name`;
+  // Sent as `middleInitial`, as a pre-#342 app would: the alias still saves it.
   const data = { firstName: 'Ama', middleInitial: 'B', lastName: 'Mensah' };
 
   const refused = await apiRequestAs('volunteer', 'patch', path, { data });
@@ -324,9 +331,9 @@ test('an invitation that carries a name goes straight in', async ({ page, browse
   await openInvitations(page);
   await sendInvitation(page, NAMED_EMAIL, {
     firstName: 'Kofi',
-    middleInitial: 'A',
+    middleName: 'Ato Kwame',
     lastName: 'Boateng',
-    displayName: 'Kofi A. Boateng',
+    displayName: 'Kofi Ato Kwame Boateng',
   });
 
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
@@ -336,7 +343,7 @@ test('an invitation that carries a name goes straight in', async ({ page, browse
     await acceptVolunteerSeat(named);
     await signAgreement(named, 'Kofi Boateng');
     await skipWelcomeTour(named);
-    await expectMenuName(named, 'Kofi A. Boateng');
+    await expectMenuName(named, 'Kofi Ato Kwame Boateng');
   } finally {
     await context.close();
   }

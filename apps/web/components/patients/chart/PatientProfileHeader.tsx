@@ -6,23 +6,27 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import styles from './patient-profile.module.css';
 import { avatarToneProps } from '@/lib/avatar-tone';
+import { formatPersonName, type PersonNameParts } from '@/lib/person-name';
 
 /** Identity stays visible during chart review without duplicating chart actions or focus stops. */
 export function PatientProfileHeader({
-  name,
+  person,
   patientCode,
   sex,
   clinicId,
   badges,
   actions,
 }: {
-  name: string;
+  /** The full name heads the chart; the avatar and the compact bar use first and last (#342). */
+  person: PersonNameParts;
   patientCode: string;
   sex: string;
   clinicId: string;
   badges: ReactNode;
   actions: ReactNode;
 }) {
+  const name = formatPersonName(person);
+  const shortName = formatPersonName(person, 'short');
   const header = useRef<HTMLElement>(null);
   const compact = useRef<HTMLDivElement>(null);
   const [context, setContext] = useState({ visible: false, top: 0, left: 0, width: 0 });
@@ -92,8 +96,8 @@ export function PatientProfileHeader({
           Back to patient search
         </Link>
         <div className={styles.identityRow}>
-          <span className={styles.avatar} aria-hidden="true" {...avatarToneProps(name)}>
-            {name
+          <span className={styles.avatar} aria-hidden="true" {...avatarToneProps(shortName)}>
+            {shortName
               .split(/\s+/)
               .filter(Boolean)
               .map((part) => part[0])
@@ -124,7 +128,7 @@ export function PatientProfileHeader({
               className={styles.context}
               style={{ top: context.top, left: context.left, width: context.width, margin: 0 }}
             >
-              <span className="min-w-0 truncate font-semibold">{name}</span>
+              <span className="min-w-0 truncate font-semibold">{shortName}</span>
               <span
                 className="min-w-0 truncate font-mono text-xs text-muted-foreground"
                 translate="no"

@@ -300,6 +300,7 @@ export class PatientRepository {
         const s = filters.search.trim();
         orConditions.push(
           { firstName: { contains: s, mode: 'insensitive' } },
+          { middleName: { contains: s, mode: 'insensitive' } },
           { lastName: { contains: s, mode: 'insensitive' } },
           { patientCode: { contains: s, mode: 'insensitive' } },
           {

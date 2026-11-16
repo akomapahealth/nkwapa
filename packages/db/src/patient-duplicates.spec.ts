@@ -3,6 +3,7 @@ import {
   DUPLICATE_MATCH_REASONS,
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_MATCH_WEIGHTS,
+  DUPLICATE_MIDDLE_NAME_ADJUSTMENT,
   duplicatePairKey,
   editDistanceWithin,
   evaluateDuplicatePair,
@@ -293,5 +294,50 @@ describe('reason metadata', () => {
       expect(DUPLICATE_MATCH_REASON_LABELS[reason]).toMatch(/[a-z]/);
       expect(DUPLICATE_MATCH_REASON_LABELS[reason]).not.toMatch(/_/);
     }
+  });
+});
+
+describe('middle names (#342)', () => {
+  const other = '00000000-0000-4000-8000-000000000002';
+  const nana = { firstName: 'Nana', lastName: 'Tuffour' };
+  const nameAndDob = DUPLICATE_MATCH_WEIGHTS.NAME_AND_DOB;
+
+  it('treats a missing middle name as neutral, so with and without still match', () => {
+    const result = evaluateDuplicatePair(
+      patient({ ...nana, middleName: 'Kwame Agyei' }),
+      patient({ ...nana, id: other }),
+    );
+    expect(result.reasons).toEqual(['NAME_AND_DOB']);
+    expect(result.score).toBe(nameAndDob);
+  });
+
+  it('raises the score when the middle names agree and lowers it when they differ', () => {
+    expect(
+      evaluateDuplicatePair(
+        patient({ ...nana, middleName: 'Kwame Agyei' }),
+        patient({ ...nana, id: other, middleName: 'kwame  agyei' }),
+      ).score,
+    ).toBe(nameAndDob + DUPLICATE_MIDDLE_NAME_ADJUSTMENT.AGREES);
+    const differs = evaluateDuplicatePair(
+      patient({ ...nana, middleName: 'Kwame' }),
+      patient({ ...nana, id: other, middleName: 'Kofi' }),
+    );
+    expect(differs.reasons).toEqual(['NAME_AND_DOB']);
+    expect(differs.score).toBe(nameAndDob + DUPLICATE_MIDDLE_NAME_ADJUSTMENT.DIFFERS);
+  });
+
+  it('matches a first name holding the middle name against the split form, either way round', () => {
+    const before = patient({ firstName: 'Nana Kwame', lastName: 'Tuffour' });
+    const after = patient({ ...nana, id: other, middleName: 'Kwame' });
+    expect(evaluateDuplicatePair(before, after).reasons).toEqual(['NAME_AND_DOB']);
+    expect(evaluateDuplicatePair(after, before).reasons).toEqual(['NAME_AND_DOB']);
+  });
+
+  it('never adds a middle-name score to a pair nothing else matched', () => {
+    const result = evaluateDuplicatePair(
+      patient({ ...nana, middleName: 'Kwame', dob: null }),
+      patient({ ...nana, id: other, middleName: 'Kwame', dob: null }),
+    );
+    expect(result).toEqual({ reasons: [], score: 0, confidence: 'LOW' });
   });
 });

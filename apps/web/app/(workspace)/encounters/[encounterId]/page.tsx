@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -343,9 +344,7 @@ export default function EncounterDetailPage() {
             <div className={styles.identity}>
               <p className="text-sm text-muted-foreground">Encounter</p>
               <h1 className="mt-1 type-page-title">
-                {encounter.patient
-                  ? `${encounter.patient.firstName} ${encounter.patient.lastName}`
-                  : 'Encounter workspace'}
+                {encounter.patient ? formatPersonName(encounter.patient) : 'Encounter workspace'}
               </h1>
               <div className={styles.metadata}>
                 {encounter.patient ? (

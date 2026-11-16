@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { useState } from 'react';
 import Link from 'next/link';
 import { apiFetch, type GetToken } from '@/lib/api';
@@ -38,6 +39,7 @@ interface Clash {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
 }
 
@@ -151,7 +153,7 @@ export function ChangeNationalIdDialog({
 
           {clash ? (
             <InlineNotice tone="error">
-              {clash.firstName} {clash.lastName} ({clash.patientCode}) already has this ID.{' '}
+              {formatPersonName(clash)} ({clash.patientCode}) already has this ID.{' '}
               <Link className="underline" href={`/clinics/${clinicId}/patients/${clash.id}`}>
                 Open that chart
               </Link>{' '}

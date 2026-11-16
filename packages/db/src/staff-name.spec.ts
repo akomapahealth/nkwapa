@@ -1,7 +1,7 @@
 import {
   formatStaffDisplayName,
-  middleInitialError,
-  normalizeMiddleInitial,
+  middleNameError,
+  normalizeMiddleName,
   normalizeStaffNamePart,
   staffNamePartError,
   STAFF_NAME_MAX_LENGTH,
@@ -34,26 +34,34 @@ describe('staff name rules', () => {
   });
 
   it.each([
-    ['k.', 'K'],
-    [' K ', 'K'],
-    ['ɔ', 'Ɔ'],
+    ['  Kwame   Agyei ', 'Kwame Agyei'],
+    ['K', 'K'],
     ['', null],
+    ['   ', null],
     [null, null],
-  ])('normalizes middle initial %j to %j', (input, expected) => {
-    expect(normalizeMiddleInitial(input)).toBe(expected);
-    expect(middleInitialError(expected)).toBeNull();
+  ])('normalizes middle name %j to %j', (input, expected) => {
+    expect(normalizeMiddleName(input)).toBe(expected);
+    expect(middleNameError(expected)).toBeNull();
   });
 
-  it.each(['KM', '1'])('rejects middle initial %s', (input) => {
-    expect(middleInitialError(normalizeMiddleInitial(input))).toBe('INVALID_CHARACTERS');
+  it.each(["Kwame Agyei-Boateng O'Neil", 'K', 'Adɔma'])('accepts middle name %s', (value) =>
+    expect(middleNameError(value)).toBeNull(),
+  );
+
+  it('rejects a middle name with digits or over the limit', () => {
+    expect(middleNameError('Kwame 2')).toBe('INVALID_CHARACTERS');
+    expect(middleNameError('A'.repeat(STAFF_NAME_MAX_LENGTH + 1))).toBe('TOO_LONG');
   });
 
-  it('formats the display name with and without an initial', () => {
+  it('formats the display name with full middle names, a kept initial, or none', () => {
     expect(
-      formatStaffDisplayName({ firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' }),
-    ).toBe('Ama K. Mensah');
-    expect(
-      formatStaffDisplayName({ firstName: 'Ama', middleInitial: null, lastName: 'Mensah' }),
-    ).toBe('Ama Mensah');
+      formatStaffDisplayName({ firstName: 'Nana', middleName: 'Kwame Agyei', lastName: 'Tuffour' }),
+    ).toBe('Nana Kwame Agyei Tuffour');
+    expect(formatStaffDisplayName({ firstName: 'Ama', middleName: 'K', lastName: 'Mensah' })).toBe(
+      'Ama K. Mensah',
+    );
+    expect(formatStaffDisplayName({ firstName: 'Ama', middleName: null, lastName: 'Mensah' })).toBe(
+      'Ama Mensah',
+    );
   });
 });

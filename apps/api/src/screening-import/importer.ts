@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { plainToInstance, type ClassConstructor } from 'class-transformer';
 import { validate } from 'class-validator';
-import { hashNationalId } from '@nkwapa/db';
+import { formatPersonName, hashNationalId } from '@nkwapa/db';
 import type { Prisma } from '@prisma/client';
 import type { ScopedRole } from '../auth/clinic-roles';
 import { AuditService } from '../audit/audit.service';
@@ -225,7 +225,7 @@ export async function importPatient(
             patient.lastName.toLowerCase() === plan.patient.lastName.toLowerCase();
           if (!sameName) {
             warnings.push(
-              `Matched ${patient.patientCode} (${patient.firstName} ${patient.lastName}) by ${byCode ? 'code' : 'national ID'}; the sheet says ${plan.patient.firstName} ${plan.patient.lastName}`,
+              `Matched ${patient.patientCode} (${formatPersonName(patient, 'short')}) by ${byCode ? 'code' : 'national ID'}; the sheet says ${formatPersonName(plan.patient, 'short')}`,
             );
           }
         } else {

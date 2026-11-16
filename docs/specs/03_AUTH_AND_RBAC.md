@@ -322,7 +322,7 @@ It returns:
   account with no role at all is held on an onboarding page; a colleague who already works in one
   clinic is offered an invitation to another, not redirected to it. A staff account that holds a
   role but has no first or last name gets `NAME_REQUIRED` and is held on `/account/name` (#225)
-- the user's own name (`profile`): `needsName`, `firstName`, `middleInitial`, `lastName` and
+- the user's own name (`profile`): `needsName`, `firstName`, `middleName`, `lastName` and
   `email`, so the name step can prefill. `needsName` is never true for a patient-only account
 - the confidentiality agreement (`staffAgreement`): `required`, `signedVersion`, `acceptedAt`. An
   account holding a role listed in `AGREEMENT_REQUIRED_ROLES` (`packages/db/src/staff-agreement.ts`,

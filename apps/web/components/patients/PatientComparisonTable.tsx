@@ -74,8 +74,8 @@ export function PatientComparisonTable({
                 acts on, and colour alone would not reach a screen reader or survive a
                 monochrome print.
               */}
-              <td className="px-4 py-2.5 text-foreground">{row.valueA}</td>
-              <td className="px-4 py-2.5 text-foreground">
+              <td className="px-4 py-2.5 text-foreground [overflow-wrap:anywhere]">{row.valueA}</td>
+              <td className="px-4 py-2.5 text-foreground [overflow-wrap:anywhere]">
                 <span className={row.matches ? 'font-medium' : undefined}>{row.valueB}</span>
                 {row.matches ? (
                   <span className="ml-2 text-xs uppercase tracking-wide text-success-ink">

@@ -61,6 +61,7 @@ export interface DuplicateCandidatePatient {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   dob: string | null;
   sex: string;
@@ -559,7 +560,13 @@ export class PatientDuplicateService {
     if (query) {
       const haystack = candidate.patients
         .map((patient) =>
-          [patient.firstName, patient.lastName, patient.patientCode, patient.clinic.name].join(' '),
+          [
+            patient.firstName,
+            patient.middleName,
+            patient.lastName,
+            patient.patientCode,
+            patient.clinic.name,
+          ].join(' '),
         )
         .join(' ')
         .toLowerCase();
@@ -574,6 +581,7 @@ export class PatientDuplicateService {
       id: patient.id,
       patientCode: patient.patientCode,
       firstName: patient.firstName,
+      middleName: patient.middleName,
       lastName: patient.lastName,
       dob: patient.dob ? patient.dob.toISOString() : null,
       sex: patient.sex,

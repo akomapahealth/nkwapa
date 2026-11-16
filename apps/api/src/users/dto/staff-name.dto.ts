@@ -1,8 +1,9 @@
 import { IsOptional } from 'class-validator';
 import {
-  IsMiddleInitial,
+  IsMiddleName,
+  MiddleInitialAlias,
   IsStaffNamePart,
-  ToMiddleInitial,
+  ToMiddleName,
   ToStaffNamePart,
 } from '../../common/staff-name.validation';
 
@@ -12,10 +13,14 @@ export class UpdateStaffNameDto {
   @IsStaffNamePart()
   firstName!: string;
 
-  @ToMiddleInitial()
+  @ToMiddleName()
   @IsOptional()
-  @IsMiddleInitial()
-  middleInitial?: string | null;
+  @IsMiddleName()
+  middleName?: string | null;
+
+  /** @deprecated Pre-#342 clients; read into `middleName`. Remove next release. */
+  @MiddleInitialAlias()
+  middleInitial?: unknown;
 
   @ToStaffNamePart()
   @IsStaffNamePart()

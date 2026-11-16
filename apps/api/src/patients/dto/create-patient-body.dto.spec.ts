@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CreatePatientBodyDto } from './create-patient-body.dto';
 import { ChangeNationalIdBodyDto } from './change-national-id.dto';
+import { UpdatePatientBodyDto } from './update-patient-body.dto';
 
 const errorsFor = async (cls: new () => object, body: object) =>
   (await validate(plainToInstance(cls, body), { whitelist: true, forbidNonWhitelisted: true })).map(
@@ -43,5 +44,34 @@ describe('national ID rules on the patient request bodies (#214)', () => {
         reason: 'No card after all',
       }),
     ).toEqual([]);
+  });
+});
+
+describe('patient middle names (#342)', () => {
+  const body = { firstName: 'Nana', lastName: 'Tuffour', nationalIdType: 'NONE' };
+
+  it('keeps every middle name, with extra spaces collapsed', async () => {
+    const dto = plainToInstance(CreatePatientBodyDto, { ...body, middleName: '  Kwame   Agyei ' });
+    expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
+    expect(dto.middleName).toBe('Kwame Agyei');
+  });
+
+  it('makes a blank middle name null, so an edit can clear it', async () => {
+    expect(
+      plainToInstance(CreatePatientBodyDto, { ...body, middleName: '  ' }).middleName,
+    ).toBeNull();
+    const update = plainToInstance(UpdatePatientBodyDto, { middleName: '' });
+    expect(await validate(update, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
+    expect(update.middleName).toBeNull();
+  });
+
+  it('leaves the middle name out of an edit that does not send it', () => {
+    expect(plainToInstance(UpdatePatientBodyDto, { firstName: 'Nana' }).middleName).toBeUndefined();
+  });
+
+  it('accepts a 120-character middle name', async () => {
+    const dto = plainToInstance(CreatePatientBodyDto, { ...body, middleName: 'A'.repeat(120) });
+    expect(await validate(dto)).toEqual([]);
+    expect(dto.middleName).toHaveLength(120);
   });
 });
