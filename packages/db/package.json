@@ -120,6 +120,10 @@
     "./patient-merge": {
       "types": "./dist/src/patient-merge.d.ts",
       "default": "./dist/src/patient-merge.js"
+    },
+    "./follow-up-stratification": {
+      "types": "./dist/src/follow-up-stratification.d.ts",
+      "default": "./dist/src/follow-up-stratification.js"
     }
   },
   "scripts": {
