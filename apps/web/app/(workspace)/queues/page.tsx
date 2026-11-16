@@ -27,13 +27,32 @@ import {
 } from '@/components/ui/data-table';
 import { PatientIdentity } from '@/components/patients/PatientRegistryCard';
 import { RelativeTime } from '@/components/app-shell/RelativeTime';
+import { ListFilters, ListSearch, type ListFilterChip } from '@/components/app-shell/ListToolbar';
+import { Checkbox } from '@/components/ui/checkbox';
+import { FieldError, fieldErrorId } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { HYPERTENSION_CLASSIFICATIONS, HYPERTENSION_LABELS } from '@/lib/hypertension';
+import { OPS_DEFAULT_TIMEZONE } from '@/lib/ops';
 import { cn } from '@/lib/utils';
 import {
   encounterQueueQuery,
+  hasQueueFilters,
   laneTotal,
+  NO_QUEUE_FILTERS,
+  parseQueueFilters,
   QUEUE_PAGE_SIZE,
+  queueFilterParams,
   type EncounterQueueCounts,
   type EncounterQueueStage,
+  type QueueFilters,
 } from '@/lib/encounter-queues';
 
 interface QueueRow {
@@ -68,15 +87,24 @@ const EMPTY_COPY: Record<Lane, string> = {
   cosign: 'No HAP notes were returned for your cosign.',
 };
 const STAGES = { drafts: 'DRAFT', review: 'REVIEW', finalize: 'DOCTOR_READY' } as const;
+const SEARCH_DEBOUNCE_MS = 300;
 interface QueuePage {
   rows: QueueRow[];
   offset: number;
   hasMore: boolean;
+  /** How many match the filters, from X-Total-Count; null when the header is missing. */
+  matches: number | null;
 }
 interface QueueSnapshot {
   lanes: Record<Lane, QueuePage>;
   counts: EncounterQueueCounts | null;
+  /** The filters this snapshot was read with. */
+  filtered: boolean;
+  /** The Cosign lane's size before the browser filters it. */
+  cosignTotal: number;
 }
+/** A clinic-local YYYY-MM-DD for comparing against the date filters. */
+const clinicDay = new Intl.DateTimeFormat('en-CA', { timeZone: OPS_DEFAULT_TIMEZONE });
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -112,10 +140,11 @@ async function readQueue(
   stage: EncounterQueueStage,
   getToken: GetToken,
   signal: AbortSignal,
-  skip = 0,
+  skip: number,
+  filters: QueueFilters,
 ): Promise<QueuePage> {
   const res = await apiFetch(
-    `/clinics/${encodeURIComponent(clinicId)}/encounters?${encounterQueueQuery(stage, skip)}`,
+    `/clinics/${encodeURIComponent(clinicId)}/encounters?${encounterQueueQuery(stage, skip, filters)}`,
     { getToken, signal },
   );
   if (!res.ok) throw new Error(await res.text());
@@ -125,7 +154,7 @@ async function readQueue(
     createdAt: string;
     patient?: { patientCode: string; firstName: string; lastName: string };
     hypertensionAssessment?: { classification?: string };
-    diabetesScreening?: { glucoseMgDl?: number; glucoseType?: string };
+    glucoseFlagged?: boolean;
   }>;
   const rows = data.map((e) => ({
     id: e.id,
@@ -136,17 +165,34 @@ async function readQueue(
       : 'Unknown patient',
     createdAt: e.createdAt,
     bpStage: e.hypertensionAssessment?.classification ?? '',
-    // Preserve the existing fasting/random thresholds and units.
-    glucoseFlag:
-      e.diabetesScreening?.glucoseMgDl != null
-        ? (e.diabetesScreening.glucoseType === 'FASTING' &&
-            e.diabetesScreening.glucoseMgDl >= 126) ||
-          (e.diabetesScreening.glucoseType === 'RANDOM' && e.diabetesScreening.glucoseMgDl >= 200)
-        : false,
+    // The fasting/random thresholds live on the server, next to the filter that uses them.
+    glucoseFlag: e.glucoseFlagged === true,
     status: e.status,
   }));
+  const matches = res.headers.get('X-Total-Count');
   // Advance by the server page, even if a changing queue later yields overlapping rows.
-  return { rows, offset: skip + data.length, hasMore: data.length === QUEUE_PAGE_SIZE };
+  return {
+    rows,
+    offset: skip + data.length,
+    hasMore: data.length === QUEUE_PAGE_SIZE,
+    matches: matches === null || !Number.isFinite(Number(matches)) ? null : Number(matches),
+  };
+}
+
+/**
+ * Pending cosigns come back unpaged, so the lane filters them here. Notes carry no BP or glucose,
+ * so only the search and the dates apply.
+ */
+function filterCosign(rows: QueueRow[], filters: QueueFilters) {
+  const search = filters.search.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (search && !`${row.patientName} ${row.patientCode}`.toLowerCase().includes(search))
+      return false;
+    const day = clinicDay.format(new Date(row.createdAt));
+    if (filters.createdFrom && day < filters.createdFrom) return false;
+    if (filters.createdTo && day > filters.createdTo) return false;
+    return true;
+  });
 }
 
 function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }) {
@@ -162,15 +208,64 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
         ? 'review'
         : 'drafts';
   const activeTab = lanes.find((lane) => lane === requested) ?? defaultTab;
+
+  /*
+    The filters apply to every lane and live in the URL beside ?tab=, so a filtered lane can be
+    bookmarked. Only the search is debounced; picking a filter answers at once.
+  */
+  const [filters, setFilters] = useState<QueueFilters>(() =>
+    parseQueueFilters(new URLSearchParams(searchParams.toString())),
+  );
+  const [committedSearch, setCommittedSearch] = useState(() => filters.search.trim());
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setCommittedSearch(filters.search.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [filters.search]);
+  const dateError =
+    filters.createdFrom && filters.createdTo && filters.createdFrom > filters.createdTo
+      ? 'The start date must be on or before the end date.'
+      : undefined;
+  // A range the API would refuse is explained beside the dates and never sent.
+  const applied: QueueFilters = {
+    ...filters,
+    search: committedSearch,
+    createdFrom: dateError ? '' : filters.createdFrom,
+    createdTo: dateError ? '' : filters.createdTo,
+  };
+  const appliedQuery = queueFilterParams(applied).toString();
+  /*
+    history.replaceState, not router.replace: a Next navigation refetches the route's RSC payload,
+    which fails offline. Read from the address bar so the tab already there is kept.
+  */
+  useEffect(() => {
+    const params = queueFilterParams(applied);
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab) params.set('tab', tab);
+    const next = params.size ? `${window.location.pathname}?${params}` : window.location.pathname;
+    if (`${window.location.pathname}${window.location.search}` !== next)
+      window.history.replaceState(window.history.state, '', next);
+    // appliedQuery is the identity of `applied`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedQuery]);
+  const updateFilters = (patch: Partial<QueueFilters>) =>
+    setFilters((current) => ({ ...current, ...patch }));
+  const clearFilters = () => {
+    setFilters(NO_QUEUE_FILTERS);
+    setCommittedSearch('');
+  };
+
   const moreRequest = useRef<AbortController | null>(null);
   const [loadingMore, setLoadingMore] = useState<Lane | null>(null);
   const [moreError, setMoreError] = useState<{ lane: Lane; message: string } | null>(null);
   const state = useAsyncResource<QueueSnapshot>({
-    resourceKey: clinicId,
+    resourceKey: `${clinicId}|${appliedQuery}`,
     requiresOnline: true,
     errorMessage: 'The queues could not be loaded.',
     fetcher: async (token, signal) => {
-      const empty = (): QueuePage => ({ rows: [], offset: 0, hasMore: false });
+      const empty = (): QueuePage => ({ rows: [], offset: 0, hasMore: false, matches: 0 });
       const countsRequest = apiFetch(`/clinics/${encodeURIComponent(clinicId)}/encounters/counts`, {
         getToken: token,
         signal,
@@ -178,7 +273,9 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
         .then(async (res) => (res.ok ? ((await res.json()) as EncounterQueueCounts) : null))
         .catch(() => null);
       const read = (lane: keyof typeof STAGES) =>
-        lanes.includes(lane) ? readQueue(clinicId, STAGES[lane], token, signal) : empty();
+        lanes.includes(lane)
+          ? readQueue(clinicId, STAGES[lane], token, signal, 0, applied)
+          : empty();
       const [drafts, review, finalize, cosign, counts] = await Promise.all([
         read('drafts'),
         read('review'),
@@ -188,7 +285,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
               getToken: token,
               activeClinicId: clinicId,
               signal,
-            }).then(async (res): Promise<QueuePage> => {
+            }).then(async (res): Promise<{ page: QueuePage; total: number }> => {
               if (!res.ok) throw new Error(await res.text());
               const notes = (await res.json()) as Array<{
                 id: string;
@@ -197,8 +294,8 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                 author: { displayName: string };
                 patient: { patientCode: string; firstName: string; lastName: string };
               }>;
-              return {
-                rows: notes.map((note) => ({
+              const rows = filterCosign(
+                notes.map((note) => ({
                   id: note.id,
                   encounterId: note.encounterId,
                   patientCode: note.patient.patientCode,
@@ -206,17 +303,27 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                   createdAt: note.submittedAt,
                   status: `HAP note by ${note.author.displayName}`,
                 })),
-                offset: notes.length,
-                hasMore: false,
+                applied,
+              );
+              return {
+                page: { rows, offset: notes.length, hasMore: false, matches: rows.length },
+                total: notes.length,
               };
             })
-          : empty(),
+          : { page: empty(), total: 0 },
         countsRequest,
       ]);
-      return { lanes: { drafts, review, finalize, cosign }, counts };
+      return {
+        lanes: { drafts, review, finalize, cosign: cosign.page },
+        counts,
+        filtered: hasQueueFilters(applied),
+        cosignTotal: cosign.total,
+      };
     },
   });
   useEffect(() => () => moreRequest.current?.abort(), []);
+  // A page of the old filters must not land in the new result.
+  useEffect(() => () => moreRequest.current?.abort(), [appliedQuery]);
   useEffect(() => {
     if (!state.isOnline) moreRequest.current?.abort();
   }, [state.isOnline]);
@@ -236,6 +343,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
         getToken,
         controller.signal,
         snapshot.lanes[lane].offset,
+        applied,
       );
       if (controller.signal.aborted) return;
       state.setData((current) => {
@@ -265,6 +373,37 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
       setLoadingMore(null);
     }
   };
+  const day = (value: string) =>
+    value
+      ? new Date(`${value}T00:00:00Z`).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        })
+      : '';
+  const chips: ListFilterChip[] = [
+    {
+      label: 'BP',
+      value: filters.bpClassification ? HYPERTENSION_LABELS[filters.bpClassification] : '',
+      onRemove: () => updateFilters({ bpClassification: '' }),
+    },
+    {
+      label: 'Glucose',
+      value: filters.glucoseFlagged ? 'High' : '',
+      onRemove: () => updateFilters({ glucoseFlagged: false }),
+    },
+    {
+      label: 'Created from',
+      value: day(filters.createdFrom),
+      onRemove: () => updateFilters({ createdFrom: '' }),
+    },
+    {
+      label: 'Created to',
+      value: day(filters.createdTo),
+      onRemove: () => updateFilters({ createdTo: '' }),
+    },
+  ];
   const refresh = () => {
     if (moreRequest.current) return;
     setMoreError(null);
@@ -297,10 +436,102 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
           </Button>
         }
       />
+      <section aria-label="Search and filter queues" className="space-y-3">
+        <ListSearch
+          id="queue-search"
+          label="Search by patient name or code"
+          value={filters.search}
+          onChange={(search) => updateFilters({ search })}
+          placeholder="Patient name or code…"
+          help="Searches every lane as you type. Press Escape to clear."
+        />
+        <ListFilters
+          groupLabel="Queue filters"
+          sheetTitle="Filter queues"
+          sheetDescription="Filters apply to every lane and update results immediately."
+          chips={chips}
+          onClearAll={clearFilters}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="queue-bp">Blood pressure</Label>
+            <Select
+              value={filters.bpClassification || 'any'}
+              onValueChange={(value) =>
+                updateFilters({
+                  bpClassification:
+                    value === 'any' ? '' : (value as QueueFilters['bpClassification']),
+                })
+              }
+            >
+              <SelectTrigger id="queue-bp">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any classification</SelectItem>
+                {HYPERTENSION_CLASSIFICATIONS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {HYPERTENSION_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-start gap-3 border-t border-border/70 pt-4">
+            <Checkbox
+              id="queue-glucose"
+              className="mt-1"
+              checked={filters.glucoseFlagged}
+              onCheckedChange={(checked) => updateFilters({ glucoseFlagged: checked === true })}
+              aria-describedby="queue-glucose-help"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="queue-glucose" className="leading-6">
+                High glucose only
+              </Label>
+              <p id="queue-glucose-help" className="text-sm leading-5 text-muted-foreground">
+                Fasting 126 mg/dL or more, or random 200 mg/dL or more.
+              </p>
+            </div>
+          </div>
+          <div className="border-t border-border/70 pt-4">
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium text-foreground">Visit created</legend>
+              <div className="grid gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="queue-created-from">From</Label>
+                  <Input
+                    id="queue-created-from"
+                    type="date"
+                    value={filters.createdFrom}
+                    max={filters.createdTo || undefined}
+                    onChange={(event) => updateFilters({ createdFrom: event.target.value })}
+                    aria-invalid={dateError ? true : undefined}
+                    aria-describedby={dateError ? fieldErrorId('queue-created') : undefined}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="queue-created-to">To</Label>
+                  <Input
+                    id="queue-created-to"
+                    type="date"
+                    value={filters.createdTo}
+                    min={filters.createdFrom || undefined}
+                    onChange={(event) => updateFilters({ createdTo: event.target.value })}
+                    aria-invalid={dateError ? true : undefined}
+                    aria-describedby={dateError ? fieldErrorId('queue-created') : undefined}
+                  />
+                </div>
+              </div>
+              <FieldError id="queue-created" message={dateError} />
+            </fieldset>
+          </div>
+        </ListFilters>
+      </section>
       <Tabs
         value={activeTab}
         onValueChange={(lane) => {
-          const params = new URLSearchParams(searchParams.toString());
+          // The address bar, not useSearchParams: the filters are written there by replaceState.
+          const params = new URLSearchParams(window.location.search);
           params.set('tab', lane);
           router.push(`/queues?${params}`, { scroll: false });
         }}
@@ -312,7 +543,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
               <span className="ml-1.5 font-mono text-xs font-normal tabular-nums text-muted-foreground">
                 {state.data ? (
                   lane === 'cosign' ? (
-                    state.data.lanes.cosign.rows.length
+                    state.data.cosignTotal
                   ) : (
                     <>
                       {laneTotal(state.data.counts, lane, state.data.lanes[lane].rows.length)}
@@ -347,7 +578,14 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
             >
               {(snapshot) => {
                 const page = snapshot.lanes[lane];
-                const total = lane === 'cosign' ? page.rows.length : snapshot.counts?.[lane];
+                const laneSize = lane === 'cosign' ? snapshot.cosignTotal : snapshot.counts?.[lane];
+                // While filtering, paging and emptiness follow the matches, not the whole lane.
+                const total =
+                  lane === 'cosign'
+                    ? page.rows.length
+                    : snapshot.filtered
+                      ? (page.matches ?? undefined)
+                      : laneSize;
                 const mayLoadMore =
                   lane !== 'cosign' &&
                   page.hasMore &&
@@ -360,12 +598,48 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                   !(total && total > 0);
                 return (
                   <div className="space-y-4">
+                    {snapshot.filtered ? (
+                      <p role="status" className="text-sm font-medium tabular-nums text-foreground">
+                        {laneSize === undefined
+                          ? `${total ?? page.rows.length} match`
+                          : `${total ?? page.rows.length} of ${laneSize} match`}
+                      </p>
+                    ) : null}
+                    {lane === 'cosign' && (applied.bpClassification || applied.glucoseFlagged) ? (
+                      <p className="text-sm text-muted-foreground">
+                        HAP notes are filtered by search and dates only. BP and glucose filters do
+                        not apply to them.
+                      </p>
+                    ) : null}
                     {snapshot.counts === null && lane !== 'cosign' ? (
                       <InlineNotice tone="warning">
                         Queue totals are unavailable. Counts show loaded visits only.
                       </InlineNotice>
                     ) : null}
-                    <QueueEmpty lane={lane} visible={confirmedEmpty} active={activeTab === lane} />
+                    <QueueEmpty
+                      lane={lane}
+                      visible={confirmedEmpty && !snapshot.filtered}
+                      active={activeTab === lane}
+                    />
+                    {confirmedEmpty && snapshot.filtered ? (
+                      <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+                        <h2 className="type-section-title">No visits match</h2>
+                        <p className="max-w-md text-sm leading-6 text-muted-foreground">
+                          Nothing in this lane matches the search and filters. Clear them to see the
+                          whole lane.
+                        </p>
+                        <Button
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() => {
+                            clearFilters();
+                            document.getElementById('queue-search')?.focus();
+                          }}
+                        >
+                          Clear filters
+                        </Button>
+                      </div>
+                    ) : null}
                     {!confirmedEmpty &&
                       (page.rows.length ? (
                         <QueueTable lane={lane} rows={page.rows} refreshing={state.isRefreshing} />

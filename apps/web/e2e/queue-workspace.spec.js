@@ -333,7 +333,8 @@ test('cosign totals count actual notes and links retain their encounter identity
   await expect(page.getByRole('tab', { name: /^Drafts/ })).toBeFocused();
   await expect(page.getByRole('tab', { name: /^Drafts/ })).toHaveAttribute('aria-selected', 'true');
 });
-test('classification labels and glucose thresholds remain identical in cards and tables', async ({
+// The thresholds are applied by the API (#340); the page shows its glucoseFlagged as given.
+test('classification labels and the glucose flag remain identical in cards and tables', async ({
   page,
 }) => {
   await mock(page, {
@@ -345,6 +346,7 @@ test('classification labels and glucose thresholds remain identical in cards and
       visit(1, {
         hypertensionAssessment: { classification: 'STAGE2' },
         diabetesScreening: { glucoseMgDl: 126, glucoseType: 'FASTING' },
+        glucoseFlagged: true,
       }),
       visit(2, {
         hypertensionAssessment: { classification: 'CRISIS' },
@@ -353,6 +355,7 @@ test('classification labels and glucose thresholds remain identical in cards and
       visit(3, {
         hypertensionAssessment: { classification: 'NORMAL' },
         diabetesScreening: { glucoseMgDl: 200, glucoseType: 'RANDOM' },
+        glucoseFlagged: true,
       }),
     ],
   });
@@ -497,3 +500,94 @@ for (const theme of ['light', 'dark']) {
     }
   });
 }
+
+test.describe('queue search and filters (#340)', () => {
+  const needle = visit(73, {
+    patient: { patientCode: 'SYN-Q-073', firstName: 'Needle', lastName: 'Beyond Page' },
+    hypertensionAssessment: { classification: 'STAGE2' },
+  });
+  async function mockFiltered(page) {
+    const requests = [];
+    await page.route(endpoint, (route) => {
+      const url = new URL(route.request().url());
+      requests.push(url.searchParams);
+      const filtered = url.searchParams.has('search') || url.searchParams.has('bpClassification');
+      const search = (url.searchParams.get('search') ?? '').toLowerCase();
+      const rows = filtered
+        ? 'needle beyond page'.includes(search)
+          ? [needle]
+          : []
+        : Array.from({ length: 50 }, (_, i) => visit(i));
+      return route.fulfill({
+        json: rows,
+        headers: {
+          'X-Total-Count': String(filtered ? rows.length : 55),
+          'Access-Control-Expose-Headers': 'X-Total-Count',
+        },
+      });
+    });
+    await page.route(countsEndpoint, (route) =>
+      route.fulfill({ json: { drafts: 55, review: 55, finalize: 55 } }),
+    );
+    await page.route(notesEndpoint, (route) => route.fulfill({ json: [] }));
+    return requests;
+  }
+
+  test('search finds a visit that is not in the first page', async ({ page }) => {
+    const requests = await mockFiltered(page);
+    await open(page);
+    const active = await activePresentation(page);
+    await expect(active.getByText('Synthetic Queue 000', { exact: true })).toBeAttached();
+    await expect(active.getByText('Needle Beyond Page', { exact: true })).toHaveCount(0);
+
+    await page.getByLabel('Search by patient name or code').fill('needle');
+    await expect(
+      (await activePresentation(page)).getByText('Needle Beyond Page', { exact: true }),
+    ).toBeVisible();
+    await expect(panel(page).getByText('1 of 55 match', { exact: true })).toBeVisible();
+    expect(requests.some((params) => params.get('search') === 'needle')).toBe(true);
+    // Badges keep the lane total.
+    await expect(page.getByRole('tab', { name: /^Review/ })).toContainText('55');
+    await expect(page).toHaveURL(/search=needle/);
+    await shot(page, 'queues-search');
+  });
+
+  test('filters persist over reload, apply to every lane, and clear back to the lane', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockFiltered(page);
+    await page.goto('/queues?tab=review&search=needle&bpClassification=STAGE2');
+    await page.reload();
+    await expect(page.getByLabel('Search by patient name or code')).toHaveValue('needle');
+    await expect(page.getByRole('button', { name: 'Remove BP filter' })).toContainText('Stage 2');
+    await expect(panel(page).getByText('1 of 55 match', { exact: true })).toBeVisible();
+    // On a phone, the toolbar leaves the first row on screen.
+    const firstRow = (await activePresentation(page)).getByText('Needle Beyond Page', {
+      exact: true,
+    });
+    await expect(firstRow).toBeInViewport();
+    await noOverflow(page);
+    await shot(page, 'queues-filtered-390');
+    await page.getByRole('button', { name: 'Filter queues' }).click();
+    await shot(page, 'queues-filter-sheet-390');
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('tab', { name: /^Drafts/ }).click();
+    await expect(page).toHaveURL(/tab=drafts/);
+    await expect(page).toHaveURL(/bpClassification=STAGE2/);
+    await expect(panel(page).getByText('1 of 55 match', { exact: true })).toBeVisible();
+
+    await page.getByLabel('Search by patient name or code').fill('nobody');
+    await expect(panel(page).getByRole('heading', { name: 'No visits match' })).toBeVisible();
+    await shot(page, 'queues-no-match-390');
+    await panel(page).getByRole('button', { name: 'Clear filters', exact: true }).click();
+    await expect(page.getByLabel('Search by patient name or code')).toBeFocused();
+    await expect(
+      (await activePresentation(page)).getByText('Synthetic Queue 000', { exact: true }),
+    ).toBeVisible();
+    await expect(page).not.toHaveURL(/search=|bpClassification=/);
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
