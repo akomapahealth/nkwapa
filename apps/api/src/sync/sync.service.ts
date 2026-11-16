@@ -13,6 +13,7 @@ import {
   GhanaRegion,
   NationalIdType,
   PatientLocationStatus,
+  ResidentialPositionSource,
   Sex,
   MedicalHistoryCategory,
   MedicalHistoryStatus,
@@ -654,6 +655,25 @@ export class SyncService {
       residentialDistrict: payload.residentialDistrict as string | undefined,
       residentialCommunity: payload.residentialCommunity as string | undefined,
       residentialAddressNote: payload.residentialAddressNote as string | undefined,
+      residentialDigitalAddress: payload.residentialDigitalAddress as string | null | undefined,
+      residentialLandmark:
+        typeof payload.residentialLandmark === 'string'
+          ? (sanitizePlainText(payload.residentialLandmark, { maxLength: 160 }) as string)
+          : (payload.residentialLandmark as null | undefined),
+      residentialLatitude: payload.residentialLatitude as number | null | undefined,
+      residentialLongitude: payload.residentialLongitude as number | null | undefined,
+      residentialPositionSource: payload.residentialPositionSource as
+        | ResidentialPositionSource
+        | null
+        | undefined,
+      residentialPositionAccuracyM: payload.residentialPositionAccuracyM as
+        | number
+        | null
+        | undefined,
+      residentialPositionCapturedAt: payload.residentialPositionCapturedAt as
+        | string
+        | null
+        | undefined,
     });
 
     const before = existingById ? JSON.stringify(existingById) : null;

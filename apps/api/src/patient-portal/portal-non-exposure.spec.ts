@@ -47,6 +47,10 @@ describe('the patient portal gained no clinical-records data', () => {
     'residentialDistrict',
     'residentialCommunity',
     'residentialAddressNote',
+    'residentialDigitalAddress',
+    'residentialLandmark',
+    'residentialLatitude',
+    'residentialLongitude',
   ];
 
   it.each(FORBIDDEN)('does not reference %s anywhere', (identifier) => {

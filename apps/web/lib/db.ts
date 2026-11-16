@@ -24,6 +24,14 @@ export interface PatientRecord {
   residentialDistrict?: string | null;
   residentialCommunity?: string | null;
   residentialAddressNote?: string | null;
+  residentialDigitalAddress?: string | null;
+  residentialLandmark?: string | null;
+  // Decimal columns: strings from the sync projection, numbers from a local edit.
+  residentialLatitude?: number | string | null;
+  residentialLongitude?: number | string | null;
+  residentialPositionSource?: string | null;
+  residentialPositionAccuracyM?: number | null;
+  residentialPositionCapturedAt?: string | null;
   createdByUserId?: string;
   createdAt?: string;
   updatedAt?: string;

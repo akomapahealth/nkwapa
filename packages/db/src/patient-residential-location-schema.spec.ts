@@ -41,3 +41,33 @@ describe('patient residential location migration', () => {
     );
   });
 });
+
+describe('patient residential position migration (#343)', () => {
+  const migration = readFileSync(
+    resolve(__dirname, '../prisma/migrations/20261115130000_residential_position/migration.sql'),
+    'utf8',
+  );
+
+  it('adds nullable Digital Address, landmark and position columns', () => {
+    expect(migration).toContain('"residentialDigitalAddress" VARCHAR(16)');
+    expect(migration).toContain('"residentialLandmark" VARCHAR(160)');
+    expect(migration).toContain('"residentialLatitude" DECIMAL(9,6)');
+    expect(migration).toContain('"residentialLongitude" DECIMAL(9,6)');
+    expect(migration).toContain('"residentialPositionSource" "ResidentialPositionSource"');
+    expect(migration).toContain('"residentialPositionAccuracyM" INTEGER');
+    expect(migration).toContain('"residentialPositionCapturedAt" TIMESTAMP(3)');
+    expect(migration).not.toMatch(/residential(?:Latitude|Longitude|DigitalAddress)[^\n]*DEFAULT/);
+  });
+
+  it('keeps latitude and longitude paired', () => {
+    expect(migration).toContain(
+      'CHECK (("residentialLatitude" IS NULL) = ("residentialLongitude" IS NULL))',
+    );
+  });
+
+  it('is safe to re-run after a partial deploy', () => {
+    expect(migration).not.toMatch(/ON COMMIT DROP/i);
+    expect(migration.match(/ADD COLUMN IF NOT EXISTS/g)).toHaveLength(7);
+    expect(migration).toContain("WHERE typname = 'ResidentialPositionSource'");
+  });
+});

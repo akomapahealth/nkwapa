@@ -361,6 +361,7 @@ export class PatientService {
       residentialDistrict: options?.location?.residentialDistrict,
       residentialCommunity: options?.location?.residentialCommunity,
       residentialLocationStatus: options?.location?.residentialLocationStatus,
+      residentialDetail: options?.location?.residentialDetail,
       sort: options?.sort,
     };
     const screenedDays = screenedRange

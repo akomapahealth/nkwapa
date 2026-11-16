@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     'How Nkwapa, the electronic medical record developed by Akomapa Health Foundation, collects, uses, protects and shares patient and staff information.',
 };
 
-const UPDATED = 'November 1, 2026';
+const UPDATED = 'November 15, 2026';
 
 const contact = <a href={CONTACT_HREF}>{CONTACT_EMAIL}</a>;
 
@@ -61,6 +61,11 @@ const sections: LegalSection[] = [
             region, district and community, and, where a patient has one, a national ID number.
           </li>
           <li>
+            Where a patient lives, when they have no street address: their Ghana Digital Address,
+            the nearest landmark and, if the patient agrees, a map position of their home. This lets
+            staff find the patient for follow-up and home visits.
+          </li>
+          <li>
             Health information: vital signs, blood pressure and glucose readings, diabetes and
             hypertension screenings and interviews, eye screening, medical history, allergies,
             medicines, prescriptions, preferred pharmacies, clinical notes and care plans.
@@ -68,6 +73,11 @@ const sections: LegalSection[] = [
           <li>Visits and appointments, including check-ins, requests, reminders and outcomes.</li>
           <li>Whether a patient has agreed to the research use described below.</li>
         </ul>
+        <p>
+          A home map position is visible only to clinic staff who can open the patient&rsquo;s
+          record. It is never shown in the patient portal, written to activity logs or sent to
+          Google: the record shows a link that opens Google Maps only when staff tap it.
+        </p>
         <p>
           Patients who use the patient portal can also see parts of their own record, record their
           own blood pressure, glucose and weight, and request, reschedule or cancel appointments.
@@ -105,8 +115,10 @@ const sections: LegalSection[] = [
         <p>Nkwapa does not collect:</p>
         <ul>
           <li>
-            Your precise location. A patient&rsquo;s region, district and community are typed in,
-            never taken from a device
+            Your location in the background. A patient&rsquo;s home map position is recorded only
+            when staff choose to: either pasted from a location the patient shares from their own
+            phone, or taken from the staff device during a home visit, after the staff member
+            confirms they are at the patient&rsquo;s home
           </li>
           <li>Your device&rsquo;s contacts, photos, camera, microphone or files</li>
           <li>Advertising identifiers, or anything about your activity on other websites</li>
@@ -230,10 +242,10 @@ const sections: LegalSection[] = [
           <li>A clinic director has approved that specific export</li>
         </ul>
         <p>
-          Research data is de-identified: names, dates of birth and contact details are not
-          included. A patient can refuse without any effect on their care, and can withdraw consent
-          at any time by telling clinic staff. Withdrawing excludes their information from future
-          exports.
+          Research data is de-identified: names, dates of birth, contact details, Digital Addresses,
+          landmarks and home map positions are not included. A patient can refuse without any effect
+          on their care, and can withdraw consent at any time by telling clinic staff. Withdrawing
+          excludes their information from future exports.
         </p>
       </>
     ),

@@ -33,6 +33,7 @@ import {
 import { ResidentialLocationFields } from '@/components/patients/ResidentialLocationFields';
 import {
   emptyResidentialLocation,
+  residentialLocationError,
   toResidentialLocationPayload,
   type ResidentialLocationValue,
 } from '@/lib/residential-location';
@@ -133,6 +134,11 @@ export function RegisterPatientScreen({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!clinicId || !getToken || submitting.current) {
+      return;
+    }
+    const locationError = residentialLocationError(location);
+    if (locationError) {
+      setError(locationError);
       return;
     }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import type { PatientLocationFields } from '@/lib/residential-location';
 import { formatGlucose } from '@nkwapa/db/measurement-units';
 
 import { statusLabel } from '@/lib/status-presentation';
@@ -92,7 +93,7 @@ interface PatientWithEncounters {
     residentialDistrict?: string | null;
     residentialCommunity?: string | null;
     residentialAddressNote?: string | null;
-  };
+  } & PatientLocationFields;
   portalAccess?: PortalAccess;
   resolvedFromPatientId?: string | null;
   recentEncounters: Array<{
@@ -607,6 +608,7 @@ function PatientChartWorkspace() {
         sex={
           patient.sex && patient.sex !== 'UNKNOWN' ? statusLabel(patient.sex) : 'Sex not recorded'
         }
+        digitalAddress={patient.residentialDigitalAddress}
         clinicId={clinicId}
         badges={
           <>

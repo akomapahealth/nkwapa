@@ -471,6 +471,10 @@ describe('ResearchTransformService', () => {
         residentialDistrict: 'Accra Metropolitan',
         residentialCommunity: 'SecretCommunityName',
         residentialAddressNote: 'SecretAddressNote',
+        residentialDigitalAddress: 'GA-999-7777',
+        residentialLandmark: 'SecretLandmark',
+        residentialLatitude: '5.612345',
+        residentialLongitude: '-0.198765',
       },
       {
         id: 'patient-2',
@@ -566,6 +570,8 @@ describe('ResearchTransformService', () => {
     expect(subjectsCsv?.content).not.toContain('Accra Metropolitan');
     expect(subjectsCsv?.content).not.toContain('SecretCommunityName');
     expect(subjectsCsv?.content).not.toContain('SecretAddressNote');
+    expect(subjectsCsv?.content).not.toContain('GA-999-7777');
+    expect(subjectsCsv?.content).not.toContain('SecretLandmark');
     expect(measurementsCsv?.content).toContain('126');
     expect(measurementsCsv?.content).toContain('102');
     expect(measurementsCsv?.content).not.toContain('Do not leak');
@@ -641,6 +647,10 @@ describe('ResearchTransformService', () => {
         'Amlodipine',
         'SecretCommunityName',
         'SecretAddressNote',
+        'GA-999-7777',
+        'SecretLandmark',
+        '5.612345',
+        '-0.198765',
         'Should not leak',
         'Do not leak',
       ];

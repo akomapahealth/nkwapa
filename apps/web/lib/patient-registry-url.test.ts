@@ -5,7 +5,7 @@ describe('registry view in the URL', () => {
     const view = parseRegistryView(new URLSearchParams());
     expect(view).toEqual({
       q: '',
-      location: { region: '', district: '', community: '', status: '' },
+      location: { region: '', district: '', community: '', status: '', detail: '' },
       screenedFrom: '',
       screenedTo: '',
       page: 0,
@@ -18,7 +18,7 @@ describe('registry view in the URL', () => {
   it('round-trips every filter, the page and the sort', () => {
     const url =
       'q=Ama&residentialRegion=VOLTA&residentialDistrict=Ho&residentialCommunity=Bankoe' +
-      '&residentialLocationStatus=RECORDED&screenedFrom=2026-10-01&screenedTo=2026-10-15' +
+      '&residentialLocationStatus=RECORDED&residentialDetail=POSITION&screenedFrom=2026-10-01&screenedTo=2026-10-15' +
       '&page=3&pageSize=25&sortBy=lastScreenedAt&sortDir=desc';
     const view = parseRegistryView(new URLSearchParams(url));
 
@@ -30,12 +30,14 @@ describe('registry view in the URL', () => {
   it('drops values it does not recognise rather than sending them to be refused', () => {
     const view = parseRegistryView(
       new URLSearchParams(
-        'residentialRegion=ATLANTIS&residentialLocationStatus=x&screenedFrom=10/10/2026' +
+        'residentialRegion=ATLANTIS&residentialLocationStatus=x&residentialDetail=constructor' +
+          '&screenedFrom=10/10/2026' +
           '&page=-4&pageSize=1000&sortBy=dob',
       ),
     );
     expect(view.location.region).toBe('');
     expect(view.location.status).toBe('');
+    expect(view.location.detail).toBe('');
     expect(view.screenedFrom).toBe('');
     expect(view.page).toBe(0);
     expect(view.pageSize).toBe(10);

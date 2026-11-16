@@ -40,6 +40,7 @@ import { ResourceState } from '@/components/feedback/ResourceState';
 import { OpsFeedbackNotice } from '@/components/ops/OpsShared';
 import {
   EMPTY_LOCATION_FILTER,
+  RESIDENTIAL_DETAIL_LABELS,
   ResidentialLocationFilters,
 } from '@/components/patients/ResidentialLocationFilters';
 import { ScreenedDateFilter, ScreenedDates } from '@/components/patients/ScreenedDateFilter';
@@ -164,7 +165,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     return () => window.clearTimeout(timer);
   }, [q, locationFilter.community]);
 
-  const { region, district, status } = locationFilter;
+  const { region, district, status, detail } = locationFilter;
   const { screenedFrom, screenedTo } = view;
   const screenedActive = Boolean(screenedFrom || screenedTo);
 
@@ -354,7 +355,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   };
 
   const otherFiltersActive = Boolean(
-    committed.q || region || district || committed.community || status,
+    committed.q || region || district || committed.community || status || detail,
   );
   const emptyState = (() => {
     if (registry.data?.rejected) {
@@ -419,6 +420,11 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       label: 'Location status',
       value: status ? PATIENT_LOCATION_STATUS_LABELS[status] : null,
       onRemove: () => updateView({ location: { ...locationFilter, status: '' } }),
+    },
+    {
+      label: 'Home details',
+      value: detail ? RESIDENTIAL_DETAIL_LABELS[detail] : null,
+      onRemove: () => updateView({ location: { ...locationFilter, detail: '' } }),
     },
     {
       label: 'Screened',

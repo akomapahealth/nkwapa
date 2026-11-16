@@ -6,7 +6,11 @@ import {
   type GhanaRegion,
   type PatientLocationStatus,
 } from '@/lib/residential-location';
-import type { ResidentialLocationFilterValue } from '@/components/patients/ResidentialLocationFilters';
+import {
+  RESIDENTIAL_DETAIL_LABELS,
+  type ResidentialDetailFilter,
+  type ResidentialLocationFilterValue,
+} from '@/components/patients/ResidentialLocationFilters';
 
 export const REGISTRY_PAGE_SIZES = [10, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 10;
@@ -30,6 +34,7 @@ export interface RegistryView {
 export function parseRegistryView(params: URLSearchParams): RegistryView {
   const region = params.get('residentialRegion') ?? '';
   const status = params.get('residentialLocationStatus') ?? '';
+  const detail = params.get('residentialDetail') ?? '';
   const date = (key: string) => {
     const value = params.get(key) ?? '';
     return ISO_DATE.test(value) ? value : '';
@@ -44,6 +49,9 @@ export function parseRegistryView(params: URLSearchParams): RegistryView {
       community: params.get('residentialCommunity') ?? '',
       status: (PATIENT_LOCATION_STATUS_OPTIONS as string[]).includes(status)
         ? (status as PatientLocationStatus)
+        : '',
+      detail: Object.hasOwn(RESIDENTIAL_DETAIL_LABELS, detail)
+        ? (detail as ResidentialDetailFilter)
         : '',
     },
     screenedFrom: date('screenedFrom'),
@@ -73,6 +81,7 @@ export function registryViewQuery(
   set('residentialDistrict', view.location.district);
   set('residentialCommunity', view.location.community.trim());
   set('residentialLocationStatus', view.location.status);
+  set('residentialDetail', view.location.detail);
   set('screenedFrom', view.screenedFrom);
   set('screenedTo', view.screenedTo);
   if (forApi || view.page > 0) query.set('page', String(view.page + 1));

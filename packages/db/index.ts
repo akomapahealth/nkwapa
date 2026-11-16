@@ -121,7 +121,13 @@ export {
   isGhanaRegion,
   isDistrictInRegion,
   normalizeDistrict,
+  DIGITAL_ADDRESS_EXAMPLE,
+  GHANA_BOUNDS,
+  normalizeDigitalAddress,
+  isInGhana,
+  parsePosition,
 } from './src/ghana-locations';
+export type { ParsedPosition } from './src/ghana-locations';
 export {
   CLINIC_DEFAULT_TIMEZONE,
   CLINIC_DEFAULT_COUNTRY_CODE,
