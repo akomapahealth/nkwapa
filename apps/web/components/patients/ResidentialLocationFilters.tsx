@@ -23,13 +23,22 @@ export interface ResidentialLocationFilterValue {
   district: string;
   community: string;
   status: PatientLocationStatus | '';
+  /** Only patients with this home detail recorded (#343). */
+  detail: ResidentialDetailFilter | '';
 }
+
+export const RESIDENTIAL_DETAIL_LABELS = {
+  DIGITAL_ADDRESS: 'Has a Digital Address',
+  POSITION: 'Has a map position',
+} as const;
+export type ResidentialDetailFilter = keyof typeof RESIDENTIAL_DETAIL_LABELS;
 
 export const EMPTY_LOCATION_FILTER: ResidentialLocationFilterValue = {
   region: '',
   district: '',
   community: '',
   status: '',
+  detail: '',
 };
 
 const ALL = '__all__';
@@ -48,7 +57,7 @@ export function ResidentialLocationFilters({
   const districts = districtsForRegion(value.region);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div className="space-y-2">
         <Label htmlFor="filter-region">Region</Label>
         <Select
@@ -124,6 +133,28 @@ export function ResidentialLocationFilters({
             {PATIENT_LOCATION_STATUS_OPTIONS.map((status) => (
               <SelectItem key={status} value={status}>
                 {PATIENT_LOCATION_STATUS_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="filter-location-detail">Home details</Label>
+        <Select
+          value={value.detail || ALL}
+          onValueChange={(next) =>
+            onChange({ ...value, detail: next === ALL ? '' : (next as ResidentialDetailFilter) })
+          }
+        >
+          <SelectTrigger id="filter-location-detail">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any details</SelectItem>
+            {Object.entries(RESIDENTIAL_DETAIL_LABELS).map(([detail, label]) => (
+              <SelectItem key={detail} value={detail}>
+                {label}
               </SelectItem>
             ))}
           </SelectContent>

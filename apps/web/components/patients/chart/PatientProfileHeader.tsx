@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, MapPin } from 'lucide-react';
 import styles from './patient-profile.module.css';
 import { avatarToneProps } from '@/lib/avatar-tone';
 import { formatPersonName, type PersonNameParts } from '@/lib/person-name';
@@ -13,6 +13,7 @@ export function PatientProfileHeader({
   person,
   patientCode,
   sex,
+  digitalAddress,
   clinicId,
   badges,
   actions,
@@ -21,6 +22,8 @@ export function PatientProfileHeader({
   person: PersonNameParts;
   patientCode: string;
   sex: string;
+  /** Shown beside the code so a follow-up caller finds the home without opening Overview (#343). */
+  digitalAddress?: string | null;
   clinicId: string;
   badges: ReactNode;
   actions: ReactNode;
@@ -111,6 +114,13 @@ export function PatientProfileHeader({
                 {patientCode}
               </span>
               <span>{sex}</span>
+              {digitalAddress ? (
+                <span className="inline-flex items-center gap-1 tabular-nums" translate="no">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="sr-only">Ghana Digital Address</span>
+                  {digitalAddress}
+                </span>
+              ) : null}
             </div>
             {badges ? <div className="mt-2 flex flex-wrap gap-2">{badges}</div> : null}
           </div>

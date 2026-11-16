@@ -1,4 +1,4 @@
-import { isDistrictInRegion } from '@nkwapa/db';
+import { DIGITAL_ADDRESS_EXAMPLE, isDistrictInRegion, normalizeDigitalAddress } from '@nkwapa/db';
 import { GhanaRegion } from '@prisma/client';
 import {
   registerDecorator,
@@ -52,6 +52,30 @@ export function IsDistrictInRegion(validationOptions?: ValidationOptions) {
       options: validationOptions,
       constraints: [],
       validator: IsDistrictInRegionConstraint,
+    });
+  };
+}
+
+/**
+ * A Ghana Digital Address in any accepted spelling (`ga1838164`, `GA 183 8164`). Pair it with
+ * `ToDigitalAddress` so a valid value reaches the service already hyphenated.
+ */
+export function IsDigitalAddress(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'isDigitalAddress',
+      target: object.constructor,
+      propertyName,
+      options: {
+        message: `Enter a Ghana Digital Address like ${DIGITAL_ADDRESS_EXAMPLE}: two letters, the area code, then four digits.`,
+        ...validationOptions,
+      },
+      validator: {
+        validate: (value: unknown) =>
+          value == null ||
+          value === '' ||
+          (typeof value === 'string' && normalizeDigitalAddress(value) !== null),
+      },
     });
   };
 }

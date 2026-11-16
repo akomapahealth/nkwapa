@@ -20,6 +20,7 @@ export interface PatientFindManyFilters {
   residentialDistrict?: string;
   residentialCommunity?: string;
   residentialLocationStatus?: PatientLocationStatus;
+  residentialDetail?: ResidentialDetailFilter;
   cursor?: string;
   skip?: number;
   take?: number;
@@ -76,6 +77,10 @@ export function completedScreeningWhere(filter: ScreenedFilter): Prisma.PatientC
 }
 
 /** `lastScreenedAt` and `lastVisitAt` are sorted by the service, not by Prisma; see `listRegistry`. */
+/** Home details a follow-up caller can filter on (#343). */
+export const RESIDENTIAL_DETAIL_FILTERS = ['DIGITAL_ADDRESS', 'POSITION'] as const;
+export type ResidentialDetailFilter = (typeof RESIDENTIAL_DETAIL_FILTERS)[number];
+
 export const PATIENT_REGISTRY_SORT_FIELDS = [
   'updatedAt',
   'name',
@@ -283,6 +288,11 @@ export class PatientRepository {
         contains: filters.residentialDistrict.trim(),
         mode: 'insensitive',
       };
+    }
+    if (filters.residentialDetail === 'DIGITAL_ADDRESS') {
+      where.residentialDigitalAddress = { not: null };
+    } else if (filters.residentialDetail === 'POSITION') {
+      where.residentialLatitude = { not: null };
     }
     if (filters.residentialCommunity) {
       where.residentialCommunity = {

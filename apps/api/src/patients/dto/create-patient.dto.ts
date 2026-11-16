@@ -1,4 +1,10 @@
-import { GhanaRegion, NationalIdType, PatientLocationStatus, Sex } from '@prisma/client';
+import {
+  GhanaRegion,
+  NationalIdType,
+  PatientLocationStatus,
+  ResidentialPositionSource,
+  Sex,
+} from '@prisma/client';
 
 /** DTO for creating patient; primaryClinicId comes from route param. */
 export interface CreatePatientDto {
@@ -20,4 +26,11 @@ export interface CreatePatientDto {
   residentialDistrict?: string;
   residentialCommunity?: string;
   residentialAddressNote?: string;
+  residentialDigitalAddress?: string | null;
+  residentialLandmark?: string | null;
+  residentialLatitude?: number | null;
+  residentialLongitude?: number | null;
+  residentialPositionSource?: ResidentialPositionSource | null;
+  residentialPositionAccuracyM?: number | null;
+  residentialPositionCapturedAt?: string | null;
 }

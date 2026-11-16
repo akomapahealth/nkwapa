@@ -49,6 +49,13 @@ const mockPatient: Patient = {
   residentialDistrict: null,
   residentialCommunity: null,
   residentialAddressNote: null,
+  residentialDigitalAddress: null,
+  residentialLandmark: null,
+  residentialLatitude: null,
+  residentialLongitude: null,
+  residentialPositionSource: null,
+  residentialPositionAccuracyM: null,
+  residentialPositionCapturedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -476,6 +483,100 @@ describe('PatientService - resolveResidentialLocation invariant', () => {
       residentialDistrict: null,
       residentialCommunity: null,
       residentialAddressNote: null,
+      residentialDigitalAddress: null,
+      residentialLandmark: null,
+      residentialLatitude: null,
+      residentialLongitude: null,
+      residentialPositionSource: null,
+      residentialPositionAccuracyM: null,
+      residentialPositionCapturedAt: null,
+    });
+  });
+
+  it('clears the Digital Address, landmark and position when the status leaves RECORDED', () => {
+    const resolved = service.resolveResidentialLocation({
+      residentialLocationStatus: 'UNKNOWN',
+      residentialRegion: 'VOLTA',
+      residentialDigitalAddress: 'VH-123-4567',
+      residentialLandmark: 'Blue kiosk',
+      residentialLatitude: 6.6,
+      residentialLongitude: 0.47,
+    });
+    expect(resolved).toMatchObject({
+      residentialDigitalAddress: null,
+      residentialLandmark: null,
+      residentialLatitude: null,
+      residentialLongitude: null,
+    });
+  });
+
+  it('normalizes a Digital Address and refuses a malformed one', () => {
+    expect(
+      service.resolveResidentialLocation({
+        residentialRegion: 'GREATER_ACCRA',
+        residentialDigitalAddress: 'ga1838164',
+      }).residentialDigitalAddress,
+    ).toBe('GA-183-8164');
+    expect(() =>
+      service.resolveResidentialLocation({
+        residentialRegion: 'GREATER_ACCRA',
+        residentialDigitalAddress: '12345',
+      }),
+    ).toThrow(/GA-183-8164/);
+  });
+
+  it('leaves the new fields untouched when an older client does not send them', () => {
+    const resolved = service.resolveResidentialLocation({ residentialRegion: 'VOLTA' });
+    expect(resolved).not.toHaveProperty('residentialDigitalAddress');
+    expect(resolved).not.toHaveProperty('residentialLatitude');
+  });
+
+  it('needs latitude and longitude together, inside Ghana', () => {
+    expect(() =>
+      service.resolveResidentialLocation({ residentialRegion: 'VOLTA', residentialLatitude: 6.6 }),
+    ).toThrow(/both a latitude and a longitude/);
+    expect(() =>
+      service.resolveResidentialLocation({
+        residentialRegion: 'VOLTA',
+        residentialLatitude: 51.5,
+        residentialLongitude: -0.12,
+      }),
+    ).toThrow(/outside Ghana/);
+  });
+
+  it('keeps accuracy only for a device fix and clears provenance with the position', () => {
+    const device = service.resolveResidentialLocation({
+      residentialRegion: 'GREATER_ACCRA',
+      residentialLatitude: 5.6037,
+      residentialLongitude: -0.187,
+      residentialPositionSource: 'DEVICE',
+      residentialPositionAccuracyM: 12.4,
+      residentialPositionCapturedAt: '2026-11-15T10:00:00.000Z',
+    });
+    expect(device).toMatchObject({
+      residentialPositionSource: 'DEVICE',
+      residentialPositionAccuracyM: 12,
+      residentialPositionCapturedAt: new Date('2026-11-15T10:00:00.000Z'),
+    });
+    const pasted = service.resolveResidentialLocation({
+      residentialRegion: 'GREATER_ACCRA',
+      residentialLatitude: 5.6037,
+      residentialLongitude: -0.187,
+      residentialPositionAccuracyM: 12,
+    });
+    expect(pasted).toMatchObject({
+      residentialPositionSource: 'PASTED',
+      residentialPositionAccuracyM: null,
+    });
+    const cleared = service.resolveResidentialLocation({
+      residentialRegion: 'GREATER_ACCRA',
+      residentialLatitude: null,
+      residentialLongitude: null,
+    });
+    expect(cleared).toMatchObject({
+      residentialLatitude: null,
+      residentialPositionSource: null,
+      residentialPositionCapturedAt: null,
     });
   });
 

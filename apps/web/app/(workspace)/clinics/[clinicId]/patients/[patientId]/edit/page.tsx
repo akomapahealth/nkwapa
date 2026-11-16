@@ -30,15 +30,17 @@ import { ChangeNationalIdDialog } from '@/components/patients/ChangeNationalIdDi
 import { nationalIdTypeLabel } from '@/lib/patient-duplicates';
 import {
   emptyResidentialLocation,
+  residentialLocationError,
   toResidentialLocationPayload,
   toResidentialLocationValue,
+  type PatientLocationFields,
   type PatientLocationStatus,
   type ResidentialLocationValue,
 } from '@/lib/residential-location';
 import { normalizeMiddleName } from '@/lib/person-name';
 import { MiddleNameField } from '@/components/patients/MiddleNameField';
 
-interface PatientData {
+interface PatientData extends PatientLocationFields {
   id: string;
   patientCode: string;
   firstName: string;
@@ -112,6 +114,13 @@ function EditPatientForm() {
             residentialDistrict: local.residentialDistrict,
             residentialCommunity: local.residentialCommunity,
             residentialAddressNote: local.residentialAddressNote,
+            residentialDigitalAddress: local.residentialDigitalAddress,
+            residentialLandmark: local.residentialLandmark,
+            residentialLatitude: local.residentialLatitude,
+            residentialLongitude: local.residentialLongitude,
+            residentialPositionSource: local.residentialPositionSource,
+            residentialPositionAccuracyM: local.residentialPositionAccuracyM,
+            residentialPositionCapturedAt: local.residentialPositionCapturedAt,
           });
         } else {
           setError('Patient not found');
@@ -142,6 +151,12 @@ function EditPatientForm() {
 
   const handleSave = async () => {
     if (!patient) return;
+    // The offline fallback below queues whatever the server refuses, so refuse it here first.
+    const locationError = residentialLocationError(location);
+    if (locationError) {
+      setError(locationError);
+      return;
+    }
     setSaving(true);
     setError(null);
     setSavedOffline(false);
@@ -162,13 +177,9 @@ function EditPatientForm() {
     // Residential location is diffed and sent as a coherent block; the server
     // re-applies the status invariant.
     const locationPayload = toResidentialLocationPayload(location);
-    const currentStatus = patient.residentialLocationStatus ?? 'NOT_RECORDED';
     const locationChanged =
-      locationPayload.residentialLocationStatus !== currentStatus ||
-      (locationPayload.residentialRegion ?? null) !== (patient.residentialRegion ?? null) ||
-      (locationPayload.residentialDistrict ?? null) !== (patient.residentialDistrict ?? null) ||
-      (locationPayload.residentialCommunity ?? null) !== (patient.residentialCommunity ?? null) ||
-      (locationPayload.residentialAddressNote ?? null) !== (patient.residentialAddressNote ?? null);
+      JSON.stringify(locationPayload) !==
+      JSON.stringify(toResidentialLocationPayload(toResidentialLocationValue(patient)));
     if (locationChanged) {
       Object.assign(body, locationPayload);
     }

@@ -109,6 +109,10 @@ export const SYNC_CONFLICT_CODES = {
   INVALID_MEDICAL_HISTORY_DETAILS: code('validation'),
   INVALID_MEDICATION_DATE_ORDER: code('validation'),
   INVALID_PHARMACY_PHONE: code('validation'),
+  // A residential location the server refuses (#343): a malformed Digital Address, or a map
+  // position missing half its pair or outside Ghana.
+  INVALID_DIGITAL_ADDRESS: code('validation'),
+  INVALID_RESIDENTIAL_POSITION: code('validation'),
   INVALID_PREFERENCE_END: code('validation'),
   INVALID_SOURCE_ENCOUNTER: code('validation'),
   NO_CURRENT_MEDICATIONS: code('validation'),

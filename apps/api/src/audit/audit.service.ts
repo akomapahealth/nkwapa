@@ -22,6 +22,37 @@ export interface LogWriteParams {
   userAgent?: string | null;
 }
 
+const POSITION_KEYS = ['residentialLatitude', 'residentialLongitude'] as const;
+
+/**
+ * A patient's home position is precise personal data (#343): an audit row records that it was
+ * set or cleared, never the numbers. Applied here so every caller that snapshots a patient
+ * (update, sync, merge) is covered without each remembering to.
+ */
+export function withoutPosition(json: string | null | undefined): string | null | undefined {
+  if (!json || !POSITION_KEYS.some((key) => json.includes(`"${key}"`))) return json;
+  try {
+    return JSON.stringify(
+      JSON.parse(json, (_key, value: unknown) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+        const record = value as Record<string, unknown>;
+        if (!POSITION_KEYS.some((key) => key in record)) return value;
+        const rest = { ...record };
+        delete rest.residentialLatitude;
+        delete rest.residentialLongitude;
+        delete rest.residentialPositionAccuracyM;
+        return {
+          ...rest,
+          residentialPosition: record.residentialLatitude != null ? 'set' : 'none',
+        };
+      }),
+    );
+  } catch {
+    // Not JSON we can read, and it names a position: keep nothing rather than the numbers.
+    return null;
+  }
+}
+
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
@@ -47,8 +78,8 @@ export class AuditService {
         action: params.action,
         entityType: params.entityType,
         entityId: params.entityId,
-        beforeJson: params.beforeJson ?? undefined,
-        afterJson: params.afterJson ?? undefined,
+        beforeJson: withoutPosition(params.beforeJson) ?? undefined,
+        afterJson: withoutPosition(params.afterJson) ?? undefined,
         requestId,
         ipAddress: ipAddress ?? undefined,
         userAgent: userAgent ?? undefined,

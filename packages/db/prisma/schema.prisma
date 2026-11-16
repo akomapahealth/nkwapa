@@ -47,6 +47,13 @@ enum PatientLocationStatus {
   NOT_RECORDED
 }
 
+// How a patient's home position was captured (#343). DEVICE: this device's location at a home
+// visit. PASTED: a Google Maps link or coordinates the patient shared from their own phone.
+enum ResidentialPositionSource {
+  DEVICE
+  PASTED
+}
+
 enum UserRole {
   SYSTEM_ADMIN
   DIRECTOR
@@ -1138,12 +1145,21 @@ model Patient {
   nationalIdLast4      String?        @db.VarChar(8)
 
   // Residential/community location. Distinct from primaryClinicId (care site)
-  // and Clinic.locationCode. Privacy-conscious: no GPS/lat/long in v1.
-  residentialLocationStatus PatientLocationStatus @default(NOT_RECORDED)
-  residentialRegion         GhanaRegion?
-  residentialDistrict       String?               @db.VarChar(120)
-  residentialCommunity      String?               @db.VarChar(120)
-  residentialAddressNote    String?               @db.VarChar(280)
+  // and Clinic.locationCode. A home position is optional (#343) so follow-up can find patients
+  // with no street address: precise personal data, never logged, audited or exported for research.
+  // Every field below is set only when the status is RECORDED.
+  residentialLocationStatus     PatientLocationStatus      @default(NOT_RECORDED)
+  residentialRegion             GhanaRegion?
+  residentialDistrict           String?                    @db.VarChar(120)
+  residentialCommunity          String?                    @db.VarChar(120)
+  residentialAddressNote        String?                    @db.VarChar(280)
+  residentialDigitalAddress     String?                    @db.VarChar(16)
+  residentialLandmark           String?                    @db.VarChar(160)
+  residentialLatitude           Decimal?                   @db.Decimal(9, 6)
+  residentialLongitude          Decimal?                   @db.Decimal(9, 6)
+  residentialPositionSource     ResidentialPositionSource?
+  residentialPositionAccuracyM  Int?
+  residentialPositionCapturedAt DateTime?
 
   createdByUserId     String?   @db.Uuid
   portalUserId        String?   @unique @db.Uuid
