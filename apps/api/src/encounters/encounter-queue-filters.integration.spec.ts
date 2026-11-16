@@ -66,6 +66,7 @@ function fixtureSql(): string {
   patient(P.abena, 'QUE-0001', 'Abena', 'Queueson', a1.id);
   sql.push(
     `INSERT INTO "PatientCodeAlias" ("id", "patientId", "code") VALUES ('${nextId('6c000000')}', '${P.abena}', 'OLD-7777');`,
+    `UPDATE "Patient" SET "middleName" = 'Kukua Adwoa' WHERE "id" = '${P.abena}';`,
   );
   patient(P.kofi, 'QUE-0002', 'Kofi', 'Mensah', a1.id);
   patient(FILLER, 'QUE-0003', 'Filler', 'Bulk', a1.id);
@@ -176,8 +177,8 @@ describeQueue('encounter queue search and filters (#340)', () => {
     expect(ids(page)).not.toContain(E.abena);
   });
 
-  it('finds a visit beyond the first page by name, code or alias, any case', async () => {
-    for (const search of ['abena', 'QUEUESON', 'que-0001', 'old-77']) {
+  it('finds a visit beyond the first page by name, middle name, code or alias, any case', async () => {
+    for (const search of ['abena', 'adwoa', 'QUEUESON', 'que-0001', 'old-77']) {
       const page = await drafts({ search });
       expect(ids(page)).toEqual([E.abena]);
       expect(page.total).toBe(1);

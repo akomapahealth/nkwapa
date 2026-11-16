@@ -93,7 +93,7 @@ describe('encounter list search and filters', () => {
         lte: new Date('2026-10-10T03:59:59.999Z'),
       },
     });
-    expect(where.patient.OR).toHaveLength(4);
+    expect(where.patient.OR).toHaveLength(5); // first, middle (#342) and last name, code, alias
     expect(prisma.encounter.count.mock.calls[0][0].where).toEqual(where);
     expect(res.setHeader).toHaveBeenCalledWith('X-Total-Count', '73');
   });

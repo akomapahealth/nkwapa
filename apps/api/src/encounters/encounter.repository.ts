@@ -51,6 +51,7 @@ function clinicEncounterWhere(
     where.patient = {
       OR: [
         { firstName: { contains: s, mode: 'insensitive' } },
+        { middleName: { contains: s, mode: 'insensitive' } },
         { lastName: { contains: s, mode: 'insensitive' } },
         { patientCode: { contains: s, mode: 'insensitive' } },
         { codeAliases: { some: { code: { contains: s, mode: 'insensitive' } } } },
