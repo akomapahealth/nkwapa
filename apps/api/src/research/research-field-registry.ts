@@ -181,6 +181,10 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
     'An operational alert (#337) that a patient needs someone today; derived from the tier and screening findings, which are exported in their own models.',
   RiskFlagAcknowledgement:
     'Who said "I\'m on it" to a flag (#337): about staff workload, never a patient measurement.',
+  FollowUpContact:
+    'Operational scheduling (#338): who is due a call or visit and when. Outcome indicators belong to #339, which decides what is exported.',
+  FollowUpAttempt:
+    'A call log (#338) with free-text notes and staff identities; any reading reported on it is exported as its own PatientMeasurement.',
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
   ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",

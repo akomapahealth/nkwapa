@@ -51,6 +51,10 @@ export type MergeRelationKey = (typeof MERGE_RELATIONS)[number]['key'];
  * written down and justified before the test will accept it.
  */
 export const MERGE_SPECIAL_CASE_MODELS: Record<string, string> = {
+  FollowUpContact:
+    "Writable by the system role alone (#338), so it is repointed after the merge commits, with the same flags: the person's schedule and call history follow them.",
+  FollowUpAttempt:
+    'Writable by the system role alone (#338) and append-only; repointed with its contact after the merge commits.',
   PatientRiskFlag:
     'Writable by the system role alone (#337), so it is repointed after the merge commits rather than in the loop: an open urgent flag and who took it follow the person.',
   PatientRiskAssessment:

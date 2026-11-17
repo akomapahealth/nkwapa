@@ -514,7 +514,9 @@ export type OpsCacheKind =
   | 'my-assigned'
   | 'station-board'
   | 'station-workspace'
-  | 'dashboard-shifts';
+  | 'dashboard-shifts'
+  // Open follow-up contacts due within the week, with what the record sheet needs (#338).
+  | 'follow-up-due';
 
 /**
  * The last copy of a clinic-operations view this device loaded, so it still renders offline.

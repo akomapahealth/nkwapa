@@ -152,7 +152,11 @@ export interface UrgentWorkItem {
 export interface DashboardResponse {
   summary: DashboardSummary;
   /** With follow-up stratification on, for someone holding FOLLOW_UP.READ. */
-  urgent?: { unclaimed: number; items: UrgentWorkItem[] };
+  /**
+   * `contactsDue`: follow-up contacts due today or overdue at this clinic (#338), sent only to
+   * someone who can record them.
+   */
+  urgent?: { unclaimed: number; items: UrgentWorkItem[]; contactsDue?: number };
   doctor?: DoctorMetrics;
   review?: ReviewMetrics;
   director?: DirectorMetrics;

@@ -87,6 +87,22 @@ describe('digestText', () => {
       'Nobody is urgent today.',
     );
   });
+
+  it('adds the week of follow-up contacts and how many are late (#338)', () => {
+    expect(
+      digestText({
+        clinicName: 'Hohoe',
+        urgent: 0,
+        unclaimed: 0,
+        high: 0,
+        contactsDueThisWeek: 9,
+        contactsLate: 1,
+      }),
+    ).toEqual({
+      title: 'Hohoe: 9 contacts due this week',
+      body: 'Nobody is urgent today. 1 follow-up contact is late.',
+    });
+  });
 });
 
 function setup() {
@@ -120,6 +136,8 @@ function setup() {
         patient: { id: 'p1', firstName: 'Ama', lastName: 'Mensah', currentRiskTier: 'MODERATE' },
       }),
     },
+    followUpContact: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    followUpAttempt: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
     riskFlagAcknowledgement: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
     inboxNotification: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
     $queryRaw: jest.fn().mockResolvedValue([]),
@@ -181,11 +199,11 @@ describe('FollowUpFlagService', () => {
   it("moves the absorbed chart's flags to the surviving chart after a merge, flag on or off", async () => {
     process.env[FLAG] = 'false';
     const { service, tx } = setup();
-    await service.moveFlagsAfterMerge('p-old', 'p-new');
-    expect(tx.patientRiskFlag.updateMany).toHaveBeenCalledWith({
-      where: { patientId: 'p-old' },
-      data: { patientId: 'p-new' },
-    });
+    await service.moveAfterMerge('p-old', 'p-new');
+    const move = { where: { patientId: 'p-old' }, data: { patientId: 'p-new' } };
+    expect(tx.patientRiskFlag.updateMany).toHaveBeenCalledWith(move);
+    expect(tx.followUpContact.updateMany).toHaveBeenCalledWith(move);
+    expect(tx.followUpAttempt.updateMany).toHaveBeenCalledWith(move);
   });
 
   describe('screening alerts', () => {

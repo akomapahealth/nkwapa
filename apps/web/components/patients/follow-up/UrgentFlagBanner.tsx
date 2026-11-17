@@ -76,7 +76,11 @@ export function UrgentFlagBanner({
       />
       <div className="min-w-0 flex-1">
         <h2 id="urgent-flag-title" className="type-label font-semibold text-destructive-ink">
-          {screening ? 'Urgent at screening: see today' : 'Urgent: refer today'}
+          {flag.reportedOnContact
+            ? 'Danger sign reported on a call: see today'
+            : screening
+              ? 'Urgent at screening: see today'
+              : 'Urgent: refer today'}
         </h2>
         <p className="mt-0.5 text-sm text-foreground [overflow-wrap:anywhere]">
           {why}

@@ -52,6 +52,7 @@ import { PatientVisitsPanel } from '@/components/patients/chart/PatientVisitsPan
 import { RouteGuard } from '@/components/RouteGuard';
 import { FollowUpTierSummary } from '@/components/patients/follow-up/FollowUpTierSummary';
 import { FollowUpTierHistory } from '@/components/patients/follow-up/FollowUpTierHistory';
+import { FollowUpContacts } from '@/components/patients/follow-up/FollowUpContacts';
 import { UrgentFlagBanner } from '@/components/patients/follow-up/UrgentFlagBanner';
 import { canSeeFollowUpTier, fetchFollowUp, FOLLOW_UP_MANAGE } from '@/lib/follow-up';
 import { useAsyncResource } from '@/lib/use-async-resource';
@@ -950,6 +951,13 @@ function PatientChartWorkspace() {
                   </div>
                   {canScheduleReminder ? (
                     <ScheduleFollowUpReminderCard clinicId={clinicId} patientId={patient.id} />
+                  ) : null}
+                  {canSeeTier ? (
+                    <FollowUpContacts
+                      clinicId={clinicId}
+                      patientId={patientId}
+                      canRecord={hasPermission(perms, FOLLOW_UP_MANAGE)}
+                    />
                   ) : null}
                   {canSeeTier && followUp.data ? (
                     <FollowUpTierHistory history={followUp.data.history} />

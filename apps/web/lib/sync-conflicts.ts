@@ -210,6 +210,7 @@ const ENTITY_LABELS: Record<string, string> = {
   shift_check_in: 'Shift start',
   shift_check_out: 'Shift end',
   patient_check_in: 'Patient check-in',
+  follow_up_attempt: 'Follow-up call',
 };
 
 export function syncEntityLabel(entityType: string): string {

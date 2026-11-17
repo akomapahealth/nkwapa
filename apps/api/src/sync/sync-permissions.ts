@@ -117,6 +117,11 @@ export const SYNC_ENTITY_PERMISSIONS: Record<EntityType, SyncEntityPermission> =
     update: PERMISSIONS.OPS_CHECKIN_CREATE,
     delete: null,
   },
+  follow_up_attempt: {
+    create: PERMISSIONS.FOLLOW_UP_MANAGE,
+    update: PERMISSIONS.FOLLOW_UP_MANAGE,
+    delete: null,
+  },
 };
 
 /** Runtime list of replayable entity types, so the DTO can reject anything unrecognised. */
