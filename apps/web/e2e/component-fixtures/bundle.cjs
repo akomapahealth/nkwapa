@@ -27,8 +27,13 @@ module.exports = async function bundleFixture({
         'react-dom': path.dirname(require.resolve('react-dom/package.json', { paths: [web] })),
       },
     },
-    // App modules read process.env (Next inlines it); the browser has no process.
-    plugins: [new webpack.DefinePlugin({ 'process.env': JSON.stringify({}) })],
+    // App modules read process.env (Next inlines it); the browser has no process. Parenthesised:
+    // a bare `{}` after `=>` parses as a block, so `() => process.env.X` became a syntax error.
+    // One file: only fixture.js is read back, so a lazy import() must not split into a chunk.
+    plugins: [
+      new webpack.DefinePlugin({ 'process.env': '({})' }),
+      new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }),
+    ],
     module: {
       rules: [
         { test: /\.module\.css$/, use: path.join(__dirname, 'css-module.cjs') },

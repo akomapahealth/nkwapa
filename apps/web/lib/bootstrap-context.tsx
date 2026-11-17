@@ -28,7 +28,6 @@ import {
 import type { ClinicUnits } from '@nkwapa/db/measurement-units';
 import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
 import { isWebFeatureEnabled } from './feature-flags';
-import { fetchDeviceKeys } from './offline-session/grant';
 import type { PendingStaffInvite } from './staff-invite';
 
 export { BOOTSTRAP_STORAGE_KEY } from './bootstrap-storage';
@@ -231,7 +230,10 @@ export function BootstrapProvider({
       // dropping right here, say) does not fail sign-in: the at-rest layer refuses clinical saves
       // without a key and says so, and the next whoami tries again.
       if (isWebFeatureEnabled('offlineSession')) {
-        await fetchDeviceKeys(getToken, data.activeClinicId).catch(() => undefined);
+        // Loaded only with the flag on, so the local database stays out of every page's bootstrap.
+        await import('./offline-session/grant')
+          .then(({ fetchDeviceKeys }) => fetchDeviceKeys(getToken, data.activeClinicId))
+          .catch(() => undefined);
       }
       bootstrapRef.current = data;
       setBootstrap(data);
