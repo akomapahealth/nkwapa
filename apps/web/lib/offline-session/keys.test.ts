@@ -1,6 +1,10 @@
 import {
   derivePinKey,
+  deviceKeyFor,
+  dropAllKeys,
   importDataKey,
+  keyringEntries,
+  restoreKeyring,
   isAcceptablePin,
   openText,
   randomBase64Url,
@@ -70,5 +74,25 @@ describe('offline session keys (#207)', () => {
     ['1234567890123', false],
   ])('accepts %s as a PIN: %s', (pin, ok) => {
     expect(isAcceptablePin(pin)).toBe(ok);
+  });
+});
+
+describe('handing the keyring to the service worker and back (#207)', () => {
+  afterEach(() => dropAllKeys());
+
+  it('restores well-formed keys only', async () => {
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+      'encrypt',
+      'decrypt',
+    ]);
+    restoreKeyring([
+      ['clinic:clinic-a', key],
+      ['clinic:../x', key],
+      ['other:1', key],
+      ['user:u1', 'not a key'],
+      'junk',
+    ]);
+    expect(deviceKeyFor('clinic:clinic-a')).toBe(key);
+    expect(keyringEntries().map(([scope]) => scope)).toEqual(['clinic:clinic-a']);
   });
 });

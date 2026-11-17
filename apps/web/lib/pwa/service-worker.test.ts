@@ -2,7 +2,12 @@ const sw = require('./service-worker.js') as {
   VERSION: string;
   cacheNames: (version: string) => Record<'pages' | 'static' | 'offline', string>;
   shouldHandle: (request: Request, origin: string) => 'page' | 'static' | null;
-  isCacheable: (response: Response | null) => boolean;
+  isCacheable: (response: Response | null, pathname?: string) => boolean;
+  offlineSessionMessage: (
+    held: unknown,
+    data: unknown,
+    now: number,
+  ) => { held: { at: number } | null; reply?: unknown };
   cacheKeyFor: (request: Request) => Request;
   trimCache: (cache: Pick<Cache, 'keys' | 'delete'>, max: number) => Promise<void>;
   openFromNotification: (clients: unknown, origin: string, url: unknown) => Promise<void>;
@@ -55,6 +60,13 @@ describe('service worker rules (#206)', () => {
       );
     });
 
+    it('serves the offline wordmark from the cache, nothing else under /images', () => {
+      const asset = (path: string) => req(path, { mode: 'no-cors' });
+      expect(sw.shouldHandle(asset('/images/nkwapa-logo.png'), ORIGIN)).toBe('static');
+      expect(sw.shouldHandle(asset('/images/nkwapa-logo-dark.png'), ORIGIN)).toBe('static');
+      expect(sw.shouldHandle(asset('/images/landing/hero.png'), ORIGIN)).toBeNull();
+    });
+
     it('never touches another origin: the API or Keycloak', () => {
       expect(sw.shouldHandle(req('https://api.nkwapa.app/patients'), ORIGIN)).toBeNull();
       expect(sw.shouldHandle(req('https://auth.nkwapa.app/realms/nkwapa'), ORIGIN)).toBeNull();
@@ -99,6 +111,71 @@ describe('service worker rules (#206)', () => {
       ['nothing at all', null],
     ])('refuses %s', (_label, response) => {
       expect(sw.isCacheable(response)).toBe(false);
+    });
+  });
+
+  describe('chart and encounter shells (#207)', () => {
+    const noStore = () =>
+      res('<html></html>', { headers: { 'Cache-Control': 'private, no-store' } });
+
+    it.each([
+      '/clinics/c1/patients/p1',
+      '/clinics/c1/patients/p1/edit',
+      '/clinics/c1/patients/p1/consent',
+      '/clinics/c1/encounters/e1',
+    ])('keeps %s although Next marks it no-store', (path) => {
+      expect(sw.isCacheable(noStore(), path)).toBe(true);
+    });
+
+    it.each(['/clinics/c1/research/exports', '/admin/users', '/clinics/c1/patients/p1/edit/x'])(
+      'still refuses no-store on %s',
+      (path) => {
+        expect(sw.isCacheable(noStore(), path)).toBe(false);
+      },
+    );
+
+    it('never keeps a failed or redirected chart', () => {
+      expect(sw.isCacheable(res('x', { status: 500 }), '/clinics/c1/patients/p1')).toBe(false);
+      expect(sw.isCacheable(res('x', { redirected: true }), '/clinics/c1/patients/p1')).toBe(false);
+    });
+  });
+
+  describe('holding an unlocked offline session (#207)', () => {
+    const hold = {
+      type: 'OFFLINE_SESSION_HOLD',
+      session: { id: 's' },
+      keys: [['k', 1]],
+      idleMs: 1000,
+    };
+
+    it('hands the session back while it is fresh, and forgets it after the idle time', () => {
+      let { held } = sw.offlineSessionMessage(null, hold, 0);
+      let step = sw.offlineSessionMessage(held, { type: 'OFFLINE_SESSION_RESUME' }, 900);
+      expect(step.reply).toEqual({ session: { id: 's' }, keys: [['k', 1]] });
+
+      step = sw.offlineSessionMessage(step.held, { type: 'OFFLINE_SESSION_RESUME' }, 1000);
+      expect(step.reply).toBeNull();
+      expect(step.held).toBeNull();
+
+      ({ held } = sw.offlineSessionMessage(null, hold, 0));
+      ({ held } = sw.offlineSessionMessage(held, { type: 'OFFLINE_SESSION_TOUCH' }, 800));
+      expect(
+        sw.offlineSessionMessage(held, { type: 'OFFLINE_SESSION_RESUME' }, 1700).reply,
+      ).not.toBeNull();
+    });
+
+    it('a ping keeps the worker awake without counting as activity', () => {
+      const { held } = sw.offlineSessionMessage(null, hold, 0);
+      const pinged = sw.offlineSessionMessage(held, { type: 'OFFLINE_SESSION_PING' }, 900).held;
+      expect(pinged?.at).toBe(0);
+    });
+
+    it('drops it on Lock or sign-in', () => {
+      const { held } = sw.offlineSessionMessage(null, hold, 0);
+      const dropped = sw.offlineSessionMessage(held, { type: 'OFFLINE_SESSION_DROP' }, 1).held;
+      expect(
+        sw.offlineSessionMessage(dropped, { type: 'OFFLINE_SESSION_RESUME' }, 2).reply,
+      ).toBeNull();
     });
   });
 

@@ -1152,6 +1152,44 @@ volunteer for review, and a doctor. Every volunteer starts a shift first.
 
 ---
 
+## 17f. Offline Session Matrix (#207)
+
+The threat model and every scenario are in `docs/security/offline-session-matrix.md`. Build and run
+with `FEATURE_OFFLINE_SESSION_ENABLED=true` on the API and
+`NEXT_PUBLIC_FEATURE_OFFLINE_SESSION_ENABLED=true` on the web, in a production build (the service
+worker only registers there). Set a fixed `OFFLINE_DEK_ROOT_KEY` locally, or an API restart strands
+what your browser has queued. Use the doctor and volunteer accounts, never staff: system admins are
+never offered offline access.
+
+"Offline" below means DevTools → Network → _Offline_ **before** loading the page, so the app starts
+with no connection.
+
+- [ ] **OS-01** As the doctor, open **Settings → Offline access**, set a PIN, turn it on. Open a
+      chart, then go offline and load that chart again. "Unlock as <name>" appears; the right PIN
+      opens the chart with the offline-session banner.
+- [ ] **OS-02 / OS-03** Enter a wrong PIN: the field shakes and says how many tries are left. Five
+      wrong PINs return the plain offline screen, saying offline access was removed, with the same
+      queued count as before.
+- [ ] **OS-04** In an unlocked session, follow links between the chart, its edit page and Today.
+      No second PIN.
+- [ ] **OS-05 / OS-06** Press **Lock**, then reload: the PIN is asked for again. Unlock and leave
+      the device untouched for 10 minutes: it locks by itself.
+- [ ] **OS-07 / OS-08** Save an edit in the session. The pill shows it queued and nothing is sent.
+      Go back online: the banner changes to "Sign in to send changes". Sign in as the same doctor;
+      the change reaches the chart once.
+- [ ] **OS-10** On one browser, turn on offline access as the doctor, sign out choosing **Keep
+      offline access**, sign in as the volunteer and turn it on too. Offline: "Who is using this
+      device?" lists both. The doctor's PIN does not unlock the volunteer.
+- [ ] **OS-14** As a manager, open the doctor on **Admin → Users**, choose **Sign out of offline
+      devices**. On the doctor's device, a change queued offline after that is refused at sign-in
+      and shown in the sync center.
+- [ ] **OS-15** Sign out on an opted-in device. "Keep offline access on this device?" appears with
+      **No, remove it** focused; choosing it removes the device from **Your devices**.
+- [ ] **OS-16** While locked, open **Application → IndexedDB → NkwapaDb → patients**. Rows show an
+      id, clinic and dates in the clear and one `$sealed` ciphertext; no name, reading or note.
+
+---
+
 ## 18. Partial Areas To Test Carefully
 
 These areas are implemented but still worth extra regression attention:

@@ -361,6 +361,36 @@ existing role emails are unchanged; this is in addition to them.
 - What a role lets someone do is described by `accessPoints()` in `apps/web/lib/access-summary.ts`,
   chosen by permission like the sidebar, and shared with the welcome tour and the account page.
 
+### Offline Grants (#207)
+
+An opted-in staff member can resume an offline session after a cold start with no connection. The
+full threat model is `docs/security/offline-session-matrix.md`; the auth rules are these.
+
+- **What survives a restart** is a signed offline grant (`POST /auth/offline-grant`, ES256, public
+  keys at `GET /auth/offline-grant/keys`), never a Keycloak access, refresh or `offline_access`
+  token. It names one user and one device (`deviceId`, a random id per browser profile), carries
+  whoami's memberships with each clinic's roles and permissions, and expires
+  `OFFLINE_GRANT_TTL_HOURS` (default 72) after issue. The client refreshes it on every whoami, at
+  most hourly.
+- **Who may hold one:** an account with a DOCTOR, VOLUNTEER, MANAGER or DIRECTOR role at some
+  clinic and no global role. `SYSTEM_ADMIN` (and every wildcard account) and patients are refused,
+  and the web app never offers it to them.
+- **In an offline session** the web app builds its bootstrap from the grant in whoami's shape
+  (`source: 'offline-grant'`), with no token: route guards and permission checks run unchanged and
+  can never exceed the grant. A clinic switch is limited to the grant's clinics.
+- **Revocation:** `OfflineGrant` rows (`id, userId, deviceId, issuedAt, expiresAt, revokedAt,
+revokedReason`) record every grant. Deactivation, role removal and
+  `POST /clinics/:clinicId/users/:userId/offline-access/revoke` (CLINIC_MANAGE, under the same
+  lifecycle authority as deactivation; "Sign out of offline devices" on the admin users page)
+  revoke all of a person's grants, with an `OFFLINE_GRANT.REVOKE_ALL` audit event. A person
+  withdraws their own devices at `/settings/offline-access` (`GET /auth/offline-grants`,
+  `POST /auth/offline-grants/:grantId/revoke`).
+- **At push time** the server refuses a change stamped with a revoked grant, or with one used after
+  its server-side `expiresAt`, and the sync center shows the refusal. Device clocks are never
+  trusted for this.
+- **Keys:** `OFFLINE_DEK_ROOT_KEY` derives each person's data key and each device's at-rest keys
+  (`POST /auth/device-keys`, after every whoami). It must never change on a live deployment.
+
 ---
 
 ## Patient Access And Onboarding

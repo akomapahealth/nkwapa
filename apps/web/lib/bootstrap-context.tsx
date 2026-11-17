@@ -28,6 +28,12 @@ import {
 import type { ClinicUnits } from '@nkwapa/db/measurement-units';
 import { getStoredActiveClinicId, setStoredActiveClinicId } from './bootstrap-storage';
 import { isWebFeatureEnabled } from './feature-flags';
+import {
+  rememberClinicUnits,
+  setSignedInUserId,
+  whoamiFromGrant,
+} from './offline-session/bootstrap';
+import type { OfflineGrantClaims } from '@nkwapa/db/offline-grant';
 import type { PendingStaffInvite } from './staff-invite';
 
 export { BOOTSTRAP_STORAGE_KEY } from './bootstrap-storage';
@@ -90,6 +96,11 @@ export interface WhoAmIResponse {
    * The person's own name (#225). Optional so an older API still parses; nobody is then held on
    * the name step.
    */
+  /**
+   * Where this identity came from. 'offline-grant' is an offline session (#207): read from the
+   * device's signed grant, with no token behind it. Absent means a live whoami.
+   */
+  source?: 'offline-grant';
   profile?: {
     needsName: boolean;
     firstName: string | null;
@@ -125,12 +136,17 @@ const BootstrapContext = createContext<BootstrapContextValue | null>(null);
 export function BootstrapProvider({
   children,
   getToken,
+  offlineGrant,
 }: {
   children: React.ReactNode;
   getToken?: GetToken;
+  /** An unlocked offline session's grant (#207). Identity comes from it, and whoami is not called. */
+  offlineGrant?: OfflineGrantClaims | null;
 }) {
-  const [bootstrap, setBootstrap] = useState<WhoAmIResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(() => !!getToken);
+  const [bootstrap, setBootstrap] = useState<WhoAmIResponse | null>(() =>
+    offlineGrant ? whoamiFromGrant(offlineGrant, getStoredActiveClinicId()) : null,
+  );
+  const [isLoading, setIsLoading] = useState(() => !!getToken && !offlineGrant);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -179,6 +195,15 @@ export function BootstrapProvider({
       : (getBootstrapActiveClinicId(bootstrap) ?? getStoredActiveClinicId());
 
   const fetchWhoami = useCallback(async () => {
+    if (offlineGrant) {
+      // An offline session: the grant is the whole truth, and nothing here needs the network.
+      const data = whoamiFromGrant(offlineGrant, getStoredActiveClinicId());
+      bootstrapRef.current = data;
+      setBootstrap(data);
+      setStoredActiveClinicId(data.activeClinicId);
+      markBootstrapResolved();
+      return;
+    }
     if (!getToken) return;
 
     const initialLoad = bootstrapRef.current == null;
@@ -230,13 +255,21 @@ export function BootstrapProvider({
       // dropping right here, say) does not fail sign-in: the at-rest layer refuses clinical saves
       // without a key and says so, and the next whoami tries again.
       if (isWebFeatureEnabled('offlineSession')) {
+        rememberClinicUnits(data);
         // Loaded only with the flag on, so the local database stays out of every page's bootstrap.
+        // An opted-in device refreshes its grant here too, at most hourly (R1).
         await import('./offline-session/grant')
-          .then(({ fetchDeviceKeys }) => fetchDeviceKeys(getToken, data.activeClinicId))
+          .then(({ fetchDeviceKeys, refreshOfflineAccess }) =>
+            Promise.all([
+              fetchDeviceKeys(getToken, data.activeClinicId),
+              refreshOfflineAccess(data.userId, getToken).catch(() => undefined),
+            ]),
+          )
           .catch(() => undefined);
       }
       bootstrapRef.current = data;
       setBootstrap(data);
+      setSignedInUserId(data.userId);
       setErrorCode(null);
 
       // Reconcile the stored active clinic id against the server's truth.
@@ -277,7 +310,7 @@ export function BootstrapProvider({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [getToken, scheduleRetry]);
+  }, [getToken, offlineGrant, scheduleRetry]);
 
   useEffect(() => {
     void fetchWhoami();

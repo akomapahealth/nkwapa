@@ -12,6 +12,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { apiFetch } from '@/lib/api';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import { formatOpsTimestamp, formatRoleLabel, readApiError } from '@/lib/ops';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -951,6 +953,40 @@ export default function AdminUsersPage() {
     }
   }
 
+  /** Withdraw offline access (#207) from every device this person opted in on. */
+  async function handleRevokeOfflineAccess() {
+    if (!getToken || !selectedUser || !activeClinicId) return;
+    const confirmed = await confirmAction({
+      title: `Sign ${nameForRow(selectedUser)} out of all offline devices?`,
+      description:
+        'No device can be unlocked offline as them until they turn it on again while signed in. Anything a device already queued is refused when it next sends.',
+      confirmLabel: 'Sign out of offline devices',
+    });
+    if (!confirmed) return;
+    setMutationLoading(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await apiFetch(
+        `/clinics/${encodeURIComponent(activeClinicId)}/users/${encodeURIComponent(
+          selectedUser.id,
+        )}/offline-access/revoke`,
+        { method: 'POST', getToken, activeClinicId },
+      );
+      if (!res.ok) throw new Error(await readApiError(res));
+      const { revoked } = (await res.json()) as { revoked: number };
+      setNotice(
+        revoked === 0
+          ? `${nameForRow(selectedUser)} had no device with offline access.`
+          : `${nameForRow(selectedUser)} was signed out of ${revoked} offline ${revoked === 1 ? 'device' : 'devices'}.`,
+      );
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
   /** Reactivate, or re-run the identity half. Same routing rule as deactivation. */
   async function handleLifecycleAction(action: 'reactivate' | 'sync') {
     if (!getToken || !selectedUser) {
@@ -1764,6 +1800,32 @@ export default function AdminUsersPage() {
                       className="w-full sm:w-auto"
                     >
                       Reactivate account
+                    </Button>
+                  </RecordSectionContent>
+                </RecordSection>
+              ) : null}
+
+              {selectedUser.isActive &&
+              viewMode === 'clinic' &&
+              activeClinicId &&
+              selectedCanDeactivate &&
+              isWebFeatureEnabled('offlineSession') ? (
+                <RecordSection>
+                  <RecordSectionHeader>
+                    <h3 className="type-section-title">Offline access</h3>
+                    <RecordSectionDescription>
+                      For a lost phone or a shared device left unlocked. Their other sessions and
+                      their account stay as they are.
+                    </RecordSectionDescription>
+                  </RecordSectionHeader>
+                  <RecordSectionContent>
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleRevokeOfflineAccess()}
+                      disabled={mutationLoading}
+                      className="w-full sm:w-auto"
+                    >
+                      Sign out of offline devices
                     </Button>
                   </RecordSectionContent>
                 </RecordSection>
