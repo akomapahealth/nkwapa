@@ -77,6 +77,77 @@ describe('assembling the follow-up input', () => {
     ).toBeNull();
   });
 
+  describe('follow-up contacts (#338)', () => {
+    const followUp = (overrides: Partial<NonNullable<FollowUpRecords['followUp']>> = {}) => ({
+      completedAt: [],
+      unresolvedDueOn: [],
+      reportedSymptoms: [],
+      ...overrides,
+    });
+
+    it('leaves both dates unset before any contact was scheduled', () => {
+      const input = assembleFollowUpInput(records({ encounters: [encounter()] }));
+      expect(input.nextContactDueAt).toBeUndefined();
+      expect(input.lastCompletedContactAt).toBeUndefined();
+    });
+
+    it('counts a visit and a reached call as completed; an unanswered call is not passed in', () => {
+      const input = assembleFollowUpInput(
+        records({
+          encounters: [encounter({ createdAt: daysAgo(40) })],
+          followUp: followUp({ completedAt: [daysAgo(10)] }),
+        }),
+      );
+      expect(input.lastCompletedContactAt).toEqual(daysAgo(10));
+    });
+
+    it('keeps a missed due date until someone reaches the patient after it', () => {
+      const missed = daysAgo(20);
+      const later = daysAgo(-30);
+      const stillMissed = assembleFollowUpInput(
+        records({
+          encounters: [encounter({ createdAt: daysAgo(90) })],
+          followUp: followUp({ unresolvedDueOn: [later, missed] }),
+        }),
+      );
+      expect(stillMissed.nextContactDueAt).toEqual(missed);
+      const reached = assembleFollowUpInput(
+        records({
+          encounters: [encounter({ createdAt: daysAgo(90) })],
+          followUp: followUp({ unresolvedDueOn: [later, missed], completedAt: [daysAgo(2)] }),
+        }),
+      );
+      expect(reached.nextContactDueAt).toEqual(later);
+    });
+
+    it('adds danger symptoms reported by phone, within the window only', () => {
+      const input = assembleFollowUpInput(
+        records({
+          followUp: followUp({
+            reportedSymptoms: [
+              { at: daysAgo(1), symptoms: ['CHEST_PAIN'] },
+              { at: daysAgo(400), symptoms: ['FAINTING'] },
+            ],
+          }),
+        }),
+      );
+      expect(input.symptoms?.hypertension).toEqual(['CHEST_PAIN']);
+    });
+
+    it('adds diabetes danger symptoms reported by phone, dropping "none"', () => {
+      const input = assembleFollowUpInput(
+        records({
+          followUp: followUp({
+            reportedSymptoms: [
+              { at: daysAgo(1), symptoms: [], diabetesSymptoms: ['VOMITING', 'NONE'] },
+            ],
+          }),
+        }),
+      );
+      expect(input.symptoms?.diabetes).toEqual(['VOMITING']);
+    });
+  });
+
   describe('blood pressure readings', () => {
     it('dates clinic readings by their visit and puts the repeat after the first', () => {
       const visit = daysAgo(3);

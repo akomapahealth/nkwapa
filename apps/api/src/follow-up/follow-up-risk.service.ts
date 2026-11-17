@@ -16,7 +16,12 @@ import {
   HYPERTENSION_DRUG_CATEGORIES,
   type FollowUpRecords,
 } from './follow-up-input';
-import { FollowUpFlagService, type TierChange } from './follow-up-flags.service';
+import {
+  FollowUpFlagService,
+  type MissedContact,
+  type TierChange,
+} from './follow-up-flags.service';
+import { dayOf, isInPerson, planContacts, refillDueOn, type OpenContact } from './contact-schedule';
 
 /** What caused a recompute. Stored on the row; never a free-text reason. */
 export type RiskRecomputeTrigger =
@@ -32,6 +37,7 @@ export type RiskRecomputeTrigger =
   | 'SYNC'
   | 'IMPORT'
   | 'MERGE'
+  | 'FOLLOW_UP_CONTACT'
   | 'SWEEP'
   | 'BACKFILL';
 
@@ -115,12 +121,13 @@ export class FollowUpRiskService {
 
   async recompute(request: RiskRecomputeRequest): Promise<RiskRecomputeOutcome> {
     if (!this.enabled) return 'SKIPPED';
-    const { outcome, change } = await this.prisma.withSystemContext(
+    const { outcome, change, missed } = await this.prisma.withSystemContext(
       { systemReason: 'Recompute a patient follow-up risk tier' },
       (tx) => this.recomputeIn(tx, request, new Date()),
     );
     // After the commit, so nobody is told about a tier that rolled back. Never throws.
     if (change) await this.flags?.raise(change);
+    if (missed?.length) await this.flags?.notifyMissed(missed);
     return outcome;
   }
 
@@ -166,7 +173,9 @@ export class FollowUpRiskService {
     tx: Prisma.TransactionClient,
     request: RiskRecomputeRequest,
     today: Date,
-  ): Promise<{ outcome: RiskRecomputeOutcome; change?: TierChange }> {
+  ): Promise<{ outcome: RiskRecomputeOutcome; change?: TierChange; missed?: MissedContact[] }> {
+    // One recompute per patient at a time: two saves at once must not book the same contact twice.
+    await tx.$executeRaw`SELECT 1 FROM "Patient" WHERE "id" = ${request.patientId}::uuid FOR UPDATE`;
     const patient = await tx.patient.findUnique({
       where: { id: request.patientId },
       select: {
@@ -182,11 +191,28 @@ export class FollowUpRiskService {
     if (!patient || patient.mergedIntoPatientId) return { outcome: 'SKIPPED' };
 
     const records = await this.loadRecords(tx, patient, today);
+    const contacts = await this.loadContacts(tx, patient.id, today);
+    records.followUp = contacts.facts;
     const input = assembleFollowUpInput(records);
     const result = assessFollowUp(input);
     const previous = patient.currentRiskAssessment;
 
-    if (previous && sameAnswer(previous, result)) return { outcome: 'UNCHANGED' };
+    const schedule = (changed: boolean) =>
+      this.schedule(tx, {
+        clinicId: patient.primaryClinicId,
+        patientId: patient.id,
+        tier: result.tier,
+        atTarget: result.atTarget,
+        actions: result.actions,
+        changed,
+        becameUrgent: result.tier === 'URGENT' && previous?.tier !== 'URGENT',
+        today,
+        contacts,
+      });
+
+    if (previous && sameAnswer(previous, result)) {
+      return { outcome: 'UNCHANGED', missed: await schedule(false) };
+    }
 
     const move = movement(
       previous
@@ -249,8 +275,10 @@ export class FollowUpRiskService {
         tx,
       );
     }
+    const missed = await schedule(true);
     return {
       outcome: 'CREATED',
+      missed,
       change: {
         clinicId: patient.primaryClinicId,
         patientId: patient.id,
@@ -262,6 +290,186 @@ export class FollowUpRiskService {
         actorUserId: request.actorUserId ?? null,
       },
     };
+  }
+
+  /** The patient's follow-up contacts (#338): the engine's facts and the scheduler's state. */
+  private async loadContacts(tx: Prisma.TransactionClient, patientId: string, today: Date) {
+    const symptomsSince = new Date(
+      today.getTime() - DEFAULT_FOLLOW_UP_CONFIG.dangerSignWindowDays * 86_400_000,
+    );
+    const [open, reached, reported, latestEncounter, stop, prescriptions, supply, lastRefill] =
+      await Promise.all([
+        tx.followUpContact.findMany({
+          where: { patientId, status: { in: ['DUE', 'MISSED'] } },
+          select: {
+            id: true,
+            mode: true,
+            purpose: true,
+            dueOn: true,
+            status: true,
+            createdAt: true,
+            ownerUserId: true,
+          },
+        }),
+        tx.followUpAttempt.findMany({
+          where: { patientId, outcome: { not: 'ATTEMPTED' } },
+          orderBy: { at: 'desc' },
+          take: 50,
+          select: { at: true, mode: true },
+        }),
+        tx.followUpAttempt.findMany({
+          where: {
+            patientId,
+            at: { gte: symptomsSince },
+            OR: [
+              { NOT: { symptoms: { isEmpty: true } } },
+              { NOT: { diabetesSymptoms: { isEmpty: true } } },
+            ],
+          },
+          select: { at: true, symptoms: true, diabetesSymptoms: true },
+        }),
+        tx.encounter.findFirst({
+          where: { patientId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            createdAt: true,
+            createdByUserId: true,
+            carePlan: { select: { followUpDate: true } },
+          },
+        }),
+        tx.followUpContact.findFirst({
+          where: {
+            patientId,
+            status: 'CANCELLED',
+            cancelReason: { in: ['DECEASED', 'MOVED', 'OPTED_OUT'] },
+          },
+          orderBy: { cancelledAt: 'desc' },
+          select: { cancelledAt: true },
+        }),
+        // Refill news (#338): the newest treatment prescriptions, the latest supply answer, and
+        // when a refill call was last booked.
+        tx.prescription.findMany({
+          where: { encounter: { patientId }, drug: { category: { in: TREATMENT_CATEGORIES } } },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          select: { createdAt: true, duration: true },
+        }),
+        tx.encounterMedicationAdherence.findFirst({
+          where: { encounter: { patientId }, supplyRemaining: { not: 'NOT_ASSESSED' } },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true, supplyRemaining: true },
+        }),
+        tx.followUpContact.findFirst({
+          where: { patientId, purpose: 'ADHERENCE_REFILL' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      ]);
+    return {
+      open,
+      latestEncounter,
+      refillDueOn: refillDueOn({
+        prescriptions,
+        supply: supply ? { at: supply.createdAt, remaining: supply.supplyRemaining } : null,
+        lastRefillBookedAt: lastRefill?.createdAt ?? null,
+        today,
+      }),
+      lastTeleAt: reached.find((attempt) => !isInPerson(attempt.mode))?.at ?? null,
+      // Stopped until the patient is next seen in person.
+      stopped:
+        !!stop?.cancelledAt && (!latestEncounter || latestEncounter.createdAt < stop.cancelledAt),
+      facts: {
+        completedAt: reached.map((attempt) => attempt.at),
+        unresolvedDueOn: open.map((contact) => contact.dueOn),
+        reportedSymptoms: reported,
+      },
+    };
+  }
+
+  /**
+   * Apply the contact plan (#338) and return the contacts that just became missed, for their
+   * owners to be told after the commit.
+   */
+  private async schedule(
+    tx: Prisma.TransactionClient,
+    args: {
+      clinicId: string;
+      patientId: string;
+      tier: FollowUpTier;
+      atTarget: boolean | null;
+      actions: FollowUpAssessment['actions'];
+      changed: boolean;
+      becameUrgent: boolean;
+      today: Date;
+      contacts: Awaited<ReturnType<FollowUpRiskService['loadContacts']>>;
+    },
+  ): Promise<MissedContact[]> {
+    const { clinicId, patientId, tier, today, contacts } = args;
+    const visit = contacts.latestEncounter;
+    const plan = planContacts({
+      tier,
+      atTarget: args.atTarget,
+      actions: args.actions,
+      changed: args.changed,
+      becameUrgent: args.becameUrgent,
+      today,
+      latestEncounter: visit ? { id: visit.id, at: visit.createdAt } : null,
+      lastTeleAt: contacts.lastTeleAt,
+      carePlanFollowUpDate: visit?.carePlan?.followUpDate ?? null,
+      stopped: contacts.stopped,
+      refillDueOn: contacts.refillDueOn,
+      open: contacts.open as OpenContact[],
+    });
+
+    for (const { contactId, encounterId } of plan.completeByEncounter) {
+      await tx.followUpContact.update({
+        where: { id: contactId },
+        data: { status: 'DONE', completedAt: visit!.createdAt, encounterId },
+      });
+      await tx.followUpAttempt.create({
+        data: {
+          clinicId,
+          contactId,
+          patientId,
+          at: visit!.createdAt,
+          byUserId: visit!.createdByUserId,
+          mode: 'IN_PERSON',
+          outcome: 'RETURNED',
+        },
+      });
+    }
+    if (plan.markMissed.length > 0) {
+      await tx.followUpContact.updateMany({
+        where: { id: { in: plan.markMissed }, status: 'DUE' },
+        data: { status: 'MISSED', missedAt: today },
+      });
+    }
+    if (plan.create.length > 0) {
+      await tx.followUpContact.createMany({
+        data: plan.create.map((contact) => ({
+          ...contact,
+          clinicId,
+          patientId,
+          tierAtScheduling: tier,
+        })),
+      });
+    }
+    for (const { contactId, purpose, dueOn } of plan.reschedule) {
+      await tx.followUpContact.update({
+        where: { id: contactId },
+        data: { purpose, dueOn, tierAtScheduling: tier },
+      });
+    }
+    return contacts.open
+      .filter((contact) => plan.markMissed.includes(contact.id))
+      .map((contact) => ({
+        clinicId,
+        patientId,
+        contactId: contact.id,
+        ownerUserId: contact.ownerUserId,
+        dueOn: dayOf(contact.dueOn),
+      }));
   }
 
   private async loadRecords(

@@ -975,6 +975,8 @@ model Clinic {
   patientDataRequests       PatientDataRequest[]
   patientRiskAssessments    PatientRiskAssessment[]
   patientRiskFlags          PatientRiskFlag[]
+  followUpContacts          FollowUpContact[]
+  followUpAttempts          FollowUpAttempt[]
 
   @@unique([organizationId, locationCode])
   @@index([organizationId])
@@ -1071,6 +1073,8 @@ model User {
   pushSubscriptions               PushSubscription[]
   inboxNotifications              InboxNotification[]
   riskFlagAcknowledgements        RiskFlagAcknowledgement[]
+  followUpContactsOwned           FollowUpContact[]               @relation("FollowUpContactOwner")
+  followUpAttempts                FollowUpAttempt[]
   staffAgreementAcceptances       StaffAgreementAcceptance[]
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
@@ -1214,6 +1218,8 @@ model Patient {
   dataRequests              PatientDataRequest[]
   riskAssessments           PatientRiskAssessment[]         @relation("PatientRiskAssessments")
   riskFlags                 PatientRiskFlag[]
+  followUpContacts          FollowUpContact[]
+  followUpAttempts          FollowUpAttempt[]
   currentRiskAssessment     PatientRiskAssessment?          @relation("CurrentRiskAssessment", fields: [currentRiskAssessmentId], references: [id], onDelete: SetNull)
 
   @@index([primaryClinicId])
@@ -1301,6 +1307,7 @@ model Encounter {
   eyeScreening               EyeScreening?
   stationVisits              PatientStationVisit[]
   riskFlags                  PatientRiskFlag[]
+  followUpContacts           FollowUpContact[]
 
   // Windowed per-clinic reads: clinic dashboards (today, trends) and organization rollups (#13).
   @@index([clinicId, createdAt])
@@ -3184,6 +3191,9 @@ model PatientRiskFlag {
   assessmentId String?      @db.Uuid
   /// The visit a SCREENING_URGENT flag came from.
   encounterId  String?      @db.Uuid
+  /// The follow-up contact attempt a SCREENING_URGENT flag came from: a danger sign reported by
+  /// phone (#338).
+  attemptId    String?      @db.Uuid
   kind         RiskFlagKind
   /// The findings in plain words, for the chart banner. SCREENING_URGENT only.
   detail       String?      @db.VarChar(300)
@@ -3195,11 +3205,13 @@ model PatientRiskFlag {
   patient         Patient                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
   assessment      PatientRiskAssessment?   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   encounter       Encounter?               @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  attempt         FollowUpAttempt?         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   acknowledgement RiskFlagAcknowledgement?
   notifications   InboxNotification[]
 
   @@unique([assessmentId, kind])
   @@unique([encounterId, kind])
+  @@unique([attemptId, kind])
   @@index([patientId, kind, raisedAt])
 }
 
@@ -3214,4 +3226,135 @@ model RiskFlagAcknowledgement {
 
   flag PatientRiskFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
   user User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// How a follow-up contact is made (#338). Tele modes can ask, counsel and refer; they never measure.
+enum FollowUpContactMode {
+  IN_PERSON
+  PHONE
+  SMS
+  WHATSAPP
+  VIDEO
+  HOME_VISIT
+}
+
+enum FollowUpContactPurpose {
+  ROUTINE
+  /// An Urgent patient's call within 48 hours of the referral.
+  URGENT_CONFIRMATION
+  /// A new raised reading with no diagnosis, repeated on another day.
+  CONFIRM_READING
+  REMINDER_BEFORE_VISIT
+  ADHERENCE_REFILL
+  RESCREEN
+  /// After an outcome of REFERRED: did the patient reach care?
+  REFERRAL_CONFIRMATION
+}
+
+enum FollowUpContactStatus {
+  DUE
+  DONE
+  MISSED
+  CANCELLED
+}
+
+/// Exactly one per attempt, and never merged in any report (#338). Only ATTEMPTED is not a
+/// completed follow-up.
+enum FollowUpOutcome {
+  ATTEMPTED
+  REACHED
+  DECLINED
+  AGREED_TO_RETURN
+  RETURNED
+  REFERRED
+  REFERRAL_CONFIRMED
+}
+
+enum FollowUpNotReachedReason {
+  NO_ANSWER
+  WRONG_NUMBER
+  SWITCHED_OFF
+  UNAVAILABLE
+  OTHER
+}
+
+/// DECEASED, MOVED and OPTED_OUT also stop new contacts until the patient is next seen in person.
+enum FollowUpCancelReason {
+  DECEASED
+  MOVED
+  OPTED_OUT
+  NOT_NEEDED
+}
+
+/// The five steps every contact ends with (#338).
+enum FollowUpClosingStep {
+  EXPLAINED_RESULT
+  NAMED_RISK_FACTOR
+  AGREED_ACTIONS
+  SET_NEXT_CONTACT
+  REFERRED_IF_INDICATED
+}
+
+/// One contact a patient is due (#338): scheduled from their tier, or opened by an outcome.
+/// Written only by the system, after the follow-up service has checked the person's permission.
+model FollowUpContact {
+  id               String                 @id @default(uuid()) @db.Uuid
+  clinicId         String                 @db.Uuid
+  patientId        String                 @db.Uuid
+  mode             FollowUpContactMode
+  purpose          FollowUpContactPurpose
+  dueOn            DateTime               @db.Date
+  tierAtScheduling FollowUpTier
+  status           FollowUpContactStatus  @default(DUE)
+  ownerUserId      String?                @db.Uuid
+  /// The in-person visit that completed it.
+  encounterId      String?                @db.Uuid
+  completedAt      DateTime?
+  missedAt         DateTime?
+  cancelledAt      DateTime?
+  cancelReason     FollowUpCancelReason?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  clinic    Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient   Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  owner     User?             @relation("FollowUpContactOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  encounter Encounter?        @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  attempts  FollowUpAttempt[]
+
+  @@index([clinicId, status, dueOn])
+  @@index([clinicId, status, completedAt])
+  @@index([patientId, status])
+}
+
+/// One try at a contact and what happened. Append-only (#338).
+model FollowUpAttempt {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  clinicId            String                    @db.Uuid
+  contactId           String                    @db.Uuid
+  patientId           String                    @db.Uuid
+  at                  DateTime                  @default(now())
+  byUserId            String                    @db.Uuid
+  mode                FollowUpContactMode
+  outcome             FollowUpOutcome
+  notReachedReason    FollowUpNotReachedReason?
+  closingSteps        FollowUpClosingStep[]     @default([])
+  symptoms            HypertensionSymptom[]     @default([])
+  /// Asked only of patients with known diabetes or a glucose on record.
+  diabetesSymptoms    DiabetesUrgentSymptom[]   @default([])
+  adherence           MedicationAdherenceLevel?
+  /// A reading the patient reported; saved as a PATIENT measurement, never as a measured vital.
+  measurementId       String?                   @db.Uuid
+  referralDestination String?                   @db.VarChar(200)
+  notes               String?                   @db.VarChar(1000)
+  createdAt           DateTime                  @default(now())
+
+  clinic    Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  contact   FollowUpContact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  patient   Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  by        User              @relation(fields: [byUserId], references: [id], onDelete: Restrict)
+  riskFlags PatientRiskFlag[]
+
+  @@index([contactId, at])
+  @@index([patientId, at])
 }

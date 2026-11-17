@@ -34,4 +34,6 @@ export interface UrgentWorkItem {
 export interface UrgentWork {
   unclaimed: number;
   items: UrgentWorkItem[];
+  /** Follow-up contacts due today or late (#338); only for someone who can record them. */
+  contactsDue?: number;
 }

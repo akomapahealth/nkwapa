@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Client } from 'pg';
@@ -5,6 +6,8 @@ import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { from, lastValueFrom } from 'rxjs';
 import {
+  FOLLOW_UP_TIERS,
+  HYPERTENSION_DRUG_CATEGORIES,
   TENANT_CLINICS,
   TENANT_PATIENTS,
   tenantFixtureSql,
@@ -18,6 +21,7 @@ import { FollowUpController } from './follow-up.controller';
 import { FollowUpRiskService } from './follow-up-risk.service';
 import { FollowUpFlagService } from './follow-up-flags.service';
 import { PushService } from '../push/push.service';
+import { FollowUpContactService } from './follow-up-contact.service';
 
 /**
  * The live tier (#336) against PostgreSQL as the unprivileged application role: a recompute writes
@@ -56,6 +60,7 @@ describeRisk('live follow-up tier', () => {
   let interceptor: PrismaRlsInterceptor;
   let risk: FollowUpRiskService;
   let flags: FollowUpFlagService;
+  let contacts: FollowUpContactService;
   let encounterId: string;
 
   beforeAll(async () => {
@@ -87,6 +92,7 @@ describeRisk('live follow-up tier', () => {
     const audit = new AuditService(prisma);
     flags = new FollowUpFlagService(prisma, new PushService(prisma), audit);
     risk = new FollowUpRiskService(prisma, audit, flags);
+    contacts = new FollowUpContactService(prisma, audit, risk, flags);
 
     // A crisis reading with chest pain, recorded today.
     encounterId = await prisma.withSystemContext({ systemReason: 'Test fixture' }, async (tx) => {
@@ -213,7 +219,7 @@ describeRisk('live follow-up tier', () => {
   });
 
   it('lets clinical staff at the clinic read the tier, volunteers included', async () => {
-    const controller = new FollowUpController(prisma, risk, flags);
+    const controller = new FollowUpController(prisma, risk, flags, contacts);
     const params = { clinicId: a1.id, patientId: PATIENT.id };
     for (const user of [DOCTOR_A1, VOLUNTEER_A1]) {
       const result = await as(user, () => controller.get(params));
@@ -324,7 +330,7 @@ describeRisk('live follow-up tier', () => {
     });
 
     it('"I\'m on it" records the first taker once and clears everyone\'s tile', async () => {
-      const controller = new FollowUpController(prisma, risk, flags);
+      const controller = new FollowUpController(prisma, risk, flags, contacts);
       const params = { clinicId: a1.id, patientId: PATIENT.id };
       const req = (user: TenantFixtureUser) => ({ user: { user: { id: user.id } } }) as never;
 
@@ -377,7 +383,7 @@ describeRisk('live follow-up tier', () => {
         ),
       ).rejects.toThrow();
 
-      const controller = new FollowUpController(prisma, risk, flags);
+      const controller = new FollowUpController(prisma, risk, flags, contacts);
       const params = { clinicId: a1.id, patientId: other.id };
       const req = { user: { user: { id: DOCTOR_A1.id } } } as never;
       const before = await as(DOCTOR_A1, () => controller.get(params));
@@ -392,6 +398,385 @@ describeRisk('live follow-up tier', () => {
       );
       expect(tile).toMatchObject({ riskFlagId: rows[0].id, count: 2 });
       expect(tile?.readAt).not.toBeNull();
+    });
+  });
+
+  describe('follow-up contacts (#338)', () => {
+    const VOLUNTEER = VOLUNTEER_A1;
+    let patientId: string;
+    let n = 0;
+
+    /** A fresh patient with one raised reading today, so every test starts from a clean chart. */
+    async function freshPatient(): Promise<string> {
+      n += 1;
+      const id = await system(async (tx) => {
+        const patient = await tx.patient.create({
+          data: {
+            patientCode: `NKP-FU338-${n}-${Date.now()}`,
+            primaryClinicId: a1.id,
+            firstName: 'Efua',
+            lastName: `Contact${n}`,
+            dob: new Date('1968-03-01T00:00:00Z'),
+            sex: 'FEMALE',
+            nationalIdType: 'OTHER',
+            nationalIdCiphertext: `c-338-${n}-${Date.now()}`,
+            nationalIdHash: `h-338-${n}-${Date.now()}`,
+          },
+          select: { id: true },
+        });
+        const encounter = await tx.encounter.create({
+          data: { clinicId: a1.id, patientId: patient.id, createdByUserId: DOCTOR_A1.id },
+        });
+        // Diagnosed, BMI and smoking known: enough for the engine to tier (Low-moderate).
+        await tx.vitals.create({
+          data: {
+            clinicId: a1.id,
+            encounterId: encounter.id,
+            systolicBp: 162,
+            diastolicBp: 102,
+            bmi: 27,
+          },
+        });
+        await tx.tobaccoScreening.create({
+          data: { clinicId: a1.id, encounterId: encounter.id, smokingStatus: 'NEVER' },
+        });
+        await tx.hypertensionAssessment.create({
+          data: {
+            clinicId: a1.id,
+            encounterId: encounter.id,
+            authoredByUserId: DOCTOR_A1.id,
+            hypertensionStatus: 'KNOWN_HYPERTENSION',
+            relevantConditions: ['NONE_KNOWN'],
+          },
+        });
+        return patient.id;
+      });
+      await risk.recompute({ patientId: id, trigger: 'VITALS' });
+      return id;
+    }
+
+    const contactsOf = (id: string) =>
+      system((tx) =>
+        tx.followUpContact.findMany({ where: { patientId: id }, orderBy: { createdAt: 'asc' } }),
+      );
+    const record = (contactId: string, dto: Record<string, unknown>) =>
+      as(VOLUNTEER, () => contacts.recordAttempt(a1.id, contactId, VOLUNTEER.id, dto as never));
+
+    beforeEach(async () => {
+      patientId = await freshPatient();
+    });
+
+    it('schedules one visit and one call from the tier, and a sweep books nothing more', async () => {
+      const first = await contactsOf(patientId);
+      const tier = (
+        await system((tx) =>
+          tx.patient.findUnique({ where: { id: patientId }, select: { currentRiskTier: true } }),
+        )
+      )?.currentRiskTier;
+      expect(tier).not.toBe('NOT_TIERED');
+      expect(first.map((c) => c.mode).sort()).toEqual(['IN_PERSON', 'PHONE']);
+      expect(first.every((c) => c.status === 'DUE' && c.tierAtScheduling === tier)).toBe(true);
+      await risk.recompute({ patientId, trigger: 'SWEEP' });
+      expect(await contactsOf(patientId)).toHaveLength(2);
+    });
+
+    it('three unanswered calls are three attempts and no completed follow-up', async () => {
+      const call = (await contactsOf(patientId)).find((c) => c.mode === 'PHONE')!;
+      for (let i = 0; i < 3; i += 1) {
+        await record(call.id, {
+          mode: 'PHONE',
+          outcome: 'ATTEMPTED',
+          notReachedReason: 'NO_ANSWER',
+        });
+      }
+      const attempts = await system((tx) =>
+        tx.followUpAttempt.findMany({ where: { contactId: call.id } }),
+      );
+      expect(attempts.map((a) => a.outcome)).toEqual(['ATTEMPTED', 'ATTEMPTED', 'ATTEMPTED']);
+      const after = await system((tx) => tx.followUpContact.findUnique({ where: { id: call.id } }));
+      expect(after).toMatchObject({ status: 'DUE', ownerUserId: VOLUNTEER.id });
+    });
+
+    it('a reached call completes the contact, books the next and keeps a reported reading as reported', async () => {
+      const call = (await contactsOf(patientId)).find((c) => c.mode === 'PHONE')!;
+      const result = await record(call.id, {
+        mode: 'PHONE',
+        outcome: 'REACHED',
+        closingSteps: ['EXPLAINED_RESULT', 'SET_NEXT_CONTACT'],
+        reportedSystolicBp: 128,
+        reportedDiastolicBp: 82,
+      });
+      expect(result).toMatchObject({ contactStatus: 'DONE', urgent: false });
+      const all = await contactsOf(patientId);
+      expect(all.find((c) => c.id === call.id)?.status).toBe('DONE');
+      expect(all.filter((c) => c.mode === 'PHONE' && c.status === 'DUE')).toHaveLength(1);
+      const measurement = await system((tx) =>
+        tx.patientMeasurement.findFirst({ where: { patientId } }),
+      );
+      expect(measurement?.source).toBe('PATIENT');
+    });
+
+    it('a contact past its grace period is missed overnight and its owner is told', async () => {
+      const call = (await contactsOf(patientId)).find((c) => c.mode === 'PHONE')!;
+      // Seen 40 days ago, the call fell due 20 days ago, and nobody has reached them since.
+      const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
+      await system(async (tx) => {
+        await tx.encounter.updateMany({ where: { patientId }, data: { createdAt: daysAgo(40) } });
+        await tx.followUpContact.update({
+          where: { id: call.id },
+          data: { dueOn: daysAgo(20), createdAt: daysAgo(40), ownerUserId: VOLUNTEER.id },
+        });
+      });
+      await risk.recompute({ patientId, trigger: 'SWEEP' });
+      const missed = await system((tx) =>
+        tx.followUpContact.findUnique({ where: { id: call.id } }),
+      );
+      expect(missed?.status).toBe('MISSED');
+      const assessment = await system((tx) =>
+        tx.patient.findUnique({
+          where: { id: patientId },
+          select: { currentRiskAssessment: { select: { tier: true, reasons: true } } },
+        }),
+      );
+      expect(assessment?.currentRiskAssessment?.reasons).toContain('MISSED_CONTACT');
+      const tile = await system((tx) =>
+        tx.inboxNotification.findFirst({
+          where: { userId: VOLUNTEER.id, tag: `follow-up-missed-${patientId}` },
+        }),
+      );
+      expect(tile?.kind).toBe('FOLLOW_UP_DUE');
+    });
+
+    it('chest pain reported by phone raises an urgent flag someone can take', async () => {
+      const call = (await contactsOf(patientId)).find((c) => c.mode === 'PHONE')!;
+      const result = await record(call.id, {
+        mode: 'PHONE',
+        outcome: 'REACHED',
+        symptoms: ['CHEST_PAIN'],
+      });
+      expect(result.urgent).toBe(true);
+      const flags = await system((tx) =>
+        tx.patientRiskFlag.findMany({ where: { patientId, kind: 'SCREENING_URGENT' } }),
+      );
+      expect(flags).toHaveLength(1);
+      expect(flags[0].attemptId).toBe(result.id);
+    });
+
+    it('an in-person visit on the due date completes the visit contact as returned', async () => {
+      const visit = (await contactsOf(patientId)).find((c) => c.mode === 'IN_PERSON')!;
+      await system((tx) =>
+        tx.followUpContact.update({
+          where: { id: visit.id },
+          data: { dueOn: new Date(), createdAt: new Date(Date.now() - 60_000) },
+        }),
+      );
+      await system((tx) =>
+        tx.encounter.create({
+          data: { clinicId: a1.id, patientId, createdByUserId: DOCTOR_A1.id },
+        }),
+      );
+      await risk.recompute({ patientId, trigger: 'VITALS' });
+      const done = await system((tx) => tx.followUpContact.findUnique({ where: { id: visit.id } }));
+      expect(done?.status).toBe('DONE');
+      const attempt = await system((tx) =>
+        tx.followUpAttempt.findFirst({ where: { contactId: visit.id } }),
+      );
+      expect(attempt?.outcome).toBe('RETURNED');
+    });
+
+    it('diabetes danger signs reported by phone raise the urgent flag too', async () => {
+      const call = (await contactsOf(patientId)).find((c) => c.mode === 'PHONE')!;
+      const result = await record(call.id, {
+        mode: 'PHONE',
+        outcome: 'REACHED',
+        diabetesSymptoms: ['VOMITING'],
+      });
+      expect(result.urgent).toBe(true);
+      const attempt = await system((tx) =>
+        tx.followUpAttempt.findUnique({ where: { id: result.id } }),
+      );
+      expect(attempt?.diabetesSymptoms).toEqual(['VOMITING']);
+      const flag = await system((tx) =>
+        tx.patientRiskFlag.findFirst({ where: { patientId, kind: 'SCREENING_URGENT' } }),
+      );
+      expect(flag?.attemptId).toBe(result.id);
+    });
+
+    it('a 30-day prescription books one refill call five days before it runs out', async () => {
+      await system(async (tx) => {
+        const drug = await tx.drug.create({
+          data: { clinicId: a1.id, name: 'Amlodipine', category: HYPERTENSION_DRUG_CATEGORIES[0] },
+          select: { id: true },
+        });
+        const encounter = await tx.encounter.findFirstOrThrow({
+          where: { patientId },
+          select: { id: true },
+        });
+        await tx.prescription.create({
+          data: {
+            clinicId: a1.id,
+            encounterId: encounter.id,
+            drugId: drug.id,
+            dosage: '5 mg',
+            frequency: 'Once daily',
+            duration: '30 days',
+            prescribedByUserId: DOCTOR_A1.id,
+          },
+        });
+      });
+      await risk.recompute({ patientId, trigger: 'PRESCRIPTION' });
+      await risk.recompute({ patientId, trigger: 'SWEEP' });
+      const refills = (await contactsOf(patientId)).filter((c) => c.purpose === 'ADHERENCE_REFILL');
+      expect(refills).toHaveLength(1);
+      const expected = new Date();
+      expected.setUTCHours(0, 0, 0, 0);
+      expected.setUTCDate(expected.getUTCDate() + 25);
+      expect(refills[0]).toMatchObject({ mode: 'PHONE', status: 'DUE', dueOn: expected });
+    });
+
+    it('a call queued offline is recorded once, dated when it happened, even after the contact closed', async () => {
+      const call = (await contactsOf(patientId)).find((c) => c.mode === 'PHONE')!;
+      const id = randomUUID();
+      const happened = new Date(Date.now() - 2 * 3_600_000);
+      // Someone else closed the contact while this device was offline.
+      await record(call.id, { mode: 'PHONE', outcome: 'REACHED' });
+      const replay = () =>
+        as(VOLUNTEER, () =>
+          contacts.recordAttempt(
+            a1.id,
+            call.id,
+            VOLUNTEER.id,
+            { id, mode: 'PHONE', outcome: 'ATTEMPTED', notReachedReason: 'NO_ANSWER' } as never,
+            { at: happened },
+          ),
+        );
+      await replay();
+      await replay();
+      const attempts = await system((tx) =>
+        tx.followUpAttempt.findMany({ where: { contactId: call.id }, orderBy: { at: 'asc' } }),
+      );
+      expect(attempts).toHaveLength(2);
+      expect(attempts[0]).toMatchObject({ id, at: happened, outcome: 'ATTEMPTED' });
+      expect(
+        (await system((tx) => tx.followUpContact.findUnique({ where: { id: call.id } })))?.status,
+      ).toBe('DONE');
+      // Online, a closed contact still refuses a new attempt.
+      await expect(record(call.id, { mode: 'PHONE', outcome: 'REACHED' })).rejects.toThrow(
+        'no longer open',
+      );
+    });
+
+    it('pages the due tabs most urgent first, then by due day, with no row twice', async () => {
+      const others = [await freshPatient(), await freshPatient()];
+      const tiers = ['HIGH', null] as const;
+      await system(async (tx) => {
+        for (const [i, id] of others.entries()) {
+          await tx.patient.update({ where: { id }, data: { currentRiskTier: tiers[i] } });
+        }
+      });
+      const day = (n: number) => {
+        const d = new Date();
+        d.setUTCHours(0, 0, 0, 0);
+        d.setUTCDate(d.getUTCDate() + n);
+        return d;
+      };
+      // VIDEO is booked by nobody else, so the filter isolates these 66 rows.
+      await system((tx) =>
+        tx.followUpContact.createMany({
+          data: [patientId, ...others].flatMap((pid) =>
+            Array.from({ length: 22 }, (_, k) => ({
+              clinicId: a1.id,
+              patientId: pid,
+              mode: 'VIDEO' as const,
+              purpose: 'ROUTINE' as const,
+              dueOn: day(1 + (k % 6)),
+              tierAtScheduling: 'LOW' as const,
+            })),
+          ),
+        }),
+      );
+      try {
+        const seen: Array<{ id: string; tier: string | null; dueOn: string }> = [];
+        let cursor: string | undefined;
+        let pages = 0;
+        do {
+          const page = await as(VOLUNTEER, () =>
+            contacts.list(a1.id, VOLUNTEER.id, { tab: 'week', mode: 'VIDEO', cursor } as never),
+          );
+          pages += 1;
+          for (const item of page.items) {
+            const tier = await system((tx) =>
+              tx.patient.findUnique({
+                where: { id: item.patient.id },
+                select: { currentRiskTier: true },
+              }),
+            );
+            seen.push({ id: item.id, tier: tier?.currentRiskTier ?? null, dueOn: item.dueOn });
+          }
+          cursor = page.nextCursor ?? undefined;
+        } while (cursor);
+        expect(pages).toBe(2);
+        expect(new Set(seen.map((r) => r.id)).size).toBe(66);
+        const rank = (t: string | null) => (t === null ? 99 : FOLLOW_UP_TIERS.indexOf(t as never));
+        for (let i = 1; i < seen.length; i += 1) {
+          const [a, b] = [seen[i - 1], seen[i]];
+          expect(rank(a.tier) < rank(b.tier) || (a.tier === b.tier && a.dueOn <= b.dueOn)).toBe(
+            true,
+          );
+        }
+        expect(seen[0].tier).toBe('HIGH');
+        expect(seen[seen.length - 1].tier).toBeNull();
+      } finally {
+        await system((tx) =>
+          tx.followUpContact.deleteMany({ where: { mode: 'VIDEO', clinicId: a1.id } }),
+        );
+      }
+    });
+
+    it('the offline copy carries what the sheet needs', async () => {
+      await system((tx) =>
+        tx.followUpContact.updateMany({ where: { patientId }, data: { dueOn: new Date() } }),
+      );
+      const packet = await as(VOLUNTEER, () => contacts.offlinePacket(a1.id));
+      const mine = packet.items.filter((item) => item.patient.id === patientId);
+      expect(mine).toHaveLength(2);
+      expect(mine[0]).toHaveProperty('suggestedNextOn');
+      expect(mine[0]).toHaveProperty('asksDiabetes', false);
+    });
+
+    it("the morning digest counts this clinic's contacts without failing", async () => {
+      await expect(flags.sendDigest()).resolves.toBeUndefined();
+    });
+
+    it('a death cancels every open contact and books no more', async () => {
+      const [first] = await contactsOf(patientId);
+      await as(VOLUNTEER, () =>
+        contacts.cancel(a1.id, first.id, VOLUNTEER.id, { reason: 'DECEASED' }),
+      );
+      await risk.recompute({ patientId, trigger: 'SWEEP' });
+      const all = await contactsOf(patientId);
+      expect(all.every((c) => c.status === 'CANCELLED')).toBe(true);
+    });
+
+    it('hides contacts from staff at another clinic, and lets nobody but the system write one', async () => {
+      const seen = await as(DOCTOR_B1, () =>
+        prisma.followUpContact.findMany({ where: { patientId } }),
+      );
+      expect(seen).toEqual([]);
+      await expect(
+        as(DOCTOR_A1, () =>
+          prisma.followUpContact.create({
+            data: {
+              clinicId: a1.id,
+              patientId,
+              mode: 'PHONE',
+              purpose: 'ROUTINE',
+              dueOn: new Date(),
+              tierAtScheduling: 'HIGH',
+            },
+          }),
+        ),
+      ).rejects.toThrow();
     });
   });
 });

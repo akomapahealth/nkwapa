@@ -1,7 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { CheckCircle, ClipboardList, Eye, FileEdit, ListOrdered, OctagonAlert } from 'lucide-react';
+import {
+  CheckCircle,
+  ClipboardList,
+  Eye,
+  FileEdit,
+  ListOrdered,
+  OctagonAlert,
+  PhoneCall,
+} from 'lucide-react';
 import { AppActionRow, type AppActionRowProps } from '@/components/app-shell/AppActionRow';
 import { Button } from '@/components/ui/button';
 import {
@@ -90,6 +98,16 @@ export function workRows({
       tone: 'destructive',
       href: first ? `/patients/${first.patientId}?tab=overview` : '/notifications',
       label: urgent.unclaimed === 1 ? 'Open chart' : 'Open longest waiting',
+    });
+  }
+  if (urgent?.contactsDue) {
+    rows.push({
+      title: `${plural(urgent.contactsDue, 'follow-up contact', 'follow-up contacts')} due`,
+      detail: 'Calls and visits due today or already late, most urgent patients first.',
+      icon: PhoneCall,
+      tone: 'warning',
+      href: '/follow-up',
+      label: 'Open follow-up',
     });
   }
   const worklist = worklistHref ? WORKLIST_LABELS[worklistHref] : undefined;

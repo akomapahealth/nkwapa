@@ -511,7 +511,7 @@ export class PatientMergeService {
     });
 
     // The surviving chart now holds both histories. The source keeps its last tier as history.
-    await this.flags?.moveFlagsAfterMerge(source.id, canonical.id);
+    await this.flags?.moveAfterMerge(source.id, canonical.id);
     await this.risk?.recomputeAfterCommit({
       patientId: canonical.id,
       trigger: 'MERGE',

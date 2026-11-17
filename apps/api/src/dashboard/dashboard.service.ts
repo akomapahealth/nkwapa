@@ -70,6 +70,14 @@ export class DashboardService {
       )
     ) {
       response.urgent = await this.unclaimedUrgent(clinicId);
+      if (
+        hasPermission(
+          roles.map((role) => ({ role: role as UserRole })),
+          PERMISSIONS.FOLLOW_UP_MANAGE,
+        )
+      ) {
+        response.urgent.contactsDue = await this.contactsDue(clinicId);
+      }
     }
     if (isAdmin) {
       response.systemAdmin = await this.getSystemAdminMetrics(parseZoneFilter(filters?.zoneCode));
@@ -215,6 +223,20 @@ export class DashboardService {
       .concat(await this.unclaimedScreening(clinicId))
       .sort((a, b) => (a.raisedAt ?? '').localeCompare(b.raisedAt ?? ''));
     return { unclaimed: unclaimed.length, items: unclaimed.slice(0, DASHBOARD_WORK_ITEM_LIMIT) };
+  }
+
+  /** Follow-up contacts due today or already late (#338). */
+  private contactsDue(clinicId: string): Promise<number> {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    return this.prisma.followUpContact.count({
+      where: {
+        clinicId,
+        status: { in: ['DUE', 'MISSED'] },
+        dueOn: { lte: today },
+        patient: { mergedIntoPatientId: null },
+      },
+    });
   }
 
   /** Today's untaken urgent screening findings on patients the engine does not call Urgent. */

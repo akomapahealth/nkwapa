@@ -390,6 +390,10 @@ export interface FollowUpConfig {
   screeningFlagOpenHours: number;
   /** When the directors' daily counts arrive, as a cron hour and minute in the clinic's zone. */
   dailyDigestCron: string;
+  /** Days after an outcome of REFERRED before the call to confirm the patient reached care (#338). */
+  referralConfirmationDays: number;
+  /** A refill call falls due this many days before a prescription's supply runs out (#338). */
+  refillLeadDays: number;
 }
 
 /**
@@ -502,6 +506,8 @@ export const DEFAULT_FOLLOW_UP_CONFIG: FollowUpConfig = {
   screeningFlagOpenHours: 24,
   // 07:00, before the clinic day starts.
   dailyDigestCron: '0 7 * * *',
+  referralConfirmationDays: 7,
+  refillLeadDays: 5,
 };
 
 /* ------------------------------------------------------------------------------- Input */
@@ -606,7 +612,7 @@ export function addMonths(date: Date, months: number): Date {
   return out;
 }
 
-function addDays(date: Date, days: number): Date {
+export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * DAY_MS);
 }
 

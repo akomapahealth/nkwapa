@@ -19,6 +19,7 @@ import { ClinicAndPatientParamsDto } from '../common/request-dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { FollowUpRiskService } from './follow-up-risk.service';
 import { FollowUpFlagService } from './follow-up-flags.service';
+import { FollowUpContactService } from './follow-up-contact.service';
 
 /** Enough history to show how a patient moved, without paging. */
 const HISTORY_LIMIT = 20;
@@ -30,6 +31,7 @@ export class FollowUpController {
     private readonly prisma: PrismaService,
     private readonly risk: FollowUpRiskService,
     private readonly flags: FollowUpFlagService,
+    private readonly contacts: FollowUpContactService,
   ) {}
 
   /**
@@ -50,6 +52,15 @@ export class FollowUpController {
     });
     const urgentFlag = await this.flags.openUrgentFlag(params.clinicId, params.patientId);
     return { current: history[0] ?? null, history, urgentFlag };
+  }
+
+  /** The patient's open contacts and every attempt, for the chart (#338). */
+  @Get('contacts')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.FOLLOW_UP_READ)
+  contactHistory(@Param() params: ClinicAndPatientParamsDto) {
+    if (!this.risk.enabled) throw new NotFoundException();
+    return this.contacts.forPatient(params.clinicId, params.patientId);
   }
 
   /** "I'm on it" on an Urgent patient (#337). Taking one someone already took returns theirs. */

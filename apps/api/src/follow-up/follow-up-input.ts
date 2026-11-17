@@ -112,6 +112,22 @@ export interface FollowUpRecords {
       createdAt: Date;
     }>;
   }>;
+  /**
+   * Follow-up contacts (#338). Absent before any were scheduled, which the engine reads as "no
+   * contact due", so a patient who was never scheduled is never late.
+   */
+  followUp?: {
+    /** When each attempt that reached the patient happened (any outcome but ATTEMPTED). */
+    completedAt: Date[];
+    /** Due dates of contacts not yet done or cancelled, missed ones included. */
+    unresolvedDueOn: Date[];
+    /** Symptoms reported on contact attempts, for the danger signs. */
+    reportedSymptoms: Array<{
+      at: Date;
+      symptoms: HypertensionSymptom[];
+      diabetesSymptoms?: DiabetesUrgentSymptom[];
+    }>;
+  };
   /** Prescriptions for a hypertension or diabetes drug. */
   prescriptions: Array<{
     drugId: string;
@@ -380,6 +396,21 @@ export function assembleFollowUpInput(
     latestDiabetes && latestDiabetes.at >= symptomsSince ? latestDiabetes : null;
 
   const glucoses = glucosesFrom(records);
+  const contact = contactFacts(records);
+  // Danger symptoms reported by phone count like those from the latest assessment (#338).
+  const recentReports = (records.followUp?.reportedSymptoms ?? []).filter(
+    (report) => report.at >= symptomsSince,
+  );
+  const reportedSymptoms = recentReports.flatMap((report) => report.symptoms);
+  const diabetesSymptoms = [
+    ...new Set([
+      ...(recentDiabetes?.urgentSymptoms ?? []),
+      ...recentReports.flatMap((report) => report.diabetesSymptoms ?? []),
+    ]),
+  ].filter((symptom) => symptom !== 'NONE');
+  const hypertensionSymptoms = [
+    ...new Set([...(recentHypertension?.currentSymptoms ?? []), ...reportedSymptoms]),
+  ].filter((symptom) => symptom !== 'NONE');
   const hba1c = latest(
     diabetesRows
       .filter((d) => d.hba1cPercent != null)
@@ -413,8 +444,8 @@ export function assembleFollowUpInput(
     selfReportedGlucose: latest(glucoses.reported),
     hba1c: hba1c ? { percent: hba1c.percent, at: hba1c.at } : null,
     symptoms: {
-      hypertension: recentHypertension?.currentSymptoms ?? [],
-      diabetes: recentDiabetes?.urgentSymptoms ?? [],
+      hypertension: hypertensionSymptoms,
+      diabetes: diabetesSymptoms,
     },
     hypoglycaemiaSymptoms: recentDiabetes
       ? recentDiabetes.symptoms.includes('HYPOGLYCEMIA_SYMPTOMS')
@@ -429,5 +460,26 @@ export function assembleFollowUpInput(
     medicationChangedAt: lastMedicationChange(records),
     bmi,
     smoker,
+    ...contact,
   };
+}
+
+/**
+ * The missed-contact rule's two dates (#338). A visit is a completed contact, and so is any call
+ * that reached the patient. The due date is the oldest one still unresolved after the last
+ * completed contact, so a missed contact keeps counting until someone actually reaches them.
+ */
+function contactFacts(
+  records: FollowUpRecords,
+): Pick<FollowUpInput, 'lastCompletedContactAt' | 'nextContactDueAt'> {
+  if (!records.followUp) return {};
+  const completed = [
+    ...records.followUp.completedAt,
+    ...records.encounters.map((e) => e.createdAt),
+  ];
+  const last = completed.reduce<Date | null>((max, at) => (!max || at > max ? at : max), null);
+  const due = records.followUp.unresolvedDueOn
+    .filter((dueOn) => !last || dueOn > last)
+    .reduce<Date | null>((min, at) => (!min || at < min ? at : min), null);
+  return { lastCompletedContactAt: last, nextContactDueAt: due };
 }

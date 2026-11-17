@@ -77,6 +77,8 @@ export interface UrgentFlag {
   raisedAt: string;
   /** The screening findings in plain words; null for an Urgent tier. */
   detail: string | null;
+  /** Reported on a follow-up contact rather than found at screening (#338). */
+  reportedOnContact?: boolean;
   acknowledgement: UrgentAcknowledgement | null;
 }
 

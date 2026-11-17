@@ -1,4 +1,6 @@
 import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
+import { FollowUpContactService } from '../follow-up/follow-up-contact.service';
+import { FollowUpAttemptReplayPayload } from '../follow-up/dto/follow-up-contact.dto';
 import {
   BadRequestException,
   ConflictException,
@@ -123,6 +125,7 @@ export class SyncService {
     private readonly clinicianPlanSeal: ClinicianPlanSealService,
     @Optional() private readonly telemetry?: TelemetryService,
     @Optional() private readonly risk?: FollowUpRiskService,
+    @Optional() private readonly followUpContacts?: FollowUpContactService,
   ) {}
 
   async applyMutations(
@@ -507,6 +510,8 @@ export class SyncService {
       case 'shift_check_out':
       case 'patient_check_in':
         return this.applyOpsReplay(clinicId, actorUserId, mut, payload, metadata);
+      case 'follow_up_attempt':
+        return this.applyFollowUpAttempt(clinicId, actorUserId, mut, payload);
       default:
         throw new Error(`Unknown entity type: ${mut.entityType}`);
     }
@@ -572,6 +577,37 @@ export class SyncService {
         );
       }
     }
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * A follow-up call recorded offline (#338), through the same service as the REST route. The
+   * attempt id is the device's, so a call that reached the server before the connection dropped
+   * comes back as applied. Dated when it happened, but never in the future.
+   */
+  private async applyFollowUpAttempt(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    if (!this.followUpContacts || !this.risk?.enabled) {
+      throw new NotFoundException('Follow-up is not available.');
+    }
+    const replay = await validatePayload(
+      FollowUpAttemptReplayPayload,
+      payload,
+      'Queued follow-up contact failed validation',
+    );
+    const at = new Date(Math.min(new Date(replay.occurredAt).getTime(), Date.now()));
+    // The payload's own id, if any, is ignored: the attempt is the mutation's entityId.
+    await this.followUpContacts.recordAttempt(
+      clinicId,
+      replay.contactId,
+      actorUserId,
+      { ...replay, id: mut.entityId },
+      { at },
+    );
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 

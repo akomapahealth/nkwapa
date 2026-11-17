@@ -38,6 +38,15 @@ export interface TierChange {
   actorUserId: string | null;
 }
 
+/** A follow-up contact the nightly run just marked missed (#338). */
+export interface MissedContact {
+  clinicId: string;
+  patientId: string;
+  contactId: string;
+  ownerUserId: string | null;
+  dueOn: Date;
+}
+
 /** The kinds someone can say "I'm on it" to. */
 export const TAKEABLE_KINDS = ['URGENT', 'SCREENING_URGENT'] as const satisfies RiskFlagKind[];
 type TakeableKind = (typeof TAKEABLE_KINDS)[number];
@@ -49,17 +58,22 @@ export interface UrgentFlagView {
   raisedAt: Date;
   /** The screening findings in plain words; null for an Urgent tier, whose reasons say it. */
   detail: string | null;
+  /** Reported on a follow-up contact rather than found at screening (#338). */
+  reportedOnContact: boolean;
   acknowledgement: { userId: string; displayName: string; at: Date } | null;
 }
 
 /** An urgent finding at screening (#337), as `PushService.alertClinicians` receives it. */
-export interface ScreeningAlert {
+export type ScreeningAlert = {
   clinicId: string;
-  encounterId: string;
   actorUserId: string;
   /** Plain-English findings, e.g. "Chest pain" or "Blood pressure 186/124 mmHg". */
   findings: string[];
-}
+} & (
+  | { encounterId: string }
+  /** A danger sign reported on a follow-up contact (#338). */
+  | { attemptId: string; patientId: string }
+);
 
 /**
  * A screening flag whose visit now has a repeat reading and nothing urgent left (#334): the first
@@ -300,20 +314,63 @@ export class FollowUpFlagService implements OnModuleInit {
   }
 
   /**
-   * After a merge commits: the absorbed chart's flags follow the person, so an open urgent flag and
-   * who took it are on the surviving chart. Moved whether or not the flag is on: it is data, not a
-   * notification. Never throws; a failure leaves the flags on the merged chart, where they are
-   * history.
+   * Tell whoever owns each contact just marked missed, or the clinic's managers when nobody took
+   * it (#338). One tile per patient. Never throws.
    */
-  moveFlagsAfterMerge(sourcePatientId: string, canonicalPatientId: string): Promise<void> {
+  async notifyMissed(missed: readonly MissedContact[]): Promise<void> {
+    if (!this.enabled) return;
+    for (const contact of missed) {
+      try {
+        const { staff, patient } = await this.system(
+          { systemReason: 'Route a missed follow-up contact' },
+          async (tx) => ({
+            staff: contact.ownerUserId ? null : await loadClinicStaff(tx, contact.clinicId),
+            patient: await tx.patient.findUnique({
+              where: { id: contact.patientId },
+              select: { firstName: true, lastName: true },
+            }),
+          }),
+        );
+        const recipients = contact.ownerUserId
+          ? [contact.ownerUserId]
+          : staff!.roles.filter((r) => r.role === 'MANAGER').map((r) => r.userId);
+        const name = (patient && formatPersonName(patient, 'short')) || 'A patient';
+        this.push.notify([...new Set(recipients)], {
+          kind: 'FOLLOW_UP_DUE',
+          title: 'A follow-up contact was missed',
+          body: 'Open Nkwapa to see who.',
+          url: `/clinics/${contact.clinicId}/patients/${contact.patientId}?tab=overview`,
+          tag: `follow-up-missed-${contact.patientId}`,
+          clinicId: contact.clinicId,
+          inbox: {
+            title: `${name} missed a follow-up contact`,
+            body: `Was due ${contact.dueOn.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}. Try again, or arrange a visit.`,
+          },
+        });
+      } catch (error) {
+        this.logger.warn(`Missed-contact notice failed: ${errorName(error)}`);
+      }
+    }
+  }
+
+  /**
+   * After a merge commits: the absorbed chart's flags, follow-up contacts and attempts follow the
+   * person, so an open urgent flag, who took it and the call schedule are on the surviving chart.
+   * Moved whether or not the flag is on: it is data, not a notification. Never throws; a failure
+   * leaves them on the merged chart, where they are history.
+   */
+  moveAfterMerge(sourcePatientId: string, canonicalPatientId: string): Promise<void> {
+    const move = { where: { patientId: sourcePatientId }, data: { patientId: canonicalPatientId } };
     return this.prisma.afterCommit(async () => {
-      await this.system({ systemReason: 'Move follow-up flags to the surviving chart' }, (tx) =>
-        tx.patientRiskFlag.updateMany({
-          where: { patientId: sourcePatientId },
-          data: { patientId: canonicalPatientId },
-        }),
+      await this.system(
+        { systemReason: 'Move follow-up records to the surviving chart' },
+        async (tx) => {
+          await tx.patientRiskFlag.updateMany(move);
+          await tx.followUpContact.updateMany(move);
+          await tx.followUpAttempt.updateMany(move);
+        },
       ).catch((error) =>
-        this.logger.warn(`Moving flags after a merge failed: ${errorName(error)}`),
+        this.logger.warn(`Moving follow-up records after a merge failed: ${errorName(error)}`),
       );
     });
   }
@@ -331,7 +388,7 @@ export class FollowUpFlagService implements OnModuleInit {
           this.sendScreeningAlert(alert).catch((error) =>
             this.logger.warn(`Screening alert failed: ${errorName(error)}`),
           ),
-        `screening-alert:${alert.encounterId}:${alert.findings.join('|')}`,
+        `screening-alert:${'encounterId' in alert ? alert.encounterId : alert.attemptId}:${alert.findings.join('|')}`,
       )
       .catch((error) => this.logger.warn(`Screening alert failed: ${errorName(error)}`));
   }
@@ -339,19 +396,22 @@ export class FollowUpFlagService implements OnModuleInit {
   /** Exposed for tests; callers use alertScreening(). */
   async sendScreeningAlert(alert: ScreeningAlert): Promise<void> {
     const detail = alert.findings.join('. ').slice(0, 300);
+    const source =
+      'attemptId' in alert ? { attemptId: alert.attemptId } : { encounterId: alert.encounterId };
     const found = await this.system(
       { systemReason: 'Route an urgent screening finding' },
       async (tx) => {
-        const encounter = await tx.encounter.findUnique({
-          where: { id: alert.encounterId },
-          select: {
-            patient: {
-              select: { id: true, firstName: true, lastName: true, currentRiskTier: true },
-            },
-          },
-        });
+        const select = { id: true, firstName: true, lastName: true, currentRiskTier: true };
+        const patient =
+          'attemptId' in alert
+            ? await tx.patient.findUnique({ where: { id: alert.patientId }, select })
+            : ((
+                await tx.encounter.findUnique({
+                  where: { id: alert.encounterId },
+                  select: { patient: { select } },
+                })
+              )?.patient ?? null);
         const staff = await loadClinicStaff(tx, alert.clinicId);
-        const patient = encounter?.patient ?? null;
         if (!patient) return { staff, patient, flagId: null, created: false };
         if (patient.currentRiskTier === 'URGENT') {
           const flag = await tx.patientRiskFlag.findFirst({
@@ -366,7 +426,7 @@ export class FollowUpFlagService implements OnModuleInit {
             {
               clinicId: alert.clinicId,
               patientId: patient.id,
-              encounterId: alert.encounterId,
+              ...source,
               kind: 'SCREENING_URGENT',
               detail,
             },
@@ -376,12 +436,12 @@ export class FollowUpFlagService implements OnModuleInit {
         // A second finding on the same visit joins its flag and says what is now known.
         if (count === 0) {
           await tx.patientRiskFlag.updateMany({
-            where: { encounterId: alert.encounterId, kind: 'SCREENING_URGENT' },
+            where: { ...source, kind: 'SCREENING_URGENT' },
             data: { detail },
           });
         }
         const flag = await tx.patientRiskFlag.findFirst({
-          where: { encounterId: alert.encounterId, kind: 'SCREENING_URGENT' },
+          where: { ...source, kind: 'SCREENING_URGENT' },
           select: { id: true },
         });
         return { staff, patient, flagId: flag?.id ?? null, created: count === 1 };
@@ -400,14 +460,17 @@ export class FollowUpFlagService implements OnModuleInit {
             tag: `risk-${patient.id}-HEALTH_ALERT`,
           }
         : {
-            url: `/clinics/${alert.clinicId}/encounters/${alert.encounterId}`,
-            tag: `health-${alert.encounterId}`,
+            url: `/clinics/${alert.clinicId}/encounters/${'encounterId' in alert ? alert.encounterId : ''}`,
+            tag: `health-${'encounterId' in alert ? alert.encounterId : alert.attemptId}`,
           }),
       clinicId: alert.clinicId,
       riskFlagId: found.flagId,
       inbox: {
         title: `${name} needs urgent review`,
-        body: `${detail}. Recorded at screening; see the patient now.`,
+        body:
+          'attemptId' in alert
+            ? `${detail}. Reported on a follow-up contact; see the patient today.`
+            : `${detail}. Recorded at screening; see the patient now.`,
       },
     });
     if (found.created && found.flagId) await this.scheduleEscalation(found.flagId);
@@ -490,6 +553,7 @@ export class FollowUpFlagService implements OnModuleInit {
         id: true,
         kind: true,
         detail: true,
+        attemptId: true,
         raisedAt: true,
         acknowledgement: {
           select: { userId: true, createdAt: true, user: { select: { displayName: true } } },
@@ -503,6 +567,7 @@ export class FollowUpFlagService implements OnModuleInit {
       kind: flag.kind as TakeableKind,
       raisedAt: flag.raisedAt,
       detail: flag.kind === 'SCREENING_URGENT' ? flag.detail : null,
+      reportedOnContact: flag.attemptId !== null,
       acknowledgement: ack
         ? { userId: ack.userId, displayName: ack.user.displayName, at: ack.createdAt }
         : null,
@@ -720,7 +785,39 @@ export class FollowUpFlagService implements OnModuleInit {
         WHERE p."currentRiskTier" IN ('URGENT', 'HIGH') AND p."mergedIntoPatientId" IS NULL
         GROUP BY p."primaryClinicId", c.name`,
     );
-    for (const row of rows) {
+    // Contacts (#338): late ones, and the week ahead including today.
+    const contacts = await this.system(
+      { systemReason: 'Count follow-up contacts due' },
+      (tx) =>
+        tx.$queryRaw<Array<{ clinicId: string; clinicName: string; week: number; late: number }>>`
+        SELECT f."clinicId", c.name AS "clinicName",
+          count(*) FILTER (WHERE f."dueOn" >= CURRENT_DATE AND f."dueOn" < CURRENT_DATE + 7)::int AS week,
+          count(*) FILTER (WHERE f."dueOn" < CURRENT_DATE)::int AS late
+        FROM "FollowUpContact" f
+        JOIN "Clinic" c ON c.id = f."clinicId"
+        JOIN "Patient" p ON p.id = f."patientId"
+        WHERE f.status IN ('DUE', 'MISSED') AND f."dueOn" < CURRENT_DATE + 7
+          AND p."mergedIntoPatientId" IS NULL
+        GROUP BY f."clinicId", c.name`,
+    );
+    const byClinic = new Map(
+      rows.map((row) => [row.clinicId, { ...row, contactsDueThisWeek: 0, contactsLate: 0 }]),
+    );
+    for (const row of contacts) {
+      const entry = byClinic.get(row.clinicId) ?? {
+        clinicId: row.clinicId,
+        clinicName: row.clinicName,
+        urgent: 0,
+        unclaimed: 0,
+        high: 0,
+        contactsDueThisWeek: 0,
+        contactsLate: 0,
+      };
+      entry.contactsDueThisWeek = row.week;
+      entry.contactsLate = row.late;
+      byClinic.set(row.clinicId, entry);
+    }
+    for (const row of byClinic.values()) {
       const staff = await this.system({ systemReason: 'Route the follow-up digest' }, (tx) =>
         loadClinicStaff(tx, row.clinicId),
       );
@@ -728,7 +825,12 @@ export class FollowUpFlagService implements OnModuleInit {
         kind: 'FOLLOW_UP_DUE',
         title: "Today's follow-up counts are ready",
         body: 'Open Nkwapa to see them.',
-        url: row.urgent > 0 ? '/patients?riskTier=URGENT' : '/patients?riskTier=HIGH',
+        url:
+          row.urgent > 0
+            ? '/patients?riskTier=URGENT'
+            : row.high > 0
+              ? '/patients?riskTier=HIGH'
+              : '/follow-up',
         tag: `follow-up-digest-${row.clinicId}`,
         // Today's counts replace yesterday's unread ones rather than stacking into "3 updates".
         silentMerge: true,
@@ -739,24 +841,33 @@ export class FollowUpFlagService implements OnModuleInit {
   }
 }
 
-/** "Hohoe: 3 urgent, 12 high risk", and whether any urgent patient has nobody on it. */
+/**
+ * "Hohoe: 3 urgent, 12 high risk", whether any urgent patient has nobody on it, and the
+ * follow-up contacts due this week and late (#338).
+ */
 export function digestText(row: {
   clinicName: string;
   urgent: number;
   unclaimed: number;
   high: number;
+  contactsDueThisWeek?: number;
+  contactsLate?: number;
 }): { title: string; body: string } {
   const parts = [
     row.urgent ? `${row.urgent} urgent` : null,
     row.high ? `${row.high} high risk` : null,
+    row.contactsDueThisWeek ? `${row.contactsDueThisWeek} contacts due this week` : null,
   ].filter(Boolean);
-  const body =
+  const people =
     row.unclaimed > 0
       ? `${row.unclaimed} urgent ${row.unclaimed === 1 ? 'patient has' : 'patients have'} nobody on it yet.`
       : row.urgent > 0
         ? 'Every urgent patient has someone on it.'
         : 'Nobody is urgent today.';
-  return { title: `${row.clinicName}: ${parts.join(', ')}`, body };
+  const late = row.contactsLate
+    ? ` ${row.contactsLate} follow-up ${row.contactsLate === 1 ? 'contact is' : 'contacts are'} late.`
+    : '';
+  return { title: `${row.clinicName}: ${parts.join(', ')}`, body: people + late };
 }
 
 function escalationJobId(flagId: string): string {
