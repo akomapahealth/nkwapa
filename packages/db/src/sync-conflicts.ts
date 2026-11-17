@@ -129,6 +129,11 @@ export const SYNC_CONFLICT_CODES = {
   // Access
   FORBIDDEN: code('permission'),
   CLASSIFICATION_OVERRIDE_FORBIDDEN: code('permission'),
+  // Queued in an offline session (#207) under a grant the server no longer honours: revoked
+  // (offboarding, a role removed, a device signed out), unknown, or another account's. And one
+  // recorded after the grant's server-side expiry. Neither can change back on a replay.
+  OFFLINE_GRANT_REVOKED: code('permission', terminal),
+  OFFLINE_GRANT_EXPIRED: code('permission', terminal),
 
   // Everything else. A missing reference stays retryable: the patient or encounter it points at
   // may simply not have reached the server yet.

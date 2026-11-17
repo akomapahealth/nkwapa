@@ -41,6 +41,10 @@
       "types": "./dist/src/eye-screening.d.ts",
       "default": "./dist/src/eye-screening.js"
     },
+    "./offline-grant": {
+      "types": "./dist/src/offline-grant.d.ts",
+      "default": "./dist/src/offline-grant.js"
+    },
     "./clinician-plan-seal": {
       "types": "./dist/src/clinician-plan-seal.d.ts",
       "default": "./dist/src/clinician-plan-seal.js"

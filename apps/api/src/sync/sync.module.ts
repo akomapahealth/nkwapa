@@ -13,6 +13,7 @@ import { HypertensionAssessmentModule } from '../hypertension-assessment/hyperte
 import { MedicationAdherenceModule } from '../medication-adherence/medication-adherence.module';
 import { PrescriptionModule } from '../prescriptions/prescription.module';
 import { OpsModule } from '../ops/ops.module';
+import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { OpsModule } from '../ops/ops.module';
     MedicationAdherenceModule,
     PrescriptionModule,
     OpsModule,
+    OfflineGrantModule,
   ],
   controllers: [SyncController],
   providers: [SyncService, ClinicalMeasurementsService, ClinicianPlanSealService],

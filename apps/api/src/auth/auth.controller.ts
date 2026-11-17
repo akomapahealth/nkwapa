@@ -14,7 +14,7 @@ import {
 import { createHash } from 'crypto';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { ClinicService } from '../clinics/clinic.service';
+import { ClinicService, type SwitchableClinic } from '../clinics/clinic.service';
 import { computeEffectivePermissions } from './constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { RateLimit } from '../common/rate-limit.decorator';
@@ -53,6 +53,39 @@ export interface Membership {
   roles: string[];
   /** The units this clinic types and reads screening values in. */
   units: ClinicUnits;
+}
+
+/**
+ * A person's clinic seats, one per active clinic they hold a role at, in clinic id order.
+ *
+ * Shared by whoami and the offline grant (#207), so the identity a device resumes offline is the
+ * one whoami would have served for the same person.
+ */
+export function membershipsFor(
+  roles: readonly { clinicId: string | null; role: string }[],
+  clinics: readonly SwitchableClinic[],
+): Membership[] {
+  const clinicMap = new Map(clinics.map((clinic) => [clinic.id, clinic]));
+  const rolesByClinic = new Map<string, Set<string>>();
+  for (const entry of roles) {
+    if (!entry.clinicId) continue;
+    const set = rolesByClinic.get(entry.clinicId) ?? new Set<string>();
+    set.add(entry.role);
+    rolesByClinic.set(entry.clinicId, set);
+  }
+  const memberships: Membership[] = [];
+  for (const clinicId of [...rolesByClinic.keys()].sort()) {
+    const clinic = clinicMap.get(clinicId);
+    if (!clinic) continue;
+    memberships.push({
+      clinicId,
+      clinicName: clinic.name,
+      zoneCode: clinic.zoneCode ?? null,
+      roles: [...(rolesByClinic.get(clinicId) ?? [])],
+      units: clinicUnits(clinic),
+    });
+  }
+  return memberships;
 }
 
 export interface AvailableClinic {
@@ -158,9 +191,8 @@ export class AuthController {
       byClinicId.set(key, list);
     }
 
-    const clinicIds = [...byClinicId.keys()].filter((k): k is string => k !== 'global');
+    const clinicIds = [...byClinicId.keys()].filter((k): k is string => k !== 'global').sort();
     const clinics = clinicIds.length > 0 ? await this.clinicService.findByIds(clinicIds) : [];
-    const clinicMap = new Map(clinics.map((c) => [c.id, c]));
 
     const globalRoles = byClinicId.has('global')
       ? [...new Set((byClinicId.get('global') ?? []).map((r) => r.role))]
@@ -178,22 +210,7 @@ export class AuthController {
     }));
     const availableClinicIds = new Set(availableClinics.map((clinic) => clinic.clinicId));
 
-    const memberships: Membership[] = [];
-    for (const cid of clinicIds.sort()) {
-      const roleEntries = byClinicId.get(cid) ?? [];
-      const roleNames = [...new Set(roleEntries.map((r) => r.role))];
-      const clinic = clinicMap.get(cid) ?? null;
-      if (!clinic) {
-        continue;
-      }
-      memberships.push({
-        clinicId: cid,
-        clinicName: clinic.name,
-        zoneCode: clinic.zoneCode ?? null,
-        roles: roleNames,
-        units: clinicUnits(clinic),
-      });
-    }
+    const memberships = membershipsFor(roles, clinics);
 
     const headerClinicId = req.headers?.['x-clinic-id']?.trim();
 

@@ -7,7 +7,7 @@ import {
   type KeysetCursor,
 } from '../common/keyset-cursor';
 import { randomUUID } from 'crypto';
-import { getRequestContext } from '../common/request-context.store';
+import { getOfflineSession, getRequestContext } from '../common/request-context.store';
 
 export interface LogWriteParams {
   clinicId: string | null;
@@ -71,6 +71,7 @@ export class AuditService {
     const requestId = params.requestId ?? ambient?.requestId ?? randomUUID();
     const ipAddress = params.ipAddress ?? ambient?.ipAddress ?? undefined;
     const userAgent = params.userAgent ?? ambient?.userAgent ?? undefined;
+    const offlineSession = getOfflineSession();
     await client.auditEvent.create({
       data: {
         clinicId: params.clinicId,
@@ -83,6 +84,16 @@ export class AuditService {
         requestId,
         ipAddress: ipAddress ?? undefined,
         userAgent: userAgent ?? undefined,
+        // Copied field by field, so nothing else riding on the stamp reaches the audit row.
+        ...(offlineSession
+          ? {
+              offlineSession: {
+                grantId: offlineSession.grantId,
+                deviceId: offlineSession.deviceId,
+                unlockMethod: offlineSession.unlockMethod,
+              },
+            }
+          : {}),
       },
     });
   }

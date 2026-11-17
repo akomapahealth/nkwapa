@@ -291,6 +291,24 @@ describe('sync push body validation', () => {
     await expect(validate([mutation()])).resolves.toHaveLength(1);
   });
 
+  it('accepts an offline session stamp and refuses a malformed one (#207)', async () => {
+    const offlineSession = {
+      grantId: '44444444-4444-4444-8444-444444444444',
+      deviceId: '55555555-5555-4555-8555-555555555555',
+      unlockMethod: 'pin',
+    };
+    await expect(validate([mutation({ offlineSession })])).resolves.toHaveLength(1);
+    await expect(
+      validate([mutation({ offlineSession: { ...offlineSession, unlockMethod: 'password' } })]),
+    ).rejects.toThrow('Sync payload validation failed');
+    await expect(
+      validate([mutation({ offlineSession: { ...offlineSession, grantId: 'nope' } })]),
+    ).rejects.toThrow('Sync payload validation failed');
+    await expect(
+      validate([mutation({ offlineSession: { ...offlineSession, extra: true } })]),
+    ).rejects.toThrow('Sync payload validation failed');
+  });
+
   it('rejects a clinic id that is not a uuid', async () => {
     // Before an explicit pipe, Nest could not infer the element type from the array annotation, so
     // every constraint on SyncMutationDto was declared and never applied.

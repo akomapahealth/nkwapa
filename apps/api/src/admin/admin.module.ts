@@ -4,13 +4,21 @@ import { ReminderModule } from '../reminders/reminder.module';
 import { PatientModule } from '../patients/patient.module';
 import { IdentitySyncModule } from '../identity-sync/identity-sync.module';
 import { UserModule } from '../users/user.module';
+import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { ClinicUsersController } from './clinic-users.controller';
 import { UsersLifecycleController } from './users-lifecycle.controller';
 
 @Module({
-  imports: [PrismaModule, ReminderModule, PatientModule, IdentitySyncModule, UserModule],
+  imports: [
+    PrismaModule,
+    ReminderModule,
+    PatientModule,
+    IdentitySyncModule,
+    UserModule,
+    OfflineGrantModule,
+  ],
   controllers: [AdminController, ClinicUsersController, UsersLifecycleController],
   providers: [AdminService],
 })

@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { OfflineSessionStamp } from '@nkwapa/db';
 
 /**
  * The inbound request's identity, available to any code running during it.
@@ -23,4 +24,19 @@ export function runWithRequestContext<T>(value: RequestContextValue, fn: () => T
 
 export function getRequestContext(): RequestContextValue | undefined {
   return storage.getStore();
+}
+
+const offlineSessionStorage = new AsyncLocalStorage<OfflineSessionStamp>();
+
+/**
+ * Run `fn` as the replay of one write queued in an offline session (#207), so every audit event it
+ * causes records the grant, device and unlock method, however deep in a service it is written.
+ * Scoped per write, not per request: one push can carry offline and online changes together.
+ */
+export function runWithOfflineSession<T>(stamp: OfflineSessionStamp, fn: () => T): T {
+  return offlineSessionStorage.run(stamp, fn);
+}
+
+export function getOfflineSession(): OfflineSessionStamp | undefined {
+  return offlineSessionStorage.getStore();
 }
