@@ -311,6 +311,8 @@ jobs:
       FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED: true
       NEXT_PUBLIC_FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED: true
       FEATURE_OFFLINE_SESSION_ENABLED: true
+      # Offline session resume (#207): grants, unlock screens, and clinical data encrypted at rest.
+      NEXT_PUBLIC_FEATURE_OFFLINE_SESSION_ENABLED: true
       NATIONAL_ID_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001'
       # The appointment acceptance suite needs a confirmed visit and a pending request to act on,
       # and neither can be created through the UI without one already existing.

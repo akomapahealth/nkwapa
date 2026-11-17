@@ -320,9 +320,12 @@ Rules, each enforced in the worker and in `lib/pwa/service-worker.test.ts`:
 - same-origin `GET` only; never the API origin, never Keycloak, never a write
 - never RSC/flight requests (`RSC: 1` header or `_rsc` query), `/silent-check-sso.html`, `/api/`,
   or a sign-in callback (`code` and `state` in the query)
-- only `ok`, `basic`, non-redirected responses, and never one marked `no-store` or `private`.
-  Dynamic routes (patient charts, encounters) are served `private, no-store`, so they are never
-  cached; a reload of one offline shows `offline.html`
+- only `ok`, `basic`, non-redirected responses, and never one marked `no-store` or `private`,
+  with one exception (#207): chart and encounter shells (`/clinics/<id>/patients/<id>`, its
+  `edit` and `consent` pages, `/clinics/<id>/encounters/<id>`). Next marks those dynamic routes
+  `private, no-store` because they render per request; their HTML carries no patient data. They
+  are kept by exact path once opened online, so an offline session can reopen them. A chart never
+  opened on the device still shows `offline.html`
 - every `nkwapa-*` cache that is not the current version is deleted on activate
 
 Patient data arrives from the cross-origin API and never passes through the worker, so sign-out
@@ -342,10 +345,39 @@ which only happens when the person reloads, so lazy-loaded chunks keep resolving
 
 ### Offline launch
 
-Opened with no connection, the workspace skips Keycloak (sign-in needs the network) and shows "You
-are offline" with the number of changes queued on the device, counted without a token. It retries
-when the connection returns. Navigations the worker cannot serve show `offline.html`, which reads
-the same count. Using the app offline after a cold start is #207.
+Opened with no connection, the workspace skips Keycloak (sign-in needs the network). On a device
+where nobody opted in to offline access, it shows "You are offline" with the number of changes
+queued on the device, counted without a token, and retries when the connection returns.
+Navigations the worker cannot serve show `offline.html`, which reads the same count. On a device
+where someone did, it offers to unlock an offline session instead (below).
+
+## Offline session (#207)
+
+A staff member who turned on "Use this device offline" (`/settings/offline-access`) can open the
+installed app with no connection and keep working. The threat model, every decision and what each
+client-side check does and does not stop are in `docs/security/offline-session-matrix.md`.
+
+- **Opting in** needs a connection and a 6 to 12 digit PIN; a passkey with the PRF extension is
+  offered where the device supports it. The API issues a signed grant (ES256) for this device,
+  valid 72 hours from the last online sign-in, and the data key that opens it. System admins and
+  patients are never offered it.
+- **Cold start offline:** one person sees "Unlock as <name>", several see "Who is using this
+  device?" first. Five wrong PINs remove that person's grant and wrapped key from the device; their
+  queued changes stay.
+- **In the session** the workspace runs on the grant: whoami's shape, built from the grant's
+  memberships and permissions (`bootstrap.source = 'offline-grant'`). There is no token, so nothing
+  is pushed or pulled. Every queued change carries `offlineSession: { grantId, deviceId,
+unlockMethod }`, which the server audits and checks: a revoked or expired grant is refused at push.
+- **Page changes** are full loads offline (Next cannot fetch the next route's data). The service
+  worker holds the unlocked session's keys in memory meanwhile, so the next page opens without a
+  second PIN. Lock, the 10-minute idle lock and any online sign-in drop it.
+- **Reconnecting:** the banner offers "Sign in to send changes" once Keycloak answers. Signing in
+  as the same person sends the queue through the usual owner rules (#162); another person's
+  sign-in leaves those rows held.
+- **Encryption at rest:** every clinical table, the outbox and both caches are AES-GCM ciphertext on
+  disk, under per-device, per-clinic keys held only in memory (`lib/offline-session/at-rest.ts`).
+  Only primary keys and non-clinical index fields are clear. With the flag on, a clinical write
+  with no key loaded is refused rather than stored readable.
 
 ### Storage
 

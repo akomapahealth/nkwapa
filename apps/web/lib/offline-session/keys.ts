@@ -198,3 +198,20 @@ export function onKeyringChange(listener: (scope: string, loaded: boolean) => vo
     keyringListeners.delete(listener);
   };
 }
+
+/** The keyring as it stands, for handing an unlocked session to the service worker (./hold.ts). */
+export function keyringEntries(): Array<[string, CryptoKey]> {
+  return [...keyring.entries()];
+}
+
+/** Restore keys handed back by the service worker. Only well-formed scopes and real keys. */
+export function restoreKeyring(entries: unknown): void {
+  if (!Array.isArray(entries)) return;
+  for (const entry of entries) {
+    if (!Array.isArray(entry) || entry.length !== 2) continue;
+    const [scope, key] = entry as [unknown, unknown];
+    if (typeof scope !== 'string' || !/^(dek|clinic|user):[\w-]+$/.test(scope)) continue;
+    if (!(key instanceof CryptoKey)) continue;
+    setKey(scope, key);
+  }
+}

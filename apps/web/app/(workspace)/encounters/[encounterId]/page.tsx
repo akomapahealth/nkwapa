@@ -239,14 +239,19 @@ export default function EncounterDetailPage() {
       setActiveTab(newValue);
       // Autosave temporarily disables the focused tab, which sends focus to body. Restore
       // the selected tab after React commits, unless the person has moved focus elsewhere.
+      // A slow save (encryption at rest) can let the frame run before the tabs are enabled
+      // again, and focus() on a disabled tab does nothing, so retry for a few frames.
       if (keyboardTablist) {
-        requestAnimationFrame(() => {
-          if (document.activeElement === document.body) {
-            keyboardTablist
-              .querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
-              ?.focus();
-          }
-        });
+        const restore = (frames: number) =>
+          requestAnimationFrame(() => {
+            if (document.activeElement !== document.body) return;
+            const tab = document.querySelector<HTMLElement>(
+              '[aria-label="Encounter clinical sections"] [role="tab"][aria-selected="true"]:not(:disabled)',
+            );
+            if (tab) tab.focus();
+            else if (frames > 0) restore(frames - 1);
+          });
+        restore(30);
       }
     },
     [activeTab],

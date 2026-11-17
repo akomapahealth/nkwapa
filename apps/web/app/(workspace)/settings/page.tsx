@@ -12,6 +12,7 @@ import {
   Smartphone,
   Sun,
   UserPen,
+  WifiOff,
 } from 'lucide-react';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -26,6 +27,8 @@ import {
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { canUseOfflineAccess } from '@/lib/offline-session/bootstrap';
 import { cn } from '@/lib/utils';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
@@ -68,6 +71,24 @@ export default function SettingsPage() {
           </RecordSectionContent>
         </RecordSection>
         <InstallCard />
+        {isWebFeatureEnabled('offlineSession') && canUseOfflineAccess(bootstrap) ? (
+          <RecordSection>
+            <RecordSectionHeader>
+              <RecordSectionTitle className="text-lg">Offline access</RecordSectionTitle>
+              <RecordSectionDescription>
+                Unlock this device with a PIN when it starts with no connection.
+              </RecordSectionDescription>
+            </RecordSectionHeader>
+            <RecordSectionContent>
+              <Button asChild variant="outline">
+                <Link href="/settings/offline-access">
+                  <WifiOff className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Manage offline access
+                </Link>
+              </Button>
+            </RecordSectionContent>
+          </RecordSection>
+        ) : null}
 
         <RecordSection>
           <RecordSectionHeader>

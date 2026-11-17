@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, WifiOff } from 'lucide-react';
 import { FullscreenStatus } from '@/components/feedback/AppState';
+import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/db';
 import { canReachKeycloak } from '@/lib/keycloak';
@@ -12,9 +13,10 @@ const RECHECK_MS = 10_000;
 /**
  * Shown in place of sign-in when the app starts with no connection (#206). Signing in needs
  * Keycloak, so instead of a long wait and a misleading auth error this says what is true: the
- * device is offline and queued changes are safe. Using the app offline after a cold start is #207.
+ * device is offline and queued changes are safe. A device someone opted in on unlocks instead (#207);
+ * `notice` says why that is no longer offered, after a lockout or an expiry.
  */
-export function OfflineLaunchScreen() {
+export function OfflineLaunchScreen({ notice }: { notice?: string | null } = {}) {
   const [queued, setQueued] = useState<number | null>(null);
 
   useEffect(() => {
@@ -48,18 +50,26 @@ export function OfflineLaunchScreen() {
         </Button>
       }
       detail={
-        queued === null ? null : (
-          <p
-            role="status"
-            className="type-body rounded-md border border-rule bg-background px-3 py-2 text-muted-foreground"
-          >
-            <span>
-              <span className="font-semibold text-foreground" data-testid="offline-queued-count">
-                {queued}
-              </span>{' '}
-              {queued === 1 ? 'change' : 'changes'} waiting on this device
-            </span>
-          </p>
+        queued === null && !notice ? null : (
+          <div className="space-y-3">
+            {notice ? <InlineNotice tone="warning">{notice}</InlineNotice> : null}
+            {queued === null ? null : (
+              <p
+                role="status"
+                className="type-body rounded-md border border-rule bg-background px-3 py-2 text-muted-foreground"
+              >
+                <span>
+                  <span
+                    className="font-semibold text-foreground"
+                    data-testid="offline-queued-count"
+                  >
+                    {queued}
+                  </span>{' '}
+                  {queued === 1 ? 'change' : 'changes'} waiting on this device
+                </span>
+              </p>
+            )}
+          </div>
         )
       }
     />
