@@ -9,6 +9,7 @@ const apiFeatureFlagReaders = {
   guidedChronicTabs: () => process.env.FEATURE_GUIDED_CHRONIC_TABS_ENABLED,
   stationWorkflow: () => process.env.FEATURE_STATION_WORKFLOW_ENABLED,
   followUpStratification: () => process.env.FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED,
+  offlineSession: () => process.env.FEATURE_OFFLINE_SESSION_ENABLED,
 } as const;
 
 export type ApiFeatureFlag = keyof typeof apiFeatureFlagReaders;

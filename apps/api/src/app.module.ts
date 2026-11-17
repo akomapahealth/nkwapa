@@ -17,6 +17,7 @@ import { PatientModule } from './patients/patient.module';
 import { EncounterModule } from './encounters/encounter.module';
 import { ClinicModule } from './clinics/clinic.module';
 import { SyncModule } from './sync/sync.module';
+import { OfflineGrantModule } from './offline-grants/offline-grant.module';
 import { ConsentModule } from './consents/consent.module';
 import { UserModule } from './users/user.module';
 import { ReminderModule } from './reminders/reminder.module';
@@ -72,6 +73,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     EncounterModule,
     ClinicModule,
     SyncModule,
+    OfflineGrantModule,
     ConsentModule,
     ReminderModule,
     AdminModule,

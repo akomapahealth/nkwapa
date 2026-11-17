@@ -87,6 +87,8 @@ import {
 import { validatePayload } from '../common/validation';
 import { takeBaseUpdatedAt, type OverwriteCheck } from './overwrite-conflict';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
+import { OfflineGrantService } from '../offline-grants/offline-grant.service';
+import { runWithOfflineSession } from '../common/request-context.store';
 
 export type { EntityType } from './entity-types';
 
@@ -126,6 +128,7 @@ export class SyncService {
     @Optional() private readonly telemetry?: TelemetryService,
     @Optional() private readonly risk?: FollowUpRiskService,
     @Optional() private readonly followUpContacts?: FollowUpContactService,
+    @Optional() private readonly offlineGrants?: OfflineGrantService,
   ) {}
 
   async applyMutations(
@@ -178,8 +181,38 @@ export class SyncService {
         });
       }
 
+      const stamp = mut.offlineSession;
+      if (stamp) {
+        // Checked before anything else: a write under a revoked or lapsed grant is refused
+        // whatever it contains, and the refusal is recorded like any other (#207).
+        const refusal = this.offlineGrants
+          ? await this.offlineGrants.refusalFor(actorUserId, stamp, mut.createdAt)
+          : 'OFFLINE_GRANT_REVOKED';
+        if (refusal) {
+          results.push(
+            await this.refuse(clinicId, mut, SYNC_MUTATION_RESULT_STATUS.ERROR, refusal, {
+              message:
+                refusal === 'OFFLINE_GRANT_EXPIRED'
+                  ? 'This change was recorded after offline access on this device had expired.'
+                  : 'Offline access on this device was withdrawn before this change was sent.',
+            }),
+          );
+          continue;
+        }
+      }
+
       try {
-        const result = await this.applyOne(clinicId, actorUserId, user, mut, metadata);
+        const apply = () => this.applyOne(clinicId, actorUserId, user, mut, metadata);
+        const result = await (stamp
+          ? runWithOfflineSession(
+              {
+                grantId: stamp.grantId,
+                deviceId: stamp.deviceId,
+                unlockMethod: stamp.unlockMethod,
+              },
+              apply,
+            )
+          : apply());
         results.push(result);
       } catch (err) {
         const outcome = classifySyncFailure(err, mut.entityType);

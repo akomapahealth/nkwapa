@@ -20,6 +20,7 @@ import {
 } from '../identity-sync/identity-sync.service';
 import { UserProfileService } from '../users/user-profile.service';
 import type { UpdateStaffNameDto } from '../users/dto/staff-name.dto';
+import { OfflineGrantService } from '../offline-grants/offline-grant.service';
 
 export interface AdminActor {
   userId: string;
@@ -79,6 +80,8 @@ export class AdminService {
     private readonly userProfileService: UserProfileService,
     // Optional so the many specs that build this service by hand need not supply it.
     @Optional() private readonly push?: PushService,
+    // Optional for the same reason. Wherever access is withdrawn, offline access goes with it (#207).
+    @Optional() private readonly offlineGrants?: OfflineGrantService,
   ) {}
 
   /**
@@ -253,6 +256,7 @@ export class AdminService {
     await this.prisma.userClinicRole.delete({
       where: { id: existing.id },
     });
+    await this.revokeOfflineAccess(targetUserId, 'ROLE_REMOVED');
 
     await this.auditService.logWrite({
       clinicId,
@@ -327,6 +331,7 @@ export class AdminService {
     await this.prisma.userClinicRole.delete({
       where: { id: existing.id },
     });
+    await this.revokeOfflineAccess(targetUserId, 'ROLE_REMOVED');
 
     await this.auditService.logWrite({
       clinicId,
@@ -405,12 +410,14 @@ export class AdminService {
     const clinicName = clinicEntries[0]?.clinic?.name ?? null;
 
     if (!target.isActive) {
+      await this.revokeOfflineAccess(target.id, 'DEACTIVATED');
       const identity = await this.requestIdentitySync(target.id, false, actor, requestId);
       return { ...this.toLifecycleUserSummary(target), identity, alreadyInactive: true };
     }
 
     const accessElsewhere = target.clinicRoles.some((entry) => entry.clinicId !== clinicId);
     if (accessElsewhere) {
+      await this.revokeOfflineAccess(targetUserId, 'ROLE_REMOVED');
       for (const entry of clinicEntries) {
         await this.prisma.userClinicRole.delete({ where: { id: entry.id } });
         await this.auditService.logWrite({
@@ -457,6 +464,7 @@ export class AdminService {
       data: { isActive: false },
       include: this.userInclude,
     });
+    await this.revokeOfflineAccess(targetUserId, 'DEACTIVATED');
 
     await this.auditService.logWrite({
       clinicId,
@@ -606,6 +614,47 @@ export class AdminService {
     return { ...this.toLifecycleUserSummary(updated), identity };
   }
 
+  /**
+   * Sign a person out of offline access on every device (#207), for a manager whose staff member
+   * lost a phone or left a shared tablet unlocked. Same authority as deactivating them here.
+   */
+  async revokeOfflineAccessInClinic(
+    actor: AdminActor,
+    clinicId: string,
+    targetUserId: string,
+    requestId?: string,
+  ): Promise<{ revoked: number }> {
+    await this.assertActiveClinic(clinicId);
+    this.assertCanManageClinicLifecycle(actor, clinicId);
+    const target = await this.findUserWithRoles(targetUserId);
+    if (!target || !target.clinicRoles.some((entry) => entry.clinicId === clinicId)) {
+      throw new NotFoundException('User is not assigned to this clinic');
+    }
+    if (targetUserId !== actor.userId) {
+      this.assertCanDeactivateInClinic(actor, clinicId, target);
+    }
+    const revoked = this.offlineGrants
+      ? await this.offlineGrants.revokeAllForUser(targetUserId, 'ADMIN_SIGN_OUT')
+      : 0;
+    await this.auditService.logWrite({
+      clinicId,
+      actorUserId: actor.userId,
+      action: 'OFFLINE_GRANT.REVOKE_ALL',
+      entityType: 'User',
+      entityId: targetUserId,
+      afterJson: JSON.stringify({ reason: 'ADMIN_SIGN_OUT', revoked }),
+      requestId,
+    });
+    return { revoked };
+  }
+
+  private async revokeOfflineAccess(
+    userId: string,
+    reason: 'ROLE_REMOVED' | 'DEACTIVATED',
+  ): Promise<void> {
+    await this.offlineGrants?.revokeAllForUser(userId, reason);
+  }
+
   private requestIdentitySync(
     userId: string,
     expectedActive: boolean,
@@ -673,6 +722,7 @@ export class AdminService {
     if (!target.isActive) {
       // Idempotent: nothing to change locally and nothing to announce, but the identity half is
       // requested again, which is how an admin retries a disable that did not land.
+      await this.revokeOfflineAccess(target.id, 'DEACTIVATED');
       const identity = await this.requestIdentitySync(target.id, false, actor, requestId);
       return { ...this.toLifecycleUserSummary(target), identity, alreadyInactive: true };
     }
@@ -682,6 +732,7 @@ export class AdminService {
       data: { isActive: false },
       include: this.userInclude,
     });
+    await this.revokeOfflineAccess(targetUserId, 'DEACTIVATED');
 
     await this.auditService.logWrite({
       clinicId: null,

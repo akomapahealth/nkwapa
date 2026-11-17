@@ -66,6 +66,30 @@ export class ClinicUsersController {
     );
   }
 
+  /** Withdraw offline access (#207) from every device this person opted in on. */
+  @Post(':userId/offline-access/revoke')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
+  async revokeOfflineAccess(
+    @Param('clinicId') clinicId: string,
+    @Param('userId') userId: string,
+    @Request()
+    req: {
+      user: ReqUserWithRoles;
+      headers?: { 'x-request-id'?: string };
+    },
+  ) {
+    return this.adminService.revokeOfflineAccessInClinic(
+      {
+        userId: req.user.user.id,
+        roles: req.user.roles,
+      },
+      clinicId,
+      userId,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
   @Patch(':userId/reactivate')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINIC_MANAGE)

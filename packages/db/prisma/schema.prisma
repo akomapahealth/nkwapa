@@ -1076,6 +1076,7 @@ model User {
   followUpContactsOwned           FollowUpContact[]               @relation("FollowUpContactOwner")
   followUpAttempts                FollowUpAttempt[]
   staffAgreementAcceptances       StaffAgreementAcceptance[]
+  offlineGrants                   OfflineGrant[]
   createdPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteCreatedBy")
   claimedPatientPortalInvites     PatientPortalInvite[]           @relation("PatientPortalInviteClaimedBy")
   createdStaffInvites             StaffInvite[]                   @relation("StaffInviteCreatedBy")
@@ -2617,6 +2618,9 @@ model AuditEvent {
   ipAddress String? @db.VarChar(64)
   userAgent String? @db.Text
 
+  /// Set when the write was queued in an offline session (#207): { grantId, deviceId, unlockMethod }.
+  offlineSession Json?
+
   createdAt DateTime @default(now())
 
   clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
@@ -2968,6 +2972,28 @@ model StaffAgreementAcceptance {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, agreementKey, version])
+}
+
+/// A device a staff member may resume an offline session on (#207). One live row per user and
+/// device, refreshed in place while online; queued writes name it, and the server refuses them once
+/// it is revoked or they were recorded after it expired.
+model OfflineGrant {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  /// A random id the browser profile generated for itself. Identifies the device, not the person.
+  deviceId  String    @db.Uuid
+  issuedAt  DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  /// Why it was revoked: SIGN_OUT, DEVICE_REVOKED, ROLE_REMOVED, DEACTIVATED, ADMIN_SIGN_OUT.
+  revokedReason String? @db.VarChar(40)
+  /// To name the device on the settings page.
+  userAgent String?   @db.VarChar(400)
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deviceId])
 }
 
 model Conversation {

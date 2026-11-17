@@ -47,6 +47,20 @@ export {
   type ClinicianPlanSealKey,
   type SealedClinicianPlan,
 } from './src/clinician-plan-seal';
+export {
+  OFFLINE_GRANT_ALGORITHM,
+  OFFLINE_GRANT_ROLES,
+  OFFLINE_UNLOCK_METHODS,
+  base64UrlDecode,
+  base64UrlEncode,
+  verifyOfflineGrant,
+  type OfflineGrantClaims,
+  type OfflineGrantMembership,
+  type OfflineGrantPublicKey,
+  type OfflineGrantVerification,
+  type OfflineSessionStamp,
+  type OfflineUnlockMethod,
+} from './src/offline-grant';
 export { normalizePhoneToE164 } from './src/phone';
 export {
   computeBmi,
