@@ -10,6 +10,7 @@ import { forgetNotificationsOnDevice } from '@/lib/browser-notifications';
 import { canReachKeycloak, getKeycloak, initKeycloak, resetKeycloak } from '@/lib/keycloak';
 import { isKeycloakCallback } from '@/lib/keycloak-callback';
 import { clearPortalCache } from '@/lib/portal-cache';
+import { dropAllKeys } from '@/lib/offline-session/keys';
 import { AuthBootstrapWrapper } from './AuthBootstrapWrapper';
 import { SyncWithAuth } from './SyncWithAuth';
 
@@ -63,6 +64,8 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
         new Promise((resolve) => setTimeout(resolve, SIGN_OUT_CLEANUP_BUDGET_MS)),
       ]);
       resetBootstrapResolved();
+      // The at-rest keys leave memory with the session (#207).
+      dropAllKeys();
       resetKeycloak();
       kc.logout();
     }

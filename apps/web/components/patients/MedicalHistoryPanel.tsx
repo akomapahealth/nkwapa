@@ -303,6 +303,7 @@ export function MedicalHistoryPanel({
         await db.medical_history_revisions.put({
           id: revisionId,
           recordId,
+          clinicId,
           revisionNumber: priorRevisionNumber + 1,
           status: form.status,
           onsetDate: form.onsetDate || undefined,

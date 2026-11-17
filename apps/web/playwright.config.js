@@ -68,6 +68,9 @@ module.exports = defineConfig({
         // The API runs as production here, which needs a configured seal key for the offline
         // clinician plan (#131); a key generated at boot is enough for one test run.
         CLINICIAN_PLAN_SEAL_EPHEMERAL: process.env.CLINICIAN_PLAN_SEAL_EPHEMERAL || 'true',
+        // Same for offline session resume (#207): its signing key and the root of every device's
+        // at-rest keys. Without them a build with the web flag on cannot save clinical data.
+        OFFLINE_SESSION_EPHEMERAL_KEYS: process.env.OFFLINE_SESSION_EPHEMERAL_KEYS || 'true',
         APP_PUBLIC_URL: process.env.APP_PUBLIC_URL || 'http://localhost:3000',
         EMAIL_DELIVERABILITY_ALLOWED_DOMAINS:
           process.env.EMAIL_DELIVERABILITY_ALLOWED_DOMAINS || 'nkwapa.local',

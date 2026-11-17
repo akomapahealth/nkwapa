@@ -1,6 +1,7 @@
 'use client';
 
 import type { Table } from 'dexie';
+import { isSealedRow } from './offline-session/at-rest';
 import { db, type OutboxRecord } from './db';
 import type { SyncPullResponseDto } from './sync-types';
 import { applyAdherencePull } from './medication-adherence';
@@ -150,9 +151,11 @@ async function pushOutbox(
   headers: Record<string, string>,
 ): Promise<Pick<SyncResult, 'conflicts' | 'rejected'>> {
   const queued = await db.outbox.where('clinicId').equals(clinicId).sortBy('createdAt');
-  // Another account's change is never sent under this account's token (#162).
+  // Another account's change is never sent under this account's token (#162). A row this tab cannot
+  // decrypt (its clinic's key is not loaded) is held too, never sent as ciphertext (#207).
   const sendable = queued.filter(
-    (row) => isOwnedBy(row, currentUserId) && outboxSyncState(row) !== 'blocked',
+    (row) =>
+      isOwnedBy(row, currentUserId) && outboxSyncState(row) !== 'blocked' && !isSealedRow(row),
   );
   const conflicts: SyncMutationFailure[] = [];
   const rejected: SyncMutationFailure[] = [];
@@ -208,6 +211,15 @@ function toPushMutation(row: OutboxRecord) {
     payloadJson: JSON.parse(row.payloadJson) as Record<string, unknown>,
     idempotencyKey: row.idempotencyKey,
     createdAt: row.createdAt,
+    ...(row.offlineSession
+      ? {
+          offlineSession: {
+            grantId: row.offlineSession.grantId,
+            deviceId: row.offlineSession.deviceId,
+            unlockMethod: row.offlineSession.unlockMethod,
+          },
+        }
+      : {}),
   };
 }
 
@@ -303,6 +315,9 @@ async function pullIntoLocalStore(clinicId: string, headers: Record<string, stri
   const putAll = async <T>(table: Table<T, string>, rows: Array<Record<string, unknown>> = []) => {
     if (rows.length > 0) await table.bulkPut(rows.map(toLocalRecord) as unknown as T[]);
   };
+  // A revision carries no clinic of its own; this pull's names the key it is encrypted under (#207).
+  const inClinic = (rows: Array<Record<string, unknown>> = []) =>
+    rows.map((row) => ({ ...row, clinicId }));
 
   await putAll(db.patients, pull.patients);
   await putAll(db.encounters, pull.encounters);
@@ -323,12 +338,12 @@ async function pullIntoLocalStore(clinicId: string, headers: Record<string, stri
   await putAll(db.patient_consents, pull.patientConsents);
   await putAll(db.prescriptions, pull.prescriptions);
   await putAll(db.medical_history_records, pull.medicalHistoryRecords);
-  await putAll(db.medical_history_revisions, pull.medicalHistoryRevisions);
+  await putAll(db.medical_history_revisions, inClinic(pull.medicalHistoryRevisions));
   await putAll(db.patient_medication_records, pull.patientMedicationRecords);
-  await putAll(db.patient_medication_revisions, pull.patientMedicationRevisions);
+  await putAll(db.patient_medication_revisions, inClinic(pull.patientMedicationRevisions));
   await putAll(db.medication_reconciliation_events, pull.medicationReconciliationEvents);
   await putAll(db.patient_pharmacy_records, pull.patientPharmacyRecords);
-  await putAll(db.patient_pharmacy_revisions, pull.patientPharmacyRevisions);
+  await putAll(db.patient_pharmacy_revisions, inClinic(pull.patientPharmacyRevisions));
   await putAll(db.patient_pharmacy_preferences, pull.patientPharmacyPreferences);
 
   // Charts a merge retired. The server stopped sending them, so without this the device kept its
