@@ -55,6 +55,13 @@ interface DistributionChartProps {
   /** Horizontal bars keep long category names readable instead of truncating them to 12 chars. */
   layout?: 'vertical' | 'horizontal';
   titleAs?: 'h2' | 'h3';
+  /**
+   * Opens what is behind a category. Bars become clickable, and the table view's labels become
+   * buttons, so it is reachable without a pointer. Categories with no records are not offered.
+   */
+  onSelect?: (name: string) => void;
+  /** The accessible name of a category's button. */
+  selectLabel?: (name: string, count: number) => string;
 }
 
 export function DistributionChart({
@@ -66,6 +73,8 @@ export function DistributionChart({
   tones,
   layout = 'vertical',
   titleAs,
+  onSelect,
+  selectLabel,
 }: DistributionChartProps) {
   const unordered = toDistributionChartData(data);
   const chartData = order
@@ -102,6 +111,23 @@ export function DistributionChart({
       hint={hint}
       columns={['Category', 'Count']}
       rows={displayData.map((entry) => ({ label: entry.label, values: [entry.value] }))}
+      onSelectRow={
+        onSelect
+          ? (index) => {
+              const entry = displayData[index];
+              if (entry && entry.value > 0) onSelect(entry.name);
+            }
+          : undefined
+      }
+      isRowSelectable={(index) => (displayData[index]?.value ?? 0) > 0}
+      selectRowLabel={
+        onSelect && selectLabel
+          ? (row) => {
+              const entry = displayData.find((item) => item.label === row.label);
+              return entry ? selectLabel(entry.name, entry.value) : row.label;
+            }
+          : undefined
+      }
       hasData={hasData}
       empty={
         <EmptyState
@@ -153,6 +179,16 @@ export function DistributionChart({
           <Bar
             dataKey="value"
             radius={isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+            onClick={
+              onSelect
+                ? (bar: { payload?: { name?: string; value?: number } }) => {
+                    if (bar.payload?.name && (bar.payload.value ?? 0) > 0) {
+                      onSelect(bar.payload.name);
+                    }
+                  }
+                : undefined
+            }
+            cursor={onSelect ? 'pointer' : undefined}
             // Recharts animates over 1500ms in JavaScript, which the global
             // prefers-reduced-motion rule cannot reach.
             isAnimationActive={false}

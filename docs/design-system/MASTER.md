@@ -959,7 +959,7 @@ data keys. `RoleHome` draws every role but the volunteer (W4 owns that home):
   clinic (station line), or the clinic's counts as "Today in this clinic" when the line is off or
   unreachable. Director: registered patients, visits in 30 days, visits with a BP screen, care plans
   with a follow-up. Admin: clinics, zones, staff accounts, patients across clinics. Labels say what
-  the API measures: `followUpComplianceRate` is care plans _with a follow-up date_, not follow-ups
+  the API measures: `carePlansWithFollowUpDateRate` is care plans _with a follow-up date_, not follow-ups
   kept.
 - **Own work**: doctor = Needs you now and finalizations beside BP levels and diabetes, then recent
   finalized visits and reviews; manager = **Needs attention** (the clinic's held-up queues), then

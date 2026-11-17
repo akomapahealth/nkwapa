@@ -21,6 +21,8 @@ interface TrendChartProps {
   color?: string;
   emptyMessage?: string;
   titleAs?: 'h2' | 'h3';
+  /** One point per day (default) or per month, dated the 1st. Sets the axis and table labels. */
+  period?: 'day' | 'month';
 }
 
 /*
@@ -40,17 +42,23 @@ export function TrendChart({
   color = 'hsl(var(--chart-1))',
   emptyMessage = 'No activity has been recorded for this period yet.',
   titleAs,
+  period = 'day',
 }: TrendChartProps) {
   const hasData = hasRenderableTrendData(data);
+  const monthly = period === 'month';
+  const fullLabel = (value: string | number | Date) =>
+    monthly
+      ? parseChartDate(value).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+      : parseChartDate(value).toLocaleDateString();
 
   return (
     <ChartFrame
       title={title}
       titleAs={titleAs}
       hint={hint}
-      columns={['Day', 'Count']}
+      columns={[monthly ? 'Month' : 'Day', 'Count']}
       rows={data.map((point) => ({
-        label: parseChartDate(point.date).toLocaleDateString(),
+        label: fullLabel(point.date),
         values: [point.count],
       }))}
       hasData={hasData}
@@ -71,12 +79,14 @@ export function TrendChart({
             tick={TICK}
             tickFormatter={(v) => {
               const d = parseChartDate(v);
-              return `${d.getMonth() + 1}/${d.getDate()}`;
+              return monthly
+                ? d.toLocaleDateString(undefined, { month: 'short' })
+                : `${d.getMonth() + 1}/${d.getDate()}`;
             }}
           />
           <YAxis tick={TICK} allowDecimals={false} />
           <Tooltip
-            labelFormatter={(v) => parseChartDate(v as string).toLocaleDateString()}
+            labelFormatter={(v) => fullLabel(v as string)}
             contentStyle={{
               backgroundColor: 'hsl(var(--card))',
               border: '1px solid hsl(var(--border))',
