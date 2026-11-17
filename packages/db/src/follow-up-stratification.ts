@@ -374,6 +374,22 @@ export interface FollowUpConfig {
   minInPersonIntervalMonths: number;
   reminderLeadDays: number;
   urgentCallWithinHours: number;
+
+  /*
+    Flag notifications (#337). They change who is told and when, never a tier, so changing them
+    needs no `version` bump (a bump rewrites every patient's history row on the next sweep).
+  */
+  /** Minutes an urgent flag may go unacknowledged before managers and directors are told. */
+  urgentEscalationMinutes: number;
+  /** Months a patient may stay High before the clinic's doctors are asked to review them. */
+  notImprovingMonths: number;
+  /**
+   * Hours an urgent screening finding the engine does not call Urgent (chest pain alone, low blood
+   * pressure) stays open to take. A same-day finding: after that it is history, not a call to act.
+   */
+  screeningFlagOpenHours: number;
+  /** When the directors' daily counts arrive, as a cron hour and minute in the clinic's zone. */
+  dailyDigestCron: string;
 }
 
 /**
@@ -480,6 +496,12 @@ export const DEFAULT_FOLLOW_UP_CONFIG: FollowUpConfig = {
   minInPersonIntervalMonths: 2,
   reminderLeadDays: 3,
   urgentCallWithinHours: 48,
+
+  urgentEscalationMinutes: 15,
+  notImprovingMonths: 6,
+  screeningFlagOpenHours: 24,
+  // 07:00, before the clinic day starts.
+  dailyDigestCron: '0 7 * * *',
 };
 
 /* ------------------------------------------------------------------------------- Input */

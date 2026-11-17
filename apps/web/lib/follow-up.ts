@@ -22,6 +22,7 @@ import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { hasPermission } from '@/lib/ops';
 
 export const FOLLOW_UP_READ = 'FOLLOW_UP.READ';
+export const FOLLOW_UP_MANAGE = 'FOLLOW_UP.MANAGE';
 
 /** Whether this reader sees tiers: the flag is on and they hold FOLLOW_UP.READ at the clinic. */
 export function canSeeFollowUpTier(permissions: readonly string[]): boolean {
@@ -61,9 +62,56 @@ export interface FollowUpAssessmentRow {
   computedAt: string;
 }
 
+/** Who took an urgent flag, and when (#337). */
+export interface UrgentAcknowledgement {
+  userId: string;
+  displayName: string;
+  at: string;
+}
+
+/** The open urgent flag while a patient is Urgent. */
+export interface UrgentFlag {
+  id: string;
+  /** URGENT: the tier's own flag. SCREENING_URGENT: a finding today the tier does not count. */
+  kind: 'URGENT' | 'SCREENING_URGENT';
+  raisedAt: string;
+  /** The screening findings in plain words; null for an Urgent tier. */
+  detail: string | null;
+  acknowledgement: UrgentAcknowledgement | null;
+}
+
 export interface FollowUpResponse {
   current: FollowUpAssessmentRow | null;
   history: FollowUpAssessmentRow[];
+  /** Absent from an API that predates #337. */
+  urgentFlag?: UrgentFlag | null;
+}
+
+/**
+ * "I'm on it" (#337). Resolves with whoever owns the flag, which is someone else when they
+ * pressed first. Throws with a message fit to show when it could not be taken.
+ */
+export async function acknowledgeUrgentFlag(
+  clinicId: string,
+  patientId: string,
+  getToken: GetToken | undefined,
+): Promise<UrgentAcknowledgement> {
+  const res = await apiFetch(
+    `/clinics/${encodeURIComponent(clinicId)}/patients/${encodeURIComponent(patientId)}/follow-up/acknowledge`,
+    { getToken, method: 'POST', activeClinicId: clinicId },
+  );
+  if (res.status === 409) throw new Error('This patient is no longer urgent.');
+  if (res.status === 403) throw new Error('Only staff who take follow-up work can do this here.');
+  if (!res.ok) throw new Error(`Could not take this patient (${res.status}). Try again.`);
+  return (await res.json()) as UrgentAcknowledgement;
+}
+
+/** "Kofi is on it", or "You're on it" for the reader. */
+export function acknowledgedLabel(
+  ack: { userId: string; displayName: string },
+  me?: string | null,
+) {
+  return ack.userId === me ? "You're on it" : `${ack.displayName || 'A colleague'} is on it`;
 }
 
 export async function fetchFollowUp(

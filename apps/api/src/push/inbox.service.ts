@@ -2,6 +2,19 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ReqUser } from '../auth/auth.controller';
+import { isApiFeatureEnabled } from '../common/feature-flags';
+import { screeningFlagOpenSince, TAKEABLE_KINDS } from '../follow-up/follow-up-flags.service';
+
+/** An urgent flag on a tile (#337): whether "I'm on it" applies, and who took it. */
+export interface InboxRiskFlag {
+  patientId: string;
+  /**
+   * The flag can still be taken: an Urgent flag while the patient is Urgent; a screening flag on
+   * the day it was raised, until the patient becomes Urgent and their Urgent flag takes over.
+   */
+  open: boolean;
+  acknowledgedBy: { userId: string; displayName: string; at: Date } | null;
+}
 
 export const INBOX_PAGE_SIZE = 30;
 
@@ -38,17 +51,71 @@ export class InboxService {
           clinicId: true,
           updatedAt: true,
           readAt: true,
+          riskFlagId: true,
         },
       }),
       this.unreadCount(user),
     ]);
     const hasMore = items.length > INBOX_PAGE_SIZE;
     const page = hasMore ? items.slice(0, INBOX_PAGE_SIZE) : items;
+    const flags = await this.riskFlags(page.map((item) => item.riskFlagId));
     return {
-      items: page,
+      items: page.map(({ riskFlagId, ...item }) => ({
+        ...item,
+        riskFlag: (riskFlagId && flags.get(riskFlagId)) || null,
+      })),
       unreadCount,
       nextBefore: hasMore ? page[page.length - 1].updatedAt.toISOString() : null,
     };
+  }
+
+  /**
+   * The urgent flags behind these tiles. Read as the system: the reader was sent the tile, and a
+   * colleague's display name is not otherwise theirs to read. Nothing at all with the flag off.
+   */
+  private async riskFlags(ids: Array<string | null>): Promise<Map<string, InboxRiskFlag>> {
+    const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+    if (wanted.length === 0 || !isApiFeatureEnabled('followUpStratification')) return new Map();
+    // Detached: this runs inside the reader's own RLS transaction.
+    const rows = await this.prisma.detachFromRlsContext(() =>
+      this.prisma.withSystemContext(
+        { systemReason: 'Show who took an urgent follow-up flag' },
+        (tx) =>
+          tx.patientRiskFlag.findMany({
+            where: { id: { in: wanted }, kind: { in: [...TAKEABLE_KINDS] } },
+            select: {
+              id: true,
+              kind: true,
+              raisedAt: true,
+              patientId: true,
+              patient: { select: { currentRiskTier: true } },
+              acknowledgement: {
+                select: { userId: true, createdAt: true, user: { select: { displayName: true } } },
+              },
+            },
+          }),
+      ),
+    );
+    const since = screeningFlagOpenSince();
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        {
+          patientId: row.patientId,
+          open:
+            row.kind === 'URGENT'
+              ? row.patient.currentRiskTier === 'URGENT'
+              : row.patient.currentRiskTier !== 'URGENT' && row.raisedAt >= since,
+          acknowledgedBy: row.acknowledgement
+            ? {
+                userId: row.acknowledgement.userId,
+                displayName: row.acknowledgement.user.displayName,
+                at: row.acknowledgement.createdAt,
+              }
+            : null,
+        },
+      ]),
+    );
   }
 
   unreadCount(user: ReqUser): Promise<number> {

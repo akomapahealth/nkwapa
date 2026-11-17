@@ -30,6 +30,22 @@ describe('MaintenanceScheduler', () => {
     );
   });
 
+  it('schedules a time-of-day sweep by cron in its zone, and a delay-only task not at all', () => {
+    const run = jest.fn();
+    scheduler.register({
+      jobName: 'morning',
+      cron: { pattern: '0 7 * * *', tz: 'Africa/Accra' },
+      run,
+    });
+    scheduler.register({ jobName: 'on-demand', run });
+    expect(queue.upsertJobScheduler).toHaveBeenCalledTimes(1);
+    expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
+      'morning',
+      { pattern: '0 7 * * *', tz: 'Africa/Accra' },
+      { name: 'morning' },
+    );
+  });
+
   // BullMQ waits for Redis rather than failing, so a pending upsert must not hold up boot (#199).
   it('does not wait for Redis to register a scheduler', () => {
     queue.upsertJobScheduler.mockReturnValue(new Promise(() => {}));

@@ -7,7 +7,7 @@ import { hasAnyPermission, hasPermission } from '@/lib/ops';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { MAIN_ROLE_PRECEDENCE, type MainRole } from '@/lib/main-role';
 import type { ZoneFilter, ZoneSummary } from '@/lib/clinic-zones';
-import type { DashboardWorkItem } from '@/lib/dashboard-work-items';
+import type { DashboardWorkItem, UrgentWork } from '@/lib/dashboard-work-items';
 import type { RecentVisit } from './recent-visit-columns';
 import {
   ClinicalMeasurementsDashboard,
@@ -23,6 +23,8 @@ import { SystemAdminDashboard } from './SystemAdminDashboard';
 import { StationFlowDashboard, stationFlowFigures, useStationFlow } from './StationFlowDashboard';
 
 export interface DashboardData {
+  /** Urgent patients nobody has taken (#337); only with follow-up stratification on. */
+  urgent?: UrgentWork;
   summary: {
     totalPatients: number;
     encountersToday: number;
@@ -261,7 +263,14 @@ export function RoleHome({
       work = (
         <DoctorDashboard
           {...doctor}
-          needs={<NeedsYouNow doctor={doctor} review={data?.review} worklistHref={null} />}
+          needs={
+            <NeedsYouNow
+              doctor={doctor}
+              review={data?.review}
+              urgent={data?.urgent}
+              worklistHref={null}
+            />
+          }
         >
           {data?.review ? <ReviewDashboard recentReviews={data.review.recentReviews} /> : null}
         </DoctorDashboard>
@@ -310,7 +319,12 @@ export function RoleHome({
     }
     work = data ? (
       <div className="space-y-10">
-        <NeedsYouNow clinic={clinic} worklistHref={null} title="Needs attention" />
+        <NeedsYouNow
+          clinic={clinic}
+          urgent={data.urgent}
+          worklistHref={null}
+          title="Needs attention"
+        />
         {showStationFlow ? <StationFlowDashboard flow={flow} showFigures={false} /> : null}
       </div>
     ) : null;
@@ -338,7 +352,14 @@ export function RoleHome({
       work = (
         <DirectorDashboard
           {...director}
-          needs={<NeedsYouNow clinic={clinic} worklistHref={null} title="Needs attention" />}
+          needs={
+            <NeedsYouNow
+              clinic={clinic}
+              urgent={data.urgent}
+              worklistHref={null}
+              title="Needs attention"
+            />
+          }
         >
           {showStationFlow ? <StationFlowDashboard flow={flow} /> : null}
         </DirectorDashboard>

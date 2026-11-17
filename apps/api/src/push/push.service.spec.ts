@@ -113,6 +113,43 @@ describe('PushService', () => {
     expect(values.join(' ')).toContain('Chest pain. Fainting.');
   });
 
+  describe('with follow-up stratification on (#337)', () => {
+    const FLAG = 'FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED';
+    const saved = process.env[FLAG];
+    beforeEach(() => (process.env[FLAG] = 'true'));
+    afterAll(() => (process.env[FLAG] = saved));
+
+    const alert = { clinicId: 'c1', encounterId: 'e1', actorUserId: 'actor', findings: ['x'] };
+
+    it('hands screening alerts to the follow-up flag service, and sends nothing itself', () => {
+      const { service, client } = setup();
+      const handler = jest.fn();
+      service.handleScreeningAlertsWith(handler);
+      service.alertClinicians(alert);
+      expect(handler).toHaveBeenCalledWith(alert);
+      expect(client.encounter.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('keeps its own routing when the flag is off', () => {
+      process.env[FLAG] = 'false';
+      const { service } = setup();
+      const handler = jest.fn();
+      service.handleScreeningAlertsWith(handler);
+      service.alertClinicians(alert);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('raises the count for each event, but not for a silent merge', async () => {
+      const { service, client } = setup();
+      const message = { title: 't', url: '/', kind: 'HEALTH_ALERT' as const, tag: 'risk-p1' };
+      await service.record(['u1'], message);
+      await service.record(['u1'], { ...message, silentMerge: true });
+      const bump = (call: unknown[]) => call[call.length - 1];
+      expect(bump(client.$executeRaw.mock.calls[0])).toBe(1);
+      expect(bump(client.$executeRaw.mock.calls[1])).toBe(0);
+    });
+  });
+
   it('never sends the bell wording to a device', async () => {
     const { service } = setup();
     send.mockResolvedValue({ statusCode: 201, body: '', headers: {} });

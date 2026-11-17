@@ -1,4 +1,5 @@
 import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
+import { FollowUpFlagService } from '../follow-up/follow-up-flags.service';
 import {
   BadRequestException,
   ConflictException,
@@ -205,6 +206,7 @@ export class PatientMergeService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     @Optional() private readonly risk?: FollowUpRiskService,
+    @Optional() private readonly flags?: FollowUpFlagService,
   ) {}
 
   /**
@@ -509,6 +511,7 @@ export class PatientMergeService {
     });
 
     // The surviving chart now holds both histories. The source keeps its last tier as history.
+    await this.flags?.moveFlagsAfterMerge(source.id, canonical.id);
     await this.risk?.recomputeAfterCommit({
       patientId: canonical.id,
       trigger: 'MERGE',

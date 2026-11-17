@@ -52,7 +52,8 @@ import { PatientVisitsPanel } from '@/components/patients/chart/PatientVisitsPan
 import { RouteGuard } from '@/components/RouteGuard';
 import { FollowUpTierSummary } from '@/components/patients/follow-up/FollowUpTierSummary';
 import { FollowUpTierHistory } from '@/components/patients/follow-up/FollowUpTierHistory';
-import { canSeeFollowUpTier, fetchFollowUp } from '@/lib/follow-up';
+import { UrgentFlagBanner } from '@/components/patients/follow-up/UrgentFlagBanner';
+import { canSeeFollowUpTier, fetchFollowUp, FOLLOW_UP_MANAGE } from '@/lib/follow-up';
 import { useAsyncResource } from '@/lib/use-async-resource';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import {
@@ -706,6 +707,18 @@ function PatientChartWorkspace() {
         />
       ) : null}
 
+      {/* The API returns a flag only while it is open: Urgent now, or a screening finding today. */}
+      {canSeeTier && followUp.data?.urgentFlag ? (
+        <UrgentFlagBanner
+          key={followUp.data.urgentFlag.id}
+          clinicId={clinicId}
+          patientId={patientId}
+          flag={followUp.data.urgentFlag}
+          reasons={followUp.data.current?.reasons ?? []}
+          canTake={hasPermission(perms, FOLLOW_UP_MANAGE) && isOnline}
+          userId={userId || null}
+        />
+      ) : null}
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {mergedFrom ? (
         <InlineNotice tone="info">
