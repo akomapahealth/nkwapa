@@ -30,6 +30,8 @@ import {
 } from '@/components/patients/RecordSection';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FollowUpMetricsSection } from '@/components/metrics/FollowUpMetricsSection';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { OrganizationAnalyticsPanel } from './OrganizationAnalyticsPanel';
 import {
   Select,
@@ -52,7 +54,8 @@ export function OrganizationReportScreen() {
   const router = useRouter();
   const bootstrapCtx = useBootstrap();
   const [organizationId, setOrganizationId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'report' | 'analytics'>('report');
+  const [tab, setTab] = useState<'report' | 'analytics' | 'follow-up'>('report');
+  const followUp = isWebFeatureEnabled('followUpStratification');
 
   const organizations = useAsyncResource<OrganizationSummary[]>({
     requiresOnline: true,
@@ -225,10 +228,11 @@ export function OrganizationReportScreen() {
       </ResourceState>
 
       {organizationId ? (
-        <Tabs value={tab} onValueChange={(value) => setTab(value as 'report' | 'analytics')}>
+        <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
           <TabsList>
             <TabsTrigger value="report">Report</TabsTrigger>
             <TabsTrigger value="analytics">Cohort analytics</TabsTrigger>
+            {followUp ? <TabsTrigger value="follow-up">Follow-up</TabsTrigger> : null}
           </TabsList>
           <TabsContent value="report" className="mt-4">
             <ResourceState
@@ -343,6 +347,16 @@ export function OrganizationReportScreen() {
               />
             ) : null}
           </TabsContent>
+          {followUp ? (
+            <TabsContent value="follow-up" className="mt-4">
+              {tab === 'follow-up' ? (
+                <FollowUpMetricsSection
+                  key={organizationId}
+                  scope={{ kind: 'organization', organizationId }}
+                />
+              ) : null}
+            </TabsContent>
+          ) : null}
         </Tabs>
       ) : null}
     </div>

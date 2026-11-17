@@ -76,7 +76,7 @@ export interface DoctorMetrics {
   clinicalMeasurements: ClinicalMeasurementMetrics;
   awaitingFinalization: number;
   patientsSeen: { today: number; week: number; month: number };
-  followUpComplianceRate: number;
+  carePlansWithFollowUpDateRate: number;
   hypertensionDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
   recentEncounters: EncounterSummary[];
@@ -101,7 +101,7 @@ export interface DirectorMetrics {
   encounterVolumeTrend: TrendPoint[];
   screeningRates: { hypertension: number; diabetes: number };
   bpDistribution: Record<string, number>;
-  followUpComplianceRate: number;
+  carePlansWithFollowUpDateRate: number;
   staffActivity: StaffActivityRow[];
   encounterStatusDistribution: Record<string, number>;
   pendingClinicalNoteCosigns?: number;

@@ -142,7 +142,7 @@ export interface FollowUpRecords {
 
 type Glucose = NonNullable<FollowUpInput['glucose']>;
 
-function ageOn(dob: Date, today: Date): number {
+export function ageOn(dob: Date, today: Date): number {
   let age = today.getUTCFullYear() - dob.getUTCFullYear();
   const beforeBirthday =
     today.getUTCMonth() < dob.getUTCMonth() ||
@@ -177,7 +177,35 @@ function glucoseContext(value: unknown): Glucose['context'] {
     : 'UNKNOWN';
 }
 
-function readingsFrom(records: FollowUpRecords): FollowUpBpReading[] {
+type Encounter = FollowUpRecords['encounters'][number];
+type HypertensionRow = NonNullable<Encounter['hypertension']>;
+
+/** Just what BP readings are read from, so the monthly indicators (#339) load no more. */
+export interface FollowUpReadingRecords {
+  encounters: Array<{
+    createdAt: Date;
+    vitals: Pick<NonNullable<Encounter['vitals']>, 'systolicBp' | 'diastolicBp'> | null;
+    hypertension: Pick<
+      HypertensionRow,
+      | 'collectedAt'
+      | 'repeatSystolicBp'
+      | 'repeatDiastolicBp'
+      | 'repeatMeasuredAt'
+      | 'homeSystolicAvg'
+      | 'homeDiastolicAvg'
+    > | null;
+  }>;
+  selfReports: Array<
+    Pick<
+      FollowUpRecords['selfReports'][number],
+      'type' | 'systolicBp' | 'diastolicBp' | 'recordedAt'
+    >
+  >;
+  measurements: FollowUpRecords['measurements'];
+}
+
+/** Every BP reading in the records, newest first. */
+export function readingsFrom(records: FollowUpReadingRecords): FollowUpBpReading[] {
   const readings: FollowUpBpReading[] = [];
   for (const encounter of records.encounters) {
     const { vitals, hypertension } = encounter;

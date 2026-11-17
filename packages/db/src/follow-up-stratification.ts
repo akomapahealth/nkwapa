@@ -1062,6 +1062,17 @@ export function checkDangerSigns(
 /* ---------------------------------------------------------------------------- Assess */
 
 /**
+ * HEARTS360 control alone, on `input.today` (#339). The monthly indicators call it at each
+ * month-end with the readings up to then, so they use exactly the rule the tier uses.
+ */
+export function followUpControl(
+  input: FollowUpInput,
+  config: FollowUpConfig = DEFAULT_FOLLOW_UP_CONFIG,
+): FollowUpControl {
+  return controlFor(gatherFacts(input, config));
+}
+
+/**
  * The tier for one patient, and why.
  *
  * Precedence, in order (the first that applies decides the tier; every rule that fires is still

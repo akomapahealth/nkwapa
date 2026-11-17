@@ -22,7 +22,7 @@ interface DirectorDashboardProps {
   encounterVolumeTrend: { date: string; count: number }[];
   screeningRates: { hypertension: number; diabetes: number };
   bpDistribution: Record<string, number>;
-  followUpComplianceRate: number;
+  carePlansWithFollowUpDateRate: number;
   staffActivity: StaffActivityRow[];
   encounterStatusDistribution: Record<string, number>;
   pendingClinicalNoteCosigns?: number;

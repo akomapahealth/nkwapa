@@ -37,7 +37,7 @@ export interface DashboardData {
     awaitingFinalization: number;
     awaitingFinalizationItems?: DashboardWorkItem[];
     patientsSeen: { today: number; week: number; month: number };
-    followUpComplianceRate: number;
+    carePlansWithFollowUpDateRate: number;
     hypertensionDistribution: Record<string, number>;
     diabetesStats: { flagged: number; total: number };
     recentEncounters: RecentVisit[];
@@ -58,7 +58,7 @@ export interface DashboardData {
     encounterVolumeTrend: { date: string; count: number }[];
     screeningRates: { hypertension: number; diabetes: number };
     bpDistribution: Record<string, number>;
-    followUpComplianceRate: number;
+    carePlansWithFollowUpDateRate: number;
     staffActivity: {
       userId: string;
       displayName: string;
@@ -250,9 +250,9 @@ export function RoleHome({
         { value: count.format(doctor.patientsSeen.week), label: 'finalized this week' },
         doctor.pendingClinicalNoteCosigns === undefined
           ? {
-              value: doctor.followUpComplianceRate,
+              value: doctor.carePlansWithFollowUpDateRate,
               unit: '%',
-              label: 'care plans with a follow-up',
+              label: 'care plans with a follow-up date',
             }
           : {
               value: count.format(doctor.pendingClinicalNoteCosigns),
@@ -347,7 +347,11 @@ export function RoleHome({
           unit: '%',
           label: 'visits with a BP screen',
         },
-        { value: director.followUpComplianceRate, unit: '%', label: 'care plans with a follow-up' },
+        {
+          value: director.carePlansWithFollowUpDateRate,
+          unit: '%',
+          label: 'care plans with a follow-up date',
+        },
       ];
       work = (
         <DirectorDashboard

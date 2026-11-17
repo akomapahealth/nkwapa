@@ -374,7 +374,7 @@ export class DashboardService {
       hypertensionDistribution[row.classification] = row._count;
     }
 
-    const followUpComplianceRate =
+    const carePlansWithFollowUpDateRate =
       carePlansTotal > 0 ? Math.round((carePlansWithFollowUp / carePlansTotal) * 100) : 0;
 
     const recentEncounters: EncounterSummary[] = recentRaw.map((e) => ({
@@ -405,7 +405,7 @@ export class DashboardService {
     return {
       awaitingFinalization,
       patientsSeen: { today: seenToday, week: seenWeek, month: seenMonth },
-      followUpComplianceRate,
+      carePlansWithFollowUpDateRate,
       hypertensionDistribution,
       diabetesStats: { flagged: diabetesScreenings, total: totalScreenings },
       recentEncounters,
@@ -554,7 +554,7 @@ export class DashboardService {
         totalEncounters > 0 ? Math.round((diabetesScreeningCount / totalEncounters) * 100) : 0,
     };
 
-    const followUpComplianceRate =
+    const carePlansWithFollowUpDateRate =
       carePlansTotal > 0 ? Math.round((carePlansWithFollowUp / carePlansTotal) * 100) : 0;
 
     const encounterStatusCounts = await this.prisma.encounter.groupBy({
@@ -590,7 +590,7 @@ export class DashboardService {
       encounterVolumeTrend,
       screeningRates,
       bpDistribution,
-      followUpComplianceRate,
+      carePlansWithFollowUpDateRate,
       staffActivity,
       encounterStatusDistribution,
     };
