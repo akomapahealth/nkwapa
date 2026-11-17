@@ -62,6 +62,8 @@ for (const [role, route, widths] of [
         await page.setViewportSize({ width, height: width > 600 ? 900 : 844 });
         await page.goto(route);
         await expect(page.locator('main h1').first()).toBeVisible();
+        // The access check's skeleton has its own h1; tab into the page, not into the skeleton.
+        await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
         await skipThenTab(page);
         expect(await page.evaluate(coveredShare)).toBe(0);
         expect(await page.evaluate(indicatorNow)).toBe(true);
@@ -79,6 +81,7 @@ test.describe('workspace', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/patients');
     await expect(page.locator('main h1').first()).toBeVisible();
+    await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
     await page.locator('main').focus();
     // Walk the registry: every stop must be fully visible, including the ones the browser
     // scrolls up from under the fixed chrome.
