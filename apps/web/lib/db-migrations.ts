@@ -153,3 +153,41 @@ export function migrateLegacyDiabetesInterview(record: LegacyDiabetesInterviewRe
     (record.glucoseType ?? 'UNKNOWN') as DiabetesGlucoseContext,
   );
 }
+
+export const DEVICE_ID_KEY = 'deviceId';
+
+/**
+ * This browser profile's id, for the Dexie v15 upgrade and for a profile created at v15 (#207).
+ *
+ * Random, made once, and never derived from anything about the person or the hardware: it lets
+ * the API tell one device's offline access from another's, and identifies nobody.
+ */
+export function deviceIdSetting(id: string = globalThis.crypto.randomUUID()): {
+  key: string;
+  value: string;
+} {
+  return { key: DEVICE_ID_KEY, value: id };
+}
+
+/** Each revision table and the record table its rows belong to (v16, #207). */
+export const REVISION_PARENTS = [
+  ['medical_history_revisions', 'medical_history_records'],
+  ['patient_medication_revisions', 'patient_medication_records'],
+  ['patient_pharmacy_revisions', 'patient_pharmacy_records'],
+] as const;
+
+/**
+ * Give a revision its record's clinic, which names the key it is encrypted under. False when its
+ * record is not on the device: no screen can reach it, and with no clinic it could never be
+ * encrypted, so the caller drops the local copy (the server keeps the original).
+ */
+export function stampRevisionClinic(
+  row: { recordId?: unknown; clinicId?: unknown },
+  clinicOf: ReadonlyMap<unknown, unknown>,
+): boolean {
+  if (typeof row.clinicId === 'string' && row.clinicId) return true;
+  const clinicId = clinicOf.get(row.recordId);
+  if (typeof clinicId !== 'string' || !clinicId) return false;
+  row.clinicId = clinicId;
+  return true;
+}

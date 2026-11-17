@@ -1,3 +1,4 @@
+import type { OfflineSessionStamp } from '@nkwapa/db/offline-grant';
 import type {
   NkwapaDb,
   OutboxFailure,
@@ -45,6 +46,18 @@ export function setOutboxOwner(owner: OutboxOwner | null) {
 
 export function getOutboxOwner(): OutboxOwner | null {
   return currentOwner;
+}
+
+/**
+ * The offline session new changes are recorded in (#207), set when one is unlocked and cleared
+ * when it ends. Only a change queued by that session's own account is stamped with it.
+ */
+let currentOfflineSession: { userId: string; stamp: OfflineSessionStamp } | null = null;
+
+export function setOutboxOfflineSession(
+  session: { userId: string; stamp: OfflineSessionStamp } | null,
+) {
+  currentOfflineSession = session;
 }
 
 /**
@@ -110,6 +123,7 @@ export interface OutboxRecordShape {
   localContext?: OutboxLocalContext;
   ownerUserId?: string;
   ownerName?: string;
+  offlineSession?: OfflineSessionStamp;
 }
 
 export interface MedicalHistoryOutboxPayload {
@@ -209,6 +223,9 @@ export function buildOutboxMutation(params: OutboxMutationParams): OutboxRecordS
     ...(owner ? { ownerUserId: owner.userId } : {}),
     ...(owner?.displayName ? { ownerName: owner.displayName } : {}),
     ...(clinicName ? { clinicName } : {}),
+    ...(owner && currentOfflineSession?.userId === owner.userId
+      ? { offlineSession: { ...currentOfflineSession.stamp } }
+      : {}),
   };
 }
 

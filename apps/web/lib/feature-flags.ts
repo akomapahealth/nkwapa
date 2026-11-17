@@ -10,6 +10,7 @@ const webFeatureFlagReaders = {
   stationWorkflow: () => process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED,
   pwaInstall: () => process.env.NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED,
   followUpStratification: () => process.env.NEXT_PUBLIC_FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED,
+  offlineSession: () => process.env.NEXT_PUBLIC_FEATURE_OFFLINE_SESSION_ENABLED,
 } as const;
 
 export type WebFeatureFlag = keyof typeof webFeatureFlagReaders;

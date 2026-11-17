@@ -6,6 +6,7 @@ const { apiRequestAs } = require('../playwright/api-client');
 const { storageStateFor } = require('../playwright/roles');
 const { answer, question } = require('../playwright/interview');
 const { keyboardDialog } = require('../playwright/clinical-keyboard.cjs');
+const { readLocalTable } = require('../playwright/local-db');
 
 /*
   Issue #167: the station line, end to end.
@@ -880,22 +881,8 @@ test.describe('the station screens keep separate offline copies (#197)', () => {
 
   /** The device's ops_cache rows, keyed by `${clinicId}|${kind}`. */
   async function readOpsCacheRows(page) {
-    return page.evaluate(
-      () =>
-        new Promise((resolve, reject) => {
-          const request = indexedDB.open('NkwapaDb');
-          request.onerror = () => reject(request.error);
-          request.onsuccess = () => {
-            const db = request.result;
-            const all = db.transaction('ops_cache', 'readonly').objectStore('ops_cache').getAll();
-            all.onsuccess = () => {
-              db.close();
-              resolve(Object.fromEntries(all.result.map((row) => [row.key, row])));
-            };
-            all.onerror = () => reject(all.error);
-          };
-        }),
-    );
+    const rows = await readLocalTable(page, 'ops_cache');
+    return Object.fromEntries(rows.map((row) => [row.key, row]));
   }
 
   async function putOpsCacheRows(page, rows) {

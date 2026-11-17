@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const { readLocalTable } = require('../playwright/local-db');
 const {
   chooseAnswer,
   question,
@@ -25,30 +26,8 @@ test.use({ storageState: storageStateFor('staff') });
  */
 
 async function readAssessments(page, encounterId) {
-  return page.evaluate(
-    (encounter) =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains('hypertension_assessments')) {
-            db.close();
-            resolve([]);
-            return;
-          }
-          const store = db
-            .transaction('hypertension_assessments', 'readonly')
-            .objectStore('hypertension_assessments');
-          const all = store.getAll();
-          all.onerror = () => reject(all.error);
-          all.onsuccess = () => {
-            db.close();
-            resolve(all.result.filter((row) => row.encounterId === encounter));
-          };
-        };
-      }),
-    encounterId,
+  return (await readLocalTable(page, 'hypertension_assessments')).filter(
+    (row) => row.encounterId === encounterId,
   );
 }
 

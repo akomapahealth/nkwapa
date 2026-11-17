@@ -2,8 +2,10 @@ import {
   migrateLegacyDiabetesInterview,
   migrateLegacyDiabetesScreening,
   migrateLegacyHypertensionAssessment,
+  deviceIdSetting,
   migrateLegacyPulse,
   stripStoredNationalIdSecrets,
+  stampRevisionClinic,
   type LegacyDiabetesScreeningRecord,
 } from './db-migrations';
 
@@ -192,5 +194,46 @@ describe('migrateLegacyDiabetesInterview', () => {
       urgentSymptoms: ['VOMITING'],
       phq2Positive: true,
     });
+  });
+});
+
+describe('deviceIdSetting (v15, #207)', () => {
+  it('seeds a random v4 device id under one fixed key', () => {
+    const first = deviceIdSetting();
+    const second = deviceIdSetting();
+    expect(first.key).toBe('deviceId');
+    expect(first.value).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(second.value).not.toBe(first.value);
+  });
+
+  it('keeps an id it is given, so a fresh profile and an upgraded one store the same shape', () => {
+    expect(deviceIdSetting('11111111-1111-4111-8111-111111111111')).toEqual({
+      key: 'deviceId',
+      value: '11111111-1111-4111-8111-111111111111',
+    });
+  });
+});
+
+describe('stampRevisionClinic (v16, #207)', () => {
+  const clinicOf = new Map([['record-1', 'clinic-a']]);
+
+  it('gives a revision its record’s clinic', () => {
+    const row: { recordId: string; clinicId?: string } = { recordId: 'record-1' };
+    expect(stampRevisionClinic(row, clinicOf)).toBe(true);
+    expect(row.clinicId).toBe('clinic-a');
+  });
+
+  it('keeps a clinic a revision already has', () => {
+    const row = { recordId: 'record-1', clinicId: 'clinic-b' };
+    expect(stampRevisionClinic(row, clinicOf)).toBe(true);
+    expect(row.clinicId).toBe('clinic-b');
+  });
+
+  it('reports a revision whose record is not on the device, so it can be dropped', () => {
+    const row: { recordId: string; clinicId?: string } = { recordId: 'record-9' };
+    expect(stampRevisionClinic(row, clinicOf)).toBe(false);
+    expect(row.clinicId).toBeUndefined();
   });
 });

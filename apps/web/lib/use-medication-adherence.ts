@@ -118,10 +118,10 @@ export function useMedicationAdherence(
         }
       }
 
-      const stored = await db.medication_adherence
-        .where('[encounterId+context]')
-        .equals([encounterId, context])
-        .first();
+      // By encounter, then condition: the condition is clinical, so it is not indexed (#207).
+      const stored = (
+        await db.medication_adherence.where('encounterId').equals(encounterId).toArray()
+      ).find((row) => row.context === context);
 
       if (cancelled) return;
 
