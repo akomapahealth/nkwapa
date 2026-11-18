@@ -12,15 +12,16 @@ const { ROLES } = require('./roles');
  * asserting the control is absent. Absence of a button is not refusal of a route.
  *
  * The token comes from Keycloak's direct access grant rather than from the page, using the same
- * credentials `ROLES` already holds. `nkwapa-web` is a public client with `directAccessGrantsEnabled`
- * (see the realm export), so this needs no client secret and, more importantly, no test-only hook
- * in application code: nothing ships to production to make the suite work.
+ * credentials `ROLES` already holds, through `nkwapa-e2e`: a public client with direct access grants
+ * that scripts/create-keycloak-e2e-user.mjs creates on a local Keycloak only. It needs no client
+ * secret and no test-only hook in application code: nothing ships to production to make the suite
+ * work.
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
 const KEYCLOAK_URL = process.env.NEXT_PUBLIC_KEYCLOAK_URL || 'http://localhost:8080';
 const REALM = process.env.NEXT_PUBLIC_KEYCLOAK_REALM || 'nkwapa';
-const CLIENT_ID = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || 'nkwapa-web';
+const CLIENT_ID = process.env.KEYCLOAK_E2E_CLIENT_ID || 'nkwapa-e2e';
 
 /**
  * Cached per worker process, not per test.

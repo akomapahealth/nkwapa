@@ -32,7 +32,7 @@ let liveSession;
 async function tokenRequest(form) {
   const context = await playwrightRequest.newContext();
   try {
-    const response = await context.post(TOKEN_URL, { form: { client_id: 'nkwapa-web', ...form } });
+    const response = await context.post(TOKEN_URL, { form: { client_id: 'nkwapa-e2e', ...form } });
     return { status: response.status(), body: await response.json().catch(() => ({})) };
   } finally {
     await context.dispose();

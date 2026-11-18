@@ -236,6 +236,12 @@ assert(
   'nkwapa-api must not enable direct access grants',
 );
 assert(apiClient?.fullScopeAllowed === false, 'nkwapa-api must not allow full scope');
+// The e2e harness's password-grant client is created by scripts/create-keycloak-e2e-user.mjs in
+// local and CI realms only; the export seeds every environment and must never carry one.
+assert(
+  !(realm.clients ?? []).some((candidate) => candidate.directAccessGrantsEnabled === true),
+  'no client in the realm export may enable direct access grants',
+);
 assert(
   Array.isArray(apiClient?.redirectUris) && apiClient.redirectUris.length === 0,
   'nkwapa-api must declare no redirect URIs',
@@ -476,6 +482,66 @@ try {
   assert(
     JSON.stringify(exportedMapper) === JSON.stringify(reconciledMapper),
     'the audience mapper in the realm export and in entrypoint.sh must be identical',
+  );
+
+  // Hardening: the export seeds new realms, the entrypoint applies the same to live ones.
+  const sourced = (fn, env = {}) =>
+    execFileSync('bash', ['-c', `source "$0"; ${fn}`, entrypointPath], {
+      env: { PATH: process.env.PATH, ...env },
+    }).toString();
+  const reconciledEvents = JSON.parse(sourced('events_json'));
+  for (const key of [
+    'eventsEnabled',
+    'eventsExpiration',
+    'adminEventsEnabled',
+    'adminEventsDetailsEnabled',
+  ]) {
+    assert(
+      realm[key] === reconciledEvents[key],
+      `${key} must match between the realm export and entrypoint.sh`,
+    );
+  }
+  assert(reconciledEvents.eventsEnabled === true, 'login events must be stored');
+  assert(reconciledEvents.adminEventsEnabled === true, 'admin events must be stored');
+  assert(
+    realm.attributes?.adminEventsExpiration === String(reconciledEvents.eventsExpiration),
+    'admin events must expire with login events',
+  );
+
+  const webSettings = JSON.parse(sourced('web_client_json'));
+  assert(
+    webSettings.directAccessGrantsEnabled === false && client?.directAccessGrantsEnabled === false,
+    'nkwapa-web must refuse the password grant: it skips the browser flow and its second factor',
+  );
+  assert(
+    webSettings.attributes?.['pkce.code.challenge.method'] === 'S256' &&
+      client?.attributes?.['pkce.code.challenge.method'] === 'S256',
+    'nkwapa-web must require PKCE S256',
+  );
+  const productionOnly = JSON.parse(
+    sourced('web_client_json', { KC_WEB_ORIGINS: ' https://nkwapa.app/ ' }),
+  );
+  assert(
+    JSON.stringify(productionOnly.redirectUris) ===
+      JSON.stringify(['https://nkwapa.app', 'https://nkwapa.app/*']) &&
+      JSON.stringify(productionOnly.webOrigins) === JSON.stringify(['https://nkwapa.app']),
+    'KC_WEB_ORIGINS must become exactly the redirect URIs and web origins',
+  );
+
+  const adminFlow = execFileSync(
+    'bash',
+    ['-c', 'source "$0"; printf "%s|%s" "$ADMIN_MFA_FLOW" "$ADMIN_MFA_ROLE"', entrypointPath],
+    { env: { PATH: process.env.PATH } },
+  )
+    .toString()
+    .split('|');
+  assert(
+    realm.roles?.realm?.some((role) => role.name === adminFlow[1]),
+    `the admin second-factor role ${adminFlow[1]} must exist in the realm`,
+  );
+  assert(
+    (await readFile(entrypointPath, 'utf8')).includes('\n  reconcile_admin_mfa_flow\n'),
+    'entrypoint.sh must build the admin second-factor flow on boot',
   );
 } catch (error) {
   failures.push(`entrypoint.sh reconcile check failed: ${error.message}`);

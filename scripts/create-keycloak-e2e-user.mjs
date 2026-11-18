@@ -310,6 +310,64 @@ async function upsertUser(accessToken, user) {
   return persistedUser.id;
 }
 
+/*
+  The e2e harness signs in with the password grant. nkwapa-web refuses it (the grant skips the
+  browser flow, so its second factor), so the harness gets its own client, created here and only
+  against a local Keycloak: staging and production never have it. It copies nkwapa-web's mappers
+  and scopes, so its tokens carry the same claims, aud nkwapa-api included.
+*/
+const E2E_CLIENT_ID = 'nkwapa-e2e';
+
+async function ensureE2eClient(accessToken) {
+  const host = new URL(keycloakBaseUrl).hostname;
+  if (!['localhost', '127.0.0.1', 'keycloak'].includes(host)) {
+    console.warn(`Not creating ${E2E_CLIENT_ID} on ${host}: it exists only on a local Keycloak.`);
+    return;
+  }
+  const clientsUrl = `${keycloakBaseUrl}/admin/realms/${realm}/clients`;
+  const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+  const find = async (clientId) => {
+    const response = await fetch(`${clientsUrl}?clientId=${encodeURIComponent(clientId)}`, {
+      headers,
+    });
+    await assertOk(response, `Keycloak client lookup (${clientId})`);
+    return (await response.json())[0] ?? null;
+  };
+
+  const web = await find('nkwapa-web');
+  if (!web) throw new Error(`nkwapa-web is missing from realm ${realm}`);
+
+  // Recreated every run, so a change to nkwapa-web's mappers reaches it.
+  const existing = await find(E2E_CLIENT_ID);
+  if (existing) {
+    const response = await fetch(`${clientsUrl}/${existing.id}`, { method: 'DELETE', headers });
+    await assertOk(response, `Keycloak client delete (${E2E_CLIENT_ID})`);
+  }
+  const response = await fetch(clientsUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      clientId: E2E_CLIENT_ID,
+      name: 'E2E password grant (local and CI only)',
+      enabled: true,
+      publicClient: true,
+      directAccessGrantsEnabled: true,
+      standardFlowEnabled: false,
+      implicitFlowEnabled: false,
+      serviceAccountsEnabled: false,
+      fullScopeAllowed: web.fullScopeAllowed,
+      defaultClientScopes: web.defaultClientScopes,
+      optionalClientScopes: web.optionalClientScopes,
+      protocolMappers: (web.protocolMappers ?? []).map((mapper) => {
+        const copy = { ...mapper };
+        delete copy.id;
+        return copy;
+      }),
+    }),
+  });
+  await assertOk(response, `Keycloak client creation (${E2E_CLIENT_ID})`);
+}
+
 async function appendGithubEnv(name, value) {
   if (!process.env.GITHUB_ENV) {
     return;
@@ -329,6 +387,7 @@ async function appendGithubOutput(name, value) {
 async function main() {
   const accessToken = await getAdminAccessToken();
   const summary = { realm, keycloakBaseUrl };
+  await ensureE2eClient(accessToken);
 
   for (const [role, user] of Object.entries(identities)) {
     const userId = await upsertUser(accessToken, user);

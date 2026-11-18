@@ -172,7 +172,7 @@ test('accepting grants the role in that one clinic, and nowhere else', async () 
     {
       form: {
         grant_type: 'password',
-        client_id: 'nkwapa-web',
+        client_id: 'nkwapa-e2e',
         username: INVITE_EMAIL,
         password: PASSWORD,
         scope: 'openid',
