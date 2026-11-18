@@ -1,0 +1,28 @@
+version: 2
+
+# Update PRs target release/dev, like every other change. Actions are pinned to commit SHAs;
+# Dependabot moves the SHA and the version comment together.
+#
+# npm: CI runs Node 22's npm 10, and a lockfile written by npm 11 fails `npm ci` in seconds
+# ("Missing: <pkg> from lock file"). If a Dependabot PR fails that way, regenerate the lockfile
+# on its branch with `npx -y npm@10 install --package-lock-only` before merging.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: release/dev
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /
+    target-branch: release/dev
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # Minor and patch updates in one PR a month; each major update gets its own.
+      npm-minor-and-patch:
+        update-types: [minor, patch]

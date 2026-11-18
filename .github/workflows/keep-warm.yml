@@ -26,6 +26,10 @@ on:
     - cron: '55 5 * * 1-6'
   workflow_dispatch:
 
+# Read-only by default; a job that needs more declares its own permissions block.
+permissions:
+  contents: read
+
 jobs:
   readiness:
     name: Check production API reaches the database
