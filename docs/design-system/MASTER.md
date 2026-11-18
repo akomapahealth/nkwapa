@@ -2153,7 +2153,7 @@ adaptations before shipping. No wholesale import or framework upgrade is approve
 The #263 PR adds no production dependency or UI library component; actual
 adoption belongs to the issue that uses it.
 
-Confirmed production stack: Next 16.3.0-canary.104, **workspace-local React and
+Confirmed production stack: Next 16.4.6, **workspace-local React and
 React DOM 18.3.1**, Tailwind 3.4.19, Recharts 3.10.1. The root-hoisted React is a
 different version; resolving from the web workspace is essential. Experiments
 ran in a disposable branch from `release/dev`, using npm 10.9.9.

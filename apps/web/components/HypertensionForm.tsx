@@ -15,22 +15,11 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { db } from '@/lib/db';
-import { enqueueOutboxMutation } from '@/lib/outbox';
+import { enqueueOutboxMutation, generateClientId as generateId } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { HYPERTENSION_CLASSIFICATIONS, HYPERTENSION_LABELS } from '@/lib/hypertension';
 import { InlineNotice } from '@/components/ops/OpsShared';
 import { claimEncounterRecord } from '@/lib/encounter-record';
-
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 const CLASSIFICATIONS = HYPERTENSION_CLASSIFICATIONS;
 

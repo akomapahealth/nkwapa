@@ -61,7 +61,7 @@ describe('telemetry event catalog', () => {
     );
     for (const name of names) {
       // Table cells are padded by the formatter, so the name is matched with any spacing.
-      const cell = new RegExp(`\\|\\s*\`${name.replace(/\./g, '\\.')}\`\\s*\\|`);
+      const cell = new RegExp(`\\|\\s*\`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\`\\s*\\|`);
       expect(doc).toMatch(cell);
     }
   });

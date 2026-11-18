@@ -40,7 +40,7 @@ Built around the physical screening day: a patient walks between stations, each 
 - "Notifications" is the **outbound message delivery ledger**, not a personal inbox. There are no unread counts. "Clinic settings" is clinic research configuration, not personal preferences.
 - Clinical fields, units, validation, defaults and save semantics are fixed: the data each flow captures and how it saves may not change.
 - Data-entry flows (new patient, the hypertension and diabetes interviews, station forms) may be rethought as flows: order, grouping, steps, one question at a time, skip logic and review screens are all open, as long as the captured data stays the same (owner decision 2026-11-12). Other pages change layout and presentation only.
-- Stack is fixed for this redesign: Next 16.3 canary, React 18.3, Tailwind 3.4, shadcn (new-york) on Radix, lucide icons, Recharts 3, TanStack Table 9, Sonner 2, framer-motion 12. No upgrades without a separate issue.
+- Stack is fixed for this redesign: Next 16.4, React 18.3, Tailwind 3.4, shadcn (new-york) on Radix, lucide icons, Recharts 3, TanStack Table 9, Sonner 2, framer-motion 12. No upgrades without a separate issue.
 - Language: **English only** for this redesign (confirmed 2026-11-01).
 
 ## Brand Commitments

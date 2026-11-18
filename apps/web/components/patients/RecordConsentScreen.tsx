@@ -10,7 +10,11 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { CONSENT_DOCUMENTS, type ConsentDocumentType } from '@/lib/consent-text';
 import { db } from '@/lib/db';
-import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
+import {
+  enqueueOutboxMutation,
+  SYNC_OPERATION,
+  generateClientId as generateId,
+} from '@/lib/outbox';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { Button } from '@/components/ui/button';
@@ -18,17 +22,6 @@ import { FormSectionCard } from '@/components/app-shell/FormSectionCard';
 import { PatientFormErrors } from './PatientFormErrors';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
-    const random = (Math.random() * 16) | 0;
-    const value = character === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
 
 /**
  * Recording a consent (research, or referral sharing since #344), for both `/patients/:patientId/consent` and its clinic-scoped twin.
