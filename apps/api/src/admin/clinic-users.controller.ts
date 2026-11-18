@@ -143,10 +143,14 @@ export class ClinicUsersController {
       headers?: { 'x-request-id'?: string };
     },
   ) {
-    const role = roleParam as UserRole;
-    if (typeof roleParam !== 'string' || !Object.values(UserRole).includes(role)) {
+    // Check the raw parameter before using it: a repeated query parameter arrives as an array.
+    if (
+      typeof roleParam !== 'string' ||
+      !(Object.values(UserRole) as string[]).includes(roleParam)
+    ) {
       throw new BadRequestException('Valid role path parameter is required');
     }
+    const role = roleParam as UserRole;
 
     return this.adminService.revokeClinicRole(
       {
