@@ -225,9 +225,17 @@ test('pointer collapse interrupts from current width and reduced motion removes 
   await page.goto('/queues');
   const rail = page.locator('#workspace-sidebar');
   await expect.poll(() => widthOf(rail)).toBe(232);
-  await page.getByRole('button', { name: 'Collapse navigation' }).click();
+  await expect(page.getByRole('button', { name: 'Collapse navigation' })).toBeVisible();
+  // Click inside the page: the transition lasts 200 ms, and a slow CI runner spent that much
+  // between a Playwright click and the next evaluate, so the transition had already ended.
   const sampled = await rail.evaluate(async (el) => {
-    const transition = el.getAnimations().find((a) => a.transitionProperty === 'width');
+    const toggle = document.querySelector('[aria-controls="workspace-sidebar"]');
+    toggle.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    let transition;
+    for (let frame = 0; frame < 10 && !transition; frame += 1) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      transition = el.getAnimations().find((a) => a.transitionProperty === 'width');
+    }
     if (!transition) return null;
     transition.pause();
     transition.currentTime = 80;
