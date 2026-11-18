@@ -90,6 +90,7 @@ test.describe('a doctor who opted in on this device', () => {
     });
     await cache(page, `${chart}/edit`);
     await expect(page.getByLabel('First name', { exact: true })).toHaveValue('Resumed');
+    await cache(page, '/dashboard');
 
     // The cold start: no connection before the first navigation, and no token in memory.
     await context.setOffline(true);
@@ -125,6 +126,14 @@ test.describe('a doctor who opted in on this device', () => {
     );
     expect(row.offlineSession).toMatchObject({ unlockMethod: 'pin' });
     expect(row.offlineSession.grantId).toBeTruthy();
+
+    // OFF-01: the home page offline is a calm notice, not a failed load.
+    await page.goto('/dashboard');
+    await expect(page.getByTestId('offline-session-banner')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('dashboard-offline-notice')).toContainText(
+      'Dashboard figures need a connection.',
+    );
+    await expect(page.getByText(/could not load|couldn't load/i)).toHaveCount(0);
 
     // Lock pauses the session: back to the unlock screen, and nothing queued is lost. A page load
     // after Lock asks again: the service worker let go of the session too.
