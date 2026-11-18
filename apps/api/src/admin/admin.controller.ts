@@ -110,10 +110,14 @@ export class AdminController {
       roles: req.user.roles,
     };
     const clinicId = clinicIdParam === undefined || clinicIdParam === '' ? null : clinicIdParam;
-    const role = roleParam as UserRole;
-    if (typeof roleParam !== 'string' || !Object.values(UserRole).includes(role)) {
+    // Check the raw parameter before using it: a repeated query parameter arrives as an array.
+    if (
+      typeof roleParam !== 'string' ||
+      !(Object.values(UserRole) as string[]).includes(roleParam)
+    ) {
       throw new BadRequestException('Valid role query parameter is required');
     }
+    const role = roleParam as UserRole;
     return this.adminService.removeRole(
       actor,
       userId,
