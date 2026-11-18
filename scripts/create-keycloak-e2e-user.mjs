@@ -285,7 +285,7 @@ async function upsertUser(accessToken, user) {
     );
   }
 
-  const passwordResponse = await fetch(
+  const resetResponse = await fetch(
     `${keycloakBaseUrl}/admin/realms/${realm}/users/${persistedUser.id}/reset-password`,
     {
       method: 'PUT',
@@ -300,10 +300,13 @@ async function upsertUser(accessToken, user) {
       }),
     },
   );
-  if (!passwordResponse.ok) {
-    const body = await parseJson(passwordResponse);
-    if (!isPasswordHistoryError(passwordResponse, body)) {
-      throwResponseError(passwordResponse, 'Keycloak password reset', body);
+  if (!resetResponse.ok) {
+    const body = await parseJson(resetResponse);
+    if (!isPasswordHistoryError(resetResponse, body)) {
+      // The request carried the password, so report the status only, never the response body.
+      throw new Error(
+        `Keycloak password reset failed (${resetResponse.status}); check the realm's password policy`,
+      );
     }
   }
 

@@ -5,7 +5,11 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch, getErrorMessage, readApiError } from '@/lib/api';
 import { mapServerFieldErrors, mayQueueAfterFailure } from '@/lib/prescription-save';
 import { db } from '@/lib/db';
-import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
+import {
+  enqueueOutboxMutation,
+  SYNC_OPERATION,
+  generateClientId as generateId,
+} from '@/lib/outbox';
 import { Button } from '@/components/ui/button';
 import { FormActions } from '@/components/ui/form-actions';
 import { Input } from '@/components/ui/input';
@@ -32,17 +36,6 @@ interface PrescriptionFormProps {
   userId: string;
   onSaved?: () => void;
   allergyState?: AllergySummaryState;
-}
-
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
 }
 
 export function PrescriptionForm({
