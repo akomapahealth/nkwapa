@@ -144,7 +144,7 @@ export class ClinicUsersController {
     },
   ) {
     const role = roleParam as UserRole;
-    if (!Object.values(UserRole).includes(role)) {
+    if (typeof roleParam !== 'string' || !Object.values(UserRole).includes(role)) {
       throw new BadRequestException('Valid role path parameter is required');
     }
 

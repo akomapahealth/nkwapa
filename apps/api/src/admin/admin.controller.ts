@@ -111,7 +111,7 @@ export class AdminController {
     };
     const clinicId = clinicIdParam === undefined || clinicIdParam === '' ? null : clinicIdParam;
     const role = roleParam as UserRole;
-    if (!roleParam || !Object.values(UserRole).includes(role)) {
+    if (typeof roleParam !== 'string' || !Object.values(UserRole).includes(role)) {
       throw new BadRequestException('Valid role query parameter is required');
     }
     return this.adminService.removeRole(

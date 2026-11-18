@@ -71,7 +71,7 @@ export const FALLBACK_RELEASE: Release = {
         },
         {
           lead: 'A password-protected referral report.',
-          text: "Doctors, volunteers and managers can make a PDF referral report for a patient, choose what goes in it, and download or email it. The PDF opens with an 8-character passcode. A patient's referral consent is recorded on the Consent tab, separately from research consent.",
+          text: "Doctors, volunteers and managers can make a PDF referral report for a patient, choose what goes in it, and download or email it. The PDF opens with a 16-character passcode. A patient's referral consent is recorded on the Consent tab, separately from research consent.",
         },
         {
           lead: 'A welcome tour for each role.',

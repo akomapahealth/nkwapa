@@ -253,10 +253,12 @@ export function ReferralReportSheet({
               <p
                 data-testid="referral-passcode"
                 aria-label={`Passcode ${result.passcode.split('').join(' ')}`}
-                className="mt-2 select-all font-mono text-[2rem] font-medium leading-tight tracking-[0.14em] tabular-nums text-foreground"
+                className="mt-2 flex select-all flex-wrap justify-center gap-x-4 font-mono text-[2rem] font-medium leading-tight tracking-[0.14em] tabular-nums text-foreground"
                 translate="no"
               >
-                {groupPasscode(result.passcode)}
+                {groupPasscode(result.passcode).map((group, index) => (
+                  <span key={index}>{group}</span>
+                ))}
               </p>
               <Button
                 type="button"

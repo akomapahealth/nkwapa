@@ -76,9 +76,14 @@ export function resolveReferralSections(
 
 /** No 0/O, 1/I/L: the code is read aloud over the phone and typed on a different device. */
 export const PASSCODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-export const PASSCODE_LENGTH = 8;
+/*
+  16 characters, 31^16 ≈ 7.3e23 codes. pdfkit's strongest PDF encryption (revision 5) checks a
+  passcode with one SHA-256, so anyone holding the file can guess offline at GPU speed: 8
+  characters fell in minutes, 16 take on the order of a million GPU-years.
+*/
+export const PASSCODE_LENGTH = 16;
 
-/** 31^8 ≈ 8.5e11 codes, from the CSPRNG. Shown once and never stored. */
+/** From the CSPRNG. Shown once and never stored. */
 export function generatePasscode(): string {
   let code = '';
   for (let i = 0; i < PASSCODE_LENGTH; i++) {

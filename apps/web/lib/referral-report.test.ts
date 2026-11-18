@@ -39,7 +39,7 @@ describe('referral report sheet (#344)', () => {
   });
 
   it('groups the passcode in fours for reading aloud', () => {
-    expect(groupPasscode('K7QMXR4P')).toBe('K7QM XR4P');
+    expect(groupPasscode('K7QMXR4PABCD2345')).toEqual(['K7QM', 'XR4P', 'ABCD', '2345']);
   });
 
   it('turns the API’s base64 into a PDF blob', async () => {
