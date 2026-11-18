@@ -458,6 +458,25 @@ try {
     'reconcile must escape quotes, backslashes and control characters in SMTP values',
   );
   assert(built.smtpServer?.envelopeFrom === '', 'an unset KC_SMTP_ENVELOPE_FROM must stay empty');
+
+  // The API requires aud nkwapa-api; the export seeds new realms and the entrypoint patches old ones.
+  const reconciledMapper = JSON.parse(
+    execFileSync('bash', ['-c', 'source "$0"; audience_mapper_json', entrypointPath], {
+      env: { PATH: process.env.PATH },
+    }).toString(),
+  );
+  const exportedMapper = client?.protocolMappers?.find(
+    (mapper) => mapper.name === reconciledMapper.name,
+  );
+  assert(
+    exportedMapper?.config?.['included.custom.audience'] === 'nkwapa-api' &&
+      exportedMapper?.config?.['access.token.claim'] === 'true',
+    'nkwapa-web must carry the nkwapa-api audience mapper on access tokens',
+  );
+  assert(
+    JSON.stringify(exportedMapper) === JSON.stringify(reconciledMapper),
+    'the audience mapper in the realm export and in entrypoint.sh must be identical',
+  );
 } catch (error) {
   failures.push(`entrypoint.sh reconcile check failed: ${error.message}`);
 }
