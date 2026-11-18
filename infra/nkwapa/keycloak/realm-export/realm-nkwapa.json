@@ -189,7 +189,21 @@
         "post.logout.redirect.uris": "https://nkwapa.app/*##https://nkwapa.app##https://staging.nkwapa.app/*##https://staging.nkwapa.app##http://localhost:3000/*##http://localhost:3000"
       },
       "protocol": "openid-connect",
-      "fullScopeAllowed": true
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "nkwapa-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "nkwapa-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "nkwapa-api",

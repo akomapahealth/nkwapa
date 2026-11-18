@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Start Keycloak, then make the realm's SMTP settings match the environment.
+# Start Keycloak, then make the realm's SMTP settings and token audience match what the API expects.
 #
 # The realm export substitutes KC_SMTP_* into smtpServer, but only when the realm is first
 # imported: --import-realm skips a realm that already exists. So once staging or production
@@ -12,6 +12,10 @@
 # way it already is for the API. It is deliberately forgiving: a failure here is logged and
 # Keycloak keeps running, because a login server that refuses to start over mail settings takes
 # down sign-in for every clinic to protect one email.
+#
+# The same boot step adds the nkwapa-api audience mapper to nkwapa-web when a live realm lacks it.
+# The API checks that audience once KEYCLOAK_AUDIENCE is set, so a realm without the mapper would
+# reject every session; adding it on boot keeps an older realm from drifting there.
 
 set -uo pipefail
 
@@ -72,11 +76,19 @@ build_smtp_json() {
   printf '%s' "$out"
 }
 
+# Must match the mapper on nkwapa-web in the realm export; scripts/validate-keycloak-realm.mjs
+# compares the two. A custom audience, not a client reference, so it works in a realm that does
+# not have the nkwapa-api client yet.
+AUDIENCE_MAPPER_NAME='nkwapa-api audience'
+audience_mapper_json() {
+  printf '%s' '{"name":"nkwapa-api audience","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","consentRequired":false,"config":{"included.custom.audience":"nkwapa-api","id.token.claim":"false","access.token.claim":"true","introspection.token.claim":"true"}}'
+}
+
 kcadm() {
   "$KC_BIN/kcadm.sh" "$@" --config "$KCADM_CONFIG"
 }
 
-reconcile() {
+reconcile_smtp() {
   if [[ -z "${KC_SMTP_HOST:-}" ]]; then
     # Nothing to converge on. Overwriting a working realm with blanks would be worse than
     # leaving it alone.
@@ -84,10 +96,40 @@ reconcile() {
     return 0
   fi
 
+  if build_smtp_json | kcadm update "realms/$RECONCILE_REALM" -f - >/dev/null 2>&1; then
+    # Host and transport only. The user and password stay out of the log.
+    log "smtp applied to realm ${RECONCILE_REALM}: ${KC_SMTP_HOST}:${KC_SMTP_PORT:-} starttls=${KC_SMTP_STARTTLS:-false} ssl=${KC_SMTP_SSL:-false} auth=${KC_SMTP_AUTH:-false}"
+  else
+    log "WARNING: updating realm ${RECONCILE_REALM} failed; SMTP settings not applied"
+  fi
+}
+
+# Add only, never update or delete: a mapper someone edited by hand is left for a person to look at.
+reconcile_audience_mapper() {
+  local web_id
+  web_id=$(kcadm get clients -r "$RECONCILE_REALM" -q clientId=nkwapa-web --fields id --format csv --noquotes 2>/dev/null)
+  if [[ -z "$web_id" ]]; then
+    log "WARNING: client nkwapa-web not found in realm ${RECONCILE_REALM}; audience mapper not checked"
+    return 0
+  fi
+
+  if kcadm get "clients/$web_id/protocol-mappers/models" -r "$RECONCILE_REALM" --fields name --format csv --noquotes 2>/dev/null |
+    grep -qxF "$AUDIENCE_MAPPER_NAME"; then
+    return 0
+  fi
+
+  if audience_mapper_json | kcadm create "clients/$web_id/protocol-mappers/models" -r "$RECONCILE_REALM" -f - >/dev/null 2>&1; then
+    log "added the '${AUDIENCE_MAPPER_NAME}' mapper to nkwapa-web in realm ${RECONCILE_REALM}"
+  else
+    log "WARNING: adding the '${AUDIENCE_MAPPER_NAME}' mapper to nkwapa-web failed; tokens will not carry aud nkwapa-api"
+  fi
+}
+
+reconcile() {
   local admin_user="${KC_BOOTSTRAP_ADMIN_USERNAME:-${KEYCLOAK_ADMIN:-}}"
   local admin_password="${KC_BOOTSTRAP_ADMIN_PASSWORD:-${KEYCLOAK_ADMIN_PASSWORD:-}}"
   if [[ -z "$admin_user" || -z "$admin_password" ]]; then
-    log "WARNING: no admin credentials (KC_BOOTSTRAP_ADMIN_USERNAME/PASSWORD); SMTP settings not applied"
+    log "WARNING: no admin credentials (KC_BOOTSTRAP_ADMIN_USERNAME/PASSWORD); realm not reconciled"
     return 0
   fi
 
@@ -98,18 +140,14 @@ reconcile() {
       break
     fi
     if ((attempt == RECONCILE_ATTEMPTS)); then
-      log "WARNING: could not authenticate as admin after ${RECONCILE_ATTEMPTS} attempts; SMTP settings not applied"
+      log "WARNING: could not authenticate as admin after ${RECONCILE_ATTEMPTS} attempts; realm not reconciled"
       return 0
     fi
     sleep "$RECONCILE_INTERVAL_SECONDS"
   done
 
-  if build_smtp_json | kcadm update "realms/$RECONCILE_REALM" -f - >/dev/null 2>&1; then
-    # Host and transport only. The user and password stay out of the log.
-    log "smtp applied to realm ${RECONCILE_REALM}: ${KC_SMTP_HOST}:${KC_SMTP_PORT:-} starttls=${KC_SMTP_STARTTLS:-false} ssl=${KC_SMTP_SSL:-false} auth=${KC_SMTP_AUTH:-false}"
-  else
-    log "WARNING: updating realm ${RECONCILE_REALM} failed; SMTP settings not applied"
-  fi
+  reconcile_smtp
+  reconcile_audience_mapper
 
   # The other way the account-setup email never goes out: the API has no client to ask with.
   local client

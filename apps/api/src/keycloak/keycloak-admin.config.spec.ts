@@ -36,10 +36,10 @@ describe('resolveKeycloakAdminConfig', () => {
     expect(config.clientId).toBe('nkwapa-api');
   });
 
-  it('falls back to the audience, which staging and production already set', () => {
+  it('does not take the setup-link client from the token audience', () => {
     const config = resolveKeycloakAdminConfig({
       ...ready,
-      KEYCLOAK_AUDIENCE: 'nkwapa-web',
+      KEYCLOAK_AUDIENCE: 'nkwapa-api',
     } as NodeJS.ProcessEnv);
 
     expect(config.publicClientId).toBe('nkwapa-web');
