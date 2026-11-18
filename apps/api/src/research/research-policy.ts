@@ -11,6 +11,9 @@ export const RESEARCH_POLICY_VERSION = 'research-export-v1';
 export const RESEARCH_DATASET_VERSION = 5;
 export const RESEARCH_TIMESTAMP_ROUNDING_MINUTES = 15;
 export const RESEARCH_FILE_FORMAT = 'zip';
+export const RESEARCH_CSV_FORMULA_NOTE =
+  "Text cells that began with =, +, -, @, tab or carriage return carry a leading ' so " +
+  'spreadsheets show them as text; strip it when parsing programmatically.';
 
 export const RESEARCH_TABLE_NAMES = [
   'research_subjects.csv',
@@ -87,6 +90,8 @@ export interface ResearchPackManifest {
   toDate: string;
   generatedAt: string;
   timestampRoundingMinutes: number;
+  /** Absent on packs generated before formula-neutralized CSV cells. */
+  csvFormulaNote?: string;
   rowCounts: Record<string, number>;
   files: ResearchManifestFileSummary[];
 }

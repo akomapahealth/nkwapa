@@ -35,6 +35,23 @@ describe('DeIdentificationService', () => {
     expect(csv).toContain('"A ""quoted"" row",42');
   });
 
+  it.each(['=1+1', '+1', '-5', '@SUM(A1)', '\tcmd', '\rcmd'])(
+    'neutralizes a text cell starting with %j',
+    (text) => {
+      expect(service.csvFromRows(['v'], [{ v: text }])).toBe(`v\n"'${text}"`);
+    },
+  );
+
+  it('leaves ordinary text and numbers alone', () => {
+    const csv = service.csvFromRows(['a', 'b', 'c'], [{ a: 'plain = text', b: -5, c: 0.5 }]);
+
+    expect(csv).toBe('a,b,c\n"plain = text",-5,0.5');
+  });
+
+  it('doubles quotes after neutralizing', () => {
+    expect(service.csvFromRows(['v'], [{ v: '=HYPERLINK("x")' }])).toBe('v\n"\'=HYPERLINK(""x"")"');
+  });
+
   it('requires the research hmac key', () => {
     delete process.env.RESEARCH_HMAC_KEY;
 

@@ -76,6 +76,12 @@ JOIN read_csv((SELECT dir FROM run) || 'research_clinical_vitals.csv.gz') v
 GROUP BY ALL;
 ```
 
+Text cells that began with `=`, `+`, `-`, `@`, a tab or a carriage return carry a leading `'`, so
+a spreadsheet opening the file shows them as text instead of running them as a formula. Numbers
+are never prefixed. When parsing programmatically, strip a leading `'` from text columns when
+the character after it is one of those. `manifest.json` says so in `csvFormulaNote` on runs that
+have it.
+
 ## Check what you read
 
 `SHA256SUMS.txt` lists the hash of every uncompressed CSV. `manifest.json` carries

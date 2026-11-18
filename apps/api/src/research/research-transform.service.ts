@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DeIdentificationService } from './de-identification.service';
 import {
   GeneratedResearchPack,
+  RESEARCH_CSV_FORMULA_NOTE,
   RESEARCH_DATASET_VERSION,
   RESEARCH_FILE_FORMAT,
   RESEARCH_POLICY_VERSION,
@@ -862,6 +863,7 @@ export class ResearchTransformService {
       toDate,
       generatedAt: generatedAt.toISOString(),
       timestampRoundingMinutes: 15,
+      csvFormulaNote: RESEARCH_CSV_FORMULA_NOTE,
       rowCounts,
       files: csvFiles.map((file) => ({
         name: file.file.name,
