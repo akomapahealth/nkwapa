@@ -273,3 +273,16 @@ way the setup link never goes out, and it's fixed by step 2 above.
 
 Delete the client. Invitations keep working, the chart goes back to reporting that no account
 stands behind them, and staff can create identities by hand as before.
+
+## Security runbooks
+
+- Keys and credentials, where they live and how (or whether) each rotates:
+  `docs/security/key-management.md`.
+- A lost or stolen device, for clinic leads: `docs/clinic-ops/29_LOST_OR_STOLEN_DEVICE.md`.
+- Setting up clinic devices, for clinic IT: `docs/clinic-ops/30_CLINIC_DEVICES.md`.
+- Redis down: the API keeps serving with rate limits off and logs "Rate limiter failed open".
+  The Keep Warm readiness job fails each clinic morning while Redis is unreachable, and a failed
+  scheduled run emails the owner.
+- Sentry is not configured in production. Before setting `SENTRY_DSN` or
+  `NEXT_PUBLIC_SENTRY_DSN`, confirm Sentry's data processing agreement and choose the EU region.
+  The web app's Sentry config is not loaded by the build yet, so the web DSN alone does nothing.
