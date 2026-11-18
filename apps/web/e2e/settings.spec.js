@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { storageStateFor } = require('../playwright/roles');
+const { ROLES, storageStateFor } = require('../playwright/roles');
 const { skipWelcomeTour } = require('../playwright/welcome-tour');
 
 /*
@@ -50,6 +50,25 @@ test.describe('staff settings', () => {
     await expect(page.getByRole('link', { name: 'Manage profile' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
   });
+
+  // Keycloak's own setup page, opened from Nkwapa and back again, with PKCE enforced.
+  test('starts authenticator app setup and returns when cancelled', async ({ page }) => {
+    await openSettings(page);
+    await expect(page.getByRole('heading', { name: 'Sign-in security' })).toBeVisible();
+    await page.getByRole('button', { name: 'Set up authenticator app' }).click();
+    await page.waitForURL((url) => !url.pathname.startsWith('/settings'), { timeout: 30_000 });
+    // Keycloak asks for the password again when the sign-in is older than its limit.
+    if (await page.locator('#password').isVisible()) {
+      await page.locator('#password').fill(ROLES.staff.password);
+      await page.locator('#kc-login, button[type="submit"]').click();
+    }
+    await expect(page.locator('#totp')).toBeVisible({ timeout: 30_000 });
+    await page.locator('[name="cancel-aia"]').click();
+    await expect(page).toHaveURL(/\/settings/, { timeout: 30_000 });
+    await expect(page.getByRole('status').filter({ hasText: 'Setup was cancelled' })).toBeVisible({
+      timeout: 30_000,
+    });
+  });
 });
 
 test.describe('patient settings', () => {
@@ -60,6 +79,7 @@ test.describe('patient settings', () => {
     await expect(page.getByRole('navigation', { name: 'Patient portal' })).toBeVisible();
     await expect(page.getByText(/not authorized|access denied/i)).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Manage profile' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign-in security' })).toHaveCount(0);
   });
 
   test('the profile shows access read-only, without staff-only name and phone', async ({

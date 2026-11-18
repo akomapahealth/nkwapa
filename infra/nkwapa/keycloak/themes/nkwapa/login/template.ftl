@@ -22,8 +22,34 @@
   and back sees one path rather than three unrelated screens. Presentation only: the steps
   describe the existing flows and change none of them.
 -->
-<#macro journeyList journey step>
-    <#if journey == "signin">
+<#macro journeyList journey step fromSettings=false>
+    <#if journey == "setup-otp" || journey == "setup-passkey">
+        <#local doing = (journey == "setup-otp")?then("Set up your authenticator app", "Add your passkey") />
+        <#if fromSettings>
+            <#local journeyTitle = "Adding a second sign-in step" />
+            <#local journeySteps = [
+                {"label": "Start from your settings", "detail": "You chose to add a second step."},
+                {"label": doing, "detail": "On this secure page, which is separate from Nkwapa."},
+                {"label": "Back to Nkwapa", "detail": "From then on, each sign-in asks for it after your password."}
+            ] />
+        <#else>
+            <#local journeyTitle = "Signing in" />
+            <#local journeySteps = [
+                {"label": "Enter your email and password", "detail": "You chose to sign in."},
+                {"label": doing, "detail": "Your account needs a second step at sign-in. This happens once."},
+                {"label": "Your work opens", "detail": "Next time, sign-in asks for it after your password."}
+            ] />
+        </#if>
+    <#elseif journey == "verify-otp" || journey == "verify-passkey" || journey == "verify-choose">
+        <#local confirmDetail = (journey == "verify-otp")?then("With the code from your authenticator app.", (journey == "verify-passkey")?then("With your passkey.", "With your authenticator app or your passkey.")) />
+        <#local journeyTitle = "Signing in" />
+        <#local journeySteps = [
+            {"label": "Start from Nkwapa", "detail": "You chose to sign in."},
+            {"label": "Enter your email and password", "detail": "On this secure page, which is separate from Nkwapa."},
+            {"label": "Confirm it is you", "detail": confirmDetail},
+            {"label": "Your work opens", "detail": "Staff see their clinic. Patients see their record."}
+        ] />
+    <#elseif journey == "signin">
         <#local journeyTitle = "Signing in" />
         <#local journeySteps = [
             {"label": "Start from Nkwapa", "detail": "You chose to sign in."},
@@ -83,7 +109,7 @@
     </#if>
 </#macro>
 
-<#macro registrationLayout displayMessage=true displayInfo=false displayRequiredFields=false journey="signin" step=2 eyebrow="Secure sign in" description="">
+<#macro registrationLayout displayMessage=true displayInfo=false displayRequiredFields=false journey="signin" step=2 eyebrow="Secure sign in" description="" fromSettings=false>
 <!DOCTYPE html>
 <html lang="${(locale.currentLanguageTag)!'en'}">
 <head>
@@ -98,6 +124,14 @@
         </#list>
     </#if>
     <#assign themeScripts = (properties.scripts)!'' />
+    <#-- Keycloak's passkey scripts import this module by name; without the map they never run. -->
+    <script type="importmap">
+        {
+            "imports": {
+                "rfc4648": "${url.resourcesCommonPath}/vendor/rfc4648/rfc4648.js"
+            }
+        }
+    </script>
 </head>
 <body class="nkwapa-auth-body">
 <div class="nkwapa-auth-sheet">
@@ -131,6 +165,14 @@
 
             <div class="nkwapa-auth-form">
                 <#nested "form">
+
+                <#-- Someone with an authenticator app and a passkey can switch between them. -->
+                <#if auth?has_content && auth.showTryAnotherWayLink()>
+                    <form id="kc-select-try-another-way-form" class="nkwapa-try-another-way" action="${url.loginAction}" method="post">
+                        <input type="hidden" name="tryAnotherWay" value="on"/>
+                        <button type="submit" id="try-another-way" class="nkwapa-btn-quiet">${msg("doTryAnotherWay")}</button>
+                    </form>
+                </#if>
             </div>
 
             <#if displayInfo>
@@ -142,7 +184,7 @@
 
         <#if journey != "none">
             <aside class="nkwapa-auth-aside">
-                <@journeyList journey=journey step=step />
+                <@journeyList journey=journey step=step fromSettings=fromSettings />
                 <#-- Desktop only, and lazy, so a phone on clinic data never downloads it. -->
                 <img src="${url.resourcesPath}/img/auth-clinic.jpg" alt="" class="nkwapa-auth-photo" loading="lazy" />
             </aside>

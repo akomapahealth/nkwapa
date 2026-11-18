@@ -274,6 +274,41 @@ way the setup link never goes out, and it's fixed by step 2 above.
 Delete the client. Invitations keep working, the chart goes back to reporting that no account
 stands behind them, and staff can create identities by hand as before.
 
+## Keycloak hardening (applied on every boot)
+
+`infra/nkwapa/keycloak/entrypoint.sh` applies these to the live realm each time Keycloak starts,
+and logs each one under `[nkwapa-reconcile]`:
+
+- `nkwapa-web` refuses the password grant and requires PKCE (S256).
+- With `KC_WEB_ORIGINS` set, `nkwapa-web` accepts only those origins.
+- Login and admin events are stored for 30 days: Realm settings, Events, in the admin console.
+- The browser flow becomes `browser with admin second factor` (only if the realm still uses the
+  built-in `browser` flow). Anyone holding Keycloak's `SYSTEM_ADMIN` realm role must use an
+  authenticator app or a passkey. Everyone else can turn on an authenticator app themselves.
+
+The e2e harness uses a separate `nkwapa-e2e` client with the password grant. Only
+`scripts/create-keycloak-e2e-user.mjs` creates it, and only on a local Keycloak.
+
+### Requiring a second factor for a system admin
+
+App roles live in the API's database, and Keycloak cannot see them. Do this by hand for every
+person who is a system admin in the app, in staging and in production:
+
+1. Admin console, realm `nkwapa`, Users, the person, Role mapping, Assign role, Filter by realm
+   roles: `SYSTEM_ADMIN`.
+2. At their next sign-in Keycloak asks them to set up an authenticator app (Google Authenticator,
+   Microsoft Authenticator, Authy). To use a passkey instead, they add one afterwards under Account,
+   Account security, Signing in. From then on the passkey is asked for, not the app.
+3. When someone stops being a system admin, remove the role in the same sitting.
+
+An admin who loses their phone: another admin opens that user, Credentials, and deletes the OTP
+or passkey credential. Their next sign-in asks them to set one up again. With a single admin, the
+master realm's admin account can do this.
+
+Before the first rollout, have the authenticator app ready: once the role is assigned, the next
+sign-in cannot finish without it. [VERIFY: one staging admin end to end, including a passkey, before
+assigning the role in production.]
+
 ## Security runbooks
 
 - Keys and credentials, where they live and how (or whether) each rotates:

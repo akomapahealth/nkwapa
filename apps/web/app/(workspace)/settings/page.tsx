@@ -17,6 +17,7 @@ import {
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { useInstallAction } from '@/components/pwa/InstallApp';
+import { SignInSecurityCard } from '@/components/account/SignInSecurityCard';
 import { DeviceStorageDetails } from '@/components/sync/DeviceStorageDetails';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,6 +39,16 @@ const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
   dark: Moon,
   system: Monitor,
 };
+
+function isStaffAccount(
+  bootstrap: { globalRoles: string[]; memberships: { roles: string[] }[] } | null,
+): boolean {
+  if (!bootstrap) return false;
+  return (
+    bootstrap.globalRoles.length > 0 ||
+    bootstrap.memberships.some((membership) => membership.roles.some((role) => role !== 'PATIENT'))
+  );
+}
 
 /**
  * Each person's own settings, for every role (#206): how Nkwapa looks, installing it, and what
@@ -89,6 +100,9 @@ export default function SettingsPage() {
             </RecordSectionContent>
           </RecordSection>
         ) : null}
+
+        {/* Staff only: a second step for patient accounts is a separate decision. */}
+        {isStaffAccount(bootstrap) ? <SignInSecurityCard /> : null}
 
         <RecordSection>
           <RecordSectionHeader>

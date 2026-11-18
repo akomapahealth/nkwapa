@@ -15,12 +15,37 @@ const KEYCLOAK_CONFIG = {
 let keycloakInstance: Keycloak | null = null;
 let initPromise: Promise<boolean> | null = null;
 
+/** Keycloak's own setup pages for a second sign-in step, opened from Settings. */
+export type SignInSetupAction = 'CONFIGURE_TOTP' | 'webauthn-register';
+export interface SignInSetupResult {
+  action?: string;
+  status: 'success' | 'cancelled' | 'error';
+}
+// Set while init reads the redirect back from a setup page, before any page renders.
+let signInSetupResult: SignInSetupResult | null = null;
+
 export function getKeycloak(): Keycloak | null {
   if (typeof window === 'undefined') return null;
   if (!keycloakInstance) {
     keycloakInstance = new Keycloak(KEYCLOAK_CONFIG);
+    keycloakInstance.onActionUpdate = (status, action) => {
+      signInSetupResult = { status, action };
+    };
   }
   return keycloakInstance;
+}
+
+/** Send the signed-in person to set up an authenticator app or a passkey, then back to Settings. */
+export function startSignInSetup(action: SignInSetupAction): void {
+  void getKeycloak()?.login({ action, redirectUri: `${window.location.origin}/settings` });
+}
+
+export function peekSignInSetupResult(): SignInSetupResult | null {
+  return signInSetupResult;
+}
+
+export function clearSignInSetupResult(): void {
+  signInSetupResult = null;
 }
 
 /** Initialize Keycloak once; returns cached promise on subsequent calls (React Strict Mode safe). */
