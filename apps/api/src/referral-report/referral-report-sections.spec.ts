@@ -55,7 +55,7 @@ describe('referral report sections (#344)', () => {
     });
   });
 
-  it('makes 8-character passcodes with no easily confused characters', () => {
+  it('makes 16-character passcodes with no easily confused characters', () => {
     expect(PASSCODE_ALPHABET).not.toMatch(/[0O1IL]/);
     const codes = Array.from({ length: 500 }, generatePasscode);
     for (const code of codes) {

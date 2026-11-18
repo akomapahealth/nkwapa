@@ -53,7 +53,7 @@ test.describe('doctor', () => {
 
     const done = page.getByRole('dialog', { name: 'Report ready' });
     const passcode = done.getByTestId('referral-passcode');
-    await expect(passcode).toHaveText(/^[A-HJKMNP-Z2-9]{4} [A-HJKMNP-Z2-9]{4}$/);
+    await expect(passcode).toHaveText(/^[A-HJKMNP-Z2-9]{16}$/);
     await expect(
       done.getByText('Share this code by phone or SMS, not by email. It is shown once.'),
     ).toBeVisible();
@@ -92,7 +92,7 @@ test.describe('doctor', () => {
 
     const done = page.getByRole('dialog', { name: 'Report emailed' });
     await expect(done.getByTestId('referral-passcode')).toBeVisible();
-    const passcode = (await done.getByTestId('referral-passcode').innerText()).replace(' ', '');
+    const passcode = (await done.getByTestId('referral-passcode').innerText()).replace(/\s/g, '');
 
     const message = await findMessageTo(recipient, { subjectMatch: /Referral report from/ });
     const content = messageContent(message);

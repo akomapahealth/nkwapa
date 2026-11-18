@@ -124,7 +124,7 @@ describe('ReferralReportService (#344)', () => {
     const { service, audit } = setup();
     const result = await service.create(CLINIC, PATIENT, doctor, dto());
     if (result.delivery !== 'DOWNLOAD') throw new Error('expected a download');
-    expect(result.passcode).toMatch(/^[A-Z2-9]{8}$/);
+    expect(result.passcode).toMatch(/^[A-Z2-9]{16}$/);
     expect(Buffer.from(result.file, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
     expect(result.filename).toBe(
       `referral-NKP-2026-000042-${new Date().toISOString().slice(0, 10)}.pdf`,

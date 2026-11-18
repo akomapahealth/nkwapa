@@ -76,8 +76,9 @@ export function referralShareSummary(input: {
 }
 
 /** "K7QMXR4P" as "K7QM XR4P": read aloud in two halves. Copied without the space. */
-export function groupPasscode(passcode: string) {
-  return passcode.replace(/(.{4})(?=.)/g, '$1 ');
+/** Groups of four for reading aloud. Spaced by layout, so a copied passcode carries no spaces. */
+export function groupPasscode(passcode: string): string[] {
+  return passcode.match(/.{1,4}/g) ?? [];
 }
 
 export function pdfBlobFromBase64(base64: string): Blob {
