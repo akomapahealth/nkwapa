@@ -23,7 +23,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       process.env.KEYCLOAK_JWKS_URI ??
       'http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs';
     const issuer = process.env.KEYCLOAK_ISSUER ?? 'http://localhost:8080/realms/nkwapa';
-    // Audience optional: Keycloak may omit `aud` or use different values. Set KEYCLOAK_AUDIENCE to enforce.
+    // Required in production (assertProductionConfig); optional elsewhere so a bare local setup still signs in.
     const audience = process.env.KEYCLOAK_AUDIENCE?.trim();
 
     super({

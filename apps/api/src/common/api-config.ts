@@ -29,3 +29,18 @@ export function getRateLimitValue(
 
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 }
+
+/**
+ * Settings production must not start without. Unset, the API would quietly accept tokens minted
+ * for any client in the realm (KEYCLOAK_AUDIENCE) or trust a client-written X-Forwarded-For for
+ * rate limits and audit addresses (CLIENT_IP_HEADER). Outside production both stay optional.
+ */
+export function assertProductionConfig(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV !== 'production') return;
+  const missing = ['KEYCLOAK_AUDIENCE', 'CLIENT_IP_HEADER'].filter((name) => !env[name]?.trim());
+  if (missing.length > 0) {
+    throw new Error(
+      `Refusing to start: ${missing.join(' and ')} must be set in production (deploy/env/production.api.env.example)`,
+    );
+  }
+}
