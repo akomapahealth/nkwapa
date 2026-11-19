@@ -1,8 +1,10 @@
+import { formatPersonName } from '@nkwapa/db';
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { InboxNotificationKind } from '@prisma/client';
 import { sendNotification, WebPushError } from 'web-push';
 import { PrismaService } from '../prisma/prisma.service';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 
 /**
  * What a push says. It names who or what kind, never patient details (#250): it lands on a lock
@@ -24,6 +26,13 @@ export interface PushMessage {
    * about. The lock-screen push keeps `title` and `body`, which never name a patient.
    */
   inbox?: { title?: string; body?: string | null };
+  /** The follow-up flag this is about (#337): the bell offers "I'm on it" and shows who took it. */
+  riskFlagId?: string | null;
+  /**
+   * Join an unread tile with the same tag without raising its count: the same event arriving a
+   * second way, like a danger sign the screening form already reported.
+   */
+  silentMerge?: boolean;
 }
 
 export interface PushSubscriptionInput {
@@ -73,6 +82,15 @@ export class PushService {
 
   get enabled(): boolean {
     return this.vapid !== null;
+  }
+
+  private screeningAlerts?: (params: Parameters<PushService['alertClinicians']>[0]) => void;
+
+  /** The follow-up flag service routes screening alerts while stratification is on (#337). */
+  handleScreeningAlertsWith(
+    handler: (params: Parameters<PushService['alertClinicians']>[0]) => void,
+  ) {
+    this.screeningAlerts = handler;
   }
 
   /**
@@ -126,6 +144,9 @@ export class PushService {
    * to the doctors on shift at the clinic, or to the clinic's doctors when none is on shift, and
    * never to the person who recorded it: they are looking at the warning already. One tile per
    * visit: a second finding on the same visit updates it.
+   *
+   * With follow-up stratification on (#337) the follow-up flag service takes it instead: the
+   * Urgent row of its recipient policy, one tile per patient, and a flag someone can take.
    */
   alertClinicians(params: {
     clinicId: string;
@@ -134,6 +155,10 @@ export class PushService {
     /** Plain-English findings, e.g. "Chest pain" or "Blood pressure 186/124 mmHg". */
     findings: string[];
   }): void {
+    if (this.screeningAlerts && isApiFeatureEnabled('followUpStratification')) {
+      this.screeningAlerts(params);
+      return;
+    }
     this.prisma.detachFromRlsContext(() => {
       void this.findAlertRecipients(params)
         .then(({ recipients, patientName }) =>
@@ -184,9 +209,7 @@ export class PushService {
         )
         .then(([actor, encounter]) => {
           const who = actor?.displayName || 'Someone';
-          const patient = encounter
-            ? `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim()
-            : '';
+          const patient = encounter ? formatPersonName(encounter.patient, 'short') : '';
           this.notify([target], {
             title: 'A save replaced yours',
             body: 'Open Nkwapa to review it.',
@@ -250,9 +273,7 @@ export class PushService {
               where: { clinicId: params.clinicId, role: 'DOCTOR' },
               select: { userId: true },
             });
-        const name = encounter
-          ? `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim()
-          : '';
+        const name = encounter ? formatPersonName(encounter.patient, 'short') : '';
         return {
           recipients: doctors.map((d) => d.userId).filter((id) => id !== params.actorUserId),
           patientName: name || 'A patient',
@@ -271,17 +292,19 @@ export class PushService {
     const body = (message.inbox?.body === undefined ? message.body : message.inbox.body) ?? null;
     const clipped = body ? body.slice(0, 500) : null;
     const clinicId = message.clinicId ?? null;
+    const riskFlagId = message.riskFlagId ?? null;
+    const bump = message.silentMerge ? 0 : 1;
     await this.prisma.withSystemContext(
       { systemReason: 'Record in-app notifications' },
       async (client) => {
         for (const userId of userIds) {
           await client.$executeRaw`
           INSERT INTO "InboxNotification"
-            ("id", "userId", "clinicId", "kind", "title", "body", "url", "tag")
+            ("id", "userId", "clinicId", "kind", "title", "body", "url", "tag", "riskFlagId")
           VALUES (
             ${randomUUID()}::uuid, ${userId}::uuid, ${clinicId}::uuid,
             ${message.kind}::"InboxNotificationKind", ${title}, ${clipped}, ${message.url},
-            ${message.tag ?? null}
+            ${message.tag ?? null}, ${riskFlagId}::uuid
           )
           ON CONFLICT ("userId", "tag") WHERE "readAt" IS NULL AND "tag" IS NOT NULL
           DO UPDATE SET
@@ -290,7 +313,8 @@ export class PushService {
             "url" = EXCLUDED."url",
             "clinicId" = EXCLUDED."clinicId",
             "kind" = EXCLUDED."kind",
-            "count" = "InboxNotification"."count" + 1,
+            "riskFlagId" = COALESCE(EXCLUDED."riskFlagId", "InboxNotification"."riskFlagId"),
+            "count" = "InboxNotification"."count" + ${bump},
             "updatedAt" = CURRENT_TIMESTAMP`;
         }
       },

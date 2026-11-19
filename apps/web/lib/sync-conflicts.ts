@@ -165,6 +165,22 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
       'Check-ins and shift changes only sync on the day they happened, so the board stays accurate.',
     nextStep: 'Record it again if it still matters today, then discard this copy.',
   },
+  OFFLINE_GRANT_REVOKED: {
+    title: 'Offline access was withdrawn',
+    explanation:
+      'This was recorded in an offline session, and offline access for that account on this device was withdrawn before it could sync.',
+    nextStep:
+      'Check the record while online and enter the change again if it is still right, then discard this copy.',
+    tone: 'danger',
+  },
+  OFFLINE_GRANT_EXPIRED: {
+    title: 'Recorded after offline access ran out',
+    explanation:
+      'This was saved in an offline session after its time limit, so the server will not accept it.',
+    nextStep:
+      'Check the record while online and enter the change again if it is still right, then discard this copy.',
+    tone: 'danger',
+  },
   INVALID_OPS_TIME_ORDER: {
     title: 'The time on this change does not add up',
     explanation: 'The device clock may be wrong, or the shift would end before it started.',
@@ -210,6 +226,7 @@ const ENTITY_LABELS: Record<string, string> = {
   shift_check_in: 'Shift start',
   shift_check_out: 'Shift end',
   patient_check_in: 'Patient check-in',
+  follow_up_attempt: 'Follow-up call',
 };
 
 export function syncEntityLabel(entityType: string): string {

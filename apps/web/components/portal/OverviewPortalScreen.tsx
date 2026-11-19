@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { formatGlucose, formatWeight } from '@nkwapa/db/measurement-units';
 
 import { statusLabel } from '@/lib/status-presentation';
@@ -141,7 +142,7 @@ export function OverviewPortalScreen() {
   return (
     <RouteGuard requiredPermission="PATIENT.PORTAL.READ_SELF">
       <div className="space-y-6">
-        <section className={PORTAL_HERO_GRID}>
+        <section className={PORTAL_HERO_GRID} data-tour="home-work">
           <PortalHero
             clinicName={clinicName}
             title="Your care snapshot"
@@ -191,7 +192,7 @@ export function OverviewPortalScreen() {
             return (
               <div className="space-y-6">
                 <p className="text-sm text-muted-foreground">
-                  {me.patient.firstName} {me.patient.lastName}
+                  {formatPersonName(me.patient)}
                   <span aria-hidden="true"> · </span>
                   <span className="sr-only">, </span>
                   Patient code{' '}

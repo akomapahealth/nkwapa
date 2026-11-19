@@ -22,6 +22,7 @@ jest.mock('./db', () => ({
 jest.mock('./outbox', () => ({
   enqueueOutboxMutation: mockEnqueue,
   SYNC_OPERATION: { UPSERT: 'UPSERT' },
+  generateClientId: () => crypto.randomUUID(),
 }));
 
 let mockExisting: Array<Record<string, unknown>> = [];

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowRight, Check, Search, ShieldAlert } from 'lucide-react';
 import { apiFetch, getErrorMessage, readApiError, type GetToken } from '@/lib/api';
@@ -48,6 +49,7 @@ export interface MergeCandidate {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   phoneE164?: string | null;
   email?: string | null;
@@ -448,8 +450,8 @@ function ChooseStep({
                 }`}
               >
                 <span className="flex items-center justify-between gap-3">
-                  <span className="font-medium text-foreground">
-                    {candidate.firstName} {candidate.lastName}
+                  <span className="min-w-0 font-medium text-foreground [overflow-wrap:anywhere]">
+                    {formatPersonName(candidate)}
                   </span>
                   {selected ? (
                     <Check aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />

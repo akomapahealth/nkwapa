@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  type FollowUpTier,
   GhanaRegion,
   Patient,
   PatientLocationStatus,
@@ -20,6 +21,7 @@ export interface PatientFindManyFilters {
   residentialDistrict?: string;
   residentialCommunity?: string;
   residentialLocationStatus?: PatientLocationStatus;
+  residentialDetail?: ResidentialDetailFilter;
   cursor?: string;
   skip?: number;
   take?: number;
@@ -28,6 +30,8 @@ export interface PatientFindManyFilters {
   sort?: PatientRegistrySort;
   /** Only patients with a completed screening at `clinicId` between `start` and `end`. */
   screened?: ScreenedFilter;
+  /** Only patients at this follow-up tier (#336). NOT_TIERED includes never computed. */
+  riskTier?: FollowUpTier;
 }
 
 export interface ScreenedFilter {
@@ -76,6 +80,10 @@ export function completedScreeningWhere(filter: ScreenedFilter): Prisma.PatientC
 }
 
 /** `lastScreenedAt` and `lastVisitAt` are sorted by the service, not by Prisma; see `listRegistry`. */
+/** Home details a follow-up caller can filter on (#343). */
+export const RESIDENTIAL_DETAIL_FILTERS = ['DIGITAL_ADDRESS', 'POSITION'] as const;
+export type ResidentialDetailFilter = (typeof RESIDENTIAL_DETAIL_FILTERS)[number];
+
 export const PATIENT_REGISTRY_SORT_FIELDS = [
   'updatedAt',
   'name',
@@ -284,6 +292,11 @@ export class PatientRepository {
         mode: 'insensitive',
       };
     }
+    if (filters.residentialDetail === 'DIGITAL_ADDRESS') {
+      where.residentialDigitalAddress = { not: null };
+    } else if (filters.residentialDetail === 'POSITION') {
+      where.residentialLatitude = { not: null };
+    }
     if (filters.residentialCommunity) {
       where.residentialCommunity = {
         contains: filters.residentialCommunity.trim(),
@@ -300,6 +313,7 @@ export class PatientRepository {
         const s = filters.search.trim();
         orConditions.push(
           { firstName: { contains: s, mode: 'insensitive' } },
+          { middleName: { contains: s, mode: 'insensitive' } },
           { lastName: { contains: s, mode: 'insensitive' } },
           { patientCode: { contains: s, mode: 'insensitive' } },
           {
@@ -318,6 +332,13 @@ export class PatientRepository {
         orConditions.push({ phoneE164: filters.phoneE164 });
       }
       where.OR = orConditions;
+    }
+    if (filters.riskTier) {
+      where.AND = [
+        filters.riskTier === 'NOT_TIERED'
+          ? { OR: [{ currentRiskTier: 'NOT_TIERED' }, { currentRiskTier: null }] }
+          : { currentRiskTier: filters.riskTier },
+      ];
     }
     return where;
   }

@@ -100,4 +100,77 @@ describe('ReminderWebhookController', () => {
       ),
     ).rejects.toThrow(ForbiddenException);
   });
+
+  it('rejects a signature for different parameters', async () => {
+    const req = buildSignedRequest({ MessageSid: 'SM1', MessageStatus: 'failed' });
+    const body = { MessageSid: 'SM1', MessageStatus: 'delivered' };
+
+    await expect(controller.handleTwilioStatus(body, req)).rejects.toThrow(ForbiddenException);
+    expect(mockUpdateDeliveryStatus).not.toHaveBeenCalled();
+  });
+
+  it('rejects a request without a signature header', async () => {
+    const req = {
+      headers: { host: 'example.com' },
+      protocol: 'https',
+      get: (name: string) => (name === 'host' ? 'example.com' : undefined),
+      originalUrl: '/webhooks/sms/status',
+    };
+
+    await expect(
+      controller.handleTwilioStatus({ MessageSid: 'SM1', MessageStatus: 'delivered' }, req),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('refuses every callback in production when the auth token is unset', async () => {
+    process.env = { ...originalEnv, NODE_ENV: 'production' };
+    delete process.env.TWILIO_AUTH_TOKEN;
+    const body = { MessageSid: 'SM1', MessageStatus: 'delivered' };
+
+    await expect(controller.handleTwilioStatus(body, buildSignedRequest(body))).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(mockUpdateDeliveryStatus).not.toHaveBeenCalled();
+  });
+
+  it('skips the check outside production when the auth token is unset', async () => {
+    process.env = { ...originalEnv, NODE_ENV: 'development' };
+    delete process.env.TWILIO_AUTH_TOKEN;
+    const body = { MessageSid: 'SM1', MessageStatus: 'delivered' };
+    const req = {
+      headers: { host: 'example.com' },
+      protocol: 'https',
+      get: (name: string) => (name === 'host' ? 'example.com' : undefined),
+      originalUrl: '/webhooks/sms/status',
+    };
+
+    await controller.handleTwilioStatus(body, req);
+    expect(mockUpdateDeliveryStatus).toHaveBeenCalledWith('SM1', 'DELIVERED', undefined);
+  });
+
+  it("accepts Twilio's published example signature", async () => {
+    // Example from Twilio's webhook security docs, so a refactor cannot change the algorithm.
+    process.env = { ...originalEnv, TWILIO_AUTH_TOKEN: '12345' };
+    const body = {
+      CallSid: 'CA1234567890ABCDE',
+      Caller: '+12349013030',
+      Digits: '1234',
+      From: '+12349013030',
+      To: '+18005551212',
+    };
+    const signature = '0/KCTR6DLpKmkAf8muzZqo1nDgQ=';
+    const req = {
+      headers: { 'x-twilio-signature': signature, host: 'mycompany.com' },
+      protocol: 'https',
+      get: (name: string) => (name === 'host' ? 'mycompany.com' : undefined),
+      originalUrl: '/myapp.php?foo=1&bar=2',
+    };
+
+    await expect(
+      controller.handleTwilioStatus(
+        body as unknown as { MessageSid: string; MessageStatus: string },
+        req,
+      ),
+    ).resolves.toEqual({ received: true });
+  });
 });

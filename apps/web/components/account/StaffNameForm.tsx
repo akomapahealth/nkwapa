@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { WifiOff } from 'lucide-react';
-import { normalizeMiddleInitial } from '@nkwapa/db/staff-name';
 import {
   STAFF_NAME_FIELDS,
   previewStaffName,
@@ -13,6 +12,7 @@ import {
   type StaffNameInput,
 } from '@/lib/account-name';
 import { getErrorMessage } from '@/lib/api';
+import { MIDDLE_NAME_HINT, MIDDLE_NAME_LABEL, normalizeMiddleName } from '@/lib/person-name';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { Button } from '@/components/ui/button';
 import { FormActions } from '@/components/ui/form-actions';
@@ -28,11 +28,11 @@ import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { cn } from '@/lib/utils';
 
 /**
- * First name, middle initial and last name, as one controlled group.
+ * First name, middle names and last name, as one controlled group.
  *
  * Shared by the name step, the admin correction dialog and the invite form, so all three label,
- * autofill and explain errors the same way. One column on a phone; on wider screens the initial
- * sits narrow between the two names, the order people write them in.
+ * autofill and explain errors the same way. One column on a phone; on wider screens three equal
+ * columns in the order people write them (#342: a middle name is a name, not an initial).
  */
 export function StaffNameFields({
   idPrefix,
@@ -62,37 +62,56 @@ export function StaffNameFields({
     label: string,
     autoComplete: string,
     extra: React.ComponentProps<typeof Input> = {},
-  ) => (
-    <div className="space-y-2">
-      <FieldLabel htmlFor={id(name)} required={required && name !== 'middleInitial'}>
-        {label}
-      </FieldLabel>
-      <Input
-        id={id(name)}
-        name={name}
-        value={value[name]}
-        onChange={(event) => set(name, event.target.value)}
-        autoComplete={autoComplete}
-        autoCapitalize="words"
-        spellCheck={false}
-        required={required && name !== 'middleInitial'}
-        disabled={disabled}
-        className="h-12 text-base md:text-base"
-        {...fieldErrorProps(id(name), errors[name])}
-        {...extra}
-      />
-      <FieldError id={id(name)} message={errors[name]} reserveSpace={reserveErrorSpace} />
-    </div>
-  );
+    hint?: string,
+  ) => {
+    const optional = name === 'middleName';
+    const errorProps = fieldErrorProps(id(name), errors[name]);
+    const hintId = hint ? `${id(name)}-hint` : undefined;
+    return (
+      <div className="min-w-0 space-y-2">
+        <FieldLabel htmlFor={id(name)} required={required && !optional}>
+          {label}
+        </FieldLabel>
+        <Input
+          id={id(name)}
+          name={name}
+          value={value[name]}
+          onChange={(event) => set(name, event.target.value)}
+          autoComplete={autoComplete}
+          autoCapitalize="words"
+          spellCheck={false}
+          required={required && !optional}
+          disabled={disabled}
+          className="h-12 text-base md:text-base"
+          {...errorProps}
+          aria-describedby={
+            [hintId, errorProps['aria-describedby']].filter(Boolean).join(' ') || undefined
+          }
+          {...extra}
+        />
+        {hint ? (
+          <p id={hintId} className="text-sm leading-5 text-muted-foreground">
+            {hint}
+          </p>
+        ) : null}
+        <FieldError id={id(name)} message={errors[name]} reserveSpace={reserveErrorSpace} />
+      </div>
+    );
+  };
 
   return (
-    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,1fr)] sm:items-start">
+    <div className="grid gap-4 sm:grid-cols-3 sm:items-start">
       {field('firstName', 'First name', 'given-name', { autoFocus, maxLength: 120 })}
-      {field('middleInitial', 'Middle initial', 'additional-name', {
-        maxLength: 2,
-        placeholder: 'Optional',
-        onBlur: () => set('middleInitial', normalizeMiddleInitial(value.middleInitial) ?? ''),
-      })}
+      {field(
+        'middleName',
+        MIDDLE_NAME_LABEL,
+        'additional-name',
+        {
+          maxLength: 120,
+          onBlur: () => set('middleName', normalizeMiddleName(value.middleName) ?? ''),
+        },
+        MIDDLE_NAME_HINT,
+      )}
       {field('lastName', 'Last name', 'family-name', { maxLength: 120 })}
     </div>
   );

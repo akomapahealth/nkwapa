@@ -1,7 +1,9 @@
+import { formatPersonName } from '@nkwapa/db';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import type {
+  UrgentWorkItem,
   DashboardResponse,
   DashboardSummary,
   DoctorMetrics,
@@ -19,6 +21,7 @@ import type {
 import { hasPermission, PERMISSIONS } from '../auth/constants/permissions';
 import type { UserRole } from '@prisma/client';
 import { isApiFeatureEnabled } from '../common/feature-flags';
+import { screeningFlagOpenSince } from '../follow-up/follow-up-flags.service';
 import { parseZoneFilter, summarizeZones, zoneFilterMatches, type ZoneFilter } from '@nkwapa/db';
 
 /** How many named rows a "Needs you now" line carries; the count says the rest. */
@@ -59,6 +62,23 @@ export class DashboardService {
         ? await this.getClinicalMeasurementMetrics(clinicId)
         : null;
 
+    if (
+      isApiFeatureEnabled('followUpStratification') &&
+      hasPermission(
+        roles.map((role) => ({ role: role as UserRole })),
+        PERMISSIONS.FOLLOW_UP_READ,
+      )
+    ) {
+      response.urgent = await this.unclaimedUrgent(clinicId);
+      if (
+        hasPermission(
+          roles.map((role) => ({ role: role as UserRole })),
+          PERMISSIONS.FOLLOW_UP_MANAGE,
+        )
+      ) {
+        response.urgent.contactsDue = await this.contactsDue(clinicId);
+      }
+    }
     if (isAdmin) {
       response.systemAdmin = await this.getSystemAdminMetrics(parseZoneFilter(filters?.zoneCode));
     }
@@ -163,8 +183,88 @@ export class DashboardService {
     return encounters.map((encounter) => ({
       encounterId: encounter.id,
       patientCode: encounter.patient.patientCode,
-      patientName: `${encounter.patient.firstName} ${encounter.patient.lastName}`.trim(),
+      patientName: formatPersonName(encounter.patient, 'short'),
       station: stationByEncounter.get(encounter.id) ?? null,
+    }));
+  }
+
+  /**
+   * Urgent patients whose current urgent flag nobody has taken (#337), oldest first: "Needs you
+   * now" leads with them. Urgent patients are few, so they are read whole and filtered here.
+   */
+  private async unclaimedUrgent(
+    clinicId: string,
+  ): Promise<{ unclaimed: number; items: UrgentWorkItem[] }> {
+    const patients = await this.prisma.patient.findMany({
+      where: { primaryClinicId: clinicId, currentRiskTier: 'URGENT', mergedIntoPatientId: null },
+      select: {
+        id: true,
+        patientCode: true,
+        firstName: true,
+        lastName: true,
+        riskFlags: {
+          where: { kind: 'URGENT' },
+          orderBy: { raisedAt: 'desc' },
+          take: 1,
+          select: { raisedAt: true, acknowledgement: { select: { id: true } } },
+        },
+      },
+    });
+    const unclaimed = patients
+      .filter((patient) => !patient.riskFlags[0]?.acknowledgement)
+      .map(
+        (patient): UrgentWorkItem => ({
+          patientId: patient.id,
+          patientCode: patient.patientCode,
+          patientName: formatPersonName(patient, 'short'),
+          raisedAt: patient.riskFlags[0]?.raisedAt.toISOString() ?? null,
+        }),
+      )
+      .concat(await this.unclaimedScreening(clinicId))
+      .sort((a, b) => (a.raisedAt ?? '').localeCompare(b.raisedAt ?? ''));
+    return { unclaimed: unclaimed.length, items: unclaimed.slice(0, DASHBOARD_WORK_ITEM_LIMIT) };
+  }
+
+  /** Follow-up contacts due today or already late (#338). */
+  private contactsDue(clinicId: string): Promise<number> {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    return this.prisma.followUpContact.count({
+      where: {
+        clinicId,
+        status: { in: ['DUE', 'MISSED'] },
+        dueOn: { lte: today },
+        patient: { mergedIntoPatientId: null },
+      },
+    });
+  }
+
+  /** Today's untaken urgent screening findings on patients the engine does not call Urgent. */
+  private async unclaimedScreening(clinicId: string): Promise<UrgentWorkItem[]> {
+    const flags = await this.prisma.patientRiskFlag.findMany({
+      where: {
+        clinicId,
+        kind: 'SCREENING_URGENT',
+        raisedAt: { gte: screeningFlagOpenSince() },
+        acknowledgement: { is: null },
+        patient: {
+          mergedIntoPatientId: null,
+          OR: [{ currentRiskTier: null }, { currentRiskTier: { not: 'URGENT' } }],
+        },
+      },
+      orderBy: { raisedAt: 'asc' },
+      select: {
+        raisedAt: true,
+        patient: { select: { id: true, patientCode: true, firstName: true, lastName: true } },
+      },
+    });
+    // One row per patient: two visits with findings today are one person to see.
+    const byPatient = new Map(flags.map((flag) => [flag.patient.id, flag] as const));
+    return [...byPatient.values()].map(({ patient, raisedAt }) => ({
+      patientId: patient.id,
+      patientCode: patient.patientCode,
+      patientName: formatPersonName(patient, 'short'),
+      raisedAt: raisedAt.toISOString(),
     }));
   }
 
@@ -274,13 +374,13 @@ export class DashboardService {
       hypertensionDistribution[row.classification] = row._count;
     }
 
-    const followUpComplianceRate =
+    const carePlansWithFollowUpDateRate =
       carePlansTotal > 0 ? Math.round((carePlansWithFollowUp / carePlansTotal) * 100) : 0;
 
     const recentEncounters: EncounterSummary[] = recentRaw.map((e) => ({
       id: e.id,
       patientCode: e.patient.patientCode,
-      patientName: `${e.patient.firstName} ${e.patient.lastName}`,
+      patientName: formatPersonName(e.patient, 'short'),
       status: e.status,
       createdAt: e.createdAt.toISOString(),
     }));
@@ -305,7 +405,7 @@ export class DashboardService {
     return {
       awaitingFinalization,
       patientsSeen: { today: seenToday, week: seenWeek, month: seenMonth },
-      followUpComplianceRate,
+      carePlansWithFollowUpDateRate,
       hypertensionDistribution,
       diabetesStats: { flagged: diabetesScreenings, total: totalScreenings },
       recentEncounters,
@@ -360,7 +460,7 @@ export class DashboardService {
     const recentReviews: EncounterSummary[] = recentRaw.map((e) => ({
       id: e.id,
       patientCode: e.patient.patientCode,
-      patientName: `${e.patient.firstName} ${e.patient.lastName}`,
+      patientName: formatPersonName(e.patient, 'short'),
       status: e.status,
       createdAt: e.createdAt.toISOString(),
     }));
@@ -454,7 +554,7 @@ export class DashboardService {
         totalEncounters > 0 ? Math.round((diabetesScreeningCount / totalEncounters) * 100) : 0,
     };
 
-    const followUpComplianceRate =
+    const carePlansWithFollowUpDateRate =
       carePlansTotal > 0 ? Math.round((carePlansWithFollowUp / carePlansTotal) * 100) : 0;
 
     const encounterStatusCounts = await this.prisma.encounter.groupBy({
@@ -490,7 +590,7 @@ export class DashboardService {
       encounterVolumeTrend,
       screeningRates,
       bpDistribution,
-      followUpComplianceRate,
+      carePlansWithFollowUpDateRate,
       staffActivity,
       encounterStatusDistribution,
     };

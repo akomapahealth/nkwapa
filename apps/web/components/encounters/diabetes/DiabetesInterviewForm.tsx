@@ -1,5 +1,6 @@
 'use client';
 
+import { DangerSignNotice } from '@/components/patients/follow-up/DangerSignNotice';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DIABETES_CLINICIAN_PLAN_ITEMS,
@@ -370,27 +371,44 @@ export function DiabetesInterviewForm({
         saveLabel="Save screening"
         save={{ saving, message: saveMessage, error: saveError }}
         alert={
-          escalation.urgentReviewRequired ? (
-            <InlineNotice tone="error">
-              <span className="block font-medium">This visit needs a clinician now.</span>
-              <span className="block">
-                {escalation.reasons
-                  .map((reason) => DIABETES_ESCALATION_REASON_LABELS[reason])
-                  .join(' · ')}
-              </span>
-              {canEdit ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => applyReviewReasons(reviewReasonsForDiabetesEscalation(escalation))}
-                >
-                  Add to the reasons for clinician review
-                </Button>
-              ) : null}
-            </InlineNotice>
-          ) : null
+          <>
+            <DangerSignNotice
+              className="mb-3"
+              input={{
+                glucose:
+                  glucoseValue == null
+                    ? null
+                    : { mgDl: glucoseValue, context: values.glucoseType as never, at: new Date() },
+                symptoms: { diabetes: values.urgentSymptoms as never },
+                hypoglycaemiaSymptoms: (values.symptoms as string[]).includes(
+                  'HYPOGLYCEMIA_SYMPTOMS',
+                ),
+              }}
+            />
+            {escalation.urgentReviewRequired ? (
+              <InlineNotice tone="error">
+                <span className="block font-medium">This visit needs a clinician now.</span>
+                <span className="block">
+                  {escalation.reasons
+                    .map((reason) => DIABETES_ESCALATION_REASON_LABELS[reason])
+                    .join(' · ')}
+                </span>
+                {canEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() =>
+                      applyReviewReasons(reviewReasonsForDiabetesEscalation(escalation))
+                    }
+                  >
+                    Add to the reasons for clinician review
+                  </Button>
+                ) : null}
+              </InlineNotice>
+            ) : null}
+          </>
         }
       >
         <InterviewSection id="history" title="Diabetes history">

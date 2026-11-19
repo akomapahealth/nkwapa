@@ -1,4 +1,5 @@
 import {
+  generateClientId,
   buildMedicalHistoryOutboxPayload,
   buildMedicationReconciliationOutboxPayload,
   buildMedicationRevisionOutboxPayload,
@@ -365,5 +366,24 @@ describe('withoutRejectedBaseVersion', () => {
     expect(
       withoutRejectedBaseVersion(JSON.stringify({ notes: 'x' }), refused(['baseUpdatedAt'])),
     ).toBeNull();
+  });
+});
+
+describe('generateClientId', () => {
+  it('makes a v4 UUID from getRandomValues when randomUUID is missing', () => {
+    const randomUUID = crypto.randomUUID;
+    const random = jest.spyOn(Math, 'random');
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true });
+    try {
+      const ids = new Set(Array.from({ length: 50 }, generateClientId));
+      expect(ids.size).toBe(50);
+      for (const id of ids) {
+        expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      }
+      expect(random).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(crypto, 'randomUUID', { value: randomUUID, configurable: true });
+      random.mockRestore();
+    }
   });
 });

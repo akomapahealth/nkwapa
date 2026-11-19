@@ -50,7 +50,7 @@ function inviteRow(overrides: Record<string, unknown> = {}) {
     identityProvisionedAt: null,
     identityFailureReason: null,
     firstName: null,
-    middleInitial: null,
+    middleName: null,
     lastName: null,
     ...overrides,
   };
@@ -381,12 +381,12 @@ describe('StaffInviteService', () => {
         email: 'ama@clinic.org',
         role: UserRole.VOLUNTEER,
         firstName: 'Ama',
-        middleInitial: 'K',
+        middleName: 'K',
         lastName: 'Mensah',
       });
 
       expect(prisma.staffInvite.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' }),
+        data: expect.objectContaining({ firstName: 'Ama', middleName: 'K', lastName: 'Mensah' }),
       });
       expect(keycloak.provisionInvitedIdentity).toHaveBeenCalledWith(
         expect.objectContaining({ firstName: 'Ama', lastName: 'Mensah' }),
@@ -616,12 +616,12 @@ describe('StaffInviteService', () => {
       prisma.user.findUnique.mockResolvedValue({
         ...invitee,
         firstName: 'Ama',
-        middleInitial: null,
+        middleName: null,
         lastName: null,
         displayName: 'Ama',
       });
       prisma.staffInvite.findFirst.mockResolvedValue(
-        openInvite({ firstName: 'Amma', middleInitial: 'K', lastName: 'Mensah' }),
+        openInvite({ firstName: 'Amma', middleName: 'K', lastName: 'Mensah' }),
       );
 
       await service.accept(invitee.id, INVITE_ID, 'req-1');
@@ -629,7 +629,7 @@ describe('StaffInviteService', () => {
       expect(userProfile.applyName).toHaveBeenCalledWith(
         prisma,
         expect.objectContaining({ id: invitee.id }),
-        { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' },
+        { firstName: 'Ama', middleName: 'K', lastName: 'Mensah' },
         { actorUserId: invitee.id, source: 'INVITE', clinicId: CLINIC_A, requestId: 'req-1' },
       );
     });

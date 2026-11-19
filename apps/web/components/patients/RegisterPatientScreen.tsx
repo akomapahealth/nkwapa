@@ -33,16 +33,20 @@ import {
 import { ResidentialLocationFields } from '@/components/patients/ResidentialLocationFields';
 import {
   emptyResidentialLocation,
+  residentialLocationError,
   toResidentialLocationPayload,
   type ResidentialLocationValue,
 } from '@/lib/residential-location';
 import { FieldError, FieldLabel, RequiredLegend } from '@/components/ui/field';
 
+import { formatPersonName, normalizeMiddleName } from '@/lib/person-name';
+import { MiddleNameField } from './MiddleNameField';
 import { PatientFormErrors, usePatientFormErrors } from './PatientFormErrors';
 import styles from './registration-workspace.module.css';
 
 interface CreatePatientBody {
   firstName: string;
+  middleName: string;
   lastName: string;
   dob?: string;
   sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
@@ -56,6 +60,7 @@ interface ExistingPatient {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   nationalIdLast4: string | null;
 }
@@ -110,6 +115,7 @@ export function RegisterPatientScreen({
   const registryHref = `/clinics/${clinicId}/patients`;
   const [form, setForm] = useState<CreatePatientBody>({
     firstName: '',
+    middleName: '',
     lastName: '',
     dob: '',
     // Unset until chosen, so "Unknown" is never a choice nobody made; it still saves as UNKNOWN.
@@ -130,6 +136,11 @@ export function RegisterPatientScreen({
     if (!clinicId || !getToken || submitting.current) {
       return;
     }
+    const locationError = residentialLocationError(location);
+    if (locationError) {
+      setError(locationError);
+      return;
+    }
 
     submitting.current = true;
     setLoading(true);
@@ -143,6 +154,7 @@ export function RegisterPatientScreen({
         ...form,
         // A patient with no ID document has no number to send (#214).
         nationalId: noId ? undefined : form.nationalId,
+        middleName: normalizeMiddleName(form.middleName) ?? undefined,
         dob: form.dob || undefined,
         sex: form.sex ?? 'UNKNOWN',
         phoneE164: form.phoneE164 || undefined,
@@ -226,7 +238,7 @@ export function RegisterPatientScreen({
           {conflictPatient ? (
             <div className="min-w-0 border-y border-rule py-4 text-sm">
               <p className="break-words font-sans font-medium">
-                {conflictPatient.firstName} {conflictPatient.lastName}
+                {formatPersonName(conflictPatient)}
               </p>
               <p className="break-words font-mono text-muted-foreground">
                 {conflictPatient.patientCode}
@@ -282,45 +294,54 @@ export function RegisterPatientScreen({
               hint="Use the legal or most reliable identity details available during intake."
             >
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <FieldLabel htmlFor="firstName" required>
-                    First name
-                  </FieldLabel>
-                  <Input
-                    id="firstName"
-                    {...validation.fieldProps('firstName')}
-                    required
-                    value={form.firstName}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setForm((current) => ({ ...current, firstName: value }));
-                    }}
+                {/* The three names read as one row, in the order people say them (#342). */}
+                <div className="grid gap-4 compact:col-span-2 compact:grid-cols-3 compact:items-start">
+                  <div className="min-w-0 space-y-2">
+                    <FieldLabel htmlFor="firstName" required>
+                      First name
+                    </FieldLabel>
+                    <Input
+                      id="firstName"
+                      {...validation.fieldProps('firstName')}
+                      required
+                      value={form.firstName}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setForm((current) => ({ ...current, firstName: value }));
+                      }}
+                    />
+                    <FieldError
+                      reserveSpace={validation.submitted}
+                      id="firstName"
+                      message={validation.fieldMessage('firstName')}
+                    />
+                  </div>
+                  <MiddleNameField
+                    value={form.middleName}
+                    invalid={!!validation.fieldMessage('middleName')}
+                    describedBy={validation.fieldProps('middleName')['aria-describedby']}
+                    onChange={(value) => setForm((current) => ({ ...current, middleName: value }))}
                   />
-                  <FieldError
-                    reserveSpace={validation.submitted}
-                    id="firstName"
-                    message={validation.fieldMessage('firstName')}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <FieldLabel htmlFor="lastName" required>
-                    Last name
-                  </FieldLabel>
-                  <Input
-                    id="lastName"
-                    {...validation.fieldProps('lastName')}
-                    required
-                    value={form.lastName}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setForm((current) => ({ ...current, lastName: value }));
-                    }}
-                  />
-                  <FieldError
-                    reserveSpace={validation.submitted}
-                    id="lastName"
-                    message={validation.fieldMessage('lastName')}
-                  />
+                  <div className="min-w-0 space-y-2">
+                    <FieldLabel htmlFor="lastName" required>
+                      Last name
+                    </FieldLabel>
+                    <Input
+                      id="lastName"
+                      {...validation.fieldProps('lastName')}
+                      required
+                      value={form.lastName}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setForm((current) => ({ ...current, lastName: value }));
+                      }}
+                    />
+                    <FieldError
+                      reserveSpace={validation.submitted}
+                      id="lastName"
+                      message={validation.fieldMessage('lastName')}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dob">Date of birth</Label>

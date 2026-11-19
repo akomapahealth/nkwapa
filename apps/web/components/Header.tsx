@@ -58,6 +58,7 @@ import {
   UserPen,
 } from 'lucide-react';
 import { WelcomeTour } from '@/components/onboarding/WelcomeTour';
+import { AccessChangeNotice } from '@/components/account/AccessChangeNotice';
 import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
@@ -167,6 +168,7 @@ export function Header({
     switchableClinics.length > 1 ? (
       <Select value={clinicId ?? ''} onValueChange={(value) => void handleClinicChange(value)}>
         <SelectTrigger
+          data-tour="clinic-switcher"
           aria-label={`${switcherLabel}. Switch clinic`}
           className={cn(
             'w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none',
@@ -198,6 +200,7 @@ export function Header({
       </Select>
     ) : (
       <p
+        data-tour="clinic-switcher"
         className={cn(
           'min-w-0 px-2.5 text-sm',
           onToggleSidebar || portal ? 'flex flex-col justify-center' : 'flex items-center gap-2',
@@ -420,7 +423,13 @@ export function Header({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full" aria-label="User menu">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                aria-label="User menu"
+                data-tour="user-menu"
+              >
                 <Avatar className="size-9">
                   <AvatarFallback
                     {...avatarToneProps(bootstrap?.displayName)}
@@ -516,6 +525,7 @@ export function Header({
       </div>
       {/* Here because both the workspace and the portal render this header. */}
       <WelcomeTour />
+      <AccessChangeNotice />
       <InstallInstructionsDialog />
     </header>
   );

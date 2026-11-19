@@ -42,22 +42,17 @@ import { GlucoseUnitSelect } from '@/components/GlucoseUnitSelect';
 import { isFullySynced } from '@/lib/sync';
 import { db, type DiabetesScreeningRecord } from '@/lib/db';
 import { baseVersion } from '@/lib/encounter-record';
-import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
+import {
+  enqueueOutboxMutation,
+  SYNC_OPERATION,
+  generateClientId as generateId,
+} from '@/lib/outbox';
 
 const GLUCOSE_CONTEXTS: Array<{ value: DiabetesGlucoseType; label: string }> = [
   { value: 'FASTING', label: 'Fasting' },
   { value: 'RANDOM', label: 'Random' },
   { value: 'UNKNOWN', label: 'Unknown / not documented' },
 ];
-
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
-    const random = (Math.random() * 16) | 0;
-    const value = character === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
 
 function toLocalDateTime(value: string | null | undefined): string {
   const date = value ? new Date(value) : new Date();

@@ -271,6 +271,58 @@ export function ClinicMetadataDialog({
           </fieldset>
 
           <fieldset className="space-y-4">
+            <legend className="text-eyebrow text-muted-foreground">Contact</legend>
+            <p className="text-sm text-muted-foreground">
+              Printed on referral reports so the receiving facility can reach this clinic.
+            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="clinic-address">Address</Label>
+              <Input
+                id="clinic-address"
+                value={values.address}
+                maxLength={200}
+                onChange={(event) => update({ address: event.target.value })}
+                placeholder="12 Ridge Road, Accra"
+                {...fieldErrorProps('clinic-address', shownErrors.address)}
+              />
+              <FieldError id="clinic-address" message={shownErrors.address} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="clinic-contactPhone">Phone</Label>
+              <Input
+                id="clinic-contactPhone"
+                value={values.contactPhone}
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                maxLength={32}
+                onChange={(event) => update({ contactPhone: event.target.value })}
+                placeholder="030 222 0000"
+                {...fieldErrorProps('clinic-contactPhone', shownErrors.contactPhone)}
+              />
+              <FieldError id="clinic-contactPhone" message={shownErrors.contactPhone} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="clinic-contactEmail">Email</Label>
+              <Input
+                id="clinic-contactEmail"
+                value={values.contactEmail}
+                type="email"
+                inputMode="email"
+                autoComplete="off"
+                maxLength={254}
+                onChange={(event) => update({ contactEmail: event.target.value })}
+                placeholder="clinic@example.org"
+                {...fieldErrorProps('clinic-contactEmail', shownErrors.contactEmail)}
+              />
+              <FieldError id="clinic-contactEmail" message={shownErrors.contactEmail} />
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-4">
             <legend className="text-eyebrow text-muted-foreground">Location and zone</legend>
 
             {/*

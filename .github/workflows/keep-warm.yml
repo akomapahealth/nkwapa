@@ -14,7 +14,9 @@ name: Keep Warm
 # The pings use /health/live, which skips the database, so Neon can auto-suspend. Render's own
 # health check may skip it too, so a deploy that can't reach the database could still go live.
 # Once a morning, before clinic opens, a readiness check calls /health and fails unless the
-# database is connected. It wakes Neon once a day, just before the first sign-in would.
+# database and Redis are connected. It wakes Neon once a day, just before the first sign-in would.
+# A failed scheduled run emails the owner. That is the alert for Redis being down, which the API
+# survives by letting every request past the rate limiter (#199).
 #
 # GitHub runs scheduled workflows only from the default branch (main), and cron may run late.
 
@@ -26,15 +28,19 @@ on:
     - cron: '55 5 * * 1-6'
   workflow_dispatch:
 
+# Read-only by default; a job that needs more declares its own permissions block.
+permissions:
+  contents: read
+
 jobs:
   readiness:
-    name: Check production API reaches the database
+    name: Check production API reaches the database and Redis
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '55 5 * * 1-6'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Check /health
-        # /health answers 200 even when degraded, so read the db check from the body.
+        # /health answers 200 even when degraded, so read the checks from the body.
         run: |
           BODY=$(curl --fail --silent --show-error --max-time 120 \
             --retry 3 --retry-all-errors --retry-delay 20 \
@@ -43,6 +49,12 @@ jobs:
           DB=$(echo "$BODY" | jq -r '.checks.db')
           if [ "$DB" != "connected" ]; then
             echo "::error::Production API cannot reach the database (db: ${DB})"
+            exit 1
+          fi
+          # Without Redis the rate limiter lets every request through and queued jobs stop.
+          REDIS=$(echo "$BODY" | jq -r '.checks.redis')
+          if [ "$REDIS" != "connected" ]; then
+            echo "::error::Production API cannot reach Redis (redis: ${REDIS}); rate limits are off"
             exit 1
           fi
 

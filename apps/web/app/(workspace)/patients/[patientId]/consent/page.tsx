@@ -1,6 +1,7 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
+import { consentDocumentType } from '@/lib/consent-text';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { RouteGuard } from '@/components/RouteGuard';
 import { RecordConsentScreen } from '@/components/patients/RecordConsentScreen';
@@ -12,15 +13,18 @@ import { RecordConsentScreen } from '@/components/patients/RecordConsentScreen';
 export default function ConsentPage() {
   const params = useParams();
   const patientId = params.patientId as string;
+  const consentType = consentDocumentType(useSearchParams().get('type'));
   const clinicId = useBootstrap()?.activeClinicId ?? null;
 
   return (
     <RouteGuard
       requiredPermission="CONSENT.RECORD"
       requiresClinic
-      clinicSurface="Recording research consent"
+      clinicSurface="Recording consent"
     >
-      {clinicId ? <RecordConsentScreen clinicId={clinicId} patientId={patientId} /> : null}
+      {clinicId ? (
+        <RecordConsentScreen clinicId={clinicId} patientId={patientId} consentType={consentType} />
+      ) : null}
     </RouteGuard>
   );
 }

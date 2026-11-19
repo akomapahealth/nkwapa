@@ -33,7 +33,23 @@ type PrismaLikeClient = PrismaClient | Prisma.TransactionClient;
 type ActivePrismaContext = {
   client: Prisma.TransactionClient;
   rls: PrismaRlsContext;
+  /** Work to run once this context's transaction has committed; see `afterCommit`. */
+  afterCommit: AfterCommitWork[];
 };
+
+type AfterCommitWork = { key: string | null; work: () => Promise<unknown> };
+
+/**
+ * Columns no query returns unless it selects them by name (#336).
+ *
+ * A patient's follow-up tier may only reach people holding FOLLOW_UP.READ, but many endpoints
+ * return whole Patient rows (the portal among them). Omitting the columns at the client makes a
+ * new endpoint safe by default: the follow-up code selects them explicitly where it needs them.
+ * The static `Patient` type still lists them, so read them only from a query that selects them.
+ */
+export const GLOBALLY_OMITTED = {
+  patient: { currentRiskTier: true, currentRiskAssessmentId: true },
+} as const;
 
 export type TransactionOptions = {
   maxWait?: number;
@@ -63,6 +79,7 @@ export class UnknownClinicContextError extends Error {
 }
 
 const INTERNAL_PRISMA_KEYS = new Set([
+  'afterCommit',
   'applyRlsContext',
   'assertCompatibleContext',
   'assertCompatibleClinicContext',
@@ -75,6 +92,7 @@ const INTERNAL_PRISMA_KEYS = new Set([
   'onModuleDestroy',
   'onModuleInit',
   'rlsStorage',
+  'runAfterCommit',
   'transactionWithContext',
   'verifyRlsEnforcement',
   'withClinicContext',
@@ -97,7 +115,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const adapter = new PrismaPg({
       connectionString: resolveApplicationDatabaseUrl(process.env),
     });
-    super({ adapter });
+    super({ adapter, omit: GLOBALLY_OMITTED });
 
     return new Proxy(this, {
       get: (_, property) => {
@@ -175,16 +193,54 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       return callback(active.client);
     }
 
-    return this.transactionWithContext(async (tx) => {
+    const afterCommit: ActivePrismaContext['afterCommit'] = [];
+    const result = await this.transactionWithContext(async (tx) => {
       await this.applyRlsContext(tx, normalizedContext);
       return this.rlsStorage.run(
         {
           client: tx,
           rls: normalizedContext,
+          afterCommit,
         },
         () => callback(tx),
       );
     }, options);
+    await this.runAfterCommit(afterCommit);
+    return result;
+  }
+
+  /**
+   * Run `work` once the current request's transaction has committed, outside any tenant context,
+   * so it sees the committed rows and can open its own (#336). A failure is logged and never
+   * reaches the caller: the write it follows has already been saved. Nothing runs if the
+   * transaction rolls back. With no transaction open, it runs now.
+   *
+   * The request waits for it, so it suits a handful of queries, not a network call. Work queued
+   * twice under one `key` in the same transaction runs once.
+   */
+  async afterCommit(work: () => Promise<unknown>, key: string | null = null): Promise<void> {
+    const active = this.rlsStorage.getStore();
+    if (active) {
+      if (key === null || !active.afterCommit.some((queued) => queued.key === key)) {
+        active.afterCommit.push({ key, work });
+      }
+      return;
+    }
+    await this.runAfterCommit([{ key, work }]);
+  }
+
+  private async runAfterCommit(queue: ActivePrismaContext['afterCommit']): Promise<void> {
+    // A callback may queue more work (it opens its own context); drain until empty.
+    while (queue.length > 0) {
+      const { work } = queue.shift()!;
+      await this.rlsStorage
+        .exit(() => work())
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `After-commit work failed: ${error instanceof Error ? error.name : 'unknown error'}`,
+          );
+        });
+    }
   }
 
   /**

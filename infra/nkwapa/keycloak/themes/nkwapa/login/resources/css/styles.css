@@ -116,6 +116,20 @@
 
   /* Motion ------------------------------------------------------ MASTER.md section 7 */
   --nkwapa-duration: 150ms;
+  /* Press feedback: fast out, so the control answers the moment it is pressed. */
+  --nkwapa-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --nkwapa-press-duration: 100ms;
+}
+
+/* The parts the browser draws by default, from the palette. */
+::selection {
+  background: var(--nkwapa-primary-soft);
+  color: var(--nkwapa-text);
+}
+
+input,
+textarea {
+  caret-color: var(--nkwapa-primary);
 }
 
 * {
@@ -560,7 +574,9 @@ body.nkwapa-auth-body {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--nkwapa-duration) ease;
+  transition:
+    background-color var(--nkwapa-duration) ease,
+    transform var(--nkwapa-press-duration) var(--nkwapa-ease-out);
 }
 
 .nkwapa-btn-primary--link {
@@ -663,6 +679,323 @@ body.nkwapa-auth-body {
   text-align: left;
 }
 
+/*
+  A second sign-in step (SEC-05): authenticator app and passkey setup, the prompts at sign-in, and
+  the chooser between them. Same sheet, rules and controls as the password pages.
+*/
+
+/* Pressing answers at once; hover still only darkens (MASTER.md section 7). */
+.nkwapa-btn-primary:active,
+.nkwapa-btn-secondary:active,
+.nkwapa-option:active {
+  transform: scale(0.98);
+}
+
+.nkwapa-btn-primary:disabled {
+  cursor: progress;
+  background: var(--nkwapa-primary-deep);
+}
+
+.nkwapa-btn-secondary {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--nkwapa-border-strong);
+  border-radius: var(--nkwapa-radius-md);
+  background: var(--nkwapa-surface);
+  color: var(--nkwapa-text);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--nkwapa-duration) ease,
+    border-color var(--nkwapa-duration) ease,
+    transform var(--nkwapa-press-duration) var(--nkwapa-ease-out);
+}
+
+.nkwapa-btn-secondary:hover {
+  background: var(--nkwapa-muted-surface);
+  border-color: var(--nkwapa-primary);
+}
+
+/* A text button for "Confirm another way": a link in look, a form submit underneath. */
+.nkwapa-btn-quiet {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--nkwapa-primary);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-underline-offset: 3px;
+}
+
+.nkwapa-btn-quiet:hover {
+  text-decoration: underline;
+}
+
+.nkwapa-try-another-way {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.nkwapa-label__optional {
+  font-weight: 400;
+  color: var(--nkwapa-muted);
+}
+
+.nkwapa-hint {
+  margin: 8px 0 0;
+  color: var(--nkwapa-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.nkwapa-action-stack .nkwapa-hint {
+  margin-top: 4px;
+}
+
+/* A one-time code: large, spaced and in fixed-width digits, so a misread digit is easy to spot. */
+.nkwapa-input--code {
+  max-width: 14rem;
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Setup steps. The sequence is the content here, so it is numbered; the rows are ruled like
+   every group in the app. */
+.nkwapa-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nkwapa-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 14px;
+  padding: 20px 0;
+  border-top: 1px solid var(--nkwapa-rule);
+}
+
+.nkwapa-step:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.nkwapa-step:last-child {
+  padding-bottom: 0;
+}
+
+.nkwapa-step__marker {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--nkwapa-primary-soft);
+  color: var(--nkwapa-primary-deep);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.nkwapa-step__body {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.nkwapa-step__title {
+  margin: 3px 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--nkwapa-text);
+}
+
+.nkwapa-step__detail {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--nkwapa-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.nkwapa-step__form {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.nkwapa-qr {
+  margin: 4px 0 0;
+  padding: 12px;
+  border: 1px solid var(--nkwapa-border);
+  border-radius: var(--nkwapa-radius-lg);
+  background: var(--nkwapa-surface);
+  line-height: 0;
+}
+
+.nkwapa-qr img {
+  width: 176px;
+  height: 176px;
+  /* A QR code is a grid of squares; smoothing blurs the edges a camera reads. */
+  image-rendering: pixelated;
+}
+
+/* The setup key is data a person copies character by character, so it is set in fixed-width
+   type, grouped as Keycloak groups it, and selected whole on a single click. */
+.nkwapa-secret-key {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--nkwapa-border);
+  border-radius: var(--nkwapa-radius-md);
+  background: var(--nkwapa-muted-surface);
+  color: var(--nkwapa-text);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  word-spacing: 0.25em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* Choosing which phone's code to enter. */
+.nkwapa-choices {
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.nkwapa-choices legend {
+  padding: 0;
+}
+
+.nkwapa-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--nkwapa-border-strong);
+  border-radius: var(--nkwapa-radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--nkwapa-duration) ease,
+    border-color var(--nkwapa-duration) ease;
+}
+
+.nkwapa-choice:hover,
+.nkwapa-choice:has(input:checked) {
+  border-color: var(--nkwapa-primary);
+}
+
+.nkwapa-choice:has(input:checked) {
+  background: var(--nkwapa-primary-soft);
+}
+
+.nkwapa-choice input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--nkwapa-primary);
+}
+
+.nkwapa-choice__label {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* The passkeys an account has, shown at the passkey prompt. */
+.nkwapa-credential-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--nkwapa-rule);
+}
+
+.nkwapa-credential {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--nkwapa-rule);
+  font-size: 0.92rem;
+}
+
+.nkwapa-credential__meta {
+  color: var(--nkwapa-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* "Confirm another way": one row per method. */
+.nkwapa-option-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.nkwapa-option {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--nkwapa-border-strong);
+  border-radius: var(--nkwapa-radius-md);
+  background: var(--nkwapa-surface);
+  color: var(--nkwapa-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--nkwapa-duration) ease,
+    border-color var(--nkwapa-duration) ease,
+    transform var(--nkwapa-press-duration) var(--nkwapa-ease-out);
+}
+
+.nkwapa-option:hover {
+  background: var(--nkwapa-muted-surface);
+  border-color: var(--nkwapa-primary);
+}
+
+.nkwapa-option__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nkwapa-option__title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.nkwapa-option__detail {
+  color: var(--nkwapa-muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.nkwapa-option__chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--nkwapa-muted);
+}
+
 /* Keycloak's own PatternFly chrome, which this theme replaces wholesale. */
 #kc-header,
 #kc-header-wrapper {
@@ -713,6 +1046,12 @@ body.nkwapa-auth-body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .nkwapa-btn-primary:active,
+  .nkwapa-btn-secondary:active,
+  .nkwapa-option:active {
+    transform: none;
+  }
+
   *,
   *::before,
   *::after {

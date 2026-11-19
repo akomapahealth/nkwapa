@@ -388,3 +388,78 @@ export function isDistrictInRegion(
 ): boolean {
   return normalizeDistrict(region, district) !== null;
 }
+
+/**
+ * Ghana Digital Address (GhanaPostGPS), e.g. `GA-183-8164`: a region letter and a district
+ * letter, an area code, then a four-digit unique code. Source: the GhanaPostGPS FAQ
+ * (https://ghanapostgps.com/get-help/, checked 2026-11-15). Secondary sources disagree on the
+ * area-code length, so we accept 3 to 5 digits: a refused real address is worse than an odd one.
+ */
+const DIGITAL_ADDRESS_PATTERN = /^([A-Z][A-Z0-9])-?(\d{3,5})-?(\d{4})$/;
+
+export const DIGITAL_ADDRESS_EXAMPLE = 'GA-183-8164';
+
+/**
+ * Uppercase, drop spaces and accept hyphens or none; return the hyphenated form, or `null`
+ * when the text is not shaped like a Digital Address.
+ */
+export function normalizeDigitalAddress(value: string | null | undefined): string | null {
+  const compact = (value ?? '').toUpperCase().replace(/\s+/g, '');
+  const match = DIGITAL_ADDRESS_PATTERN.exec(compact);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
+
+/** Ghana's bounding box, roughly. A position outside it is refused. */
+export const GHANA_BOUNDS = { minLat: 4.5, maxLat: 11.5, minLng: -3.5, maxLng: 1.5 } as const;
+
+export function isInGhana(latitude: number, longitude: number): boolean {
+  return (
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= GHANA_BOUNDS.minLat &&
+    latitude <= GHANA_BOUNDS.maxLat &&
+    longitude >= GHANA_BOUNDS.minLng &&
+    longitude <= GHANA_BOUNDS.maxLng
+  );
+}
+
+export type ParsedPosition =
+  | { ok: true; latitude: number; longitude: number }
+  | { ok: false; reason: 'no-coordinates' | 'short-link' | 'outside-ghana' };
+
+const NUM = '(-?\\d{1,3}(?:\\.\\d+)?)';
+// Most specific first: `!3d..!4d..` is the dropped pin; `@lat,lng` is only the map's centre.
+const POSITION_PATTERNS = [
+  new RegExp(`!3d${NUM}!4d${NUM}`),
+  new RegExp(`[?&](?:q|query|ll|destination|center|daddr)=(?:loc:)?${NUM}\\s*,\\s*${NUM}`),
+  new RegExp(`^geo:${NUM}\\s*,\\s*${NUM}`),
+  new RegExp(`@${NUM},${NUM}`),
+  new RegExp(`^${NUM}\\s*[,\\s]\\s*${NUM}$`),
+];
+
+const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
+
+/**
+ * Pull a latitude and longitude out of a pasted Google Maps link or a "latitude, longitude"
+ * pair. Short share links (maps.app.goo.gl) carry no coordinates until opened, so they get
+ * their own reason and the caller can ask for the full link instead.
+ */
+export function parsePosition(input: string | null | undefined): ParsedPosition {
+  let text = (input ?? '').trim();
+  try {
+    text = decodeURIComponent(text);
+  } catch {
+    // A stray % is fine; parse the text as typed.
+  }
+  for (const pattern of POSITION_PATTERNS) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+    const latitude = round6(Number(match[1]));
+    const longitude = round6(Number(match[2]));
+    return isInGhana(latitude, longitude)
+      ? { ok: true, latitude, longitude }
+      : { ok: false, reason: 'outside-ghana' };
+  }
+  if (/goo\.gl\/|maps\.app\./i.test(text)) return { ok: false, reason: 'short-link' };
+  return { ok: false, reason: 'no-coordinates' };
+}

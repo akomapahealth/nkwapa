@@ -106,7 +106,7 @@ export interface ListFilterChip {
 }
 
 /** Right on a wide screen, a bottom sheet on a phone. */
-function useWideSheet(minWidth = 600) {
+export function useWideSheet(minWidth = 600) {
   const [wide, setWide] = useState(false);
   useEffect(() => {
     const query = window.matchMedia(`(min-width: ${minWidth}px)`);

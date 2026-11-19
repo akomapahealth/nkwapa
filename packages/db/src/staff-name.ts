@@ -3,19 +3,22 @@
  * accepts is a name the server accepts, and every `displayName` is built the same way.
  */
 
-export const STAFF_NAME_MAX_LENGTH = 120;
+import { formatPersonName, PERSON_NAME_MAX_LENGTH } from './person-name';
+
+export { normalizeMiddleName } from './person-name';
+
+export const STAFF_NAME_MAX_LENGTH = PERSON_NAME_MAX_LENGTH;
 
 export type StaffNameError = 'REQUIRED' | 'TOO_LONG' | 'INVALID_CHARACTERS' | 'EQUALS_EMAIL';
 
 export interface StaffNameParts {
   firstName: string;
-  middleInitial?: string | null;
+  middleName?: string | null;
   lastName: string;
 }
 
 // Letters in any script (with combining marks), plus space, hyphen, apostrophes and period.
 const NAME_PART = /^\p{L}[\p{L}\p{M} '’.-]*$/u;
-const SINGLE_LETTER = /^\p{L}$/u;
 
 /** NFC, trimmed, inner whitespace collapsed. */
 export function normalizeStaffNamePart(value: string | null | undefined): string {
@@ -31,22 +34,19 @@ export function staffNamePartError(value: string, email?: string | null): StaffN
   return null;
 }
 
-/** "k." -> "K"; blank -> null. Invalid input is returned as-is for `middleInitialError` to reject. */
-export function normalizeMiddleInitial(value: string | null | undefined): string | null {
-  const stripped = (value ?? '').normalize('NFC').replace(/[\s.]+/g, '');
-  return stripped ? stripped.toLocaleUpperCase() : null;
+/**
+ * Validate an already-normalized middle name (null is fine: it is optional). The first and last
+ * name's character rules, so spaces, hyphens and apostrophes are allowed.
+ */
+export function middleNameError(value: string | null): 'TOO_LONG' | 'INVALID_CHARACTERS' | null {
+  if (value === null) return null;
+  const error = staffNamePartError(value);
+  return error === 'TOO_LONG' || error === 'INVALID_CHARACTERS' ? error : null;
 }
 
-/** Validate an already-normalized middle initial (null is fine: it is optional). */
-export function middleInitialError(value: string | null): 'INVALID_CHARACTERS' | null {
-  return value === null || SINGLE_LETTER.test(value) ? null : 'INVALID_CHARACTERS';
-}
-
-/** "Ama K. Mensah", or "Ama Mensah" without an initial. */
-export function formatStaffDisplayName({ firstName, middleInitial, lastName }: StaffNameParts) {
-  return [firstName, middleInitial ? `${middleInitial}.` : null, lastName]
-    .filter(Boolean)
-    .join(' ');
+/** "Ama Kukua Mensah", "Ama K. Mensah" for a stored initial, or "Ama Mensah". */
+export function formatStaffDisplayName(parts: StaffNameParts) {
+  return formatPersonName(parts, 'full');
 }
 
 export function staffNameMessage(error: StaffNameError, label: string): string {
@@ -61,5 +61,3 @@ export function staffNameMessage(error: StaffNameError, label: string): string {
       return `${label} can't be your email address.`;
   }
 }
-
-export const MIDDLE_INITIAL_MESSAGE = 'Middle initial must be a single letter.';

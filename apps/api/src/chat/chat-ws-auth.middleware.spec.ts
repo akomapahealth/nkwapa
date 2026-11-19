@@ -1,3 +1,5 @@
+import { generateKeyPairSync } from 'crypto';
+import * as jwt from 'jsonwebtoken';
 import { Socket } from 'socket.io';
 import { UserRole } from '@prisma/client';
 import { createWsAuthMiddleware } from './chat-ws-auth.middleware';
@@ -93,5 +95,44 @@ describe('chat WebSocket auth middleware', () => {
       displayName: 'User One',
       roles: [{ clinicId, role: UserRole.DOCTOR }],
     });
+  });
+});
+
+describe('verifyJwt audience', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const issuer = 'http://localhost:8080/realms/nkwapa';
+  const originalEnv = process.env;
+
+  afterEach(() => {
+    process.env = originalEnv;
+    jest.resetModules();
+  });
+
+  function loadVerify(audience: string): typeof import('./chat-ws-auth.middleware').verifyJwt {
+    process.env = { ...originalEnv, KEYCLOAK_ISSUER: issuer, KEYCLOAK_AUDIENCE: audience };
+    jest.doMock('jwks-rsa', () => ({
+      JwksClient: jest.fn().mockImplementation(() => ({
+        getSigningKey: (_kid: string, cb: (err: null, key: object) => void) =>
+          cb(null, { getPublicKey: () => publicKey.export({ type: 'spki', format: 'pem' }) }),
+      })),
+    }));
+    let verify!: typeof import('./chat-ws-auth.middleware').verifyJwt;
+    jest.isolateModules(() => {
+      verify = require('./chat-ws-auth.middleware').verifyJwt;
+    });
+    return verify;
+  }
+
+  const sign = (aud: string) =>
+    jwt.sign({ sub: 'kc-sub-1' }, privateKey, { algorithm: 'RS256', issuer, audience: aud });
+
+  it('accepts a token for the configured audience', async () => {
+    await expect(loadVerify('nkwapa-api')(sign('nkwapa-api'))).resolves.toMatchObject({
+      sub: 'kc-sub-1',
+    });
+  });
+
+  it('rejects a token minted for another audience', async () => {
+    await expect(loadVerify('nkwapa-api')(sign('account'))).rejects.toThrow(/audience/);
   });
 });

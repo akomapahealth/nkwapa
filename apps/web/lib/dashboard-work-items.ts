@@ -22,3 +22,18 @@ export function describeWorkItems(items: DashboardWorkItem[] | undefined, total:
   if (names.length === 1) return `${names[0]}.`;
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}.`;
 }
+
+/** An Urgent patient nobody has said "I'm on it" for (#337), as the dashboard sends them. */
+export interface UrgentWorkItem {
+  patientId: string;
+  patientCode: string;
+  patientName: string;
+  raisedAt: string | null;
+}
+
+export interface UrgentWork {
+  unclaimed: number;
+  items: UrgentWorkItem[];
+  /** Follow-up contacts due today or late (#338); only for someone who can record them. */
+  contactsDue?: number;
+}

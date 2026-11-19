@@ -239,7 +239,7 @@ export function createStaffInvite(
   body: {
     email: string;
     firstName?: string;
-    middleInitial?: string;
+    middleName?: string;
     lastName?: string;
     role: StaffInviteRole;
     ttlHours?: number;

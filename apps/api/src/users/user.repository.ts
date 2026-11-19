@@ -101,7 +101,7 @@ export class UserRepository {
       select: {
         firstName: true,
         lastName: true,
-        middleInitial: true,
+        middleName: true,
         displayName: true,
         email: true,
         keycloakSub: true,
@@ -125,7 +125,7 @@ export class UserRepository {
     if ((updates.firstName || updates.lastName || isPlaceholder) && firstName && lastName) {
       updates.displayName = formatStaffDisplayName({
         firstName,
-        middleInitial: existing.middleInitial,
+        middleName: existing.middleName,
         lastName,
       });
     }

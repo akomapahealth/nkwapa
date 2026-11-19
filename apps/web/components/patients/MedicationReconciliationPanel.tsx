@@ -24,6 +24,7 @@ import {
   buildPharmacyRevisionOutboxPayload,
   enqueueOutboxMutation,
   SYNC_OPERATION,
+  generateClientId as generateId,
 } from '@/lib/outbox';
 import { formatOpsDateTime, formatOpsDay, readApiError } from '@/lib/ops';
 import type { AllergySummary } from '@/lib/medical-history';
@@ -177,10 +178,6 @@ type PrescriptionContext = {
   encounter?: { id: string; createdAt: string };
   prescribedBy?: { displayName: string };
 };
-
-function generateId() {
-  return crypto.randomUUID();
-}
 
 function optional(value: string) {
   const trimmed = value.trim();
@@ -471,6 +468,7 @@ export function MedicationReconciliationPanel({
           await db.patient_medication_revisions.put({
             id: revisionId,
             recordId,
+            clinicId,
             revisionNumber: (previous?.revisionNumber ?? 0) + 1,
             medicationName: medicationForm.medicationName.trim(),
             drugId: optional(medicationForm.drugId),
@@ -560,6 +558,7 @@ export function MedicationReconciliationPanel({
             const record = current.find((candidate) => candidate.id === item.recordId)!;
             await db.patient_medication_revisions.put({
               ...record.currentRevision,
+              clinicId,
               id: item.newRevisionId,
               revisionNumber: record.currentRevision.revisionNumber + 1,
               authoredByUserId: userId,
@@ -672,6 +671,7 @@ export function MedicationReconciliationPanel({
           await db.patient_pharmacy_revisions.put({
             id: revisionId,
             recordId,
+            clinicId,
             revisionNumber: (editingPharmacy?.currentRevision.revisionNumber ?? 0) + 1,
             name: pharmacyForm.name.trim(),
             phoneE164: optional(pharmacyForm.phone),

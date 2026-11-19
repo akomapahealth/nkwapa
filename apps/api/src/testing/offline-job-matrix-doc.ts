@@ -26,7 +26,8 @@ export function testKind(file: string): 'Unit' | 'Integration' | 'E2E' {
 /** Widened so the document still renders once every known risk has been fixed and removed. */
 const knownRisks: Readonly<Record<string, KnownRisk>> = KNOWN_RISKS;
 
-const cell = (text: string) => text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+const cell = (text: string) =>
+  text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
 function coverageCell(scenario: MatrixScenario): string {
   const kinds: string[] = [...new Set(scenario.automated.map((test) => testKind(test.file)))];

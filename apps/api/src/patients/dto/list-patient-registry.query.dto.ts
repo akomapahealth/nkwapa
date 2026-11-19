@@ -1,6 +1,11 @@
-import { GhanaRegion, PatientLocationStatus } from '@prisma/client';
+import { FollowUpTier, GhanaRegion, PatientLocationStatus } from '@prisma/client';
 import { IsEnum, IsIn, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
-import { PATIENT_REGISTRY_SORT_FIELDS, type PatientRegistrySortField } from '../patient.repository';
+import {
+  PATIENT_REGISTRY_SORT_FIELDS,
+  RESIDENTIAL_DETAIL_FILTERS,
+  type PatientRegistrySortField,
+  type ResidentialDetailFilter,
+} from '../patient.repository';
 import { ToCursor, ToOptionalNumber, ToSanitizedString } from '../../common/validation';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -25,6 +30,16 @@ export class ListPatientRegistryQueryDto {
   @IsOptional()
   @IsEnum(PatientLocationStatus)
   residentialLocationStatus?: PatientLocationStatus;
+
+  /** Only patients with this home detail recorded (#343). */
+  @IsOptional()
+  @IsIn([...RESIDENTIAL_DETAIL_FILTERS])
+  residentialDetail?: ResidentialDetailFilter;
+
+  /** Only patients at this follow-up tier (#336). Needs FOLLOW_UP.READ. */
+  @IsOptional()
+  @IsEnum(FollowUpTier)
+  riskTier?: FollowUpTier;
 
   /** First clinic-local day a completed screening may fall on. Alone, it means that one day. */
   @IsOptional()

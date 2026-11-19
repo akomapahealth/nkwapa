@@ -21,10 +21,17 @@ describe('NkwapaDb longitudinal clinical schema', () => {
     );
   });
 
-  it('indexes the residential region on the patients store for offline filtering', () => {
-    const patients = db.tables.find((table) => table.name === 'patients');
-    const indexNames = patients?.schema.indexes.map((index) => index.name) ?? [];
-    expect(indexNames).toContain('residentialRegion');
+  it('indexes no clinical or demographic value, since indexes are stored in the clear (v16, #207)', () => {
+    const indexed = (name: string) =>
+      db.tables.find((table) => table.name === name)?.schema.indexes.map((index) => index.name) ??
+      [];
+    expect(indexed('patients')).not.toContain('residentialRegion');
+    expect(indexed('medical_history_records')).not.toContain('category');
+    expect(indexed('medical_history_revisions')).not.toContain('status');
+    expect(indexed('medication_adherence')).not.toContain('context');
+    expect(indexed('medication_adherence')).not.toContain('[encounterId+context]');
+    expect(indexed('tobacco_screenings')).not.toContain('reviewedAt');
+    expect(indexed('diabetes_screenings')).not.toContain('collectedAt');
   });
 
   it('keeps one offline copy per clinic view, keyed by clinic and view (v12)', () => {

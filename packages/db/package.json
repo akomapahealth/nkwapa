@@ -41,6 +41,10 @@
       "types": "./dist/src/eye-screening.d.ts",
       "default": "./dist/src/eye-screening.js"
     },
+    "./offline-grant": {
+      "types": "./dist/src/offline-grant.d.ts",
+      "default": "./dist/src/offline-grant.js"
+    },
     "./clinician-plan-seal": {
       "types": "./dist/src/clinician-plan-seal.d.ts",
       "default": "./dist/src/clinician-plan-seal.js"
@@ -56,6 +60,10 @@
     "./patient-chart-sections": {
       "types": "./dist/src/patient-chart-sections.d.ts",
       "default": "./dist/src/patient-chart-sections.js"
+    },
+    "./patient-chart-glance-lines": {
+      "types": "./dist/src/patient-chart-glance-lines.d.ts",
+      "default": "./dist/src/patient-chart-glance-lines.js"
     },
     "./clinical-vocabulary": {
       "types": "./dist/src/clinical-vocabulary.d.ts",
@@ -93,6 +101,14 @@
       "types": "./dist/src/medication-adherence.d.ts",
       "default": "./dist/src/medication-adherence.js"
     },
+    "./staff-agreement": {
+      "types": "./dist/src/staff-agreement.d.ts",
+      "default": "./dist/src/staff-agreement.js"
+    },
+    "./person-name": {
+      "types": "./dist/src/person-name.d.ts",
+      "default": "./dist/src/person-name.js"
+    },
     "./staff-name": {
       "types": "./dist/src/staff-name.d.ts",
       "default": "./dist/src/staff-name.js"
@@ -112,6 +128,10 @@
     "./patient-merge": {
       "types": "./dist/src/patient-merge.d.ts",
       "default": "./dist/src/patient-merge.js"
+    },
+    "./follow-up-stratification": {
+      "types": "./dist/src/follow-up-stratification.d.ts",
+      "default": "./dist/src/follow-up-stratification.js"
     }
   },
   "scripts": {

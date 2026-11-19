@@ -12,6 +12,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getActiveBootstrapClinic, getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { apiFetch } from '@/lib/api';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import { formatOpsTimestamp, formatRoleLabel, readApiError } from '@/lib/ops';
 import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
@@ -104,10 +106,12 @@ interface ClinicRosterRow {
   keycloakSub?: string;
   displayName: string;
   firstName: string | null;
-  middleInitial?: string | null;
+  middleName?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
+  /** Must sign the confidentiality agreement and has not yet (#330). */
+  agreementPending?: boolean;
   createdAt?: string;
   updatedAt?: string;
   clinicRoles: RoleName[];
@@ -125,10 +129,11 @@ interface AllUsersRow {
   keycloakSub: string;
   displayName: string;
   firstName: string | null;
-  middleInitial?: string | null;
+  middleName?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
+  agreementPending?: boolean;
   createdAt: string;
   updatedAt: string;
   globalRoles: RoleName[];
@@ -155,10 +160,12 @@ interface StaffAccessRow {
   keycloakSub?: string;
   displayName: string;
   firstName: string | null;
-  middleInitial?: string | null;
+  middleName?: string | null;
   lastName: string | null;
   email: string | null;
   isActive: boolean;
+  /** Must sign the confidentiality agreement and has not yet (#330). */
+  agreementPending?: boolean;
   createdAt?: string;
   updatedAt?: string;
   clinicRoles: RoleName[];
@@ -207,7 +214,7 @@ function nameForRow(row: StaffAccessRow) {
   return row.firstName && row.lastName
     ? formatStaffDisplayName({
         firstName: row.firstName,
-        middleInitial: row.middleInitial ?? null,
+        middleName: row.middleName ?? null,
         lastName: row.lastName,
       })
     : row.displayName;
@@ -314,10 +321,11 @@ function normalizeClinicRow(row: ClinicRosterRow, clinicId: string, clinicName: 
     keycloakSub: row.keycloakSub,
     displayName: row.displayName,
     firstName: row.firstName,
-    middleInitial: row.middleInitial ?? null,
+    middleName: row.middleName ?? null,
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,
+    agreementPending: row.agreementPending,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     clinicRoles: row.clinicRoles,
@@ -355,10 +363,11 @@ function normalizeAllUsersRow(
     keycloakSub: row.keycloakSub,
     displayName: row.displayName,
     firstName: row.firstName,
-    middleInitial: row.middleInitial ?? null,
+    middleName: row.middleName ?? null,
     lastName: row.lastName,
     email: row.email,
     isActive: row.isActive,
+    agreementPending: row.agreementPending,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     clinicRoles,
@@ -720,6 +729,9 @@ export default function AdminUsersPage() {
             <Badge variant={statusBadgeVariant(row.isActive)}>
               {row.isActive ? 'Active' : 'Deactivated'}
             </Badge>
+            {row.isActive && row.agreementPending ? (
+              <Badge variant="outline">Agreement not signed</Badge>
+            ) : null}
             {/* Only the states someone has to act on; a quiet row stays quiet. */}
             {identity && identity.variant !== 'finalized' ? (
               <Badge variant={identity.variant} title={identity.detail}>
@@ -934,6 +946,40 @@ export default function AdminUsersPage() {
           : `${nameForRow(selectedUser)} has been deactivated. ${describeLifecycleIdentity(result, false)}`,
       );
       await refreshAfterMutation({ closeDetail: true });
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  /** Withdraw offline access (#207) from every device this person opted in on. */
+  async function handleRevokeOfflineAccess() {
+    if (!getToken || !selectedUser || !activeClinicId) return;
+    const confirmed = await confirmAction({
+      title: `Sign ${nameForRow(selectedUser)} out of all offline devices?`,
+      description:
+        'No device can be unlocked offline as them until they turn it on again while signed in. Anything a device already queued is refused when it next sends.',
+      confirmLabel: 'Sign out of offline devices',
+    });
+    if (!confirmed) return;
+    setMutationLoading(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await apiFetch(
+        `/clinics/${encodeURIComponent(activeClinicId)}/users/${encodeURIComponent(
+          selectedUser.id,
+        )}/offline-access/revoke`,
+        { method: 'POST', getToken, activeClinicId },
+      );
+      if (!res.ok) throw new Error(await readApiError(res));
+      const { revoked } = (await res.json()) as { revoked: number };
+      setNotice(
+        revoked === 0
+          ? `${nameForRow(selectedUser)} had no device with offline access.`
+          : `${nameForRow(selectedUser)} was signed out of ${revoked} offline ${revoked === 1 ? 'device' : 'devices'}.`,
+      );
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -1297,6 +1343,9 @@ export default function AdminUsersPage() {
                       <Badge variant={statusBadgeVariant(row.isActive)}>
                         {row.isActive ? 'Active' : 'Deactivated'}
                       </Badge>
+                      {row.isActive && row.agreementPending ? (
+                        <Badge variant="outline">Agreement not signed</Badge>
+                      ) : null}
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -1532,6 +1581,9 @@ export default function AdminUsersPage() {
                   <Badge variant={statusBadgeVariant(selectedUser.isActive)}>
                     {selectedUser.isActive ? 'Active' : 'Deactivated'}
                   </Badge>
+                  {selectedUser.isActive && selectedUser.agreementPending ? (
+                    <Badge variant="outline">Agreement not signed</Badge>
+                  ) : null}
                 </RecordSectionContent>
                 {/*
                   The sign-in identity, as its own fact. The account state above is written here
@@ -1748,6 +1800,32 @@ export default function AdminUsersPage() {
                       className="w-full sm:w-auto"
                     >
                       Reactivate account
+                    </Button>
+                  </RecordSectionContent>
+                </RecordSection>
+              ) : null}
+
+              {selectedUser.isActive &&
+              viewMode === 'clinic' &&
+              activeClinicId &&
+              selectedCanDeactivate &&
+              isWebFeatureEnabled('offlineSession') ? (
+                <RecordSection>
+                  <RecordSectionHeader>
+                    <h3 className="type-section-title">Offline access</h3>
+                    <RecordSectionDescription>
+                      For a lost phone or a shared device left unlocked. Their other sessions and
+                      their account stay as they are.
+                    </RecordSectionDescription>
+                  </RecordSectionHeader>
+                  <RecordSectionContent>
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleRevokeOfflineAccess()}
+                      disabled={mutationLoading}
+                      className="w-full sm:w-auto"
+                    >
+                      Sign out of offline devices
                     </Button>
                   </RecordSectionContent>
                 </RecordSection>

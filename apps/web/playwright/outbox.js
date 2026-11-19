@@ -10,32 +10,9 @@
  * waiting to be sent?
  */
 async function readOutboxRows(page, clinicId) {
-  return page.evaluate(
-    ({ clinic }) =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains('outbox')) {
-            db.close();
-            resolve([]);
-            return;
-          }
-          const store = db.transaction('outbox', 'readonly').objectStore('outbox');
-          const all = store.getAll();
-          all.onerror = () => {
-            db.close();
-            reject(all.error);
-          };
-          all.onsuccess = () => {
-            db.close();
-            resolve(all.result.filter((row) => !clinic || row.clinicId === clinic));
-          };
-        };
-      }),
-    { clinic: clinicId ?? null },
-  );
+  // Through the app, decrypted: the queued payload and its entity type are ciphertext on disk.
+  const rows = await readLocalTable(page, 'outbox');
+  return rows.filter((row) => !clinicId || row.clinicId === clinicId);
 }
 
 /** What is queued, by identity only. `clinicId` narrows it to one clinic. */
@@ -52,6 +29,7 @@ async function outboxCount(page, clinicId) {
 }
 
 const { apiRequestAs } = require('./api-client');
+const { readLocalTable } = require('./local-db');
 
 const userIds = new Map();
 

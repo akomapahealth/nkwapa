@@ -409,6 +409,80 @@ describe('AdminService', () => {
     );
   });
 
+  describe('in-app access change notices (#329)', () => {
+    const withPush = () => {
+      const made = createService();
+      const push = { notify: jest.fn() };
+      const service = new AdminService(
+        made.prisma as never,
+        made.auditService as never,
+        made.reminderService as never,
+        made.identitySync as never,
+        made.userProfileService as never,
+        push as never,
+      );
+      return { ...made, push, service };
+    };
+
+    it('tells the person, names who did it, and audits a direct grant', async () => {
+      const { prisma, auditService, push, service } = withPush();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'user-9', displayName: 'Ama' }));
+      prisma.userClinicRole.findFirst.mockResolvedValue(null);
+      prisma.userClinicRole.create.mockResolvedValue(
+        buildRoleEntry({ id: 'r-9', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+      );
+      prisma.clinic.findUnique.mockResolvedValue({ name: 'Cape Coast Clinic' });
+
+      await service.assignRole(systemAdminActor, 'user-9', 'clinic-1', UserRole.DOCTOR);
+
+      expect(push.notify).toHaveBeenCalledWith(['user-9'], {
+        kind: 'ACCESS_CHANGE',
+        // No clinic: the bell hides notices about a clinic the reader holds no role at.
+        clinicId: null,
+        url: `/account?changedBy=${systemAdminActor.userId}`,
+        title: 'You now have the Doctor role at Cape Coast Clinic',
+        body: 'Added by Ama. Open Nkwapa to see what you can do now.',
+      });
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'ROLE.GRANT', entityId: 'r-9', clinicId: 'clinic-1' }),
+      );
+    });
+
+    it('stays silent when the role was already held', async () => {
+      const { prisma, auditService, push, service } = withPush();
+      prisma.user.findUnique.mockResolvedValue(buildUser({ id: 'user-9' }));
+      prisma.userClinicRole.findFirst.mockResolvedValue(
+        buildRoleEntry({ id: 'r-9', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+      );
+
+      await service.assignRole(systemAdminActor, 'user-9', 'clinic-1', UserRole.DOCTOR);
+
+      expect(push.notify).not.toHaveBeenCalled();
+      expect(auditService.logWrite).not.toHaveBeenCalled();
+    });
+
+    it('tells the person when a role is removed, still with no clinic on the notice', async () => {
+      const { prisma, push, service } = withPush();
+      prisma.userClinicRole.findFirst.mockResolvedValue({
+        ...buildRoleEntry({ id: 'role-1', clinicId: 'clinic-1', role: UserRole.VOLUNTEER }),
+        clinic: { name: 'Cape Coast Clinic' },
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'x', email: null, displayName: 'Kofi' });
+
+      await service.revokeClinicRole(managerActor, 'clinic-1', 'vol-1', UserRole.VOLUNTEER);
+
+      expect(push.notify).toHaveBeenCalledWith(
+        ['vol-1'],
+        expect.objectContaining({
+          kind: 'ACCESS_CHANGE',
+          clinicId: null,
+          title: 'Your Volunteer role at Cape Coast Clinic was removed',
+          body: 'Removed by Kofi. If this is a mistake, message them or another administrator.',
+        }),
+      );
+    });
+  });
+
   describe('staff lifecycle notifications', () => {
     it('emails a staff member when they are granted clinic access', async () => {
       const { prisma, reminderService, service } = createService();
@@ -530,6 +604,87 @@ describe('AdminService', () => {
         entityId: 'doctor-role-1',
       }),
     );
+  });
+
+  describe('offline access goes with every withdrawal of access (#207)', () => {
+    const withGrants = () => {
+      const made = createService();
+      const offlineGrants = { revokeAllForUser: jest.fn().mockResolvedValue(2) };
+      const service = new AdminService(
+        made.prisma as never,
+        made.auditService as never,
+        made.reminderService as never,
+        made.identitySync as never,
+        made.userProfileService as never,
+        undefined,
+        offlineGrants as never,
+      );
+      return { ...made, offlineGrants, service };
+    };
+
+    it('revokes every grant when a clinic role is removed', async () => {
+      const { prisma, offlineGrants, service } = withGrants();
+      prisma.userClinicRole.findFirst.mockResolvedValue(
+        buildRoleEntry({ id: 'doctor-role-1', clinicId: 'clinic-1', role: UserRole.DOCTOR }),
+      );
+      await service.revokeClinicRole(managerActor, 'clinic-1', 'doctor-1', UserRole.DOCTOR);
+      expect(offlineGrants.revokeAllForUser).toHaveBeenCalledWith('doctor-1', 'ROLE_REMOVED');
+    });
+
+    it('revokes every grant when a staff member is offboarded from their last clinic', async () => {
+      const { prisma, offlineGrants, service } = withGrants();
+      const target = buildUser({
+        id: 'volunteer-1',
+        clinicRoles: [buildRoleEntry({ role: UserRole.VOLUNTEER })],
+      });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: false });
+      await service.deactivateUserInClinic(managerActor, 'clinic-1', 'volunteer-1');
+      expect(offlineGrants.revokeAllForUser).toHaveBeenCalledWith('volunteer-1', 'DEACTIVATED');
+    });
+
+    it('revokes every grant on a global deactivation, and again on its retry', async () => {
+      const { prisma, offlineGrants, service } = withGrants();
+      const target = buildUser({
+        id: 'shared-1',
+        clinicRoles: [buildRoleEntry({ id: 'r-1', clinicId: 'clinic-1', role: UserRole.MANAGER })],
+      });
+      prisma.user.findUnique.mockResolvedValue(target);
+      prisma.user.update.mockResolvedValue({ ...target, isActive: false });
+      await service.deactivateUserGlobally(systemAdminActor, 'shared-1');
+      prisma.user.findUnique.mockResolvedValue({ ...target, isActive: false });
+      await service.deactivateUserGlobally(systemAdminActor, 'shared-1');
+      expect(offlineGrants.revokeAllForUser).toHaveBeenCalledTimes(2);
+      expect(offlineGrants.revokeAllForUser).toHaveBeenCalledWith('shared-1', 'DEACTIVATED');
+    });
+
+    it('lets a manager sign a volunteer out of offline access, and records it', async () => {
+      const { prisma, auditService, offlineGrants, service } = withGrants();
+      prisma.user.findUnique.mockResolvedValue(
+        buildUser({
+          id: 'volunteer-1',
+          clinicRoles: [buildRoleEntry({ role: UserRole.VOLUNTEER })],
+        }),
+      );
+      await expect(
+        service.revokeOfflineAccessInClinic(managerActor, 'clinic-1', 'volunteer-1', 'req-9'),
+      ).resolves.toEqual({ revoked: 2 });
+      expect(offlineGrants.revokeAllForUser).toHaveBeenCalledWith('volunteer-1', 'ADMIN_SIGN_OUT');
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'OFFLINE_GRANT.REVOKE_ALL', entityId: 'volunteer-1' }),
+      );
+    });
+
+    it('does not let a manager sign out a fellow manager', async () => {
+      const { prisma, offlineGrants, service } = withGrants();
+      prisma.user.findUnique.mockResolvedValue(
+        buildUser({ id: 'manager-2', clinicRoles: [buildRoleEntry({ role: UserRole.MANAGER })] }),
+      );
+      await expect(
+        service.revokeOfflineAccessInClinic(managerActor, 'clinic-1', 'manager-2'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(offlineGrants.revokeAllForUser).not.toHaveBeenCalled();
+    });
   });
 
   it('blocks self-deactivation and self-role-revocation', async () => {
@@ -786,7 +941,7 @@ describe('AdminService', () => {
     expect(prisma.userClinicRole.create).not.toHaveBeenCalled();
   });
   describe('updateUserName (#225)', () => {
-    const NAME = { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' };
+    const NAME = { firstName: 'Ama', middleName: 'K', lastName: 'Mensah' };
 
     function seatedAt(...seats: Array<[string | null, UserRole]>) {
       return { clinicRoles: seats.map(([clinicId, role]) => ({ clinicId, role })) };

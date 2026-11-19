@@ -93,3 +93,116 @@ test.describe('a merge the preview refuses', () => {
     expect(results.violations).toEqual([]);
   });
 });
+
+/**
+ * Middle names (#342). Unlike the tests above, these register charts: each run uses its own
+ * random name and date of birth, so reruns never match an earlier run's charts.
+ */
+test.describe('middle names', () => {
+  const { randomUUID } = require('crypto');
+  const { apiRequestAs } = require('../playwright/api-client');
+  const letters = () =>
+    randomUUID()
+      .replace(/[^a-f]/g, '')
+      .slice(0, 6)
+      .replace(/^./, (c) => c.toUpperCase());
+  const dob = () =>
+    `19${50 + Math.floor(Math.random() * 50)}-0${1 + Math.floor(Math.random() * 9)}-1${Math.floor(Math.random() * 9)}`;
+
+  test('a patient with four names is registered, read back in full and found by a middle name', async ({
+    page,
+  }) => {
+    const tag = letters();
+    const born = dob();
+    await page.goto('/patients/new');
+    await page.getByLabel('First name', { exact: true }).fill('Nana');
+    const middle = page.getByLabel('Middle name(s)', { exact: true });
+    await expect(middle).toHaveAccessibleDescription(/All other names, separated by spaces/);
+    await expect(middle).toHaveAttribute('autocomplete', 'additional-name');
+    await middle.fill(`Kwame  ${tag}`);
+    await page.getByLabel('Last name', { exact: true }).fill('Tuffour');
+    await page.getByLabel('Date of birth', { exact: true }).fill(born);
+    await page.getByLabel('National ID', { exact: true }).fill(`E2E-MID-${randomUUID()}`);
+    await page.getByRole('button', { name: 'Create patient', exact: true }).click();
+    await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+/, { timeout: 30_000 });
+    const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: `Nana Kwame ${tag} Tuffour`, exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // The registry finds the chart by a middle name alone.
+    await page.goto('/patients');
+    await page.getByLabel('Name, patient code, phone or ID last 4').fill(tag);
+    // By role, so the table's hidden duplicate link never stands in for the visible one.
+    await expect(
+      page
+        .getByRole('link')
+        .and(page.locator(`[href$="/patients/${patientId}"]`))
+        .first(),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // The same person registered again without the middle name is a duplicate candidate.
+    const again = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/patients`, {
+      clinicId,
+      data: {
+        firstName: 'Nana',
+        lastName: 'Tuffour',
+        dob: born,
+        nationalIdType: 'NONE',
+        residentialLocationStatus: 'NOT_RECORDED',
+      },
+    });
+    expect(again.ok()).toBe(true);
+    // Scored directly: the queue's scan stops at 500 pairs, which a long-lived e2e database passes.
+    const preview = await apiRequestAs(
+      'staff',
+      'get',
+      `/admin/patients/merge/preview?canonicalPatientId=${patientId}&sourcePatientId=${again.json().id}`,
+    );
+    expect(preview.ok()).toBe(true);
+    expect(preview.json().duplicateSignal.reasons).toContain('NAME_AND_DOB');
+  });
+
+  test('a 120-character middle name wraps on the chart and the registry card at 360px', async ({
+    page,
+  }) => {
+    // The active clinic, from where the registration page's "back" link points.
+    await page.goto('/patients/new');
+    const registry = await page
+      .getByRole('link', { name: 'Back to patients', exact: true })
+      .getAttribute('href');
+    const clinicId = registry.split('/')[2];
+    const tag = letters();
+    const created = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/patients`, {
+      clinicId,
+      data: {
+        firstName: 'Long',
+        middleName: `${tag}${'a'.repeat(120 - tag.length)}`,
+        lastName: 'Middle',
+        nationalIdType: 'NONE',
+        residentialLocationStatus: 'NOT_RECORDED',
+      },
+    });
+    expect(created.ok()).toBe(true);
+    const patient = created.json();
+    expect(patient.middleName).toHaveLength(120);
+
+    await page.setViewportSize({ width: 360, height: 800 });
+    const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    await page.goto(`/clinics/${clinicId}/patients/${patient.id}`);
+    await expect(page.getByRole('heading', { level: 1, name: /^Long .* Middle$/ })).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(await sideways()).toBe(0);
+
+    await page.goto('/patients');
+    await page.getByLabel('Name, patient code, phone or ID last 4').fill(tag);
+    await expect(
+      page.getByRole('article', { name: new RegExp(`^Long ${tag}a+ Middle$`) }).first(),
+    ).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(await sideways()).toBe(0);
+  });
+});

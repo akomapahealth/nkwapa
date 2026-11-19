@@ -1,15 +1,17 @@
 import { ApiError } from './api';
 import { previewStaffName, staffNameErrorsFrom, validateStaffName } from './account-name';
 
-const name = (firstName: string, lastName: string, middleInitial = '') => ({
+const name = (firstName: string, lastName: string, middleName = '') => ({
   firstName,
   lastName,
-  middleInitial,
+  middleName,
 });
 
 describe('validateStaffName', () => {
   it('accepts diacritics, hyphens and apostrophes', () => {
-    expect(validateStaffName(name('Abena Adɔma', "O'Neil-Mensah", 'k.'))).toEqual({});
+    expect(validateStaffName(name('Abena Adɔma', "O'Neil-Mensah", "Kukua Agyei-O'Neil"))).toEqual(
+      {},
+    );
   });
 
   it('requires both names on the name step', () => {
@@ -19,11 +21,11 @@ describe('validateStaffName', () => {
     });
   });
 
-  it('refuses digits, the email address and a two-letter initial', () => {
-    expect(validateStaffName(name('ama@x.org', '123', 'KM'), { email: 'ama@x.org' })).toEqual({
+  it('refuses digits and the email address, in any of the three names', () => {
+    expect(validateStaffName(name('ama@x.org', '123', 'Kukua 2'), { email: 'ama@x.org' })).toEqual({
       firstName: 'First name can only use letters, spaces, hyphens, apostrophes and periods.',
       lastName: 'Last name can only use letters, spaces, hyphens, apostrophes and periods.',
-      middleInitial: 'Middle initial must be a single letter.',
+      middleName: 'Middle name(s) can only use letters, spaces, hyphens, apostrophes and periods.',
     });
   });
 
@@ -52,7 +54,11 @@ describe('staffNameErrorsFrom', () => {
 
 describe('previewStaffName', () => {
   it('shows the display name once both names are there', () => {
-    expect(previewStaffName(name('Ama', 'Mensah', 'k.'))).toBe('Ama K. Mensah');
+    expect(previewStaffName(name('Ama', 'Mensah', '  Kukua   Agyei '))).toBe(
+      'Ama Kukua Agyei Mensah',
+    );
+    // An initial kept from before #342 still reads as one.
+    expect(previewStaffName(name('Ama', 'Mensah', 'K'))).toBe('Ama K. Mensah');
     expect(previewStaffName(name('Ama', ''))).toBeNull();
   });
 });

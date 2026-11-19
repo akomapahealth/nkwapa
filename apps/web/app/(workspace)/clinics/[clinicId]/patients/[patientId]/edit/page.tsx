@@ -30,16 +30,21 @@ import { ChangeNationalIdDialog } from '@/components/patients/ChangeNationalIdDi
 import { nationalIdTypeLabel } from '@/lib/patient-duplicates';
 import {
   emptyResidentialLocation,
+  residentialLocationError,
   toResidentialLocationPayload,
   toResidentialLocationValue,
+  type PatientLocationFields,
   type PatientLocationStatus,
   type ResidentialLocationValue,
 } from '@/lib/residential-location';
+import { normalizeMiddleName } from '@/lib/person-name';
+import { MiddleNameField } from '@/components/patients/MiddleNameField';
 
-interface PatientData {
+interface PatientData extends PatientLocationFields {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   dob?: string | null;
   sex: string;
@@ -69,6 +74,7 @@ function EditPatientForm() {
   const [changingId, setChangingId] = useState(false);
 
   const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
   const [dob, setDob] = useState('');
   const [sex, setSex] = useState('UNKNOWN');
@@ -95,6 +101,7 @@ function EditPatientForm() {
             id: local.id,
             patientCode: local.patientCode,
             firstName: local.firstName,
+            middleName: local.middleName,
             lastName: local.lastName,
             dob: local.dob,
             sex: local.sex ?? 'UNKNOWN',
@@ -107,6 +114,13 @@ function EditPatientForm() {
             residentialDistrict: local.residentialDistrict,
             residentialCommunity: local.residentialCommunity,
             residentialAddressNote: local.residentialAddressNote,
+            residentialDigitalAddress: local.residentialDigitalAddress,
+            residentialLandmark: local.residentialLandmark,
+            residentialLatitude: local.residentialLatitude,
+            residentialLongitude: local.residentialLongitude,
+            residentialPositionSource: local.residentialPositionSource,
+            residentialPositionAccuracyM: local.residentialPositionAccuracyM,
+            residentialPositionCapturedAt: local.residentialPositionCapturedAt,
           });
         } else {
           setError('Patient not found');
@@ -122,6 +136,7 @@ function EditPatientForm() {
   function populateForm(p: PatientData) {
     setPatient(p);
     setFirstName(p.firstName);
+    setMiddleName(p.middleName ?? '');
     setLastName(p.lastName);
     setDob(p.dob ? p.dob.substring(0, 10) : '');
     setSex(p.sex);
@@ -136,12 +151,21 @@ function EditPatientForm() {
 
   const handleSave = async () => {
     if (!patient) return;
+    // The offline fallback below queues whatever the server refuses, so refuse it here first.
+    const locationError = residentialLocationError(location);
+    if (locationError) {
+      setError(locationError);
+      return;
+    }
     setSaving(true);
     setError(null);
     setSavedOffline(false);
 
     const body: Record<string, unknown> = {};
     if (firstName !== patient.firstName) body.firstName = firstName;
+    // Blank clears it; a stored name is sent only when it actually changed.
+    const newMiddle = normalizeMiddleName(middleName);
+    if (newMiddle !== (patient.middleName ?? null)) body.middleName = newMiddle;
     if (lastName !== patient.lastName) body.lastName = lastName;
     const newDob = dob || null;
     const oldDob = patient.dob ? patient.dob.substring(0, 10) : null;
@@ -153,13 +177,9 @@ function EditPatientForm() {
     // Residential location is diffed and sent as a coherent block; the server
     // re-applies the status invariant.
     const locationPayload = toResidentialLocationPayload(location);
-    const currentStatus = patient.residentialLocationStatus ?? 'NOT_RECORDED';
     const locationChanged =
-      locationPayload.residentialLocationStatus !== currentStatus ||
-      (locationPayload.residentialRegion ?? null) !== (patient.residentialRegion ?? null) ||
-      (locationPayload.residentialDistrict ?? null) !== (patient.residentialDistrict ?? null) ||
-      (locationPayload.residentialCommunity ?? null) !== (patient.residentialCommunity ?? null) ||
-      (locationPayload.residentialAddressNote ?? null) !== (patient.residentialAddressNote ?? null);
+      JSON.stringify(locationPayload) !==
+      JSON.stringify(toResidentialLocationPayload(toResidentialLocationValue(patient)));
     if (locationChanged) {
       Object.assign(body, locationPayload);
     }
@@ -191,6 +211,7 @@ function EditPatientForm() {
           primaryClinicId: clinicId,
           patientCode: patient.patientCode,
           firstName: patient.firstName,
+          middleName: patient.middleName ?? null,
           lastName: patient.lastName,
           dob: patient.dob ?? undefined,
           sex: patient.sex,
@@ -282,17 +303,26 @@ function EditPatientForm() {
           description="Adjust the patient’s current demographic profile."
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">First name</Label>
-              <Input
-                id="firstName"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Last name</Label>
-              <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <div className="grid gap-4 md:col-span-2 md:grid-cols-3 md:items-start">
+              <div className="min-w-0 space-y-2">
+                <Label htmlFor="firstName">First name</Label>
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  autoComplete="given-name"
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <MiddleNameField value={middleName} onChange={setMiddleName} />
+              <div className="min-w-0 space-y-2">
+                <Label htmlFor="lastName">Last name</Label>
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  autoComplete="family-name"
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="dob">Date of birth</Label>

@@ -4,6 +4,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 
 const { storageStateFor } = require('../playwright/roles');
 const { answer, question, openSection } = require('../playwright/interview');
+const { readLocalTable } = require('../playwright/local-db');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -22,30 +23,8 @@ test.use({ storageState: storageStateFor('staff') });
  */
 
 async function readAdherenceSets(page, encounterId) {
-  return page.evaluate(
-    (encounter) =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains('medication_adherence')) {
-            db.close();
-            resolve([]);
-            return;
-          }
-          const store = db
-            .transaction('medication_adherence', 'readonly')
-            .objectStore('medication_adherence');
-          const all = store.getAll();
-          all.onerror = () => reject(all.error);
-          all.onsuccess = () => {
-            db.close();
-            resolve(all.result.filter((row) => row.encounterId === encounter));
-          };
-        };
-      }),
-    encounterId,
+  return (await readLocalTable(page, 'medication_adherence')).filter(
+    (row) => row.encounterId === encounterId,
   );
 }
 

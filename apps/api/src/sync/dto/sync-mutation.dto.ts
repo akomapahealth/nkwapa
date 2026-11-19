@@ -6,7 +6,10 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { OFFLINE_UNLOCK_METHODS, type OfflineUnlockMethod } from '@nkwapa/db';
 import { ToSanitizedString } from '../../common/validation';
 import { SYNC_ENTITY_TYPES } from '../sync-permissions';
 
@@ -16,6 +19,18 @@ export const SYNC_OPERATION = {
 } as const;
 
 export type SyncOperationType = (typeof SYNC_OPERATION)[keyof typeof SYNC_OPERATION];
+
+/** Stamped on a write queued in an offline session (#207). */
+export class OfflineSessionStampDto {
+  @IsUUID()
+  grantId!: string;
+
+  @IsUUID()
+  deviceId!: string;
+
+  @IsIn(OFFLINE_UNLOCK_METHODS)
+  unlockMethod!: OfflineUnlockMethod;
+}
 
 export class SyncMutationDto {
   @ToSanitizedString({ maxLength: 80 })
@@ -51,4 +66,13 @@ export class SyncMutationDto {
   @IsOptional()
   @IsDateString()
   createdAt?: string;
+
+  /**
+   * Present when the change was recorded in an offline session. The server refuses it if that
+   * grant was revoked or the change was recorded after it expired, and stores it with the audit.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OfflineSessionStampDto)
+  offlineSession?: OfflineSessionStampDto;
 }

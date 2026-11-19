@@ -197,7 +197,8 @@ export function FullscreenStatus({
       tabIndex={-1}
       className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10 focus-visible:outline-none"
     >
-      <BrandWordmark alt="Nkwapa" width={112} height={32} className="mb-6 h-8 w-auto" />
+      {/* Unoptimized: the worker precaches these exact files for the offline screens (#207). */}
+      <BrandWordmark alt="Nkwapa" width={112} height={32} unoptimized className="mb-6 h-8 w-auto" />
       <section className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
         {art ? (
           <div aria-hidden="true" className="mb-6">

@@ -153,3 +153,20 @@ describe('UpdateClinicAdminDto', () => {
     expect(dto.zoneCode).toBeNull();
   });
 });
+
+describe('clinic contact details (#344)', () => {
+  it('keeps contact details and clears blank ones to null', async () => {
+    const { plainToInstance } = await import('class-transformer');
+    const { validate } = await import('class-validator');
+    const { UpdateClinicAdminDto } = await import('./update-clinic-admin.dto');
+    const dto = plainToInstance(UpdateClinicAdminDto, {
+      contactPhone: ' 030 222 0000 ',
+      contactEmail: 'ridge@clinic.gh',
+      address: '   ',
+    });
+    expect(await validate(dto)).toEqual([]);
+    expect(dto).toMatchObject({ contactPhone: '030 222 0000', address: null });
+    const bad = plainToInstance(UpdateClinicAdminDto, { contactEmail: 'not-an-email' });
+    expect((await validate(bad)).map((e) => e.property)).toEqual(['contactEmail']);
+  });
+});

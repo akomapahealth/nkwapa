@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import type { Prisma } from '@prisma/client';
 import {
   formatStaffDisplayName,
-  normalizeMiddleInitial,
+  middleNameError,
+  normalizeMiddleName,
   normalizePhoneToE164,
   normalizeStaffNamePart,
   staffNameMessage,
@@ -27,7 +28,7 @@ export interface NameChangeContext {
 export interface StaffNameView {
   userId: string;
   firstName: string | null;
-  middleInitial: string | null;
+  middleName: string | null;
   lastName: string | null;
   displayName: string;
 }
@@ -37,7 +38,7 @@ const NAME_SELECT = {
   email: true,
   keycloakSub: true,
   firstName: true,
-  middleInitial: true,
+  middleName: true,
   lastName: true,
   displayName: true,
 } as const;
@@ -93,7 +94,7 @@ export class UserProfileService {
     if (
       target.firstName === name.firstName &&
       target.lastName === name.lastName &&
-      target.middleInitial === name.middleInitial &&
+      target.middleName === name.middleName &&
       target.displayName === displayName
     ) {
       return null;
@@ -177,13 +178,22 @@ export class UserProfileService {
   validated(input: StaffNameParts, email: string | null): Required<StaffNameParts> {
     const name = {
       firstName: normalizeStaffNamePart(input.firstName),
-      middleInitial: normalizeMiddleInitial(input.middleInitial),
+      middleName: normalizeMiddleName(input.middleName),
       lastName: normalizeStaffNamePart(input.lastName),
     };
-    const fieldErrors = (['firstName', 'lastName'] as const).flatMap((field) => {
+    const fieldErrors: Array<{ field: string; message: string }> = (
+      ['firstName', 'lastName'] as const
+    ).flatMap((field) => {
       const error = staffNamePartError(name[field], email);
       return error ? [{ field, message: staffNameMessage(error, staffNameLabel(field)) }] : [];
     });
+    const middleError = middleNameError(name.middleName);
+    if (middleError) {
+      fieldErrors.push({
+        field: 'middleName',
+        message: staffNameMessage(middleError, staffNameLabel('middleName')),
+      });
+    }
     if (fieldErrors.length) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
@@ -223,7 +233,7 @@ export class UserProfileService {
   private names(row: NameRow) {
     return {
       firstName: row.firstName,
-      middleInitial: row.middleInitial,
+      middleName: row.middleName,
       lastName: row.lastName,
       displayName: row.displayName,
     };

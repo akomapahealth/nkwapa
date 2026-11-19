@@ -151,6 +151,14 @@ export const CLINICAL_RECORD_SURFACES: readonly ClinicalRecordSurface[] = [
     syncEntityTypes: [],
     note: 'Read-only. Each tab is additionally gated by the permission of the record it shows.',
   },
+  {
+    id: 'referral-report',
+    label: 'Referral report (password-protected PDF)',
+    read: PERMISSIONS.PATIENT_READ,
+    write: PERMISSIONS.REFERRAL_REPORT_EXPORT,
+    syncEntityTypes: [],
+    note: 'Online-only and never stored. Each section is included only when the sender holds the permission that reads it on the chart. Every export is audited without its passcode.',
+  },
 ];
 
 /** Roles that can hold a clinic seat, in the order the documentation lists them. */

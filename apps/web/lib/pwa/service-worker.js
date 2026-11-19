@@ -27,8 +27,16 @@ function cacheNames(version) {
 // handler might serve one day.
 const BYPASS_PATHS = ['/silent-check-sso.html', '/api/', '/service-worker.js'];
 
+// The wordmark on the offline screens (#207). A phone never shows it while online, so it is kept
+// at install rather than on first use.
+const PRECACHE_ASSETS = ['/images/nkwapa-logo.png', '/images/nkwapa-logo-dark.png'];
+
 function isStaticAsset(url) {
-  return url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/');
+  return (
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/icons/') ||
+    PRECACHE_ASSETS.includes(url.pathname)
+  );
 }
 
 /**
@@ -53,11 +61,44 @@ function shouldHandle(request, origin) {
   return null;
 }
 
+/*
+  Chart and encounter shells (#207). Next serves these dynamic routes `private, no-store` because
+  they render per request, not because they hold anything personal: patient data arrives from the
+  API into the encrypted local database, and e2e/pwa.spec.js checks no name or national ID reaches
+  Cache Storage. Kept by exact path, so a chart opened online can be reopened in an offline session.
+*/
+const SHELL_ROUTE = /^\/clinics\/[^/]+\/(patients|encounters)\/[^/]+(\/(edit|consent))?$/;
+
 /** Only successful, same-origin, shareable responses may become an offline copy (#206). */
-function isCacheable(response) {
+function isCacheable(response, pathname) {
   if (!response || !response.ok || response.type !== 'basic' || response.redirected) return false;
+  if (pathname && SHELL_ROUTE.test(pathname)) return true;
   const cacheControl = (response.headers.get('Cache-Control') || '').toLowerCase();
   return !/\b(no-store|private)\b/.test(cacheControl);
+}
+
+/*
+  An unlocked offline session (#207), held in this worker's memory and nowhere else, so a page
+  change in the same browser does not ask for the PIN again. Offline, every in-app navigation is a
+  full load: Next cannot fetch the next route's data. The keys are non-extractable CryptoKeys;
+  the session is dropped on Lock, sign-in, an idle gap longer than the page's idle lock, and when
+  the browser stops this worker. Never written to Cache Storage or IndexedDB.
+*/
+function offlineSessionMessage(held, data, now) {
+  switch (data && data.type) {
+    case 'OFFLINE_SESSION_HOLD':
+      return { held: { session: data.session, keys: data.keys, idleMs: data.idleMs, at: now } };
+    case 'OFFLINE_SESSION_TOUCH':
+      return { held: held ? { ...held, at: now } : null };
+    case 'OFFLINE_SESSION_DROP':
+      return { held: null };
+    case 'OFFLINE_SESSION_RESUME': {
+      const fresh = held && now - held.at < held.idleMs ? held : null;
+      return { held: fresh, reply: fresh ? { session: fresh.session, keys: fresh.keys } : null };
+    }
+    default:
+      return { held };
+  }
 }
 
 /** Pages are keyed on origin + pathname, so ?source=pwa and friends share one entry. */
@@ -75,7 +116,7 @@ async function trimCache(cache, max) {
 }
 
 async function putIfCacheable(cacheName, key, response, max) {
-  if (!isCacheable(response)) return;
+  if (!isCacheable(response, new URL(key.url).pathname)) return;
   const cache = await caches.open(cacheName);
   await cache.put(key, response);
   await trimCache(cache, max);
@@ -88,7 +129,8 @@ async function handlePage(event) {
   const { request } = event;
   try {
     const response = await fetch(request);
-    event.waitUntil(putIfCacheable(names.pages, cacheKeyFor(request), response.clone(), MAX_PAGES));
+    const key = cacheKeyFor(request);
+    event.waitUntil(putIfCacheable(names.pages, key, response.clone(), MAX_PAGES));
     return response;
   } catch {
     const cached = await caches.match(cacheKeyFor(request), {
@@ -171,6 +213,7 @@ if (typeof module !== 'undefined' && module.exports) {
     cacheNames,
     shouldHandle,
     isCacheable,
+    offlineSessionMessage,
     cacheKeyFor,
     trimCache,
     openFromNotification,
@@ -194,10 +237,11 @@ if (typeof module !== 'undefined' && module.exports) {
     event.waitUntil(
       (async () => {
         await (await caches.open(names.offline)).add(OFFLINE_URL);
+        await (await caches.open(names.static)).addAll(PRECACHE_ASSETS);
         const pages = await caches.open(names.pages);
         for (const path of PRECACHE_PAGES) {
           const response = await fetch(path, { cache: 'reload' });
-          if (isCacheable(response)) await pages.put(path, response);
+          if (isCacheable(response, path)) await pages.put(path, response);
         }
       })(),
     );
@@ -215,8 +259,20 @@ if (typeof module !== 'undefined' && module.exports) {
     );
   });
 
+  let heldOfflineSession = null;
   self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+    if (
+      event.source &&
+      event.source.url &&
+      new URL(event.source.url).origin !== self.location.origin
+    )
+      return;
+    const { held, reply } = offlineSessionMessage(heldOfflineSession, event.data, Date.now());
+    heldOfflineSession = held;
+    if (event.data && event.data.type === 'OFFLINE_SESSION_RESUME' && event.ports[0]) {
+      event.ports[0].postMessage(reply ?? null);
+    }
   });
 
   self.addEventListener('fetch', (event) => {

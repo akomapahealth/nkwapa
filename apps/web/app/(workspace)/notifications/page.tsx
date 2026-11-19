@@ -9,10 +9,13 @@ import {
   CalendarClock,
   CheckCheck,
   FileSignature,
+  KeyRound,
   MailWarning,
   MessageSquare,
   Send,
+  ListChecks,
   Settings2,
+  TrendingUp,
   UserCheck,
   UserPlus,
   type LucideIcon,
@@ -23,11 +26,19 @@ import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
+import { acknowledgedLabel, acknowledgeUrgentFlag } from '@/lib/follow-up';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { hasPermission } from '@/lib/ops';
 import { openNotificationUrl } from '@/lib/browser-notifications';
-import { fetchInbox, markInboxRead, type InboxItem, type InboxKind } from '@/lib/inbox';
+import {
+  fetchInbox,
+  INBOX_CHANGED_EVENT,
+  markInboxRead,
+  type InboxItem,
+  type InboxKind,
+} from '@/lib/inbox';
 import { cn } from '@/lib/utils';
 
 const KIND: Record<InboxKind, { icon: LucideIcon; label: string; many: string }> = {
@@ -38,6 +49,9 @@ const KIND: Record<InboxKind, { icon: LucideIcon; label: string; many: string }>
   APPOINTMENT_REQUEST: { icon: CalendarClock, label: 'Appointment request', many: 'requests' },
   INVITE: { icon: UserPlus, label: 'Invitation', many: 'updates' },
   REMINDER_FAILED: { icon: MailWarning, label: 'Reminder not sent', many: 'reminders' },
+  ACCESS_CHANGE: { icon: KeyRound, label: 'Your access', many: 'changes' },
+  RISK_TIER_CHANGE: { icon: TrendingUp, label: 'Follow-up risk', many: 'changes' },
+  FOLLOW_UP_DUE: { icon: ListChecks, label: 'Follow-up', many: 'updates' },
 };
 
 type Filter = 'all' | 'unread';
@@ -56,6 +70,8 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loadingMore, setLoadingMore] = useState(false);
+  const [taking, setTaking] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const permissions = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canSeeDelivery = hasPermission(permissions, 'REMINDER.READ');
@@ -105,6 +121,38 @@ export default function NotificationsPage() {
     if (!item.readAt) markRead([item.id]);
     // A chat link opens the chat panel in place; anything else navigates.
     openNotificationUrl(item.url, (next) => router.push(next));
+  };
+
+  /** "I'm on it" from the tile: the first taker owns the flag, and every copy of the tile says so. */
+  const take = async (item: InboxItem) => {
+    const flag = item.riskFlag;
+    if (!flag || !item.clinicId) return;
+    setTaking(item.id);
+    try {
+      const ack = await acknowledgeUrgentFlag(item.clinicId, flag.patientId, getToken);
+      const now = new Date().toISOString();
+      setItems((current) =>
+        (current ?? []).map((other) =>
+          other.riskFlag?.patientId === flag.patientId
+            ? {
+                ...other,
+                readAt: other.readAt ?? now,
+                riskFlag: { ...other.riskFlag, acknowledgedBy: ack },
+              }
+            : other,
+        ),
+      );
+      if (!item.readAt) setUnread((count) => Math.max(0, count - 1));
+      window.dispatchEvent(new Event(INBOX_CHANGED_EVENT));
+    } catch (cause) {
+      showToast({
+        tone: 'error',
+        title: 'Could not take this patient',
+        description: cause instanceof Error ? cause.message : undefined,
+      });
+    } finally {
+      setTaking(null);
+    }
   };
 
   // An unread urgent finding leads, whatever its time: it asks for someone now.
@@ -175,7 +223,13 @@ export default function NotificationsPage() {
         <ul className="grid grid-cols-1 gap-3 tablet:grid-cols-2" aria-label="Notifications">
           {shown.map((item) => (
             <li key={item.id} className="min-w-0">
-              <NotificationTile item={item} onOpen={() => open(item)} />
+              <NotificationTile
+                item={item}
+                onOpen={() => open(item)}
+                onTake={() => void take(item)}
+                taking={taking === item.id}
+                userId={bootstrap?.userId ?? null}
+              />
             </li>
           ))}
         </ul>
@@ -192,65 +246,112 @@ export default function NotificationsPage() {
   );
 }
 
-function NotificationTile({ item, onOpen }: { item: InboxItem; onOpen: () => void }) {
+function NotificationTile({
+  item,
+  onOpen,
+  onTake,
+  taking,
+  userId,
+}: {
+  item: InboxItem;
+  onOpen: () => void;
+  onTake: () => void;
+  taking: boolean;
+  userId: string | null;
+}) {
   const kind = KIND[item.kind];
   const Icon = kind.icon;
   const unread = !item.readAt;
   const urgent = item.kind === 'HEALTH_ALERT';
+  const flag = item.riskFlag;
+  const owner = flag?.acknowledgedBy;
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <div
       className={cn(
-        'group flex h-full w-full min-w-0 items-start gap-3 rounded-md border p-4 text-left transition-colors duration-150',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'flex h-full min-w-0 flex-col rounded-md border transition-colors duration-150',
         urgent && unread
-          ? 'border-destructive/40 bg-destructive/[0.06] hover:bg-destructive/10'
+          ? 'border-destructive/40 bg-destructive/[0.06]'
           : unread
-            ? 'border-primary/30 bg-primary/[0.04] hover:bg-primary/[0.08]'
-            : 'border-border bg-card hover:bg-muted/60',
+            ? 'border-primary/30 bg-primary/[0.04]'
+            : 'border-border bg-card',
       )}
     >
-      <span
+      <button
+        type="button"
+        onClick={onOpen}
         className={cn(
-          'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
-          urgent ? 'bg-destructive/10 text-destructive-ink' : 'bg-muted text-muted-foreground',
-          unread && !urgent && 'bg-primary/10 text-primary',
+          'group flex w-full min-w-0 flex-1 items-start gap-3 rounded-md p-4 text-left transition-colors duration-150',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          urgent && unread
+            ? 'hover:bg-destructive/[0.05]'
+            : unread
+              ? 'hover:bg-primary/[0.05]'
+              : 'hover:bg-muted/60',
         )}
       >
-        <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-3">
-          <span
-            className={cn(
-              'text-xs font-medium',
-              urgent ? 'text-destructive-ink' : 'text-muted-foreground',
-            )}
-          >
-            {item.count > 1 ? `${item.count} ${kind.many}` : kind.label}
-          </span>
-          <RelativeTime value={item.updatedAt} className="text-xs text-muted-foreground" />
-        </span>
         <span
           className={cn(
-            'mt-1 block text-[0.9375rem] leading-snug text-foreground [overflow-wrap:anywhere]',
-            unread ? 'font-semibold' : 'font-medium',
+            'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+            urgent ? 'bg-destructive/10 text-destructive-ink' : 'bg-muted text-muted-foreground',
+            unread && !urgent && 'bg-primary/10 text-primary',
           )}
         >
-          {item.title}
+          <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
         </span>
-        {item.body ? (
-          <span className="mt-1 block text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-            {item.body}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline justify-between gap-3">
+            <span
+              className={cn(
+                'text-xs font-medium',
+                urgent ? 'text-destructive-ink' : 'text-muted-foreground',
+              )}
+            >
+              {item.count > 1 ? `${item.count} ${kind.many}` : kind.label}
+            </span>
+            <RelativeTime value={item.updatedAt} className="text-xs text-muted-foreground" />
+          </span>
+          <span
+            className={cn(
+              'mt-1 block text-[0.9375rem] leading-snug text-foreground [overflow-wrap:anywhere]',
+              unread ? 'font-semibold' : 'font-medium',
+            )}
+          >
+            {item.title}
+          </span>
+          {item.body ? (
+            <span className="mt-1 block text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              {item.body}
+            </span>
+          ) : null}
+        </span>
+        {unread ? (
+          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary">
+            <span className="sr-only">Unread</span>
           </span>
         ) : null}
-      </span>
-      {unread ? (
-        <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary">
-          <span className="sr-only">Unread</span>
-        </span>
+      </button>
+      {/* Outside the tile's button: one control may not sit inside another. */}
+      {flag && (owner || flag.open) ? (
+        <div
+          key={owner ? 'taken' : 'open'}
+          className="flex items-center gap-2 border-t border-destructive/15 px-4 py-2.5 pl-16 motion-safe:animate-in motion-safe:fade-in-0 duration-200 ease-out"
+        >
+          {owner ? (
+            <p
+              role="status"
+              data-testid="notification-owner"
+              className="inline-flex items-center gap-2 text-sm font-medium text-foreground"
+            >
+              <UserCheck className="h-4 w-4 text-success-ink" aria-hidden="true" />
+              {acknowledgedLabel(owner, userId)}
+            </p>
+          ) : (
+            <Button variant="destructive" size="sm" onClick={onTake} loading={taking}>
+              I&apos;m on it
+            </Button>
+          )}
+        </div>
       ) : null}
-    </button>
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from './person-name';
 import { useEffect } from 'react';
 import { nextStationId, type StationKindValue } from '@nkwapa/db/clinic-stations';
 import { apiFetch, type GetToken } from './api';
@@ -573,7 +574,7 @@ export function ageInYears(dob: string | null, now: Date = new Date()): number |
 }
 
 export function patientName(patient: StationVisit['patient']): string {
-  return `${patient.firstName} ${patient.lastName}`.trim();
+  return formatPersonName(patient, 'short');
 }
 
 /** Re-run `refresh` every `intervalMs` while the tab is visible and online. */

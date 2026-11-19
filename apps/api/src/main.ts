@@ -72,7 +72,7 @@ async function bootstrap() {
       'X-Correlation-Id',
       'Idempotency-Key',
     ],
-    exposedHeaders: ['X-Request-Id', 'X-Correlation-Id', 'Idempotent-Replayed'],
+    exposedHeaders: ['X-Request-Id', 'X-Correlation-Id', 'Idempotent-Replayed', 'X-Total-Count'],
   });
 
   if (process.env.NODE_ENV === 'production' && !process.env.CLIENT_IP_HEADER) {

@@ -1,19 +1,41 @@
-import { Body, Controller, Get, HttpCode, Post, Request, UseGuards } from '@nestjs/common';
+import { formatPersonName } from '@nkwapa/db';
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { createHash } from 'crypto';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { ClinicService } from '../clinics/clinic.service';
+import { ClinicService, type SwitchableClinic } from '../clinics/clinic.service';
 import { computeEffectivePermissions } from './constants/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { RateLimit } from '../common/rate-limit.decorator';
 import { claimableInviteForIdentityWhere } from '../common/portal-invite-lifecycle';
 import { IncludeStaffInviteScope } from '../staff-invites/staff-invite-scope.decorator';
 import { CompleteWelcomeTourDto } from './dto/welcome-tour.dto';
+import { SignStaffAgreementDto } from './dto/staff-agreement.dto';
+import { AuditService } from '../audit/audit.service';
 import { holdsStaffRole } from './clinic-roles';
 import {
   findAcceptableStaffInvites,
   type AcceptableStaffInvite,
 } from '../staff-invites/staff-invite.queries';
-import { resolveClinicUnits, type ClinicUnits } from '@nkwapa/db';
+import {
+  STAFF_AGREEMENT,
+  requiresStaffAgreement,
+  resolveClinicUnits,
+  signatureMatchesName,
+  staffAgreementText,
+  type ClinicUnits,
+} from '@nkwapa/db';
 
 /** Picks the unit fields off a clinic row, falling back to stored units for a partial mock. */
 const clinicUnits = (clinic: Partial<ClinicUnits>): ClinicUnits => resolveClinicUnits(clinic);
@@ -31,6 +53,39 @@ export interface Membership {
   roles: string[];
   /** The units this clinic types and reads screening values in. */
   units: ClinicUnits;
+}
+
+/**
+ * A person's clinic seats, one per active clinic they hold a role at, in clinic id order.
+ *
+ * Shared by whoami and the offline grant (#207), so the identity a device resumes offline is the
+ * one whoami would have served for the same person.
+ */
+export function membershipsFor(
+  roles: readonly { clinicId: string | null; role: string }[],
+  clinics: readonly SwitchableClinic[],
+): Membership[] {
+  const clinicMap = new Map(clinics.map((clinic) => [clinic.id, clinic]));
+  const rolesByClinic = new Map<string, Set<string>>();
+  for (const entry of roles) {
+    if (!entry.clinicId) continue;
+    const set = rolesByClinic.get(entry.clinicId) ?? new Set<string>();
+    set.add(entry.role);
+    rolesByClinic.set(entry.clinicId, set);
+  }
+  const memberships: Membership[] = [];
+  for (const clinicId of [...rolesByClinic.keys()].sort()) {
+    const clinic = clinicMap.get(clinicId);
+    if (!clinic) continue;
+    memberships.push({
+      clinicId,
+      clinicName: clinic.name,
+      zoneCode: clinic.zoneCode ?? null,
+      roles: [...(rolesByClinic.get(clinicId) ?? [])],
+      units: clinicUnits(clinic),
+    });
+  }
+  return memberships;
 }
 
 export interface AvailableClinic {
@@ -62,6 +117,7 @@ export interface WhoAmIResponse {
   onboarding:
     | { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
     | { state: 'NAME_REQUIRED' }
+    | { state: 'AGREEMENT_REQUIRED' }
     | {
         state: 'PATIENT_CLAIM_REQUIRED';
         pendingInvites: Array<{
@@ -84,13 +140,19 @@ export interface WhoAmIResponse {
    */
   welcomeTour: { completedVersion: number | null };
   /**
+   * The confidentiality agreement (#330). `required` is true while this person holds a role that
+   * must sign and has not signed the current version; the web app then holds them on the
+   * agreement step (`onboarding: AGREEMENT_REQUIRED`), and RbacGuard refuses their requests.
+   */
+  staffAgreement: { required: boolean; signedVersion: number | null; acceptedAt: string | null };
+  /**
    * The person's own name (#225). `needsName` is true for a staff account missing a first or
    * last name; the web app then holds them on the name step (`onboarding: NAME_REQUIRED`).
    */
   profile: {
     needsName: boolean;
     firstName: string | null;
-    middleInitial: string | null;
+    middleName: string | null;
     lastName: string | null;
     email: string | null;
     phoneE164: string | null;
@@ -102,6 +164,7 @@ export class AuthController {
   constructor(
     private readonly clinicService: ClinicService,
     private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -128,9 +191,8 @@ export class AuthController {
       byClinicId.set(key, list);
     }
 
-    const clinicIds = [...byClinicId.keys()].filter((k): k is string => k !== 'global');
+    const clinicIds = [...byClinicId.keys()].filter((k): k is string => k !== 'global').sort();
     const clinics = clinicIds.length > 0 ? await this.clinicService.findByIds(clinicIds) : [];
-    const clinicMap = new Map(clinics.map((c) => [c.id, c]));
 
     const globalRoles = byClinicId.has('global')
       ? [...new Set((byClinicId.get('global') ?? []).map((r) => r.role))]
@@ -148,22 +210,7 @@ export class AuthController {
     }));
     const availableClinicIds = new Set(availableClinics.map((clinic) => clinic.clinicId));
 
-    const memberships: Membership[] = [];
-    for (const cid of clinicIds.sort()) {
-      const roleEntries = byClinicId.get(cid) ?? [];
-      const roleNames = [...new Set(roleEntries.map((r) => r.role))];
-      const clinic = clinicMap.get(cid) ?? null;
-      if (!clinic) {
-        continue;
-      }
-      memberships.push({
-        clinicId: cid,
-        clinicName: clinic.name,
-        zoneCode: clinic.zoneCode ?? null,
-        roles: roleNames,
-        units: clinicUnits(clinic),
-      });
-    }
+    const memberships = membershipsFor(roles, clinics);
 
     const headerClinicId = req.headers?.['x-clinic-id']?.trim();
 
@@ -193,8 +240,10 @@ export class AuthController {
       where: { id: user.id },
       select: {
         welcomeTourVersion: true,
+        staffAgreementVersion: true,
+        staffAgreementAcceptedAt: true,
         firstName: true,
-        middleInitial: true,
+        middleName: true,
         lastName: true,
         email: true,
         phoneE164: true,
@@ -202,11 +251,19 @@ export class AuthController {
     });
     // Patients are named by their Patient record, so only staff are asked (#225).
     const needsName = holdsStaffRole(roles) && !(profile?.firstName && profile?.lastName);
+    const signedVersion = profile?.staffAgreementVersion ?? null;
+    const needsAgreement = requiresStaffAgreement(
+      roles.map((entry) => entry.role),
+      signedVersion,
+    );
+    // The name comes first: the agreement is signed by typing it.
     const onboarding: WhoAmIResponse['onboarding'] =
       roles.length > 0
         ? needsName
           ? { state: 'NAME_REQUIRED' }
-          : null
+          : needsAgreement
+            ? { state: 'AGREEMENT_REQUIRED' }
+            : null
         : pendingStaffInvites.length > 0
           ? { state: 'STAFF_INVITE_ACCEPT_REQUIRED' }
           : await this.findPendingPatientClaimOnboarding(user.id);
@@ -224,10 +281,15 @@ export class AuthController {
       pendingStaffInvites,
       onboarding,
       welcomeTour: { completedVersion: profile?.welcomeTourVersion ?? null },
+      staffAgreement: {
+        required: needsAgreement,
+        signedVersion,
+        acceptedAt: profile?.staffAgreementAcceptedAt?.toISOString() ?? null,
+      },
       profile: {
         needsName,
         firstName: profile?.firstName ?? null,
-        middleInitial: profile?.middleInitial ?? null,
+        middleName: profile?.middleName ?? null,
         lastName: profile?.lastName ?? null,
         email: profile?.email ?? null,
         phoneE164: profile?.phoneE164 ?? null,
@@ -262,6 +324,111 @@ export class AuthController {
       select: { welcomeTourVersion: true },
     });
     return { completedVersion: row?.welcomeTourVersion ?? dto.version };
+  }
+
+  /**
+   * Sign the confidentiality agreement (#330).
+   *
+   * The signature is the caller's own name, typed, against the version they were shown. One row
+   * per person and version is kept for good; signing the same version twice changes nothing.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('agreement')
+  @HttpCode(200)
+  @RateLimit({ key: 'auth_agreement', limit: 20, windowSeconds: 60, scope: 'user-or-ip' })
+  async signStaffAgreement(
+    @Request()
+    req: {
+      user: ReqUser;
+      ip?: string;
+      headers?: { 'user-agent'?: string; 'x-request-id'?: string };
+    },
+    @Body() dto: SignStaffAgreementDto,
+  ): Promise<{ signedVersion: number; acceptedAt: string }> {
+    const { user, roles } = req.user;
+    if (!holdsStaffRole(roles)) {
+      throw new ForbiddenException('Only staff accounts sign this agreement');
+    }
+    if (dto.version !== STAFF_AGREEMENT.version) {
+      throw new ConflictException({
+        code: 'STAFF_AGREEMENT_VERSION_CHANGED',
+        message: 'The agreement has been updated since this page was opened.',
+        recoveryAction: 'Reload the page, read the current agreement, then sign it.',
+      });
+    }
+    const profile = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { firstName: true, middleName: true, lastName: true },
+    });
+    if (!profile || !signatureMatchesName(dto.signedName, profile)) {
+      throw new BadRequestException({
+        message: 'The name you typed does not match the name on your account.',
+        fieldErrors: [
+          {
+            field: 'signedName',
+            message: 'Type your first and last name exactly as they appear on your account.',
+          },
+        ],
+      });
+    }
+
+    const existing = await this.prisma.staffAgreementAcceptance.findUnique({
+      where: {
+        userId_agreementKey_version: {
+          userId: user.id,
+          agreementKey: STAFF_AGREEMENT.key,
+          version: dto.version,
+        },
+      },
+      select: { acceptedAt: true },
+    });
+    const staffRoles = roles.filter((entry) => entry.role !== UserRole.PATIENT);
+    const acceptedAt = existing?.acceptedAt ?? new Date();
+    await this.prisma.$transaction(async (tx) => {
+      if (!existing) {
+        const row = await tx.staffAgreementAcceptance.create({
+          data: {
+            userId: user.id,
+            agreementKey: STAFF_AGREEMENT.key,
+            version: dto.version,
+            textSha256: createHash('sha256').update(staffAgreementText()).digest('hex'),
+            signedName: dto.signedName.trim(),
+            rolesAtSigning: [...new Set(staffRoles.map((entry) => entry.role))],
+            acceptedAt,
+            ipAddress: req.ip?.slice(0, 64) ?? null,
+            userAgent: req.headers?.['user-agent']?.slice(0, 400) ?? null,
+          },
+        });
+        await this.auditService.logWrite(
+          {
+            // AuditEvent RLS admits a null clinic only for a system admin, so attach one of the
+            // person's own staff clinics.
+            clinicId: staffRoles.find((entry) => entry.clinicId)?.clinicId ?? null,
+            actorUserId: user.id,
+            action: 'STAFF_AGREEMENT.ACCEPT',
+            entityType: 'StaffAgreementAcceptance',
+            entityId: row.id,
+            afterJson: JSON.stringify({
+              agreementKey: row.agreementKey,
+              version: row.version,
+              textSha256: row.textSha256,
+              signedName: row.signedName,
+            }),
+            requestId: req.headers?.['x-request-id'],
+          },
+          tx,
+        );
+      }
+      // Only forward, like the welcome tour: an old tab cannot un-sign a newer version.
+      await tx.user.updateMany({
+        where: {
+          id: user.id,
+          OR: [{ staffAgreementVersion: null }, { staffAgreementVersion: { lt: dto.version } }],
+        },
+        data: { staffAgreementVersion: dto.version, staffAgreementAcceptedAt: acceptedAt },
+      });
+    });
+    return { signedVersion: dto.version, acceptedAt: acceptedAt.toISOString() };
   }
 
   private async findPendingPatientClaimOnboarding(
@@ -307,6 +474,7 @@ export class AuthController {
             id: true,
             patientCode: true,
             firstName: true,
+            middleName: true,
             lastName: true,
           },
         },
@@ -325,7 +493,7 @@ export class AuthController {
         clinicId: invite.clinicId,
         clinicName: invite.clinic.name,
         patientId: invite.patientId,
-        patientName: `${invite.patient.firstName} ${invite.patient.lastName}`.trim(),
+        patientName: formatPersonName(invite.patient, 'full'),
         patientCode: invite.patient.patientCode,
         email: invite.email,
         phoneE164: invite.phoneE164,

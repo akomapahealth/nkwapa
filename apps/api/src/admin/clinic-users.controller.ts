@@ -66,6 +66,30 @@ export class ClinicUsersController {
     );
   }
 
+  /** Withdraw offline access (#207) from every device this person opted in on. */
+  @Post(':userId/offline-access/revoke')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
+  async revokeOfflineAccess(
+    @Param('clinicId') clinicId: string,
+    @Param('userId') userId: string,
+    @Request()
+    req: {
+      user: ReqUserWithRoles;
+      headers?: { 'x-request-id'?: string };
+    },
+  ) {
+    return this.adminService.revokeOfflineAccessInClinic(
+      {
+        userId: req.user.user.id,
+        roles: req.user.roles,
+      },
+      clinicId,
+      userId,
+      req.headers?.['x-request-id'] ?? randomUUID(),
+    );
+  }
+
   @Patch(':userId/reactivate')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
@@ -119,10 +143,14 @@ export class ClinicUsersController {
       headers?: { 'x-request-id'?: string };
     },
   ) {
-    const role = roleParam as UserRole;
-    if (!Object.values(UserRole).includes(role)) {
+    // Check the raw parameter before using it: a repeated query parameter arrives as an array.
+    if (
+      typeof roleParam !== 'string' ||
+      !(Object.values(UserRole) as string[]).includes(roleParam)
+    ) {
       throw new BadRequestException('Valid role path parameter is required');
     }
+    const role = roleParam as UserRole;
 
     return this.adminService.revokeClinicRole(
       {

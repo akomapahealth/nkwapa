@@ -26,6 +26,8 @@ import { TrendChart } from '@/components/dashboard/TrendChart';
 import { DistributionChart } from '@/components/dashboard/DistributionChart';
 import { MetricsFunnelCard } from '@/components/metrics/MetricsFunnelCard';
 import { MetricsEventTable } from '@/components/metrics/MetricsEventTable';
+import { FollowUpMetricsSection } from '@/components/metrics/FollowUpMetricsSection';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 function MetricsContent() {
   const bootstrap = useBootstrap()?.bootstrap ?? null;
@@ -65,6 +67,10 @@ function MetricsContent() {
           />
         }
       />
+
+      {clinicId && isWebFeatureEnabled('followUpStratification') ? (
+        <FollowUpMetricsSection scope={{ kind: 'clinic', clinicId }} />
+      ) : null}
 
       <ResourceState
         state={state}

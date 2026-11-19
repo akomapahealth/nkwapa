@@ -41,6 +41,8 @@
 }
 .identity h1 {
   letter-spacing: -0.02em;
+  /* A 120-character middle name can be one unbroken word (#342); never push the page sideways. */
+  overflow-wrap: anywhere;
 }
 .avatar {
   /* R7.4: beside the first line of a name that wraps, not halfway down it. */

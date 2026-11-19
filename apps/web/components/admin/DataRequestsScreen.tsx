@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 
@@ -120,7 +121,7 @@ export function DataRequestsScreen() {
 
   const visible =
     rows?.filter((row) =>
-      `${row.patient.firstName} ${row.patient.lastName} ${row.patient.patientCode} ${dataRequestTypeLabel(row.type)}`
+      `${formatPersonName(row.patient)} ${row.patient.patientCode} ${dataRequestTypeLabel(row.type)}`
         .toLowerCase()
         .includes(query.trim().toLowerCase()),
     ) ?? [];
@@ -194,7 +195,7 @@ export function DataRequestsScreen() {
                           href={`/patients/${row.patient.id}`}
                           className="text-sm text-primary underline-offset-4 hover:underline"
                         >
-                          {row.patient.firstName} {row.patient.lastName} · {row.patient.patientCode}
+                          {formatPersonName(row.patient, 'short')} · {row.patient.patientCode}
                         </Link>
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -243,7 +244,7 @@ export function DataRequestsScreen() {
                               size="icon"
                               variant="ghost"
                               disabled={saving}
-                              aria-label={`More actions for ${row.patient.firstName} ${row.patient.lastName}`}
+                              aria-label={`More actions for ${formatPersonName(row.patient, 'short')}`}
                             >
                               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                             </Button>

@@ -1,5 +1,7 @@
 'use client';
 
+import { formatPersonName } from './person-name';
+
 import { liveQuery } from 'dexie';
 import { useEffect, useState } from 'react';
 import { db, type OutboxRecord, type OutboxSyncState } from './db';
@@ -76,10 +78,13 @@ async function loadOutboxQueue(clinicId: string): Promise<OutboxQueueItem[]> {
       // A chart registered offline and refused is not in the local store; its own change still
       // carries the name that was typed.
       const named = patient ?? (row.entityType === 'patient' ? parseOutboxPayload(row) : undefined);
+      // A queued payload is untyped: only strings count as names.
+      const text = (value: unknown) => (typeof value === 'string' ? value : null);
       const patientName =
-        [named?.firstName, named?.lastName]
-          .filter((part) => typeof part === 'string' && part)
-          .join(' ') || (typeof named?.patientCode === 'string' ? named.patientCode : undefined);
+        formatPersonName(
+          { firstName: text(named?.firstName), lastName: text(named?.lastName) },
+          'short',
+        ) || (typeof named?.patientCode === 'string' ? named.patientCode : undefined);
       return {
         row,
         state: outboxSyncState(row),

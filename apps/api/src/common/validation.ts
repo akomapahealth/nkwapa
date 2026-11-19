@@ -119,6 +119,14 @@ export function ToSanitizedString(options?: {
   return Transform(({ value }) => sanitizePlainText(value, options));
 }
 
+/** A sanitized optional name such as a middle name (#342): blank is null, so PATCH can clear it. */
+export function ToOptionalName(maxLength = 120) {
+  return Transform(({ value }) => {
+    const sanitized = sanitizePlainText(value, { maxLength });
+    return sanitized === '' ? null : sanitized;
+  });
+}
+
 export function ToNormalizedEmail() {
   return Transform(({ value }) => normalizeEmailInput(value));
 }

@@ -6,7 +6,14 @@ import {
   type GhanaRegion,
   type PatientLocationStatus,
 } from '@/lib/residential-location';
-import type { ResidentialLocationFilterValue } from '@/components/patients/ResidentialLocationFilters';
+import {
+  RESIDENTIAL_DETAIL_LABELS,
+  type ResidentialDetailFilter,
+  type ResidentialLocationFilterValue,
+} from '@/components/patients/ResidentialLocationFilters';
+
+import type { FollowUpTier } from '@nkwapa/db/follow-up-stratification';
+import { parseFollowUpTier } from '@/components/patients/follow-up/FollowUpTierFilter';
 
 export const REGISTRY_PAGE_SIZES = [10, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 10;
@@ -18,6 +25,8 @@ export interface RegistryView {
   location: ResidentialLocationFilterValue;
   screenedFrom: string;
   screenedTo: string;
+  /** Follow-up tier (#336); the API refuses it without FOLLOW_UP.READ. */
+  riskTier: FollowUpTier | '';
   page: number;
   pageSize: number;
   sorting: SortingState;
@@ -30,6 +39,7 @@ export interface RegistryView {
 export function parseRegistryView(params: URLSearchParams): RegistryView {
   const region = params.get('residentialRegion') ?? '';
   const status = params.get('residentialLocationStatus') ?? '';
+  const detail = params.get('residentialDetail') ?? '';
   const date = (key: string) => {
     const value = params.get(key) ?? '';
     return ISO_DATE.test(value) ? value : '';
@@ -45,9 +55,13 @@ export function parseRegistryView(params: URLSearchParams): RegistryView {
       status: (PATIENT_LOCATION_STATUS_OPTIONS as string[]).includes(status)
         ? (status as PatientLocationStatus)
         : '',
+      detail: Object.hasOwn(RESIDENTIAL_DETAIL_LABELS, detail)
+        ? (detail as ResidentialDetailFilter)
+        : '',
     },
     screenedFrom: date('screenedFrom'),
     screenedTo: date('screenedTo'),
+    riskTier: parseFollowUpTier(params.get('riskTier')),
     page: Number.isInteger(page) && page > 1 ? page - 1 : 0,
     pageSize: (REGISTRY_PAGE_SIZES as readonly number[]).includes(pageSize)
       ? pageSize
@@ -73,8 +87,10 @@ export function registryViewQuery(
   set('residentialDistrict', view.location.district);
   set('residentialCommunity', view.location.community.trim());
   set('residentialLocationStatus', view.location.status);
+  set('residentialDetail', view.location.detail);
   set('screenedFrom', view.screenedFrom);
   set('screenedTo', view.screenedTo);
+  set('riskTier', view.riskTier);
   if (forApi || view.page > 0) query.set('page', String(view.page + 1));
   if (forApi || view.pageSize !== DEFAULT_PAGE_SIZE) query.set('pageSize', String(view.pageSize));
   for (const [key, value] of Object.entries(registrySortQuery(view.sorting))) {

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPersonName } from '@/lib/person-name';
 import { useEffect, useRef, type ReactNode, type PointerEvent } from 'react';
 import Link from 'next/link';
 import { animate, useReducedMotion } from 'framer-motion';
@@ -21,6 +22,7 @@ export function PatientRegistryCard({
 }: {
   patient: {
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     patientCode: string;
     phoneE164?: string | null;
@@ -91,7 +93,7 @@ export function PatientRegistryCard({
     if (submit) onCheckIn();
   };
 
-  const name = `${patient.firstName} ${patient.lastName}`.trim();
+  const name = formatPersonName(patient);
   return (
     <article className="relative overflow-hidden border-b border-border" aria-label={name}>
       {canCheckIn ? (

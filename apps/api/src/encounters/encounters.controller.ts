@@ -6,12 +6,29 @@ import {
   Param,
   Query,
   Request,
+  Res,
   UseGuards,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { EncounterStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { EncounterStatus, FollowUpTier, HypertensionClassification } from '@prisma/client';
+import { hasPermissionAtClinic } from '../auth/clinic-roles';
+import type { ReqUserWithRoles } from '../auth/guards/rbac.guard';
+import { isApiFeatureEnabled } from '../common/feature-flags';
+import type { Response } from 'express';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
@@ -21,15 +38,17 @@ import { EncounterService } from './encounter.service';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import type { QueueStage } from './encounter.repository';
 import { ClinicAndEncounterParamsDto, ClinicIdParamDto } from '../common/request-dto';
-import { ToOptionalNumber } from '../common/validation';
+import { ToOptionalBoolean, ToOptionalNumber, ToSanitizedString } from '../common/validation';
 import { Idempotent } from '../idempotency/idempotent.decorator';
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 class CreateEncounterBodyDto {
   @IsUUID()
   patientId!: string;
 }
 
-class EncounterListQueryDto {
+export class EncounterListQueryDto {
   @IsOptional()
   @IsEnum(EncounterStatus)
   status?: EncounterStatus;
@@ -52,6 +71,36 @@ class EncounterListQueryDto {
   @Min(0)
   @Max(100000)
   skip?: number;
+
+  /** Patient name, code or code alias (#340). */
+  @IsOptional()
+  @ToSanitizedString()
+  @Length(1, 80)
+  search?: string;
+
+  @IsOptional()
+  @IsEnum(HypertensionClassification)
+  bpClassification?: HypertensionClassification;
+
+  /** Only patients at this follow-up tier (#336). Needs FOLLOW_UP.READ. */
+  @IsOptional()
+  @IsEnum(FollowUpTier)
+  riskTier?: FollowUpTier;
+
+  @IsOptional()
+  @ToOptionalBoolean()
+  @IsBoolean()
+  glucoseFlagged?: boolean;
+
+  /** Clinic-local day, inclusive. */
+  @IsOptional()
+  @Matches(ISO_DATE, { message: 'createdFrom must be YYYY-MM-DD' })
+  createdFrom?: string;
+
+  /** Clinic-local day, inclusive. */
+  @IsOptional()
+  @Matches(ISO_DATE, { message: 'createdTo must be YYYY-MM-DD' })
+  createdTo?: string;
 }
 
 @Controller('clinics/:clinicId/encounters')
@@ -62,26 +111,37 @@ export class EncountersController {
   @Get()
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.ENCOUNTER_READ)
-  async list(@Param() params: ClinicIdParamDto, @Query() query: EncounterListQueryDto) {
-    if (query.status === 'IN_REVIEW' && query.stage) {
-      return this.encounterService.listByClinic(params.clinicId, {
-        status: 'IN_REVIEW',
-        stage: query.stage,
-        take: query.take ?? 50,
-        skip: query.skip,
-      });
+  async list(
+    @Param() params: ClinicIdParamDto,
+    @Query() query: EncounterListQueryDto,
+    @Res({ passthrough: true }) res: Response,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    const mayReadTier =
+      isApiFeatureEnabled('followUpStratification') &&
+      hasPermissionAtClinic(req.user.roles, params.clinicId, PERMISSIONS.FOLLOW_UP_READ);
+    if (query.riskTier && !mayReadTier) {
+      throw new ForbiddenException('Filtering by follow-up tier needs FOLLOW_UP.READ');
     }
-    if (query.status) {
-      return this.encounterService.listByClinic(params.clinicId, {
+    const { rows, total } = await this.encounterService.listQueuePage(
+      params.clinicId,
+      {
         status: query.status,
+        // A stage only narrows the review lanes, as before.
+        stage: query.status === 'IN_REVIEW' ? query.stage : undefined,
         take: query.take ?? 50,
         skip: query.skip,
-      });
-    }
-    return this.encounterService.listByClinic(params.clinicId, {
-      take: query.take ?? 50,
-      skip: query.skip,
-    });
+        search: query.search,
+        bpClassification: query.bpClassification,
+        glucoseFlagged: query.glucoseFlagged,
+        riskTier: query.riskTier,
+        withRiskTier: mayReadTier,
+      },
+      { from: query.createdFrom, to: query.createdTo },
+    );
+    // How many match the filters, beyond this page; the body stays a plain array for callers.
+    res.setHeader('X-Total-Count', String(total));
+    return rows;
   }
 
   /** How many encounters each queue lane holds, uncapped, so a tab never stops at 50 (#307). */

@@ -1,3 +1,4 @@
+import { formatPersonName } from '@nkwapa/db';
 import {
   BadRequestException,
   ConflictException,
@@ -1067,7 +1068,7 @@ export class OpsService {
         patientCode: checkIn.patient.patientCode,
         firstName: checkIn.patient.firstName,
         lastName: checkIn.patient.lastName,
-        displayName: `${checkIn.patient.firstName} ${checkIn.patient.lastName}`.trim(),
+        displayName: formatPersonName(checkIn.patient, 'short'),
       },
       assignmentSummary: assignment
         ? {
@@ -1104,8 +1105,7 @@ export class OpsService {
         patientCode: assignment.patientCheckIn.patient.patientCode,
         firstName: assignment.patientCheckIn.patient.firstName,
         lastName: assignment.patientCheckIn.patient.lastName,
-        displayName:
-          `${assignment.patientCheckIn.patient.firstName} ${assignment.patientCheckIn.patient.lastName}`.trim(),
+        displayName: formatPersonName(assignment.patientCheckIn.patient, 'short'),
       },
     };
   }
@@ -1124,8 +1124,7 @@ export class OpsService {
         patientCode: assignment.patientCheckIn.patient.patientCode,
         firstName: assignment.patientCheckIn.patient.firstName,
         lastName: assignment.patientCheckIn.patient.lastName,
-        displayName:
-          `${assignment.patientCheckIn.patient.firstName} ${assignment.patientCheckIn.patient.lastName}`.trim(),
+        displayName: formatPersonName(assignment.patientCheckIn.patient, 'short'),
       },
       assignedVolunteer: assignment.assignedVolunteer,
       assignedDoctor: assignment.assignedDoctor,

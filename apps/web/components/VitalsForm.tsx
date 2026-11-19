@@ -1,5 +1,6 @@
 'use client';
 
+import { DangerSignNotice, readingNow } from '@/components/patients/follow-up/DangerSignNotice';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Cigarette, HeartPulse, Ruler, Thermometer } from 'lucide-react';
 import { classifyBloodPressure } from '@nkwapa/db/bp-classification';
@@ -677,6 +678,9 @@ export function VitalsForm({
                     Number(vitals.diastolicBp) === localVitals.diastolicBp
                   )
                 }
+              />
+              <DangerSignNotice
+                input={{ readings: readingNow(vitals.systolicBp, vitals.diastolicBp) }}
               />
               <div className={styles.fields}>
                 <SelectField

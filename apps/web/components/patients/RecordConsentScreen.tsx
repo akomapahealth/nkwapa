@@ -8,9 +8,13 @@ import { readApiError } from '@/lib/ops';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import { CONSENT_TEXT_V1_EN } from '@/lib/consent-text';
+import { CONSENT_DOCUMENTS, type ConsentDocumentType } from '@/lib/consent-text';
 import { db } from '@/lib/db';
-import { enqueueOutboxMutation, SYNC_OPERATION } from '@/lib/outbox';
+import {
+  enqueueOutboxMutation,
+  SYNC_OPERATION,
+  generateClientId as generateId,
+} from '@/lib/outbox';
 import { ProgressiveHelp } from '@/components/ui/progressive-help';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { Button } from '@/components/ui/button';
@@ -19,19 +23,8 @@ import { PatientFormErrors } from './PatientFormErrors';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
-    const random = (Math.random() * 16) | 0;
-    const value = character === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
 /**
- * Recording research consent, for both `/patients/:patientId/consent` and its clinic-scoped twin.
+ * Recording a consent (research, or referral sharing since #344), for both `/patients/:patientId/consent` and its clinic-scoped twin.
  *
  * The two routes had drifted into different products: one carried the migrated header, metrics and
  * notice, the other a raw `<h1>` and a bare red div. They record the identical consent against the
@@ -41,10 +34,13 @@ function generateId(): string {
 export function RecordConsentScreen({
   clinicId,
   patientId,
+  consentType = 'RESEARCH_DEIDENTIFIED',
 }: {
   clinicId: string;
   patientId: string;
+  consentType?: ConsentDocumentType;
 }) {
+  const document = CONSENT_DOCUMENTS[consentType];
   const router = useRouter();
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
@@ -81,8 +77,8 @@ export function RecordConsentScreen({
         {
           method: 'POST',
           body: JSON.stringify({
-            consentType: 'RESEARCH_DEIDENTIFIED',
-            consentTextSnapshot: CONSENT_TEXT_V1_EN,
+            consentType,
+            consentTextSnapshot: document.text,
             consentVersion: 'v1-en',
           }),
           getToken,
@@ -107,10 +103,10 @@ export function RecordConsentScreen({
         id: consentId,
         patientId,
         clinicId,
-        consentType: 'RESEARCH_DEIDENTIFIED',
+        consentType,
         status: 'GRANTED',
         consentVersion: 'v1-en',
-        consentTextSnapshot: CONSENT_TEXT_V1_EN,
+        consentTextSnapshot: document.text,
         grantedAt,
         revokedAt: undefined,
         recordedByUserId,
@@ -128,10 +124,10 @@ export function RecordConsentScreen({
         payloadJson: {
           patientId,
           clinicId,
-          consentType: 'RESEARCH_DEIDENTIFIED',
+          consentType,
           status: 'GRANTED',
           consentVersion: 'v1-en',
-          consentTextSnapshot: CONSENT_TEXT_V1_EN,
+          consentTextSnapshot: document.text,
           grantedAt,
           revokedAt: null,
           recordedByUserId: recordedByUserId || undefined,
@@ -159,24 +155,23 @@ export function RecordConsentScreen({
       </Button>
 
       <AppPageHeader
-        title="Record research consent"
-        description="Record informed consent for de-identified research."
+        title={`Record ${document.name.toLowerCase()}`}
+        description={`Record informed consent: ${document.summary.toLowerCase()}.`}
       />
 
       {/* Required reading, not header help: #63 keeps it visible on the page. */}
       <ProgressiveHelp title="Before you record consent">
-        Read the consent text below with the patient in a language they understand. Consent covers
-        de-identified research use only, it is recorded against this clinic, and the patient may
-        withdraw it later. Record it only after the patient has agreed.
+        Read the consent text below with the patient in a language they understand. {document.help}{' '}
+        Record it only after the patient has agreed.
       </ProgressiveHelp>
 
       <FormSectionCard
         title="Consent text"
         description="Review the current consent language exactly as it will be stored with the record."
       >
-        <p className="text-sm text-muted-foreground">De-identified research · Document v1-en</p>
+        <p className="text-sm text-muted-foreground">{document.summary} · Document v1-en</p>
         <div className="max-w-prose whitespace-pre-wrap text-base leading-7 text-foreground">
-          {CONSENT_TEXT_V1_EN}
+          {document.text}
         </div>
       </FormSectionCard>
 
@@ -205,7 +200,7 @@ export function RecordConsentScreen({
                 I attest that the patient has been informed and has granted consent.
               </Label>
               <p id="consent-attestation-help" className="text-sm text-muted-foreground">
-                This confirmation is stored as part of the research consent audit trail.
+                This confirmation is stored as part of the consent audit trail.
               </p>
             </div>
           </div>

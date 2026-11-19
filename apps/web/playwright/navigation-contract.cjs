@@ -142,8 +142,24 @@ const FLAG_ON = {
     ['Data requests', '/admin/data-requests'],
   ],
 };
-const EXPECTED =
+const STATION_SETS =
   process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true' ? FLAG_ON : FLAG_OFF;
+
+// #338: with follow-up on, roles holding FOLLOW_UP.MANAGE (not director) get it after Patients.
+const FOLLOW_UP_ROLES = ['staff', 'doctor', 'volunteer', 'manager'];
+const EXPECTED =
+  process.env.NEXT_PUBLIC_FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED === 'true'
+    ? Object.fromEntries(
+        Object.entries(STATION_SETS).map(([role, items]) => [
+          role,
+          FOLLOW_UP_ROLES.includes(role)
+            ? items.flatMap((item) =>
+                item[0] === 'Patients' ? [item, ['Follow-up', '/follow-up']] : [item],
+              )
+            : items,
+        ]),
+      )
+    : STATION_SETS;
 
 // Independent seeded-role presentation contract, not production partition code.
 const PHONE_PRIMARY =

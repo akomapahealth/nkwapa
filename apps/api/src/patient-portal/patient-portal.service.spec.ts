@@ -982,6 +982,7 @@ describe('PatientPortalService', () => {
             OR: [
               { patientCode: { contains: 'ama', mode: 'insensitive' } },
               { firstName: { contains: 'ama', mode: 'insensitive' } },
+              { middleName: { contains: 'ama', mode: 'insensitive' } },
               { lastName: { contains: 'ama', mode: 'insensitive' } },
             ],
           },

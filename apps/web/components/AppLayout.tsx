@@ -8,6 +8,7 @@ import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWidget } from '@/components/chat/ChatWidget';
 import { PendingStaffInviteNotice } from '@/components/staff/PendingStaffInviteNotice';
+import { OfflineSessionBanner } from '@/components/offline-session/OfflineSessionBanner';
 
 const SIDEBAR_STORAGE_KEY = 'nkwapa.sidebar.collapsed';
 
@@ -135,6 +136,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(10rem+env(safe-area-inset-bottom))] compact:pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8"
           >
             <div className="mx-auto w-full max-w-[1440px] space-y-6">
+              <OfflineSessionBanner />
               <PendingStaffInviteNotice />
               {children}
             </div>

@@ -1,3 +1,6 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
+import { FollowUpContactService } from '../follow-up/follow-up-contact.service';
+import { FollowUpAttemptReplayPayload } from '../follow-up/dto/follow-up-contact.dto';
 import {
   BadRequestException,
   ConflictException,
@@ -13,6 +16,7 @@ import {
   GhanaRegion,
   NationalIdType,
   PatientLocationStatus,
+  ResidentialPositionSource,
   Sex,
   MedicalHistoryCategory,
   MedicalHistoryStatus,
@@ -33,7 +37,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { UpsertHypertensionClinicianPlanDto } from '../hypertension-assessment/dto/hypertension-assessment.dto';
 import { UpsertDiabetesClinicianPlanDto } from '../diabetes-screening/dto/diabetes-screening.dto';
-import { flattenValidationErrors } from '../common/validation';
+import { flattenValidationErrors, sanitizePlainText } from '../common/validation';
 import {
   classifySyncFailure,
   isTerminalOutcome,
@@ -83,6 +87,8 @@ import {
 import { validatePayload } from '../common/validation';
 import { takeBaseUpdatedAt, type OverwriteCheck } from './overwrite-conflict';
 import { serializeLegacyDiabetesSymptoms } from '@nkwapa/db';
+import { OfflineGrantService } from '../offline-grants/offline-grant.service';
+import { runWithOfflineSession } from '../common/request-context.store';
 
 export type { EntityType } from './entity-types';
 
@@ -120,6 +126,9 @@ export class SyncService {
     private readonly opsService: OpsService,
     private readonly clinicianPlanSeal: ClinicianPlanSealService,
     @Optional() private readonly telemetry?: TelemetryService,
+    @Optional() private readonly risk?: FollowUpRiskService,
+    @Optional() private readonly followUpContacts?: FollowUpContactService,
+    @Optional() private readonly offlineGrants?: OfflineGrantService,
   ) {}
 
   async applyMutations(
@@ -172,8 +181,38 @@ export class SyncService {
         });
       }
 
+      const stamp = mut.offlineSession;
+      if (stamp) {
+        // Checked before anything else: a write under a revoked or lapsed grant is refused
+        // whatever it contains, and the refusal is recorded like any other (#207).
+        const refusal = this.offlineGrants
+          ? await this.offlineGrants.refusalFor(actorUserId, stamp, mut.createdAt)
+          : 'OFFLINE_GRANT_REVOKED';
+        if (refusal) {
+          results.push(
+            await this.refuse(clinicId, mut, SYNC_MUTATION_RESULT_STATUS.ERROR, refusal, {
+              message:
+                refusal === 'OFFLINE_GRANT_EXPIRED'
+                  ? 'This change was recorded after offline access on this device had expired.'
+                  : 'Offline access on this device was withdrawn before this change was sent.',
+            }),
+          );
+          continue;
+        }
+      }
+
       try {
-        const result = await this.applyOne(clinicId, actorUserId, user, mut, metadata);
+        const apply = () => this.applyOne(clinicId, actorUserId, user, mut, metadata);
+        const result = await (stamp
+          ? runWithOfflineSession(
+              {
+                grantId: stamp.grantId,
+                deviceId: stamp.deviceId,
+                unlockMethod: stamp.unlockMethod,
+              },
+              apply,
+            )
+          : apply());
         results.push(result);
       } catch (err) {
         const outcome = classifySyncFailure(err, mut.entityType);
@@ -504,6 +543,8 @@ export class SyncService {
       case 'shift_check_out':
       case 'patient_check_in':
         return this.applyOpsReplay(clinicId, actorUserId, mut, payload, metadata);
+      case 'follow_up_attempt':
+        return this.applyFollowUpAttempt(clinicId, actorUserId, mut, payload);
       default:
         throw new Error(`Unknown entity type: ${mut.entityType}`);
     }
@@ -569,6 +610,37 @@ export class SyncService {
         );
       }
     }
+    return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * A follow-up call recorded offline (#338), through the same service as the REST route. The
+   * attempt id is the device's, so a call that reached the server before the connection dropped
+   * comes back as applied. Dated when it happened, but never in the future.
+   */
+  private async applyFollowUpAttempt(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    if (!this.followUpContacts || !this.risk?.enabled) {
+      throw new NotFoundException('Follow-up is not available.');
+    }
+    const replay = await validatePayload(
+      FollowUpAttemptReplayPayload,
+      payload,
+      'Queued follow-up contact failed validation',
+    );
+    const at = new Date(Math.min(new Date(replay.occurredAt).getTime(), Date.now()));
+    // The payload's own id, if any, is ignored: the attempt is the mutation's entityId.
+    await this.followUpContacts.recordAttempt(
+      clinicId,
+      replay.contactId,
+      actorUserId,
+      { ...replay, id: mut.entityId },
+      { at },
+    );
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
@@ -654,12 +726,40 @@ export class SyncService {
       residentialDistrict: payload.residentialDistrict as string | undefined,
       residentialCommunity: payload.residentialCommunity as string | undefined,
       residentialAddressNote: payload.residentialAddressNote as string | undefined,
+      residentialDigitalAddress: payload.residentialDigitalAddress as string | null | undefined,
+      residentialLandmark:
+        typeof payload.residentialLandmark === 'string'
+          ? (sanitizePlainText(payload.residentialLandmark, { maxLength: 160 }) as string)
+          : (payload.residentialLandmark as null | undefined),
+      residentialLatitude: payload.residentialLatitude as number | null | undefined,
+      residentialLongitude: payload.residentialLongitude as number | null | undefined,
+      residentialPositionSource: payload.residentialPositionSource as
+        | ResidentialPositionSource
+        | null
+        | undefined,
+      residentialPositionAccuracyM: payload.residentialPositionAccuracyM as
+        | number
+        | null
+        | undefined,
+      residentialPositionCapturedAt: payload.residentialPositionCapturedAt as
+        | string
+        | null
+        | undefined,
     });
 
     const before = existingById ? JSON.stringify(existingById) : null;
     const demographics = {
       patientCode,
       firstName: payload.firstName as string,
+      // Absent from a client that predates #342: leave what is stored, rather than clear it.
+      ...(payload.middleName !== undefined
+        ? {
+            middleName:
+              typeof payload.middleName === 'string'
+                ? (sanitizePlainText(payload.middleName, { maxLength: 120 }) as string) || null
+                : null,
+          }
+        : {}),
       lastName: payload.lastName as string,
       dob: payload.dob ? new Date(payload.dob as string) : null,
       sex: (payload.sex as Sex) ?? 'UNKNOWN',
@@ -685,6 +785,7 @@ export class SyncService {
           update: demographics,
         })
       : await this.prisma.patient.update({ where: { id: mut.entityId }, data: demographics });
+    await this.risk?.recomputeAfterCommit({ patientId: patient.id, trigger: 'SYNC', actorUserId });
 
     await this.auditService.logWrite({
       clinicId: patient.primaryClinicId,
@@ -1740,6 +1841,15 @@ export class SyncService {
         this.prisma.prescription.deleteMany({ where: { id: mut.entityId, clinicId } }),
     };
     await deleteMap[entityType]!();
+    // Every deletable clinical row hangs off an encounter; consents and care plans don't move a tier.
+    const deletedFrom = (beforeRecord as { encounterId?: string } | null)?.encounterId;
+    if (deletedFrom && entityType !== 'care_plan' && entityType !== 'patient_consent') {
+      await this.risk?.recomputeEncounterAfterCommit({
+        encounterId: deletedFrom,
+        trigger: 'SYNC',
+        actorUserId,
+      });
+    }
 
     const actionMap: Record<string, string> = {
       vitals: 'VITALS.DELETE',

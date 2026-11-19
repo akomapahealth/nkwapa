@@ -117,7 +117,10 @@ export class DeIdentificationService {
       return '';
     }
     if (typeof value === 'string') {
-      return `"${value.replace(/"/g, '""')}"`;
+      // A leading ' makes Excel, Sheets and LibreOffice treat the cell as text; a tab is not
+      // reliably kept by every spreadsheet. See RESEARCH_CSV_FORMULA_NOTE.
+      const text = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+      return `"${text.replace(/"/g, '""')}"`;
     }
     return String(value);
   }

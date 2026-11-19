@@ -113,6 +113,28 @@ test('the dashboard, registry, and schedule have no automatically detectable vio
   }
 });
 
+test('the welcome tour spotlight has no automatically detectable violations', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/dashboard');
+  await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await page.getByRole('menuitem', { name: 'Take the tour' }).click();
+  const dialog = page.getByRole('dialog');
+  // A ringed step: the page behind is inert, so nothing under the ring can take focus.
+  for (let i = 0; i < 6; i += 1) {
+    await dialog.getByRole('button', { name: 'Next' }).click();
+    if ((await dialog.getAttribute('data-spotlight')) !== 'none') break;
+  }
+  await expect(dialog).not.toHaveAttribute('data-spotlight', 'none');
+  await dialog.evaluate((el) =>
+    Promise.all(
+      el.parentElement.getAnimations({ subtree: true }).map((animation) => animation.finished),
+    ),
+  );
+  expect(describeViolations((await analyze(page)).violations)).toBe('');
+  await page.keyboard.press('Escape');
+});
+
 test('a keyboard alone reaches the chart, its tabs, and its content', async ({ page }) => {
   const { clinicId, patientId } = await createPatient(page);
   await page.goto(`/clinics/${clinicId}/patients/${patientId}`);

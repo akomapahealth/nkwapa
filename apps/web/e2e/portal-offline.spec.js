@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const { readLocalTable } = require('../playwright/local-db');
 
 /*
   Issue #18: a patient's recent portal history survives a dropped connection or a server that
@@ -11,27 +12,7 @@ test.use({ storageState: storageStateFor('patient') });
 
 /** Every row of the device's saved portal history. */
 async function readPortalCache(page) {
-  return page.evaluate(
-    () =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('NkwapaDb');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const database = request.result;
-          if (!database.objectStoreNames.contains('portal_cache')) {
-            database.close();
-            resolve([]);
-            return;
-          }
-          const read = database.transaction('portal_cache').objectStore('portal_cache').getAll();
-          read.onsuccess = () => {
-            database.close();
-            resolve(read.result);
-          };
-          read.onerror = () => reject(read.error);
-        };
-      }),
-  );
+  return readLocalTable(page, 'portal_cache');
 }
 
 async function putPortalCacheRow(page, row) {

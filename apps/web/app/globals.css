@@ -743,6 +743,11 @@ html:has([data-landing]) {
   transition-duration: 0s !important;
 }
 
+/* Welcome tour anchors (#345): scrolled into view clear of the sticky header. No layout effect. */
+[data-tour] {
+  scroll-margin: 5rem 1rem 1rem;
+}
+
 /* R7.3: dialogs share the anchored clock above (scale from the centre, since a modal has no
    trigger to grow from). The scrim only fades, on the shorter clock. */
 .dialog-scrim {

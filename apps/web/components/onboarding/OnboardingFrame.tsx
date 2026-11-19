@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useState, type ReactNode } from 'react';
 import { Check, LogOut } from 'lucide-react';
+import { AGREEMENT_REQUIRED_ROLES } from '@nkwapa/db/staff-agreement';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getErrorMessage } from '@/lib/api';
@@ -43,12 +44,14 @@ export function JourneySteps({
   journey,
   current,
   needsName,
+  needsAgreement,
 }: {
   journey: OnboardingJourney;
   current: string;
   needsName?: boolean;
+  needsAgreement?: boolean;
 }) {
-  const steps = journeySteps(journey, { needsName });
+  const steps = journeySteps(journey, { needsName, needsAgreement });
   const { states } = journeyProgress(steps, current);
   return (
     <section aria-labelledby="journey-title" className="border-t-2 border-rule-strong">
@@ -227,7 +230,13 @@ export function OnboardingFrame({
   const { logout } = useKeycloak() ?? { logout: () => undefined };
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const signedInAs = bootstrap?.profile?.email ?? bootstrap?.displayName ?? null;
-  const steps = journeySteps(journey, { needsName });
+  // Known before the role is held too, from the invitation, so the step count never jumps.
+  const needsAgreement =
+    Boolean(bootstrap?.staffAgreement?.required) ||
+    (bootstrap?.pendingStaffInvites ?? []).some((invite) =>
+      AGREEMENT_REQUIRED_ROLES.includes(invite.role),
+    );
+  const steps = journeySteps(journey, { needsName, needsAgreement });
   const { current: index } = journeyProgress(steps, current);
 
   return (
@@ -271,7 +280,12 @@ export function OnboardingFrame({
             {children}
           </div>
           <aside className="min-w-0">
-            <JourneySteps journey={journey} current={current} needsName={needsName} />
+            <JourneySteps
+              journey={journey}
+              current={current}
+              needsName={needsName}
+              needsAgreement={needsAgreement}
+            />
           </aside>
         </main>
       </div>

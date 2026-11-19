@@ -1,3 +1,4 @@
+import { MIDDLE_NAME_LABEL, formatPersonName } from './person-name';
 import {
   DUPLICATE_MATCH_REASON_LABELS,
   type DuplicateConfidence,
@@ -12,6 +13,7 @@ export interface DuplicateCandidatePatient {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   dob: string | null;
   sex: string;
@@ -297,7 +299,7 @@ export function describeMatchPrecision(reasons: DuplicateMatchReason[]): string 
 
 /** Full name, for a heading or a table cell. */
 export function patientDisplayName(patient: DuplicateCandidatePatient): string {
-  return `${patient.firstName} ${patient.lastName}`.trim();
+  return formatPersonName(patient);
 }
 
 /** Where the chart lives, which is also where the existing merge dialog lives. */
@@ -375,6 +377,16 @@ export function buildComparisonRows(
   // costs a line of a dense panel to say nothing new.
   const rows: Array<{ label: string; a: string; b: string }> = [
     { label: 'First name', a: present(left.firstName), b: present(right.firstName) },
+    // Only when either chart has one, so a pair without middle names reads as it did (#342).
+    ...(left.middleName?.trim() || right.middleName?.trim()
+      ? [
+          {
+            label: MIDDLE_NAME_LABEL,
+            a: present(left.middleName),
+            b: present(right.middleName),
+          },
+        ]
+      : []),
     { label: 'Last name', a: present(left.lastName), b: present(right.lastName) },
     { label: 'Date of birth', a: formatDateOfBirth(left.dob), b: formatDateOfBirth(right.dob) },
     { label: 'Sex', a: present(sexLabel(left.sex)), b: present(sexLabel(right.sex)) },

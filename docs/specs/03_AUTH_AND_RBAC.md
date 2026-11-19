@@ -322,13 +322,74 @@ It returns:
   account with no role at all is held on an onboarding page; a colleague who already works in one
   clinic is offered an invitation to another, not redirected to it. A staff account that holds a
   role but has no first or last name gets `NAME_REQUIRED` and is held on `/account/name` (#225)
-- the user's own name (`profile`): `needsName`, `firstName`, `middleInitial`, `lastName` and
+- the user's own name (`profile`): `needsName`, `firstName`, `middleName`, `lastName` and
   `email`, so the name step can prefill. `needsName` is never true for a patient-only account
+- the confidentiality agreement (`staffAgreement`): `required`, `signedVersion`, `acceptedAt`. An
+  account holding a role listed in `AGREEMENT_REQUIRED_ROLES` (`packages/db/src/staff-agreement.ts`,
+  VOLUNTEER today) that has not signed the current version gets `AGREEMENT_REQUIRED`, after the name
+  step, and is held on `/account/agreement` (#330). The web redirect is not the boundary:
+  `RbacGuard` refuses every permissioned route with `403 AGREEMENT_REQUIRED` until
+  `POST /auth/agreement` records the signature. Each signature is one append-only
+  `StaffAgreementAcceptance` row (version, SHA-256 of the text, typed name, roles, time) plus a
+  `STAFF_AGREEMENT.ACCEPT` audit event. Changing the text means bumping its `version`, which asks
+  everyone to sign again; adding a role to the list asks that role
 
 A clinic's zone rides along so a single-clinic view can name the zone it is showing. It appears
 beside a clinic and nowhere else: never in effective roles, never in effective permissions.
 
 Frontend navigation and clinic switching are driven from this response.
+
+### Telling Someone Their Access Changed
+
+When an administrator grants or removes a staff role, the person is told in the app (#329). The
+existing role emails are unchanged; this is in addition to them.
+
+- `AdminService` files an `ACCESS_CHANGE` inbox notification and a push for every direct grant,
+  every revocation and the per-clinic role removal in `deactivateUserInClinic`, naming the role, the
+  clinic and the administrator. A grant of a role already held announces nothing. A role taken up
+  by accepting an invitation announces nothing either: the person did that themselves.
+- The notification is filed with no clinic. The bell hides notifications about a clinic the reader
+  holds no role at, which is the state a revocation leaves them in.
+- A direct grant writes a `ROLE.GRANT` audit event, as revocations and invitation accepts already
+  did.
+- The web app shows an unread `ACCESS_CHANGE` once as a dialog ("Your access has changed") on the
+  next page load, with what the person can now do at their active clinic. It reloads `whoami`
+  when the notice arrives, so navigation and permission checks follow without a manual refresh.
+  Dismissing it marks the notification read. "This is a mistake, message them" opens a chat with
+  the administrator who made the change, and is offered only while the person can still chat.
+- Someone who has lost every role still sees the dialog, which says they have no access left.
+- What a role lets someone do is described by `accessPoints()` in `apps/web/lib/access-summary.ts`,
+  chosen by permission like the sidebar, and shared with the welcome tour and the account page.
+
+### Offline Grants (#207)
+
+An opted-in staff member can resume an offline session after a cold start with no connection. The
+full threat model is `docs/security/offline-session-matrix.md`; the auth rules are these.
+
+- **What survives a restart** is a signed offline grant (`POST /auth/offline-grant`, ES256, public
+  keys at `GET /auth/offline-grant/keys`), never a Keycloak access, refresh or `offline_access`
+  token. It names one user and one device (`deviceId`, a random id per browser profile), carries
+  whoami's memberships with each clinic's roles and permissions, and expires
+  `OFFLINE_GRANT_TTL_HOURS` (default 72) after issue. The client refreshes it on every whoami, at
+  most hourly.
+- **Who may hold one:** an account with a DOCTOR, VOLUNTEER, MANAGER or DIRECTOR role at some
+  clinic and no global role. `SYSTEM_ADMIN` (and every wildcard account) and patients are refused,
+  and the web app never offers it to them.
+- **In an offline session** the web app builds its bootstrap from the grant in whoami's shape
+  (`source: 'offline-grant'`), with no token: route guards and permission checks run unchanged and
+  can never exceed the grant. A clinic switch is limited to the grant's clinics.
+- **Revocation:** `OfflineGrant` rows (`id, userId, deviceId, issuedAt, expiresAt, revokedAt,
+revokedReason`) record every grant. Deactivation, role removal and
+  `POST /clinics/:clinicId/users/:userId/offline-access/revoke` (CLINIC_MANAGE, under the same
+  lifecycle authority as deactivation; "Sign out of offline devices" on the admin users page)
+  revoke all of a person's grants, with an `OFFLINE_GRANT.REVOKE_ALL` audit event. A person
+  withdraws their own devices at `/settings/offline-access` (`GET /auth/offline-grants`,
+  `POST /auth/offline-grants/:grantId/revoke`).
+- **At push time** the server refuses a change stamped with a revoked grant, or with one used after
+  its server-side `expiresAt`, and the sync center shows the refusal. Device clocks are never
+  trusted for this.
+- **Keys:** `OFFLINE_DEK_ROOT_KEY` derives each person's data key and each device's at-rest keys
+  (`POST /auth/device-keys`, after every whoami). It must never change on a live deployment.
 
 ---
 

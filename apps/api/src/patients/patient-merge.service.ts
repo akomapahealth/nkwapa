@@ -1,9 +1,12 @@
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
+import { FollowUpFlagService } from '../follow-up/follow-up-flags.service';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, UserRole, type PatientAccountLink } from '@prisma/client';
 import {
@@ -107,6 +110,7 @@ export interface MergePreviewPatient {
   id: string;
   patientCode: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   dob: string | null;
   sex: string;
@@ -201,6 +205,8 @@ export class PatientMergeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional() private readonly risk?: FollowUpRiskService,
+    @Optional() private readonly flags?: FollowUpFlagService,
   ) {}
 
   /**
@@ -504,6 +510,13 @@ export class PatientMergeService {
       requestId,
     });
 
+    // The surviving chart now holds both histories. The source keeps its last tier as history.
+    await this.flags?.moveAfterMerge(source.id, canonical.id);
+    await this.risk?.recomputeAfterCommit({
+      patientId: canonical.id,
+      trigger: 'MERGE',
+      actorUserId: actor.userId,
+    });
     return {
       success: true,
       clinicId: canonical.primaryClinicId,
@@ -756,6 +769,7 @@ function toPreviewPatient(chart: MergeChart): MergePreviewPatient {
     id: chart.id,
     patientCode: chart.patientCode,
     firstName: chart.firstName,
+    middleName: chart.middleName,
     lastName: chart.lastName,
     dob: chart.dob ? chart.dob.toISOString() : null,
     sex: chart.sex,
@@ -779,6 +793,7 @@ function toDuplicateInput(chart: MergeChart) {
   return {
     id: chart.id,
     firstName: chart.firstName,
+    middleName: chart.middleName,
     lastName: chart.lastName,
     dob: chart.dob,
     phoneE164: chart.phoneE164,

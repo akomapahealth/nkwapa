@@ -12,10 +12,12 @@ import {
   Smartphone,
   Sun,
   UserPen,
+  WifiOff,
 } from 'lucide-react';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { useInstallAction } from '@/components/pwa/InstallApp';
+import { SignInSecurityCard } from '@/components/account/SignInSecurityCard';
 import { DeviceStorageDetails } from '@/components/sync/DeviceStorageDetails';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +28,8 @@ import {
   RecordSectionTitle,
 } from '@/components/patients/RecordSection';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { canUseOfflineAccess } from '@/lib/offline-session/bootstrap';
 import { cn } from '@/lib/utils';
 import { THEME_PREFERENCE_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme-context';
 import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
@@ -35,6 +39,16 @@ const THEME_ICONS: Record<ThemePreference, typeof Sun> = {
   dark: Moon,
   system: Monitor,
 };
+
+function isStaffAccount(
+  bootstrap: { globalRoles: string[]; memberships: { roles: string[] }[] } | null,
+): boolean {
+  if (!bootstrap) return false;
+  return (
+    bootstrap.globalRoles.length > 0 ||
+    bootstrap.memberships.some((membership) => membership.roles.some((role) => role !== 'PATIENT'))
+  );
+}
 
 /**
  * Each person's own settings, for every role (#206): how Nkwapa looks, installing it, and what
@@ -68,6 +82,27 @@ export default function SettingsPage() {
           </RecordSectionContent>
         </RecordSection>
         <InstallCard />
+        {isWebFeatureEnabled('offlineSession') && canUseOfflineAccess(bootstrap) ? (
+          <RecordSection>
+            <RecordSectionHeader>
+              <RecordSectionTitle className="text-lg">Offline access</RecordSectionTitle>
+              <RecordSectionDescription>
+                Unlock this device with a PIN when it starts with no connection.
+              </RecordSectionDescription>
+            </RecordSectionHeader>
+            <RecordSectionContent>
+              <Button asChild variant="outline">
+                <Link href="/settings/offline-access">
+                  <WifiOff className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Manage offline access
+                </Link>
+              </Button>
+            </RecordSectionContent>
+          </RecordSection>
+        ) : null}
+
+        {/* Staff only: a second step for patient accounts is a separate decision. */}
+        {isStaffAccount(bootstrap) ? <SignInSecurityCard /> : null}
 
         <RecordSection>
           <RecordSectionHeader>

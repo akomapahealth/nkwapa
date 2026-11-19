@@ -47,6 +47,20 @@ export {
   type ClinicianPlanSealKey,
   type SealedClinicianPlan,
 } from './src/clinician-plan-seal';
+export {
+  OFFLINE_GRANT_ALGORITHM,
+  OFFLINE_GRANT_ROLES,
+  OFFLINE_UNLOCK_METHODS,
+  base64UrlDecode,
+  base64UrlEncode,
+  verifyOfflineGrant,
+  type OfflineGrantClaims,
+  type OfflineGrantMembership,
+  type OfflineGrantPublicKey,
+  type OfflineGrantVerification,
+  type OfflineSessionStamp,
+  type OfflineUnlockMethod,
+} from './src/offline-grant';
 export { normalizePhoneToE164 } from './src/phone';
 export {
   computeBmi,
@@ -121,7 +135,13 @@ export {
   isGhanaRegion,
   isDistrictInRegion,
   normalizeDistrict,
+  DIGITAL_ADDRESS_EXAMPLE,
+  GHANA_BOUNDS,
+  normalizeDigitalAddress,
+  isInGhana,
+  parsePosition,
 } from './src/ghana-locations';
+export type { ParsedPosition } from './src/ghana-locations';
 export {
   CLINIC_DEFAULT_TIMEZONE,
   CLINIC_DEFAULT_COUNTRY_CODE,
@@ -188,6 +208,7 @@ export {
   DUPLICATE_MATCH_REASONS,
   DUPLICATE_MATCH_REASON_LABELS,
   DUPLICATE_MATCH_WEIGHTS,
+  DUPLICATE_MIDDLE_NAME_ADJUSTMENT,
   DUPLICATE_NAME_EDIT_DISTANCE,
   duplicatePairKey,
   editDistanceWithin,
@@ -427,15 +448,27 @@ export {
 export * from './src/hypertension-interview';
 export * from './src/diabetes-interview';
 export * from './src/medication-adherence';
+export * from './src/staff-agreement';
 export {
-  MIDDLE_INITIAL_MESSAGE,
+  PERSON_NAME_MAX_LENGTH,
+  formatPersonName,
+  normalizeMiddleName,
+  type PersonNameParts,
+  type PersonNameStyle,
+} from './src/person-name';
+export {
   STAFF_NAME_MAX_LENGTH,
   formatStaffDisplayName,
-  middleInitialError,
-  normalizeMiddleInitial,
+  middleNameError,
   normalizeStaffNamePart,
   staffNameMessage,
   staffNamePartError,
   type StaffNameError,
   type StaffNameParts,
 } from './src/staff-name';
+export {
+  glanceLines,
+  type GlanceLine,
+  type GlanceLinesInput,
+} from './src/patient-chart-glance-lines';
+export * from './src/follow-up-stratification';

@@ -27,6 +27,9 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { RefreshCw } from 'lucide-react';
 import { zoneQueryString, type ZoneFilter } from '@/lib/clinic-zones';
+import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
+import { useKeycloak } from '@/app/KeycloakProvider';
+import { DashboardOfflineNotice } from '@/components/dashboard/DashboardOfflineNotice';
 
 export default function DashboardPage() {
   const bootstrapCtx = useBootstrap();
@@ -41,12 +44,21 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedDashboardRef = useRef(false);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
+  const { isOnline } = useSync();
+  const offlineSession = useKeycloak()?.authMode === 'offline-session';
+  // An offline session has no token, so the API cannot answer; offline is expected, not an error.
+  const offline = !isOnline || offlineSession;
 
   const fetchDashboard = useCallback(
     async (showRefreshToast = false) => {
       if (!clinicId || !getToken) {
         setLoading(false);
         setData(null);
+        return;
+      }
+      if (offline) {
+        setLoading(false);
         return;
       }
       setLoading(true);
@@ -61,6 +73,7 @@ export default function DashboardPage() {
         }
         const json = (await res.json()) as DashboardData;
         setData(json);
+        setLoadedAt(new Date());
         hasLoadedDashboardRef.current = true;
         if (showRefreshToast) {
           showToast({
@@ -91,7 +104,7 @@ export default function DashboardPage() {
         setLoading(false);
       }
     },
-    [activeClinic, clinicId, getToken, showToast, zoneFilter],
+    [activeClinic, clinicId, getToken, offline, showToast, zoneFilter],
   );
 
   useEffect(() => {
@@ -102,7 +115,9 @@ export default function DashboardPage() {
   const roles = bootstrap?.effectiveRolesForActiveClinic ?? [];
   const mainRole = pickMainRole(roles, data);
 
-  const refreshAction = clinicId ? (
+  // Refreshing offline cannot work, so the button is not offered.
+  const canRefresh = Boolean(clinicId) && !offline;
+  const refreshAction = canRefresh ? (
     <>
       <Button
         type="button"
@@ -130,7 +145,13 @@ export default function DashboardPage() {
     </>
   ) : null;
 
-  const status = (
+  const status = offline ? (
+    <DashboardOfflineNotice
+      loadedAt={data ? loadedAt : null}
+      worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
+      patientsHref={`/clinics/${encodeURIComponent(clinicId ?? '')}/patients`}
+    />
+  ) : (
     <>
       {isInitialLoading ? <DashboardLoadingState clinicName={activeClinic?.clinicName} /> : null}
       {error ? (
@@ -190,6 +211,7 @@ export default function DashboardPage() {
               key={clinicId}
               clinicId={clinicId}
               volunteer={data.volunteer}
+              urgent={data.urgent}
               worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
             />
           ) : null}
@@ -213,6 +235,7 @@ export default function DashboardPage() {
             <NeedsYouNow
               steps
               volunteer={data.volunteer}
+              urgent={data.urgent}
               worklistHref={getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow'))}
             />
             <DashboardSectionHeader

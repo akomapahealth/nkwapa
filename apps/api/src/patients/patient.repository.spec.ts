@@ -57,6 +57,20 @@ describe('PatientRepository - residential location filters', () => {
     expect(where.residentialCommunity).toEqual({ contains: 'osu', mode: 'insensitive' });
   });
 
+  it('narrows to patients with a Digital Address (#343)', async () => {
+    await repository.findMany({
+      primaryClinicId: 'clinic-1',
+      residentialDetail: 'DIGITAL_ADDRESS',
+    });
+    expect(whereOf().residentialDigitalAddress).toEqual({ not: null });
+  });
+
+  it('narrows to patients with a map position (#343)', async () => {
+    await repository.findMany({ primaryClinicId: 'clinic-1', residentialDetail: 'POSITION' });
+    expect(whereOf().residentialLatitude).toEqual({ not: null });
+    expect(whereOf().primaryClinicId).toBe('clinic-1');
+  });
+
   it('keeps location filters alongside a text search, still clinic-scoped', async () => {
     await repository.findMany({
       primaryClinicId: 'clinic-1',
@@ -68,6 +82,14 @@ describe('PatientRepository - residential location filters', () => {
     expect(where.primaryClinicId).toBe('clinic-1');
     expect(where.residentialRegion).toBe('VOLTA');
     expect(Array.isArray(where.OR)).toBe(true);
+  });
+
+  it('matches a search on the middle name too (#342)', async () => {
+    await repository.findMany({ primaryClinicId: 'clinic-1', search: 'Agyei' });
+
+    expect(whereOf().OR).toEqual(
+      expect.arrayContaining([{ middleName: { contains: 'Agyei', mode: 'insensitive' } }]),
+    );
   });
 });
 

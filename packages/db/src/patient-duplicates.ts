@@ -67,6 +67,12 @@ export type DuplicateConfidence = (typeof DUPLICATE_CONFIDENCE_LEVELS)[number];
 /** Score floors for each confidence band. Below `MEDIUM` a pair is `LOW`. */
 export const DUPLICATE_CONFIDENCE_THRESHOLDS = { HIGH: 70, MEDIUM: 40 } as const;
 
+/**
+ * How a middle name moves a pair's score (#342). Matching stays on first and last name; the middle
+ * name only says how sure to be. Missing on either side is neutral, since most charts have none.
+ */
+export const DUPLICATE_MIDDLE_NAME_ADJUSTMENT = { AGREES: 10, DIFFERS: -20 } as const;
+
 /** The largest first-name edit distance `NAME_SIMILAR_AND_DOB` will still call a match. */
 export const DUPLICATE_NAME_EDIT_DISTANCE = 2;
 
@@ -74,6 +80,8 @@ export const DUPLICATE_NAME_EDIT_DISTANCE = 2;
 export interface DuplicateCandidateInput {
   id: string;
   firstName: string;
+  /** Optional on input: a caller that predates #342 sends none, which is neutral. */
+  middleName?: string | null;
   lastName: string;
   dob: Date | string | null;
   phoneE164: string | null;
@@ -209,11 +217,18 @@ function matchedReasons(
   const sameDob = sameCalendarDay(left.dob, right.dob);
   const leftFirst = normalizeNameForMatch(left.firstName);
   const rightFirst = normalizeNameForMatch(right.firstName);
+  // Before #342 a middle name went into the first name box, so "Nana Kwame" + "Tuffour" is the
+  // same name as "Nana" + "Kwame" + "Tuffour": compare first names with the middle folded in too.
+  const leftFull = normalizeNameForMatch(`${left.firstName}${left.middleName ?? ''}`);
+  const rightFull = normalizeNameForMatch(`${right.firstName}${right.middleName ?? ''}`);
+  const sameFirst =
+    leftFirst.length > 0 &&
+    (leftFirst === rightFirst || leftFull === rightFirst || leftFirst === rightFull);
   const leftLast = normalizeNameForMatch(left.lastName);
   const rightLast = normalizeNameForMatch(right.lastName);
   const sameSurname = leftLast.length > 0 && leftLast === rightLast;
 
-  if (sameDob && sameSurname && leftFirst.length > 0 && leftFirst === rightFirst) {
+  if (sameDob && sameSurname && sameFirst) {
     reasons.push('NAME_AND_DOB');
   }
 
@@ -243,7 +258,7 @@ function matchedReasons(
     sameSurname &&
     leftFirst.length > 0 &&
     rightFirst.length > 0 &&
-    leftFirst !== rightFirst &&
+    !sameFirst &&
     editDistanceWithin(leftFirst, rightFirst, DUPLICATE_NAME_EDIT_DISTANCE)
   ) {
     reasons.push('NAME_SIMILAR_AND_DOB');
@@ -264,9 +279,20 @@ export function evaluateDuplicatePair(
   right: DuplicateCandidateInput,
 ): DuplicatePairEvaluation {
   const reasons = matchedReasons(left, right);
-  const score = Math.min(
-    100,
-    reasons.reduce((total, reason) => total + DUPLICATE_MATCH_WEIGHTS[reason], 0),
+  const leftMiddle = normalizeNameForMatch(left.middleName);
+  const rightMiddle = normalizeNameForMatch(right.middleName);
+  const middle =
+    reasons.length === 0 || !leftMiddle || !rightMiddle
+      ? 0
+      : leftMiddle === rightMiddle
+        ? DUPLICATE_MIDDLE_NAME_ADJUSTMENT.AGREES
+        : DUPLICATE_MIDDLE_NAME_ADJUSTMENT.DIFFERS;
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      reasons.reduce((total, reason) => total + DUPLICATE_MATCH_WEIGHTS[reason], middle),
+    ),
   );
   return { reasons, score, confidence: scoreToConfidence(score) };
 }

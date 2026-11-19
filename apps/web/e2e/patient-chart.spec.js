@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const { apiRequestAs } = require('../playwright/api-client');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -258,3 +259,70 @@ for (const reducedMotion of ['reduce', 'no-preference']) {
     }
   });
 }
+
+/** The "At a glance" line with this label, by the definition list's own structure. */
+function glanceLine(page, label) {
+  return page
+    .getByRole('region', { name: 'At a glance' })
+    .locator('div[data-glance-line]')
+    .filter({ has: page.getByRole('term').filter({ hasText: new RegExp(`^${label}$`) }) })
+    .getByRole('definition')
+    .first();
+}
+
+test('a new patient gets an at-a-glance block of "not recorded" lines (#341)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await createPatient(page);
+  const glance = page.getByRole('region', { name: 'At a glance' });
+  await expect(glance).toBeVisible();
+  await expect(glanceLine(page, 'Blood pressure')).toHaveText('No blood pressure recorded');
+  await expect(glanceLine(page, 'Glucose')).toHaveText('No glucose or HbA1c recorded');
+  await expect(glanceLine(page, 'Conditions')).toHaveText('No conditions recorded');
+  await expect(glanceLine(page, 'Care')).toHaveText('No visits yet');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+
+  // Each line opens the tab it summarises.
+  await glance.getByRole('link', { name: 'View glucose' }).click();
+  await expect(page.getByRole('tab', { name: 'Diabetes', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+});
+
+test('a patient with history reads at a glance: glucose direction and visits (#341)', async ({
+  page,
+}) => {
+  const { clinicId, patientId } = await createPatient(page);
+  for (const [day, mgDl] of [
+    ['2026-09-03', 110],
+    ['2026-10-03', 112],
+    ['2026-11-03', 164],
+  ]) {
+    const encounter = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/encounters`, {
+      clinicId,
+      headers: { 'Idempotency-Key': randomUUID() },
+      data: { patientId },
+    });
+    expect(encounter.ok()).toBe(true);
+    const reading = await apiRequestAs(
+      'staff',
+      'put',
+      `/clinics/${clinicId}/encounters/${encounter.json().id}/diabetes-screening/glucose`,
+      {
+        clinicId,
+        headers: { 'Idempotency-Key': randomUUID() },
+        data: { glucoseMgDl: mgDl, glucoseType: 'FASTING', collectedAt: `${day}T09:00:00.000Z` },
+      },
+    );
+    expect(reading.ok()).toBe(true);
+  }
+
+  await page.reload();
+  // An open visit is pending, so the summary sits under "Needs you now".
+  await expect(page.getByRole('heading', { name: 'Needs you now' })).toBeVisible();
+  await expect(glanceLine(page, 'Glucose')).toContainText(
+    /fasting on Nov 3, 2026, rising over the last 3 fasting readings/,
+  );
+  await expect(glanceLine(page, 'Care')).toContainText(/^3 visits, last /);
+  await expect(glanceLine(page, 'Screened')).toContainText('Diabetes');
+});

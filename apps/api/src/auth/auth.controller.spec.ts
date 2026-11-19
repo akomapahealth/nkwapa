@@ -1,4 +1,4 @@
-import { STORED_UNITS } from '@nkwapa/db';
+import { STAFF_AGREEMENT, STORED_UNITS } from '@nkwapa/db';
 import { UserRole } from '@prisma/client';
 import { DisabledUserException } from './disabled-user.exception';
 import { AuthController, type ReqUser } from './auth.controller';
@@ -27,9 +27,19 @@ describe('AuthController', () => {
     staffInvite: {
       findMany: jest.fn(),
     },
+    staffAgreementAcceptance: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
+  const auditService = { logWrite: jest.fn() };
 
-  const controller = new AuthController(clinicService as never, prisma as never);
+  const controller = new AuthController(
+    clinicService as never,
+    prisma as never,
+    auditService as never,
+  );
 
   const reqUser: ReqUser = {
     user: {
@@ -75,7 +85,9 @@ describe('AuthController', () => {
       isActive: true,
       firstName: 'Test',
       lastName: 'User',
+      staffAgreementVersion: STAFF_AGREEMENT.version,
     });
+    prisma.$transaction.mockImplementation((run: (tx: typeof prisma) => unknown) => run(prisma));
     prisma.patientPortalInvite.findMany.mockResolvedValue([]);
     prisma.staffInvite.findMany.mockResolvedValue([]);
   });
@@ -614,7 +626,7 @@ describe('AuthController', () => {
     it('holds a staff member without a last name on the name step, prefilled', async () => {
       prisma.user.findUnique.mockResolvedValue({
         firstName: 'Ama',
-        middleInitial: null,
+        middleName: null,
         lastName: null,
         email: 'ama@clinic.org',
       });
@@ -625,7 +637,7 @@ describe('AuthController', () => {
       expect(response.profile).toEqual({
         needsName: true,
         firstName: 'Ama',
-        middleInitial: null,
+        middleName: null,
         lastName: null,
         email: 'ama@clinic.org',
         phoneE164: null,
@@ -646,6 +658,121 @@ describe('AuthController', () => {
 
       expect(response.onboarding).toBeNull();
       expect(response.profile.needsName).toBe(false);
+    });
+  });
+
+  describe('the confidentiality agreement (#330)', () => {
+    const withRole = (role: UserRole): ReqUser => ({
+      ...reqUser,
+      roles: [{ clinicId: 'clinic-1', role }],
+    });
+    const named = { firstName: 'Ama', middleName: 'K', lastName: 'Mensah' };
+    const sign = (signedName: string, version: number = STAFF_AGREEMENT.version) =>
+      controller.signStaffAgreement(
+        { user: withRole(UserRole.VOLUNTEER), ip: '10.0.0.1', headers: { 'user-agent': 'jest' } },
+        { version, signedName, agreed: true },
+      );
+
+    it('holds an unsigned volunteer on the agreement step', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...named, staffAgreementVersion: null });
+
+      const response = await controller.whoami({ user: withRole(UserRole.VOLUNTEER) });
+
+      expect(response.onboarding).toEqual({ state: 'AGREEMENT_REQUIRED' });
+      expect(response.staffAgreement).toEqual({
+        required: true,
+        signedVersion: null,
+        acceptedAt: null,
+      });
+    });
+
+    it('asks for the name before the agreement', async () => {
+      prisma.user.findUnique.mockResolvedValue({ firstName: 'Ama', lastName: null });
+
+      const response = await controller.whoami({ user: withRole(UserRole.VOLUNTEER) });
+
+      expect(response.onboarding).toEqual({ state: 'NAME_REQUIRED' });
+    });
+
+    it('does not ask a doctor, or a volunteer who has signed', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...named, staffAgreementVersion: null });
+      expect((await controller.whoami({ user: withRole(UserRole.DOCTOR) })).onboarding).toBeNull();
+
+      prisma.user.findUnique.mockResolvedValue({
+        ...named,
+        staffAgreementVersion: STAFF_AGREEMENT.version,
+      });
+      expect(
+        (await controller.whoami({ user: withRole(UserRole.VOLUNTEER) })).onboarding,
+      ).toBeNull();
+    });
+
+    it('records the signature, the text hash and an audit event', async () => {
+      prisma.user.findUnique.mockResolvedValue(named);
+      prisma.staffAgreementAcceptance.findUnique.mockResolvedValue(null);
+      prisma.staffAgreementAcceptance.create.mockImplementation(({ data }) => ({
+        id: 'acceptance-1',
+        ...data,
+      }));
+
+      const result = await sign('  ama mensah ');
+
+      expect(result.signedVersion).toBe(STAFF_AGREEMENT.version);
+      expect(prisma.staffAgreementAcceptance.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          agreementKey: 'STAFF_CONFIDENTIALITY',
+          version: STAFF_AGREEMENT.version,
+          textSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          signedName: 'ama mensah',
+          rolesAtSigning: ['VOLUNTEER'],
+          ipAddress: '10.0.0.1',
+          userAgent: 'jest',
+        }),
+      });
+      expect(auditService.logWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'STAFF_AGREEMENT.ACCEPT', clinicId: 'clinic-1' }),
+        prisma,
+      );
+      expect(prisma.user.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ staffAgreementVersion: STAFF_AGREEMENT.version }),
+        }),
+      );
+    });
+
+    it('refuses a signature that is not the name on the account', async () => {
+      prisma.user.findUnique.mockResolvedValue(named);
+
+      await expect(sign('Kofi Mensah')).rejects.toMatchObject({ status: 400 });
+      expect(prisma.staffAgreementAcceptance.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a version other than the current one', async () => {
+      await expect(sign('Ama Mensah', STAFF_AGREEMENT.version + 1)).rejects.toMatchObject({
+        status: 409,
+      });
+    });
+
+    it('signing the same version twice adds no second row', async () => {
+      prisma.user.findUnique.mockResolvedValue(named);
+      const acceptedAt = new Date('2026-11-14T10:00:00Z');
+      prisma.staffAgreementAcceptance.findUnique.mockResolvedValue({ acceptedAt });
+
+      const result = await sign('Ama Mensah');
+
+      expect(result.acceptedAt).toBe(acceptedAt.toISOString());
+      expect(prisma.staffAgreementAcceptance.create).not.toHaveBeenCalled();
+      expect(auditService.logWrite).not.toHaveBeenCalled();
+    });
+
+    it('is not for patients', async () => {
+      await expect(
+        controller.signStaffAgreement(
+          { user: withRole(UserRole.PATIENT) },
+          { version: STAFF_AGREEMENT.version, signedName: 'Ama Mensah', agreed: true },
+        ),
+      ).rejects.toMatchObject({ status: 403 });
     });
   });
 });

@@ -93,9 +93,18 @@ for (const theme of ['light', 'dark']) {
           .evaluate((el) => getComputedStyle(el).position),
       ).toBe(width < 600 ? 'fixed' : 'sticky');
       const first = await page.getByLabel('First name', { exact: true }).boundingBox();
+      const middle = await page.getByLabel('Middle name(s)', { exact: true }).boundingBox();
       const last = await page.getByLabel('Last name', { exact: true }).boundingBox();
-      if (width >= 600) expect(Math.abs(first.y - last.y)).toBeLessThan(1);
-      else expect(last.y).toBeGreaterThan(first.y);
+      // First, middle and last read as one row from 600px; stacked in that order below (#342).
+      if (width >= 600) {
+        expect(Math.abs(first.y - middle.y)).toBeLessThan(1);
+        expect(Math.abs(first.y - last.y)).toBeLessThan(1);
+        expect(first.x).toBeLessThan(middle.x);
+        expect(middle.x).toBeLessThan(last.x);
+      } else {
+        expect(middle.y).toBeGreaterThan(first.y);
+        expect(last.y).toBeGreaterThan(middle.y);
+      }
       await finalActions(page);
       await noOverflow(page);
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -164,6 +173,37 @@ test('both registration routes keep their own clinic payload and registry links'
       residentialLocationStatus: 'NOT_RECORDED',
     });
     expect(value.body.dob).toBeUndefined();
+    // Left blank, the middle name is not sent at all (#342).
+    expect(value.body).not.toHaveProperty('middleName');
+  }
+});
+
+test('middle names are sent trimmed, and a 120-character one never widens the page (#342)', async ({
+  page,
+}) => {
+  await open(page);
+  const bodies = [];
+  await page.route(endpoint, (route) => {
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill({ status: 400, json: { message: 'Synthetic registration refusal' } });
+  });
+  await fill(page);
+  const middle = page.getByLabel('Middle name(s)', { exact: true });
+  await middle.fill('  Kwame   Agyei ');
+  await page.getByRole('button', { name: 'Create patient', exact: true }).click();
+  await expect(page.getByRole('alert', { name: 'Unable to save' })).toBeVisible();
+  expect(bodies[0]).toMatchObject({
+    firstName: 'Synthetic',
+    middleName: 'Kwame Agyei',
+    lastName: 'Registration',
+  });
+  await expect(middle).toHaveValue('  Kwame   Agyei ');
+
+  await middle.fill('A'.repeat(130));
+  await expect(middle).toHaveValue('A'.repeat(120));
+  for (const width of [320, 600, 1200]) {
+    await page.setViewportSize({ width, height: 900 });
+    await noOverflow(page);
   }
 });
 test('repeated synchronous submits share one pending request and refusal allows retry', async ({

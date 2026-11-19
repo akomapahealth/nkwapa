@@ -79,8 +79,8 @@ export function resolveKeycloakAdminConfig(
   const clientSecret = read(env, 'KEYCLOAK_ADMIN_CLIENT_SECRET');
   const realm = read(env, 'KEYCLOAK_REALM') ?? DEFAULT_REALM;
   const clientId = read(env, 'KEYCLOAK_ADMIN_CLIENT_ID') ?? DEFAULT_CLIENT_ID;
-  const publicClientId =
-    read(env, 'KEYCLOAK_CLIENT_ID') ?? read(env, 'KEYCLOAK_AUDIENCE') ?? DEFAULT_PUBLIC_CLIENT_ID;
+  // Not KEYCLOAK_AUDIENCE: that names the API (nkwapa-api), not the client the setup link opens.
+  const publicClientId = read(env, 'KEYCLOAK_CLIENT_ID') ?? DEFAULT_PUBLIC_CLIENT_ID;
   const timeoutMs = resolveTimeoutMs(env);
 
   const missing: string[] = [];

@@ -31,7 +31,10 @@ import {
   type StaffNameInput,
 } from '@/lib/account-name';
 import { ApiError, getErrorMessage } from '@/lib/api';
+import { accessPoints } from '@/lib/access-summary';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { useAuth } from '@/lib/auth-context';
+import { STAFF_AGREEMENT_PATH } from '@/lib/auth-routing';
 import { useBootstrap, type WhoAmIResponse } from '@/lib/bootstrap-context';
 import { formatRoleLabel } from '@/lib/ops';
 import { welcomeTourAudience } from '@/lib/welcome-tour';
@@ -178,12 +181,59 @@ function IdentityCard({ bootstrap }: { bootstrap: WhoAmIResponse }) {
               </li>
             ))}
           </ul>
+          <AccessPoints bootstrap={bootstrap} />
           <p className="text-xs leading-5 text-muted-foreground">
-            Roles are granted by a clinic administrator.
+            Roles are granted by a clinic administrator. If your access looks wrong, message them in
+            chat.
           </p>
+          {bootstrap.staffAgreement?.acceptedAt ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Confidentiality agreement signed on{' '}
+              {new Date(bootstrap.staffAgreement.acceptedAt).toLocaleDateString(undefined, {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+              .{' '}
+              <Link href={STAFF_AGREEMENT_PATH} className="font-medium text-primary underline">
+                Read it again
+              </Link>
+            </p>
+          ) : null}
         </section>
       </RecordSectionContent>
     </RecordSection>
+  );
+}
+
+/** What the active clinic's roles let this person do, in the sidebar's own terms (#329). */
+function AccessPoints({ bootstrap }: { bootstrap: WhoAmIResponse }) {
+  const points = accessPoints(bootstrap.effectivePermissionsForActiveClinic, {
+    stationWorkflow: isWebFeatureEnabled('stationWorkflow'),
+  });
+  if (points.length === 0) return null;
+  const clinicName = (bootstrap.availableClinics ?? bootstrap.memberships).find(
+    (clinic) => clinic.clinicId === bootstrap.activeClinicId,
+  )?.clinicName;
+  return (
+    <div className="space-y-1.5 pt-1">
+      <h3 className="text-xs font-medium text-foreground">
+        {clinicName ? `What you can do at ${clinicName}` : 'What you can do'}
+      </h3>
+      <ul className="space-y-1 text-xs leading-5">
+        {points.map((point) => (
+          <li key={point.label}>
+            <span className="font-medium text-foreground">{point.label}.</span>{' '}
+            <span className="text-muted-foreground">{point.where}</span>
+          </li>
+        ))}
+      </ul>
+      {bootstrap.memberships.length > 1 ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          Switch clinic from the header to see what you can do elsewhere.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

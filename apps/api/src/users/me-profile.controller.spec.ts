@@ -4,7 +4,7 @@ import type { ReqUser } from '../auth/auth.controller';
 import { MeProfileController } from './me-profile.controller';
 
 describe('MeProfileController', () => {
-  const NAME = { firstName: 'Ama', middleInitial: 'K', lastName: 'Mensah' };
+  const NAME = { firstName: 'Ama', middleName: 'K', lastName: 'Mensah' };
 
   function setup(roles: ReqUser['roles']) {
     const userProfileService = { updateName: jest.fn().mockResolvedValue({}) };

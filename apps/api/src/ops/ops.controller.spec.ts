@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole } from '@prisma/client';
+import { STAFF_AGREEMENT } from '@nkwapa/db';
 import { OpsController } from './ops.controller';
 import { OpsService } from './ops.service';
 import { ClinicScopeGuard } from '../auth/guards/clinic-scope.guard';
@@ -56,7 +57,7 @@ const systemAdminUser = {
 };
 
 const volunteerUser = {
-  user: { id: 'volunteer-1' },
+  user: { id: 'volunteer-1', staffAgreementVersion: STAFF_AGREEMENT.version },
   roles: [{ clinicId: 'clinic-1', role: UserRole.VOLUNTEER }],
 };
 

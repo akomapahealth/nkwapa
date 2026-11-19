@@ -100,14 +100,7 @@ export type TobaccoFormValues = {
 
 export type ClinicalFieldErrors = Record<string, string>;
 
-export function generateClinicalId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
-    const random = (Math.random() * 16) | 0;
-    const value = character === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
+export { generateClientId as generateClinicalId } from './outbox';
 
 function optionalNumber(value: string): number | null {
   if (!value.trim()) return null;

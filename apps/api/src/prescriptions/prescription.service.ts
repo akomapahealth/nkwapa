@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
+import { Injectable, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { Prescription, EncounterStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -44,6 +45,7 @@ export class PrescriptionService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly medicalHistoryService: MedicalHistoryService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
 
   private assertWritePermission(roles: ScopedRole[], clinicId: string): void {
@@ -141,6 +143,11 @@ export class PrescriptionService {
       userAgent: auditContext.userAgent,
     });
 
+    await this.risk?.recomputeEncounterAfterCommit({
+      encounterId,
+      trigger: 'PRESCRIPTION',
+      actorUserId: auditContext.actorUserId,
+    });
     return prescription;
   }
 
@@ -257,6 +264,11 @@ export class PrescriptionService {
       userAgent: auditContext.userAgent,
     });
 
+    await this.risk?.recomputeEncounterAfterCommit({
+      encounterId: existing.encounterId,
+      trigger: 'PRESCRIPTION',
+      actorUserId: auditContext.actorUserId,
+    });
     return updated;
   }
 
@@ -279,6 +291,11 @@ export class PrescriptionService {
       requestId: auditContext.requestId,
       ipAddress: auditContext.ipAddress,
       userAgent: auditContext.userAgent,
+    });
+    await this.risk?.recomputeEncounterAfterCommit({
+      encounterId: existing.encounterId,
+      trigger: 'PRESCRIPTION',
+      actorUserId: auditContext.actorUserId,
     });
   }
 }

@@ -5,6 +5,10 @@ on:
   push:
     branches: [main, release/dev]
 
+# Read-only by default; a job that needs more declares its own permissions block.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -21,9 +25,9 @@ jobs:
     name: Lint & Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -67,9 +71,9 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -110,9 +114,9 @@ jobs:
           --health-retries=20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -174,6 +178,13 @@ jobs:
           RUN_MEASUREMENT_UNITS_MIGRATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      # Middle names (#342): staff initials survive the rename to middleName.
+      - name: Verify middle name migration
+        run: npm run test --workspace=@nkwapa/db -- --runInBand src/middle-name-migration.integration.spec.ts
+        env:
+          RUN_MIDDLE_NAME_MIGRATION_TESTS: '1'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
       # The station line's guarantees (#167): one open station per patient, one winner per claim,
       # one review station per clinic, and row-level security on the new tables.
       - name: Verify station workflow safeguards
@@ -187,7 +198,7 @@ jobs:
       # plus the registry's completed-screening filter (#224), who actually screened (#227), the
       # volunteer directory and roster (#226), and idempotency keys (#307) on that same footing.
       - name: Verify organization and zone isolation end to end
-        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts src/ops/station-performer.integration.spec.ts src/volunteers/volunteer-roster.integration.spec.ts src/idempotency/idempotency.integration.spec.ts
+        run: npm run test --workspace=@nkwapa/api -- --runInBand src/tenancy/org-zone-isolation.integration.spec.ts src/patients/patient-registry-screened.integration.spec.ts src/encounters/encounter-queue-filters.integration.spec.ts src/patient-chart/patient-chart-glance.integration.spec.ts src/ops/station-performer.integration.spec.ts src/volunteers/volunteer-roster.integration.spec.ts src/idempotency/idempotency.integration.spec.ts src/follow-up/follow-up-risk.integration.spec.ts src/offline-grants/offline-grant.integration.spec.ts
         env:
           RUN_ORG_ZONE_ISOLATION_TESTS: '1'
           DATABASE_URL: ${{ env.DATABASE_URL }}
@@ -223,7 +234,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-reports
           path: |
@@ -239,9 +250,9 @@ jobs:
     name: Security Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -286,6 +297,8 @@ jobs:
       KEYCLOAK_ADMIN_CLIENT_SECRET: nkwapa-local-dev-secret
       KEYCLOAK_ISSUER: http://localhost:8080/realms/nkwapa
       KEYCLOAK_JWKS_URI: http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs
+      # The fresh realm import carries the audience mapper, so every e2e spec runs with the check on.
+      KEYCLOAK_AUDIENCE: nkwapa-api
       NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
       NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8080
       NEXT_PUBLIC_KEYCLOAK_REALM: nkwapa
@@ -299,6 +312,13 @@ jobs:
       FEATURE_GUIDED_CHRONIC_TABS_ENABLED: true
       NEXT_PUBLIC_FEATURE_GUIDED_CHRONIC_TABS_ENABLED: true
       NEXT_PUBLIC_FEATURE_PWA_INSTALL_ENABLED: true
+      # Specs read local rows through the app's Dexie handle: on disk they are encrypted (#207).
+      NEXT_PUBLIC_E2E_DB_HANDLE: 'true'
+      FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED: true
+      NEXT_PUBLIC_FEATURE_FOLLOW_UP_STRATIFICATION_ENABLED: true
+      FEATURE_OFFLINE_SESSION_ENABLED: true
+      # Offline session resume (#207): grants, unlock screens, and clinical data encrypted at rest.
+      NEXT_PUBLIC_FEATURE_OFFLINE_SESSION_ENABLED: true
       NATIONAL_ID_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000001'
       # The appointment acceptance suite needs a confirmed visit and a pending request to act on,
       # and neither can be created through the UI without one already existing.
@@ -380,13 +400,14 @@ jobs:
       # the E2E job only, so the limits themselves stay under test elsewhere.
       RATE_LIMIT_AUTH_WHOAMI_LIMIT: '100000'
       RATE_LIMIT_AUTH_ME_LIMIT: '100000'
+      RATE_LIMIT_AUTH_DEVICE_KEYS_LIMIT: '100000'
       RATE_LIMIT_SYNC_PULL_LIMIT: '100000'
       RATE_LIMIT_SYNC_PUSH_LIMIT: '100000'
       RATE_LIMIT_DEFAULT_LIMIT: '100000'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -481,7 +502,7 @@ jobs:
 
       - name: Upload Playwright artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-artifacts-${{ strategy.job-index }}
           path: |
@@ -501,9 +522,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, typecheck, test, security, e2e]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm

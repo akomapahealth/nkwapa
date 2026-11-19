@@ -26,7 +26,8 @@
   "actionTokenGeneratedByAdminLifespan": 43200,
   "attributes": {
     "actionTokenGeneratedByUserLifespan.reset-credentials": "900",
-    "actionTokenGeneratedByUserLifespan.verify-email": "86400"
+    "actionTokenGeneratedByUserLifespan.verify-email": "86400",
+    "adminEventsExpiration": "2592000"
   },
   "smtpServer": {
     "host": "${KC_SMTP_HOST}",
@@ -135,6 +136,24 @@
       "defaultAction": false,
       "priority": 50,
       "config": {}
+    },
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 10,
+      "config": {}
+    },
+    {
+      "alias": "webauthn-register",
+      "name": "Webauthn Register",
+      "providerId": "webauthn-register",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 70,
+      "config": {}
     }
   ],
   "defaultRoles": ["uma_authorization", "offline_access"],
@@ -173,7 +192,7 @@
       "baseUrl": "https://nkwapa.app",
       "enabled": true,
       "publicClient": true,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "redirectUris": [
@@ -186,10 +205,25 @@
       ],
       "webOrigins": ["https://nkwapa.app", "https://staging.nkwapa.app", "http://localhost:3000"],
       "attributes": {
-        "post.logout.redirect.uris": "https://nkwapa.app/*##https://nkwapa.app##https://staging.nkwapa.app/*##https://staging.nkwapa.app##http://localhost:3000/*##http://localhost:3000"
+        "post.logout.redirect.uris": "https://nkwapa.app/*##https://nkwapa.app##https://staging.nkwapa.app/*##https://staging.nkwapa.app##http://localhost:3000/*##http://localhost:3000",
+        "pkce.code.challenge.method": "S256"
       },
       "protocol": "openid-connect",
-      "fullScopeAllowed": true
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "nkwapa-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "nkwapa-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "nkwapa-api",
@@ -226,5 +260,9 @@
         "roles": ["manage-users"]
       }
     ]
-  }
+  },
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false
 }

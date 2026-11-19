@@ -13,13 +13,13 @@ export class MaintenanceProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Pick<Job, 'name'>): Promise<void> {
+  async process(job: Pick<Job, 'name'> & { data?: unknown }): Promise<void> {
     const sweep = this.scheduler.find(job.name);
     if (!sweep) {
       // A scheduler left in Redis by a version that had a sweep this one does not.
       this.logger.warn(JSON.stringify({ message: 'No maintenance sweep for job', job: job.name }));
       return;
     }
-    await sweep.run();
+    await sweep.run(job.data);
   }
 }

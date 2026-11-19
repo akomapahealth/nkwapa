@@ -173,6 +173,20 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
     "A browser's Web Push endpoint and keys (#250): delivery plumbing for staff and portal logins.",
   InboxNotification:
     "A person's in-app notifications: short operational text addressed to one staff member.",
+  StaffAgreementAcceptance:
+    "A staff member's signature on the confidentiality agreement (#330): about staff, never a patient.",
+  OfflineGrant:
+    'A device a staff member may resume an offline session on (#207): access plumbing, about staff, never a patient.',
+  PatientRiskAssessment:
+    'A derived follow-up tier (#336) from draft criteria awaiting clinical sign-off (#334); its inputs are exported in their own models.',
+  PatientRiskFlag:
+    'An operational alert (#337) that a patient needs someone today; derived from the tier and screening findings, which are exported in their own models.',
+  RiskFlagAcknowledgement:
+    'Who said "I\'m on it" to a flag (#337): about staff workload, never a patient measurement.',
+  FollowUpContact:
+    'Operational scheduling (#338): who is due a call or visit and when. Outcome indicators belong to #339, which decides what is exported.',
+  FollowUpAttempt:
+    'A call log (#338) with free-text notes and staff identities; any reading reported on it is exported as its own PatientMeasurement.',
   ResearchExport: "The export pipeline's own record of its runs.",
   ClinicResearchSettings: 'Per-clinic configuration for this pipeline.',
   ResearchExportSchedule: "A director's standing approval and cadence for this pipeline's runs.",

@@ -26,6 +26,9 @@ export function ChartFrame({
   height,
   summary,
   titleAs: Title = 'h3',
+  onSelectRow,
+  isRowSelectable,
+  selectRowLabel,
   children,
 }: {
   title: string;
@@ -41,6 +44,12 @@ export function ChartFrame({
   summary?: ReactNode;
   /** `h2` where the chart sits straight under the page's h1, so no level is skipped (#313). */
   titleAs?: 'h2' | 'h3';
+  /** Makes each table row's label a button: the keyboard path to whatever a bar click opens. */
+  onSelectRow?: (rowIndex: number) => void;
+  /** Rows with nothing behind them stay plain text. */
+  isRowSelectable?: (rowIndex: number) => boolean;
+  /** The accessible name of a row's button, when `onSelectRow` is set. */
+  selectRowLabel?: (row: ChartTableRow) => string;
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -98,7 +107,18 @@ export function ChartFrame({
               {rows.map((row, rowIndex) => (
                 <tr key={`${row.label}-${rowIndex}`} className="border-b border-rule">
                   <th scope="row" className="py-2 text-left font-normal text-foreground">
-                    {row.label}
+                    {onSelectRow && (isRowSelectable?.(rowIndex) ?? true) ? (
+                      <button
+                        type="button"
+                        onClick={() => onSelectRow(rowIndex)}
+                        aria-label={selectRowLabel?.(row)}
+                        className="-mx-1 inline-flex min-h-9 items-center rounded px-1 text-left text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"
+                      >
+                        {row.label}
+                      </button>
+                    ) : (
+                      row.label
+                    )}
                   </th>
                   {row.values.map((value, index) => (
                     <td key={index} className="py-2 pl-3 text-right tabular-nums text-foreground">

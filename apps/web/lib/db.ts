@@ -1,11 +1,23 @@
 import Dexie, { type Table } from 'dexie';
-import { migrateLegacyPulse } from './db-migrations';
+import {
+  REVISION_PARENTS,
+  deviceIdSetting,
+  migrateLegacyPulse,
+  stampRevisionClinic,
+} from './db-migrations';
+import type { OfflineSessionStamp } from '@nkwapa/db/offline-grant';
+import type { SealedBlob } from './offline-session/keys';
+import type { PasskeyUnlock } from './offline-session/webauthn';
+import { atRestMiddleware, setAtRestRequired, startAtRestSealing } from './offline-session/at-rest';
+import { isWebFeatureEnabled } from './feature-flags';
 
 export interface PatientRecord {
   id: string;
   primaryClinicId: string;
   patientCode: string;
   firstName: string;
+  /** Absent on a record cached before #342. */
+  middleName?: string | null;
   lastName: string;
   dob?: string;
   sex?: string;
@@ -22,6 +34,14 @@ export interface PatientRecord {
   residentialDistrict?: string | null;
   residentialCommunity?: string | null;
   residentialAddressNote?: string | null;
+  residentialDigitalAddress?: string | null;
+  residentialLandmark?: string | null;
+  // Decimal columns: strings from the sync projection, numbers from a local edit.
+  residentialLatitude?: number | string | null;
+  residentialLongitude?: number | string | null;
+  residentialPositionSource?: string | null;
+  residentialPositionAccuracyM?: number | null;
+  residentialPositionCapturedAt?: string | null;
   createdByUserId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -290,6 +310,8 @@ export interface MedicalHistoryRecord {
 export interface MedicalHistoryRevisionRecord {
   id: string;
   recordId: string;
+  /** Its record's clinic, stamped on the device: the key it is encrypted under (#207). */
+  clinicId?: string;
   revisionNumber: number;
   status: string;
   onsetDate?: string;
@@ -316,6 +338,8 @@ export interface PatientMedicationRecord {
 export interface PatientMedicationRevisionRecord {
   id: string;
   recordId: string;
+  /** Its record's clinic, stamped on the device: the key it is encrypted under (#207). */
+  clinicId?: string;
   revisionNumber: number;
   medicationName: string;
   drugId?: string | null;
@@ -391,6 +415,8 @@ export interface PatientPharmacyRecord {
 export interface PatientPharmacyRevisionRecord {
   id: string;
   recordId: string;
+  /** Its record's clinic, stamped on the device: the key it is encrypted under (#207). */
+  clinicId?: string;
   revisionNumber: number;
   name: string;
   phoneE164?: string | null;
@@ -484,6 +510,41 @@ export interface OutboxRecord {
   attempts?: number;
   lastAttemptAt?: string;
   lastFailure?: OutboxFailure;
+  /**
+   * Set when the change was recorded in an offline session (#207). Sent with the push, so the
+   * server can refuse it under a revoked or expired grant and record it with the audit.
+   */
+  offlineSession?: OfflineSessionStamp;
+}
+
+/**
+ * A staff member who can resume an offline session on this device (#207). One row per person.
+ *
+ * Only what the choose-who-you-are screen needs before unlocking is in the clear: the name, which
+ * staff on a clinic device are not secret, and the expiry, so an expired grant is never offered.
+ * The signed grant itself is sealed under the person's data key, and the data key exists here only
+ * wrapped by their PIN or passkey. Deleting this row never touches their queued changes.
+ */
+export interface OfflineIdentityRecord {
+  userId: string;
+  displayName: string;
+  grantId: string;
+  /** A copy for display; the signed expiry inside `sealedGrant` is the one checked on unlock. */
+  expiresAt: string;
+  /** `{ grant, keys }` sealed under the data key. */
+  sealedGrant: SealedBlob;
+  pin?: { salt: string; iterations: number; wrappedKey: SealedBlob };
+  passkey?: PasskeyUnlock & { wrappedKey: SealedBlob };
+  /** Wrong unlocks since the last right one. At five the row is deleted. */
+  failedAttempts: number;
+  lastRefreshedAt: string;
+  createdAt: string;
+}
+
+/** Small per-browser-profile settings. `deviceId` identifies this device to the API, not a person. */
+export interface DeviceSettingRecord {
+  key: string;
+  value: string;
 }
 
 export interface SyncStateRecord {
@@ -504,7 +565,9 @@ export type OpsCacheKind =
   | 'my-assigned'
   | 'station-board'
   | 'station-workspace'
-  | 'dashboard-shifts';
+  | 'dashboard-shifts'
+  // Open follow-up contacts due within the week, with what the record sheet needs (#338).
+  | 'follow-up-due';
 
 /**
  * The last copy of a clinic-operations view this device loaded, so it still renders offline.
@@ -574,6 +637,8 @@ export class NkwapaDb extends Dexie {
   sync_state!: Table<SyncStateRecord, string>;
   ops_cache!: Table<OpsCacheRecord, string>;
   portal_cache!: Table<PortalCacheRecord, string>;
+  offline_identity!: Table<OfflineIdentityRecord, string>;
+  device_settings!: Table<DeviceSettingRecord, string>;
 
   constructor() {
     super('NkwapaDb');
@@ -734,7 +799,67 @@ export class NkwapaDb extends Dexie {
             }
           });
       });
+    /*
+      v15 adds offline session resume (#207): who may resume offline on this device, and the
+      device's own id.
+
+      Two new stores. The device id is seeded here so an existing profile has one from the moment
+      it upgrades; a profile created at v15 gets one on first use. Queued changes are not touched:
+      a payload written before this version stays as it is and is read as it is, and only changes
+      queued by someone whose data key is loaded are sealed from now on.
+    */
+    this.version(15)
+      .stores({
+        offline_identity: 'userId',
+        device_settings: 'key',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table<DeviceSettingRecord, string>('device_settings')
+          .put(deviceIdSetting());
+      });
+    /*
+      Encryption at rest (#207). Every index that held a clinical value goes, because an index is
+      stored in the clear: a patient's region, a history category, a revision status, when a
+      screening was collected or reviewed, and which condition an adherence set is for. None was
+      queried. Revisions get their record's clinic, since that names the key they are encrypted
+      under.
+    */
+    this.version(16)
+      .stores({
+        patients: 'id, primaryClinicId, updatedAt',
+        medical_history_records: 'id, clinicId, patientId, updatedAt',
+        medical_history_revisions: 'id, recordId, createdAt',
+        patient_medication_revisions: 'id, recordId, createdAt',
+        tobacco_screenings: 'id, clinicId, encounterId, updatedAt',
+        diabetes_screenings: 'id, clinicId, encounterId, updatedAt',
+        hypertension_assessments: 'id, clinicId, encounterId, updatedAt',
+        medication_adherence: 'id, clinicId, encounterId, updatedAt',
+      })
+      .upgrade(async (transaction) => {
+        for (const [revisions, records] of REVISION_PARENTS) {
+          const clinicOf = new Map(
+            (await transaction.table(records).toArray()).map((row) => [row.id, row.clinicId]),
+          );
+          await transaction
+            .table(revisions)
+            .toCollection()
+            .modify((row, ref) => {
+              if (!stampRevisionClinic(row, clinicOf)) delete (ref as { value?: unknown }).value;
+            });
+        }
+      });
+    this.use(atRestMiddleware);
   }
 }
 
 export const db = new NkwapaDb();
+if (typeof window !== 'undefined') {
+  setAtRestRequired(isWebFeatureEnabled('offlineSession'));
+  startAtRestSealing(db);
+  // E2E builds only: specs read rows as the app sees them, since what is on disk is ciphertext.
+  // Adds nothing to what devtools can reach in an unlocked session, and a locked one reads sealed.
+  if (process.env.NEXT_PUBLIC_E2E_DB_HANDLE === 'true') {
+    (window as unknown as { __nkwapaDb?: NkwapaDb }).__nkwapaDb = db;
+  }
+}

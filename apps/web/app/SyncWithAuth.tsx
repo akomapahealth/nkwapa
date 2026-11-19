@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { getNotificationState, syncPushSubscription } from '@/lib/browser-notifications';
 import {
   ACCOUNT_NAME_PATH,
+  STAFF_AGREEMENT_PATH,
   STAFF_INVITE_ACCEPT_PATH,
   buildAccountNameHref,
   buildLoginHref,
@@ -24,10 +25,13 @@ import { ServiceWorkerAndSyncProvider } from './ServiceWorkerAndSyncProvider';
 export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   const getToken = useAuth();
   const bootstrapCtx = useBootstrap();
-  const { isAuthenticated, logout } = useKeycloak() ?? {
+  const keycloak = useKeycloak();
+  const { isAuthenticated, logout } = keycloak ?? {
     isAuthenticated: false,
     logout: () => undefined,
   };
+  // Never push or pull without a live token (#207, R7): an offline session sends after sign-in.
+  const offlineSession = keycloak?.authMode === 'offline-session';
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,10 +51,16 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   // subscription the browser rotated since the last visit.
   const userId = bootstrap?.userId;
   useEffect(() => {
-    if (isAuthenticated && userId && getToken && getNotificationState() === 'on') {
+    if (
+      isAuthenticated &&
+      !offlineSession &&
+      userId &&
+      getToken &&
+      getNotificationState() === 'on'
+    ) {
       void syncPushSubscription(getToken);
     }
-  }, [getToken, isAuthenticated, userId]);
+  }, [getToken, isAuthenticated, offlineSession, userId]);
 
   const onboardingPath = getOnboardingPath(bootstrap);
   const hasStaffInvites = (bootstrap?.pendingStaffInvites?.length ?? 0) > 0;
@@ -109,7 +119,11 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
     settings sit in the portal, not in a staff sidebar they cannot use (#206).
   */
   const isAccountPage =
-    pathname === '/settings' || pathname === '/account' || pathname === ACCOUNT_NAME_PATH;
+    pathname === '/settings' ||
+    pathname === '/settings/offline-access' ||
+    pathname === '/account' ||
+    pathname === ACCOUNT_NAME_PATH ||
+    pathname === STAFF_AGREEMENT_PATH;
   const isPortal =
     pathname?.startsWith('/portal') ||
     (isAccountPage && getDefaultWorkspacePath(bootstrap) === '/portal');
@@ -120,7 +134,8 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
   const isOnboardingRoute =
     pathname === '/claim-record' ||
     pathname === STAFF_INVITE_ACCEPT_PATH ||
-    (pathname === ACCOUNT_NAME_PATH && onboardingPath === ACCOUNT_NAME_PATH);
+    (pathname === ACCOUNT_NAME_PATH && onboardingPath === ACCOUNT_NAME_PATH) ||
+    (pathname === STAFF_AGREEMENT_PATH && onboardingPath === STAFF_AGREEMENT_PATH);
   const isDisabledAccount = bootstrapCtx?.errorCode === 'USER_DISABLED';
 
   if (isLoginRoute) {
@@ -129,8 +144,9 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
 
   const syncPermissions = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canSync =
-    syncPermissions.includes('*') ||
-    (syncPermissions.includes('SYNC.PUSH') && syncPermissions.includes('SYNC.PULL'));
+    !offlineSession &&
+    (syncPermissions.includes('*') ||
+      (syncPermissions.includes('SYNC.PUSH') && syncPermissions.includes('SYNC.PULL')));
 
   return (
     <ServiceWorkerAndSyncProvider

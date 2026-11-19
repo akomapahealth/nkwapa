@@ -17,6 +17,7 @@ import { PatientModule } from './patients/patient.module';
 import { EncounterModule } from './encounters/encounter.module';
 import { ClinicModule } from './clinics/clinic.module';
 import { SyncModule } from './sync/sync.module';
+import { OfflineGrantModule } from './offline-grants/offline-grant.module';
 import { ConsentModule } from './consents/consent.module';
 import { UserModule } from './users/user.module';
 import { ReminderModule } from './reminders/reminder.module';
@@ -37,6 +38,8 @@ import { SecurityHeadersMiddleware } from './common/security-headers.middleware'
 import { RateLimitGuard } from './common/rate-limit.guard';
 import { MedicalHistoryModule } from './medical-history/medical-history.module';
 import { PatientChartModule } from './patient-chart/patient-chart.module';
+import { ReferralReportModule } from './referral-report/referral-report.module';
+import { FollowUpModule } from './follow-up/follow-up.module';
 import { MedicationReconciliationModule } from './medication-reconciliation/medication-reconciliation.module';
 import { DiabetesScreeningModule } from './diabetes-screening/diabetes-screening.module';
 import { HypertensionAssessmentModule } from './hypertension-assessment/hypertension-assessment.module';
@@ -70,6 +73,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     EncounterModule,
     ClinicModule,
     SyncModule,
+    OfflineGrantModule,
     ConsentModule,
     ReminderModule,
     AdminModule,
@@ -85,6 +89,8 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     ChatModule,
     MedicalHistoryModule,
     PatientChartModule,
+    ReferralReportModule,
+    FollowUpModule,
     MedicationReconciliationModule,
     DiabetesScreeningModule,
     HypertensionAssessmentModule,

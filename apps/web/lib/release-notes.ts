@@ -39,9 +39,68 @@ const RELEASES_URL = 'https://api.github.com/repos/akomapahealth/nkwapa/releases
 
 /** Used when GitHub cannot be reached at build or revalidation time. Keep it on the latest release. */
 export const FALLBACK_RELEASE: Release = {
-  version: '2.1.0',
-  date: '2026-11-14',
+  version: '2.1.1',
+  date: '2026-11-18',
   groups: [
+    {
+      heading: 'New in 2.1.1',
+      items: [
+        {
+          lead: 'Volunteers sign a confidentiality agreement.',
+          text: 'Before using Nkwapa, a volunteer reads nine short points, ticks a box and types their name to sign. Existing volunteers are asked the next time they open the app. Your account page shows when you signed, with a link to read it again.',
+        },
+        {
+          lead: 'A notice when your role changes.',
+          text: 'When an administrator gives you a new role or removes one, Nkwapa tells you what changed. If you have no access left, it says so.',
+        },
+        {
+          lead: 'Search and filter a queue.',
+          text: 'Find a patient in a queue by name or patient code, even if they are not on the first page. Filter by blood pressure class, high glucose or the dates a visit was created.',
+        },
+        {
+          lead: 'The patient at a glance.',
+          text: "The chart Overview opens with the patient's conditions, latest blood pressure and glucose with their direction, medications and adherence, and risks such as allergies and tobacco.",
+        },
+        {
+          lead: 'Full middle names.',
+          text: 'Patients and staff can have a full middle name, not just an initial. Existing initials are kept.',
+        },
+        {
+          lead: 'Where a patient lives.',
+          text: "Record a patient's Digital Address, a landmark and their home's position on a map.",
+        },
+        {
+          lead: 'A password-protected referral report.',
+          text: "Doctors, volunteers and managers can make a PDF referral report for a patient, choose what goes in it, and download or email it. The PDF opens with a 16-character passcode. A patient's referral consent is recorded on the Consent tab, separately from research consent.",
+        },
+        {
+          lead: 'A welcome tour for each role.',
+          text: 'A short tour shows each role where its work lives. On a phone it appears as a centred dialog.',
+        },
+        {
+          lead: 'A second sign-in step.',
+          text: 'In Settings, staff can add an authenticator app or a passkey, so signing in asks for it after the password. System administrators must set one up.',
+        },
+      ],
+    },
+    {
+      heading: 'Improved in 2.1.1',
+      items: [
+        {
+          lead: 'The dashboard when you are offline.',
+          text: 'Instead of an error, the dashboard says its figures need a connection, shows what still works offline, and keeps any figures already on screen with the time they were loaded.',
+        },
+      ],
+    },
+    {
+      heading: 'Fixed in 2.1.1',
+      items: [
+        {
+          lead: 'Research exports open safely in spreadsheets.',
+          text: 'A value that starts like a spreadsheet formula is now exported as plain text.',
+        },
+      ],
+    },
     {
       heading: 'New in 2.1',
       items: [
@@ -85,152 +144,6 @@ export const FALLBACK_RELEASE: Release = {
         {
           lead: 'Settings on one page.',
           text: "Your settings sit in one readable column, with links to notifications, installing the app and your clinic's details.",
-        },
-      ],
-    },
-    {
-      heading: 'New in 2.0.1',
-      items: [
-        {
-          lead: 'Notifications while Nkwapa is closed.',
-          text: 'Turn on notifications in Profile on each device. Staff hear about new messages, patients assigned to them and notes waiting for their cosign, and patients hear when the clinic answers an appointment request. A notification never shows patient details. Signing out turns them off on that device, so the next person chooses for themselves. If you had notifications on before this release, sign in again so the device is set up.',
-        },
-        {
-          lead: 'Log in from the home page.',
-          text: 'The home page has a Log in button for invited accounts. The sign-in page asks whether you are a patient or clinic staff, and shows the help that fits you.',
-        },
-        {
-          lead: "Measurements in your clinic's units.",
-          text: "Glucose, weight, height and HbA1c are now entered and shown in your clinic's units. Ghana clinics see glucose in mmol/L (7.0 mmol/L is the same as 126 mg/dL). If a meter reads mg/dL, use the unit switch beside the glucose box. A director can change the clinic's units in clinic settings.",
-        },
-      ],
-    },
-    {
-      heading: 'Improved in 2.0.1',
-      items: [
-        {
-          lead: 'Cancelled appointments say who, when and why.',
-          text: 'A cancelled visit on the schedule is still crossed out. Underneath, it now says who cancelled it, when, and the reason they gave.',
-        },
-        {
-          lead: 'Queue tabs show the real count.',
-          text: 'A lane holding more than 50 visits shows its full number, and "Show more" loads the rest.',
-        },
-        {
-          lead: 'Appointment times are in clinic time.',
-          text: "Reschedule and confirm forms read and fill times in the clinic's time zone, whatever time zone your device is set to.",
-        },
-        {
-          lead: 'Ask for a new invitation.',
-          text: 'If your invitation link has expired, the "No invitation found" page has an "Ask for a new invitation" button. The clinic sees your request on the invitation and can send you a new one.',
-        },
-        {
-          lead: 'Tidy up the staff invitations list.',
-          text: 'Expired and cancelled invitations now have a Remove button. It takes them off the list without deleting the record, and you have a few seconds to undo. You can also filter the list by Open, Expired, Accepted or Cancelled.',
-        },
-        {
-          lead: 'The dashboard remembers your tab.',
-          text: 'It opens on the tab you used last, for each clinic.',
-        },
-        {
-          lead: 'Clinic settings has its own icon.',
-          text: 'It shows sliders in the account menu, so it no longer looks like Your settings.',
-        },
-      ],
-    },
-    {
-      heading: 'Fixed in 2.0.1',
-      items: [
-        {
-          lead: 'Clearer pages for screen readers.',
-          text: 'Headings and lists on Stations, Settings, the organization report, Data requests, Volunteers and the patient record are now in the right order, so screen readers announce them properly.',
-        },
-      ],
-    },
-    {
-      heading: 'New in 2.0',
-      items: [
-        {
-          lead: 'A new look across Nkwapa.',
-          text: 'Every staff page, the patient portal, the sign-in pages and the home page now share one calm layout: clear headings, numbers first, and teal only on what you can press. What you record, and how it is saved, has not changed.',
-        },
-        {
-          lead: '"Needs you now" at the top of every dashboard.',
-          text: "Volunteers, doctors, managers, directors and admins each see the work waiting for them first, with one button for each item, before today's counts and trends.",
-        },
-        {
-          lead: 'See how long patients have waited.',
-          text: "On the Today board and the manager dashboard each station is a lane, and each patient's bar grows with the minutes they have waited. Waits over 20 minutes are marked in words as well as colour, and a station with nobody on it says so.",
-        },
-        {
-          lead: 'A table under every chart.',
-          text: 'Every dashboard and report chart has a table switch, so you can read the exact numbers instead of estimating them from a line.',
-        },
-        {
-          lead: 'A week view for appointments.',
-          text: 'Appointments open on a seven-day strip; choose a day to see its visits. Times are shown in Ghana time and the page says so.',
-        },
-        {
-          lead: 'A side menu you can fold away.',
-          text: 'Fold the side menu down to icons for more room, with its button or the `[` key. Point at or tab to an icon to see its name.',
-        },
-      ],
-    },
-    {
-      heading: 'Improved in 2.0',
-      items: [
-        {
-          lead: 'Message delivery and Clinic settings have moved.',
-          text: 'Message delivery (formerly Notifications) is the send icon at the top of the page, and Clinic settings is in your account menu. The pages and who can open them are the same.',
-        },
-        {
-          lead: 'Setting up an account is one clear journey.',
-          text: 'From the invitation email to the first sign-in, each screen says which step you are on, and an expired or already-used link explains what happened and what to do next.',
-        },
-        {
-          lead: 'The patient portal works better on phones.',
-          text: 'Three main buttons along the bottom, one "Request an appointment" button, and your readings as a table as well as a chart.',
-        },
-        {
-          lead: 'Clearer queues and sign-off.',
-          text: "Each queue shows its count once, a visit's stage is written in words, and Finalize, Sign note and Cosign note look different from Save.",
-        },
-        {
-          lead: 'Corrections stay visible.',
-          text: 'A cancelled station stop or appointment time is crossed out, with who changed it and when, instead of disappearing.',
-        },
-        {
-          lead: 'Honest screens when the connection drops.',
-          text: 'A list that could not load says so instead of looking empty, a saved copy is marked as possibly out of date, and changes waiting to sync stay on screen. The top of the page says "Review saved changes" while anything is waiting.',
-        },
-        {
-          lead: 'Easier to use on phones and tablets.',
-          text: "Buttons and links are bigger, wide tables scroll inside their own box, and side panels stay clear of the phone's notch.",
-        },
-        {
-          lead: 'Forms show their problems first.',
-          text: 'When a form cannot be saved, a list of what to fix appears at the top, and screen readers announce error messages straight away.',
-        },
-        {
-          lead: 'A shorter, calmer home page.',
-          text: "Fewer words, real Akomapa photographs, and a What's New list that stays readable as releases grow.",
-        },
-        {
-          lead: 'Faster, steadier text.',
-          text: "Nkwapa's fonts now load from Nkwapa itself instead of an outside service.",
-        },
-      ],
-    },
-    {
-      heading: 'Fixed in 2.0',
-      items: [
-        {
-          lead: 'The Sex field at patient registration',
-          text: 'now has a proper label, so screen readers name it.',
-        },
-        {
-          lead: 'Hard-to-read text',
-          text: 'in the patient portal and on the home page now has enough contrast.',
         },
       ],
     },

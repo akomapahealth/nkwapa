@@ -44,6 +44,14 @@ import {
 import { seedDrugs } from './seed-drugs';
 import { DEFAULT_CLINIC_STATIONS } from '../src/clinic-stations';
 import { describeSeedPlan, planSeed, type SeedPlan } from '../src/seed-plan';
+import { STAFF_AGREEMENT } from '../src/staff-agreement';
+
+// Seeded staff count as having signed the confidentiality agreement (#330), so a fixture account
+// opens on its workspace. The agreement step itself is covered by a freshly invited account.
+const SIGNED_AGREEMENT = {
+  staffAgreementVersion: STAFF_AGREEMENT.version,
+  staffAgreementAcceptedAt: new Date(),
+};
 
 /**
  * Seeding creates the organization and clinic that a tenant context is later derived from, so it
@@ -172,6 +180,7 @@ async function ensureSingleRoleUser(
       lastName: lastNameParts.join(' ') || 'User',
       email: params.email,
       isActive: true,
+      ...SIGNED_AGREEMENT,
     },
     create: {
       keycloakSub: params.sub,
@@ -180,6 +189,7 @@ async function ensureSingleRoleUser(
       lastName: lastNameParts.join(' ') || 'User',
       email: params.email,
       isActive: true,
+      ...SIGNED_AGREEMENT,
     },
   });
 
@@ -1050,6 +1060,7 @@ async function main() {
         lastName: lastNameParts.join(' ') || 'Staff',
         email: e2eStaffEmail,
         isActive: true,
+        ...SIGNED_AGREEMENT,
       },
       create: {
         keycloakSub: e2eStaffSub,
@@ -1058,6 +1069,7 @@ async function main() {
         lastName: lastNameParts.join(' ') || 'Staff',
         email: e2eStaffEmail,
         isActive: true,
+        ...SIGNED_AGREEMENT,
       },
     });
     researchSettingsOwnerId ??= user.id;

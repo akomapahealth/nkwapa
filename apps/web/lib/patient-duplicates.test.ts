@@ -158,6 +158,31 @@ describe('buildComparisonRows', () => {
     expect(byLabel.get('Phone')?.matches).toBe(false);
   });
 
+  it('shows middle names only when either chart has them (#342)', () => {
+    const without = buildComparisonRows(patient(), patient({ id: 'patient-2' }));
+    expect(without.map((row) => row.label)).not.toContain('Middle name(s)');
+
+    const rows = buildComparisonRows(
+      patient({ middleName: 'Kwame Agyei' }),
+      patient({ id: 'patient-2' }),
+    );
+    const middle = rows.find((row) => row.label === 'Middle name(s)');
+    expect(middle).toMatchObject({ valueA: 'Kwame Agyei', valueB: 'Not recorded', matches: false });
+    expect(rows.map((row) => row.label).slice(0, 3)).toEqual([
+      'First name',
+      'Middle name(s)',
+      'Last name',
+    ]);
+  });
+
+  it('names a chart in full where it identifies the patient', () => {
+    expect(
+      patientDisplayName(
+        patient({ firstName: 'Nana', middleName: 'Kwame Agyei', lastName: 'Tuffour' }),
+      ),
+    ).toBe('Nana Kwame Agyei Tuffour');
+  });
+
   it('does not call two absent values a match', () => {
     // Two charts that each lack a phone number agree about nothing. Calling that a match would
     // inflate confidence in exactly the case where the record is thinnest.

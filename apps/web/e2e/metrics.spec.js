@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
+const { apiRequestAs } = require('../playwright/api-client');
 const { queueOfflineChange } = require('../playwright/outbox');
 const { storageStateFor } = require('../playwright/roles');
 
@@ -78,6 +79,106 @@ test.describe('as staff', () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(1);
+  });
+});
+
+test.describe('follow-up indicators (#339)', () => {
+  test.use({ storageState: storageStateFor('staff') });
+
+  test('shows each figure with its denominator, its definition and a CSV', async ({ page }) => {
+    await page.goto('/metrics');
+    const section = page.getByRole('region', { name: 'Hypertension control' });
+    await expect(page.getByRole('heading', { name: 'Follow-up', level: 2 })).toBeVisible();
+    await expect(section).toBeVisible();
+
+    // Every share names what it is out of.
+    const controlled = section.getByText('Controlled', { exact: true }).locator('..').locator('..');
+    await expect(controlled).toContainText(/\(\d+ of \d+\)/);
+
+    // The HEARTS360 definition, word for word, one press away.
+    await section
+      .getByRole('button', { name: /^Show help: BP below target at the patient's most recent/ })
+      .click();
+    await expect(page.getByRole('tooltip')).toContainText(
+      "BP below target at the patient's most recent reading, taken within the past 3 months",
+    );
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByRole('table', { name: 'Contacts this month' })).toBeVisible();
+    for (const row of ['Due', 'Completed', 'Missed', 'Attempts']) {
+      await expect(
+        page
+          .getByRole('table', { name: 'Contacts this month' })
+          .getByRole('row', { name: new RegExp(`^${row}`) }),
+      ).toBeVisible();
+    }
+
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download CSV' }).click();
+    expect((await download).suggestedFilename()).toMatch(/^follow-up-\d{4}-\d{2}\.csv$/);
+
+    // Another month reloads the figures.
+    await page.getByRole('combobox', { name: 'Month' }).click();
+    await page.getByRole('option').nth(1).click();
+    await expect(page.getByRole('listbox')).toHaveCount(0);
+    await expect(page.getByText(/^At the end of /)).toBeVisible();
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test('opens the patients behind a tier from the table view, each linking to their chart', async ({
+    page,
+  }) => {
+    await page.goto('/metrics');
+    const tiers = page.locator('[data-chart-frame]').filter({
+      has: page.getByRole('heading', { name: 'Patients by tier' }),
+    });
+    await tiers.getByRole('button', { name: 'Show table' }).click();
+    // Only tiers with patients are offered; the seed may have none in a fresh database.
+    const openers = tiers.getByRole('button', { name: /^Show the \d+ patients in the/ });
+    test.skip((await openers.count()) === 0, 'No tiered patients in this database');
+
+    await openers.first().click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByRole('heading', { name: / tier$/ })).toBeVisible();
+    const first = sheet.getByRole('link').first();
+    await expect(first).toHaveAttribute('href', /^\/clinics\/[0-9a-f-]+\/patients\/[0-9a-f-]+$/);
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+  });
+
+  test('shows the organization the same figures in its own tab', async ({ page }) => {
+    await page.goto('/reports/organization');
+    await page.getByRole('tab', { name: 'Follow-up' }).click({ timeout: 30_000 });
+    await expect(page.getByRole('region', { name: 'Hypertension control' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Download CSV' })).toBeEnabled();
+  });
+
+  test('keeps the figures from roles without metrics', async () => {
+    const whoami = (await apiRequestAs('staff', 'get', '/auth/whoami')).json();
+    const clinicId = whoami.activeClinicId;
+    const response = await apiRequestAs(
+      'volunteer',
+      'get',
+      `/clinics/${clinicId}/follow-up-metrics`,
+      {
+        clinicId,
+      },
+    );
+    expect(response.status()).toBe(403);
+    // Nor the organization's, which is for system admins only.
+    const clinics = (await apiRequestAs('staff', 'get', '/admin/clinics')).json();
+    const organizationId = clinics.find((clinic) => clinic.id === clinicId).organizationId;
+    const organization = await apiRequestAs(
+      'director',
+      'get',
+      `/organizations/${organizationId}/follow-up-metrics`,
+    );
+    expect(organization.status()).toBe(403);
   });
 });
 

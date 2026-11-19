@@ -76,7 +76,7 @@ export interface DoctorMetrics {
   clinicalMeasurements: ClinicalMeasurementMetrics;
   awaitingFinalization: number;
   patientsSeen: { today: number; week: number; month: number };
-  followUpComplianceRate: number;
+  carePlansWithFollowUpDateRate: number;
   hypertensionDistribution: Record<string, number>;
   diabetesStats: { flagged: number; total: number };
   recentEncounters: EncounterSummary[];
@@ -101,7 +101,7 @@ export interface DirectorMetrics {
   encounterVolumeTrend: TrendPoint[];
   screeningRates: { hypertension: number; diabetes: number };
   bpDistribution: Record<string, number>;
-  followUpComplianceRate: number;
+  carePlansWithFollowUpDateRate: number;
   staffActivity: StaffActivityRow[];
   encounterStatusDistribution: Record<string, number>;
   pendingClinicalNoteCosigns?: number;
@@ -140,8 +140,23 @@ export interface SystemAdminMetrics {
   appliedZoneCode: string | null;
 }
 
+/** An Urgent patient nobody has said "I'm on it" for (#337), oldest flag first. */
+export interface UrgentWorkItem {
+  patientId: string;
+  patientCode: string;
+  patientName: string;
+  /** When they became Urgent; null for a patient tiered before flags existed. */
+  raisedAt: string | null;
+}
+
 export interface DashboardResponse {
   summary: DashboardSummary;
+  /** With follow-up stratification on, for someone holding FOLLOW_UP.READ. */
+  /**
+   * `contactsDue`: follow-up contacts due today or overdue at this clinic (#338), sent only to
+   * someone who can record them.
+   */
+  urgent?: { unclaimed: number; items: UrgentWorkItem[]; contactsDue?: number };
   doctor?: DoctorMetrics;
   review?: ReviewMetrics;
   director?: DirectorMetrics;

@@ -38,6 +38,11 @@ const STAFF_STEPS: JourneyStep[] = [
     detail: 'So colleagues can see who did what.',
   },
   {
+    id: 'agreement',
+    label: 'Sign the confidentiality agreement',
+    detail: 'Read how patient information must be handled, then sign.',
+  },
+  {
     id: 'start',
     label: 'Start work',
     detail: 'Your workspace opens with a short tour.',
@@ -65,13 +70,19 @@ const PATIENT_STEPS: JourneyStep[] = [
 /**
  * The steps for a journey. The staff name step is listed only when the account still needs a
  * name: someone invited with their name already on file goes straight from accepting to work.
+ * The agreement step is listed only for roles that must sign (#330).
  */
 export function journeySteps(
   journey: OnboardingJourney,
-  { needsName = true }: { needsName?: boolean } = {},
+  {
+    needsName = true,
+    needsAgreement = false,
+  }: { needsName?: boolean; needsAgreement?: boolean } = {},
 ): JourneyStep[] {
   if (journey === 'patient') return PATIENT_STEPS;
-  return needsName ? STAFF_STEPS : STAFF_STEPS.filter((step) => step.id !== 'name');
+  return STAFF_STEPS.filter(
+    (step) => (needsName || step.id !== 'name') && (needsAgreement || step.id !== 'agreement'),
+  );
 }
 
 export type JourneyStepState = 'done' | 'current' | 'next';

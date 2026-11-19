@@ -16,6 +16,7 @@ export const SYNC_PATIENT_SELECT = {
   patientCode: true,
   primaryClinicId: true,
   firstName: true,
+  middleName: true,
   lastName: true,
   dob: true,
   sex: true,
@@ -29,6 +30,14 @@ export const SYNC_PATIENT_SELECT = {
   residentialDistrict: true,
   residentialCommunity: true,
   residentialAddressNote: true,
+  // A follow-up caller reads these offline before a home visit (#343).
+  residentialDigitalAddress: true,
+  residentialLandmark: true,
+  residentialLatitude: true,
+  residentialLongitude: true,
+  residentialPositionSource: true,
+  residentialPositionAccuracyM: true,
+  residentialPositionCapturedAt: true,
   mergedIntoPatientId: true,
   createdByUserId: true,
   createdAt: true,
@@ -52,6 +61,10 @@ export const SYNC_PATIENT_WITHHELD: Record<string, string> = {
     'Merge provenance is an administrative record reviewed online; pull already excludes merged patients.',
   mergedByUserId:
     'Merge provenance is an administrative record reviewed online; pull already excludes merged patients.',
+  currentRiskTier:
+    'Gated by FOLLOW_UP.READ, which sync pull does not check. The chart summary carries it to those allowed (#336).',
+  currentRiskAssessmentId:
+    'Points at a follow-up tier row, gated by FOLLOW_UP.READ. The chart summary carries it to those allowed (#336).',
 };
 
 export type SyncPatientProjection = Prisma.PatientGetPayload<{

@@ -1,25 +1,25 @@
 import {
-  MIDDLE_INITIAL_MESSAGE,
   formatStaffDisplayName,
-  middleInitialError,
-  normalizeMiddleInitial,
+  middleNameError,
+  normalizeMiddleName,
   normalizeStaffNamePart,
   staffNameMessage,
   staffNamePartError,
 } from '@nkwapa/db/staff-name';
 import { ApiError, apiFetch, readApiError, type GetToken } from './api';
+import { MIDDLE_NAME_LABEL } from './person-name';
 
 /** A staff name as the forms hold it: raw input, normalized on submit. */
 export interface StaffNameInput {
   firstName: string;
-  middleInitial: string;
+  middleName: string;
   lastName: string;
 }
 
 export interface SavedStaffName {
   userId: string;
   firstName: string | null;
-  middleInitial: string | null;
+  middleName: string | null;
   lastName: string | null;
   displayName: string;
 }
@@ -28,30 +28,30 @@ export type StaffNameField = keyof StaffNameInput;
 export type StaffNameErrors = Partial<Record<StaffNameField, string>>;
 
 /** Field order on screen, for focusing the first invalid one. */
-export const STAFF_NAME_FIELDS: StaffNameField[] = ['firstName', 'middleInitial', 'lastName'];
+export const STAFF_NAME_FIELDS: StaffNameField[] = ['firstName', 'middleName', 'lastName'];
 
-export const EMPTY_STAFF_NAME: StaffNameInput = { firstName: '', middleInitial: '', lastName: '' };
+export const EMPTY_STAFF_NAME: StaffNameInput = { firstName: '', middleName: '', lastName: '' };
 
 export function toStaffNameInput(
-  name: { firstName?: string | null; middleInitial?: string | null; lastName?: string | null } = {},
+  name: { firstName?: string | null; middleName?: string | null; lastName?: string | null } = {},
 ): StaffNameInput {
   return {
     firstName: name.firstName ?? '',
-    middleInitial: name.middleInitial ?? '',
+    middleName: name.middleName ?? '',
     lastName: name.lastName ?? '',
   };
 }
 
-/** "Ama K. Mensah" from whatever is typed so far, or null until both names are there. */
+/** "Ama Kukua Mensah" from whatever is typed so far, or null until both names are there. */
 export function previewStaffName(value: StaffNameInput): string | null {
   const firstName = normalizeStaffNamePart(value.firstName);
   const lastName = normalizeStaffNamePart(value.lastName);
   if (!firstName || !lastName) return null;
-  const initial = normalizeMiddleInitial(value.middleInitial);
+  const middleName = normalizeMiddleName(value.middleName);
   return formatStaffDisplayName({
     firstName,
     lastName,
-    middleInitial: initial && !middleInitialError(initial) ? initial : null,
+    middleName: middleName && !middleNameError(middleName) ? middleName : null,
   });
 }
 
@@ -66,9 +66,10 @@ export function validateStaffName(
   const errors: StaffNameErrors = {};
   const firstName = normalizeStaffNamePart(input.firstName);
   const lastName = normalizeStaffNamePart(input.lastName);
-  const middleInitial = normalizeMiddleInitial(input.middleInitial);
+  const middleName = normalizeMiddleName(input.middleName);
 
-  if (middleInitialError(middleInitial)) errors.middleInitial = MIDDLE_INITIAL_MESSAGE;
+  const middleError = middleNameError(middleName);
+  if (middleError) errors.middleName = staffNameMessage(middleError, MIDDLE_NAME_LABEL);
   if (optional && !firstName && !lastName) {
     return errors;
   }
@@ -102,7 +103,7 @@ export function staffNameErrorsFrom(error: unknown): StaffNameErrors {
 function toBody(input: StaffNameInput) {
   return JSON.stringify({
     firstName: normalizeStaffNamePart(input.firstName),
-    middleInitial: normalizeMiddleInitial(input.middleInitial),
+    middleName: normalizeMiddleName(input.middleName),
     lastName: normalizeStaffNamePart(input.lastName),
   });
 }

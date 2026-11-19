@@ -38,6 +38,9 @@ export const STAFF_INVITE_ACCEPT_PATH = '/accept-invite';
 /** Where a staff member enters or edits their own name (#225). */
 export const ACCOUNT_NAME_PATH = '/account/name';
 
+/** Where staff read and sign the confidentiality agreement (#330). */
+export const STAFF_AGREEMENT_PATH = '/account/agreement';
+
 /** The name step, remembering where the person was headed so they continue there after. */
 export function buildAccountNameHref(next: string | null | undefined): string {
   const safeNext = getSafeNextPath(next);
@@ -61,6 +64,8 @@ export function getOnboardingPath(bootstrap: WhoAmIResponse | null): string | nu
       return STAFF_INVITE_ACCEPT_PATH;
     case 'NAME_REQUIRED':
       return ACCOUNT_NAME_PATH;
+    case 'AGREEMENT_REQUIRED':
+      return STAFF_AGREEMENT_PATH;
     default:
       return null;
   }

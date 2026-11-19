@@ -31,4 +31,6 @@ export type EntityType =
   // starting a visit stay online. See docs/specs/04_OFFLINE_FIRST_AND_SYNC.md.
   | 'shift_check_in'
   | 'shift_check_out'
-  | 'patient_check_in';
+  | 'patient_check_in'
+  // A follow-up call recorded offline (#338). Taking and cancelling a contact stay online.
+  | 'follow_up_attempt';

@@ -25,6 +25,8 @@ import { OpsService } from '../ops/ops.service';
 import { createSyncMutationStore } from '../testing/sync-mutation-store';
 import { ClinicianPlanSealService } from './clinician-plan-seal.service';
 import { sealClinicianPlan } from '@nkwapa/db';
+import { OfflineGrantService } from '../offline-grants/offline-grant.service';
+import { getOfflineSession } from '../common/request-context.store';
 
 const mockUser = {
   user: { id: 'user-1' },
@@ -32,6 +34,7 @@ const mockUser = {
 };
 
 describe('SyncService', () => {
+  const offlineGrants = { refusalFor: jest.fn() };
   let service: SyncService;
   let moduleRef: TestingModule;
   let patientRepo: jest.Mocked<PatientRepository>;
@@ -159,6 +162,7 @@ describe('SyncService', () => {
         },
         // The real one: replay tests seal with the browser's own function and must open here.
         ClinicianPlanSealService,
+        { provide: OfflineGrantService, useValue: offlineGrants },
         {
           provide: MedicationAdherenceService,
           useValue: {
@@ -201,6 +205,7 @@ describe('SyncService', () => {
     medicationAdherenceService = module.get(MedicationAdherenceService);
     prescriptionService = module.get(PrescriptionService);
     opsService = module.get(OpsService);
+    offlineGrants.refusalFor.mockReset().mockResolvedValue(null);
   });
 
   describe('clinic operations replay', () => {
@@ -428,6 +433,68 @@ describe('SyncService', () => {
 
       expect(result).toMatchObject({ status: 'CONFLICT', conflictType: 'PATIENT_MERGED' });
       expect(opsService.createCheckIn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('writes queued in an offline session (#207)', () => {
+    const CHECKIN_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c12';
+    const stamp = {
+      grantId: '5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d',
+      deviceId: '6b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e',
+      unlockMethod: 'pin' as const,
+    };
+    const createdAt = '2026-03-21T08:15:00.000Z';
+    const stamped = (): SyncMutationDto =>
+      ({
+        id: 'mut-offline',
+        entityType: 'patient_check_in',
+        entityId: CHECKIN_ID,
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: {
+          schemaVersion: 1,
+          occurredAt: createdAt,
+          patientId: '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c13',
+        },
+        idempotencyKey: `ops:patient_check_in:${CHECKIN_ID}`,
+        createdAt,
+        offlineSession: stamp,
+      }) as SyncMutationDto;
+
+    it.each(['OFFLINE_GRANT_REVOKED', 'OFFLINE_GRANT_EXPIRED'] as const)(
+      'refuses a write under a grant the server will not honour (%s) without applying it',
+      async (code) => {
+        offlineGrants.refusalFor.mockResolvedValueOnce(code);
+
+        const [result] = await service.applyMutations('clinic-1', mockUser as never, [stamped()]);
+
+        expect(offlineGrants.refusalFor).toHaveBeenCalledWith('user-1', stamp, createdAt);
+        expect(result).toMatchObject({ status: 'ERROR', conflictType: code, retryable: false });
+        expect(opsService.createCheckIn).not.toHaveBeenCalled();
+        expect(prisma.syncMutation.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({ conflictType: code }),
+        });
+      },
+    );
+
+    it('applies a write under a live grant with the stamp ambient for its audit events', async () => {
+      let seen: unknown;
+      opsService.createCheckIn.mockImplementationOnce(async () => {
+        seen = getOfflineSession();
+        return { id: CHECKIN_ID } as never;
+      });
+
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [stamped()]);
+
+      expect(result.status).toBe('APPLIED');
+      expect(seen).toEqual(stamp);
+      expect(getOfflineSession()).toBeUndefined();
+    });
+
+    it('never consults grants for a write made online', async () => {
+      const online = { ...stamped(), offlineSession: undefined } as SyncMutationDto;
+      await service.applyMutations('clinic-1', mockUser as never, [online]);
+      expect(offlineGrants.refusalFor).not.toHaveBeenCalled();
     });
   });
 
@@ -820,6 +887,33 @@ describe('SyncService', () => {
 
       expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.ERROR);
       expect(diabetesScreeningService.upsert).not.toHaveBeenCalled();
+    });
+
+    it('stores the middle names a queued registration sends, and none from an older client (#342)', async () => {
+      process.env.NATIONAL_ID_ENCRYPTION_KEY = 'a'.repeat(64);
+      (patientRepo.findById as jest.Mock).mockResolvedValue(null);
+      const base = {
+        nationalId: '9876543210',
+        primaryClinicId: 'clinic-1',
+        firstName: 'Nana',
+        lastName: 'Tuffour',
+      };
+      await push([{ clinicId: 'clinic-1', role: 'VOLUNTEER' }], 'patient', {
+        ...base,
+        patientCode: 'NKP-2025-000901',
+        middleName: '  Kwame   Agyei ',
+      });
+      expect((prisma.patient.upsert as jest.Mock).mock.calls.at(-1)[0].create.middleName).toBe(
+        'Kwame Agyei',
+      );
+
+      await push([{ clinicId: 'clinic-1', role: 'VOLUNTEER' }], 'patient', {
+        ...base,
+        patientCode: 'NKP-2025-000902',
+      });
+      const older = (prisma.patient.upsert as jest.Mock).mock.calls.at(-1)[0];
+      expect(older.create).not.toHaveProperty('middleName');
+      expect(older.update).not.toHaveProperty('middleName');
     });
 
     it('lets a volunteer register a patient but not edit an existing chart', async () => {

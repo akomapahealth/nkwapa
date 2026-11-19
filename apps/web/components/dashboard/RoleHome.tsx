@@ -7,7 +7,7 @@ import { hasAnyPermission, hasPermission } from '@/lib/ops';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { MAIN_ROLE_PRECEDENCE, type MainRole } from '@/lib/main-role';
 import type { ZoneFilter, ZoneSummary } from '@/lib/clinic-zones';
-import type { DashboardWorkItem } from '@/lib/dashboard-work-items';
+import type { DashboardWorkItem, UrgentWork } from '@/lib/dashboard-work-items';
 import type { RecentVisit } from './recent-visit-columns';
 import {
   ClinicalMeasurementsDashboard,
@@ -23,6 +23,8 @@ import { SystemAdminDashboard } from './SystemAdminDashboard';
 import { StationFlowDashboard, stationFlowFigures, useStationFlow } from './StationFlowDashboard';
 
 export interface DashboardData {
+  /** Urgent patients nobody has taken (#337); only with follow-up stratification on. */
+  urgent?: UrgentWork;
   summary: {
     totalPatients: number;
     encountersToday: number;
@@ -35,7 +37,7 @@ export interface DashboardData {
     awaitingFinalization: number;
     awaitingFinalizationItems?: DashboardWorkItem[];
     patientsSeen: { today: number; week: number; month: number };
-    followUpComplianceRate: number;
+    carePlansWithFollowUpDateRate: number;
     hypertensionDistribution: Record<string, number>;
     diabetesStats: { flagged: number; total: number };
     recentEncounters: RecentVisit[];
@@ -56,7 +58,7 @@ export interface DashboardData {
     encounterVolumeTrend: { date: string; count: number }[];
     screeningRates: { hypertension: number; diabetes: number };
     bpDistribution: Record<string, number>;
-    followUpComplianceRate: number;
+    carePlansWithFollowUpDateRate: number;
     staffActivity: {
       userId: string;
       displayName: string;
@@ -248,9 +250,9 @@ export function RoleHome({
         { value: count.format(doctor.patientsSeen.week), label: 'finalized this week' },
         doctor.pendingClinicalNoteCosigns === undefined
           ? {
-              value: doctor.followUpComplianceRate,
+              value: doctor.carePlansWithFollowUpDateRate,
               unit: '%',
-              label: 'care plans with a follow-up',
+              label: 'care plans with a follow-up date',
             }
           : {
               value: count.format(doctor.pendingClinicalNoteCosigns),
@@ -261,7 +263,14 @@ export function RoleHome({
       work = (
         <DoctorDashboard
           {...doctor}
-          needs={<NeedsYouNow doctor={doctor} review={data?.review} worklistHref={null} />}
+          needs={
+            <NeedsYouNow
+              doctor={doctor}
+              review={data?.review}
+              urgent={data?.urgent}
+              worklistHref={null}
+            />
+          }
         >
           {data?.review ? <ReviewDashboard recentReviews={data.review.recentReviews} /> : null}
         </DoctorDashboard>
@@ -310,7 +319,12 @@ export function RoleHome({
     }
     work = data ? (
       <div className="space-y-10">
-        <NeedsYouNow clinic={clinic} worklistHref={null} title="Needs attention" />
+        <NeedsYouNow
+          clinic={clinic}
+          urgent={data.urgent}
+          worklistHref={null}
+          title="Needs attention"
+        />
         {showStationFlow ? <StationFlowDashboard flow={flow} showFigures={false} /> : null}
       </div>
     ) : null;
@@ -333,12 +347,23 @@ export function RoleHome({
           unit: '%',
           label: 'visits with a BP screen',
         },
-        { value: director.followUpComplianceRate, unit: '%', label: 'care plans with a follow-up' },
+        {
+          value: director.carePlansWithFollowUpDateRate,
+          unit: '%',
+          label: 'care plans with a follow-up date',
+        },
       ];
       work = (
         <DirectorDashboard
           {...director}
-          needs={<NeedsYouNow clinic={clinic} worklistHref={null} title="Needs attention" />}
+          needs={
+            <NeedsYouNow
+              clinic={clinic}
+              urgent={data.urgent}
+              worklistHref={null}
+              title="Needs attention"
+            />
+          }
         >
           {showStationFlow ? <StationFlowDashboard flow={flow} /> : null}
         </DirectorDashboard>

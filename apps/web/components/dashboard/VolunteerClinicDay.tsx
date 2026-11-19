@@ -34,10 +34,12 @@ function isStationsView(value: unknown): value is StationsView {
 export function VolunteerClinicDay({
   clinicId,
   volunteer,
+  urgent,
   worklistHref,
 }: {
   clinicId: string;
   volunteer: DashboardData['volunteer'];
+  urgent?: DashboardData['urgent'];
   worklistHref: string | null;
 }) {
   const bootstrap = useBootstrap()?.bootstrap;
@@ -77,7 +79,7 @@ export function VolunteerClinicDay({
     (item) => item.userId === bootstrap?.userId && item.status === 'ACTIVE',
   );
   const shift = ownShift && !ownShift.pendingCheckOut ? ownShift : undefined;
-  const rows = workRows({ volunteer, worklistHref }).map((row) =>
+  const rows = workRows({ volunteer, urgent, worklistHref }).map((row) =>
     row.label === 'Open drafts'
       ? { ...row, detail: 'Visits you started and have not submitted.' }
       : row,
@@ -85,7 +87,7 @@ export function VolunteerClinicDay({
   const stations = view.data?.board.stations.filter((station) => station.active) ?? [];
 
   return (
-    <div className="space-y-6" data-main-role="VOLUNTEER">
+    <div className="space-y-6" data-main-role="VOLUNTEER" data-tour="home-work">
       {showLine ? (
         <section
           aria-labelledby="volunteer-line-title"
