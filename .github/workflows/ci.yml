@@ -299,6 +299,9 @@ jobs:
       KEYCLOAK_JWKS_URI: http://localhost:8080/realms/nkwapa/protocol/openid-connect/certs
       # The fresh realm import carries the audience mapper, so every e2e spec runs with the check on.
       KEYCLOAK_AUDIENCE: nkwapa-api
+      # The API boots with NODE_ENV=production here, which requires this. No CI request sends it,
+      # so addresses fall back to the socket, as they would behind a proxy that dropped it.
+      CLIENT_IP_HEADER: true-client-ip
       NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
       NEXT_PUBLIC_KEYCLOAK_URL: http://localhost:8080
       NEXT_PUBLIC_KEYCLOAK_REALM: nkwapa
