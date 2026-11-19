@@ -8,7 +8,7 @@ import { SYNC_PUSH_MAX_BODY_SIZE } from './sync/sync.controller';
 import { StructuredLogger } from './common/structured-logger.service';
 import { flattenValidationErrors } from './common/validation';
 import { ApiExceptionFilter } from './common/http-exception.filter';
-import { getAllowedCorsOrigins } from './common/api-config';
+import { assertProductionConfig, getAllowedCorsOrigins } from './common/api-config';
 import { RateLimitGuard } from './common/rate-limit.guard';
 import { installRedisRejectionGuard } from './common/redis';
 
@@ -21,6 +21,7 @@ installRedisRejectionGuard((error) => {
 });
 
 async function bootstrap() {
+  assertProductionConfig();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: process.env.NODE_ENV === 'production' ? new StructuredLogger() : undefined,
   });
@@ -75,10 +76,6 @@ async function bootstrap() {
     exposedHeaders: ['X-Request-Id', 'X-Correlation-Id', 'Idempotent-Replayed', 'X-Total-Count'],
   });
 
-  if (process.env.NODE_ENV === 'production' && !process.env.CLIENT_IP_HEADER) {
-    // Rate limits and audit addresses would trust a client-written X-Forwarded-For.
-    console.warn('CLIENT_IP_HEADER is not set; client addresses can be spoofed');
-  }
   await app.listen(port);
   console.log(`API listening on http://localhost:${port}`);
 }
