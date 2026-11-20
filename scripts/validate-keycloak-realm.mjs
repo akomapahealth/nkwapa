@@ -415,10 +415,18 @@ for (const relativePath of ['html/executeActions.ftl', 'text/executeActions.ftl'
     `${relativePath} must not assume the reader is a patient`,
     themeEmailPath,
   );
+  // Invite wording (#383) shows only while the API's invite attributes are live, so a console
+  // reset weeks later falls through to the generic copy below.
   await assertThemeFileIncludes(
     relativePath,
-    'If you were invited to the patient portal',
-    `${relativePath} must keep the portal cross-reference conditional`,
+    '(expires?number > .now?long)',
+    `${relativePath} must gate invite wording on a live nkwapa_invite_expires`,
+    themeEmailPath,
+  );
+  await assertThemeFileIncludes(
+    relativePath,
+    'Choose your password',
+    `${relativePath} must keep the generic copy for non-invite resets`,
     themeEmailPath,
   );
 }
