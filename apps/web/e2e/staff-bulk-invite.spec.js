@@ -54,6 +54,14 @@ test('a CSV becomes reviewed, fixed invitations', async ({ page }) => {
   // The shouting capitals became a name.
   await expect(rows.getByLabel('Name, row 3')).toHaveValue('Ama Bulk');
 
+  // Phones stack each row, but select-all stays reachable above the list.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const selectAll = dialog.getByRole('checkbox', { name: 'Select all rows' });
+  await expect(selectAll).toBeVisible();
+  await expect(dialog.getByText('Select all', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('columnheader', { name: 'Email' })).toBeHidden();
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   // A broken row starts unticked; fixing it and ticking it brings it back.
   await rows.getByLabel('Email, row 4').fill(FIXED);
   await rows.getByLabel('Include row 4').check();

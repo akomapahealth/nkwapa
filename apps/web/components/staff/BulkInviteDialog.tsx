@@ -334,11 +334,15 @@ export function BulkInviteDialog({
                 role="row"
                 className={cn(
                   ROW_GRID,
-                  'sticky top-0 z-[1] hidden border-b border-border bg-background px-2 py-2 text-xs font-medium text-muted-foreground compact:grid',
+                  'sticky top-0 z-[1] border-b border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground compact:py-2',
                 )}
               >
-                <span role="columnheader" className="flex justify-center">
+                <span
+                  role="columnheader"
+                  className="flex h-11 items-center justify-center compact:h-auto"
+                >
                   <Checkbox
+                    id="bulk-select-all"
                     aria-label="Select all rows"
                     checked={allChosen}
                     disabled={sending || pending.length === 0}
@@ -347,10 +351,22 @@ export function BulkInviteDialog({
                     }
                   />
                 </span>
-                <span role="columnheader">Name</span>
-                <span role="columnheader">Email</span>
-                <span role="columnheader">Role</span>
-                <span role="columnheader">Status</span>
+                {/* Phones stack each row's fields, so only the select-all checkbox has a column. */}
+                <label htmlFor="bulk-select-all" className="text-sm compact:hidden">
+                  Select all
+                </label>
+                <span role="columnheader" className="hidden compact:block">
+                  Name
+                </span>
+                <span role="columnheader" className="hidden compact:block">
+                  Email
+                </span>
+                <span role="columnheader" className="hidden compact:block">
+                  Role
+                </span>
+                <span role="columnheader" className="hidden compact:block">
+                  Status
+                </span>
               </div>
               {rows.map((row) => {
                 const result = results[row.key];
