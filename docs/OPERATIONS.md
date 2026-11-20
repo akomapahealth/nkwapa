@@ -281,6 +281,7 @@ and logs each one under `[nkwapa-reconcile]`:
 
 - `nkwapa-web` refuses the password grant and requires PKCE (S256).
 - With `KC_WEB_ORIGINS` set, `nkwapa-web` accepts only those origins.
+- The login theme also reads `KC_WEB_ORIGINS` (its first origin) for "Back to sign in" and "Sign in to Nkwapa" on pages reached from an email link, which have no client to take an address from. Unset, those links point at `http://localhost:3000`, so set it on staging and production.
 - Login and admin events are stored for 30 days: Realm settings, Events, in the admin console.
 - The browser flow becomes `browser with admin second factor` (only if the realm still uses the
   built-in `browser` flow). Anyone holding Keycloak's `SYSTEM_ADMIN` realm role must use an

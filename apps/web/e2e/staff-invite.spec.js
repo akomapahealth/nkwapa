@@ -93,7 +93,7 @@ async function completeAccountSetup(page, email) {
   await page.fill('#password-new', PASSWORD);
   await page.fill('#password-confirm', PASSWORD);
   await page.click('input[type="submit"], button[type="submit"]');
-  await expect(page.getByText(/your account is ready/i)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/your password is saved/i)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('link', { name: /continue to nkwapa/i }).click();
 
   await page.waitForURL(/realms\/nkwapa/, { timeout: 60_000 });

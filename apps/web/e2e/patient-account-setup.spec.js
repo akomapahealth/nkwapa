@@ -158,7 +158,7 @@ test('the patient sets a password and reaches the claim form', async () => {
 
   // The defect this guards: info.ftl printed the message key, so this screen used to read
   // "accountUpdatedTitle" to the patient.
-  await expect(patientPage.getByText(/your account is ready/i)).toBeVisible({ timeout: 30_000 });
+  await expect(patientPage.getByText(/your password is saved/i)).toBeVisible({ timeout: 30_000 });
   await expect(patientPage.getByText('accountUpdatedTitle')).toHaveCount(0);
 
   await patientPage.getByRole('link', { name: /continue to nkwapa/i }).click();
