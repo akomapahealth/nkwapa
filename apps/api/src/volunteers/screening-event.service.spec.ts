@@ -48,16 +48,18 @@ describe('ScreeningEventService', () => {
     screeningEventAssignment: {
       findMany: jest.Mock;
       findFirst: jest.Mock;
+      findUnique: jest.Mock;
       update: jest.Mock;
       upsert: jest.Mock;
     };
     volunteerContact: { findMany: jest.Mock };
     clinic: { findUniqueOrThrow: jest.Mock };
-    user: { findUnique: jest.Mock };
+    user: { findUnique: jest.Mock; findFirst: jest.Mock };
     auditEvent: { count: jest.Mock };
   };
   let audit: { logWrite: jest.Mock };
   let reminders: { sendNotificationNow: jest.Mock };
+  let push: { notify: jest.Mock };
   let service: ScreeningEventService;
 
   beforeEach(() => {
@@ -70,6 +72,9 @@ describe('ScreeningEventService', () => {
       screeningEventAssignment: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(recipient),
+        findUnique: jest.fn().mockResolvedValue({
+          volunteerContact: { linkedUserId: null, email: 'ama@clinic.org' },
+        }),
         update: jest.fn(),
         upsert: jest.fn(),
       },
@@ -79,7 +84,10 @@ describe('ScreeningEventService', () => {
           .fn()
           .mockResolvedValue({ name: 'Clinic A', timezone: 'Africa/Accra' }),
       },
-      user: { findUnique: jest.fn().mockResolvedValue({ displayName: 'Kofi Manager' }) },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ displayName: 'Kofi Manager' }),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
       auditEvent: { count: jest.fn().mockResolvedValue(0) },
     };
     audit = { logWrite: jest.fn() };
@@ -87,11 +95,13 @@ describe('ScreeningEventService', () => {
       sendNotificationNow: jest.fn().mockResolvedValue({ id: 'reminder-1', status: 'QUEUED' }),
     };
     const emailStatus = { getStatus: () => ({ available: true }) };
+    push = { notify: jest.fn() };
     service = new ScreeningEventService(
       prisma as never,
       audit as never,
       reminders as never,
       emailStatus as never,
+      push as never,
     );
   });
 
@@ -290,6 +300,48 @@ describe('ScreeningEventService', () => {
       expect(result).toEqual({ reminderId: 'reminder-1', status: 'QUEUED' });
       expect(reminders.sendNotificationNow.mock.calls[0][0].payload.resend).toBe(true);
       expect(actions()).toEqual(['ROSTER.RESEND']);
+    });
+
+    it('also tells a volunteer with a linked account in Nkwapa', async () => {
+      prisma.screeningEventAssignment.findUnique.mockResolvedValue({
+        volunteerContact: { linkedUserId: 'user-ama', email: 'ama@clinic.org' },
+      });
+
+      await service.resend(CLINIC_A, EVENT_ID, ASSIGNMENT_ID, 'manager-a');
+
+      expect(reminders.sendNotificationNow.mock.calls[0][0].recipientUserId).toBe('user-ama');
+      expect(push.notify).toHaveBeenCalledWith(
+        ['user-ama'],
+        expect.objectContaining({
+          title: "Reminder: you're scheduled for Saturday screening",
+          body: expect.stringContaining('Community hall'),
+          kind: 'ASSIGNMENT',
+          clinicId: CLINIC_A,
+          tag: `roster:${ASSIGNMENT_ID}`,
+        }),
+      );
+      expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('finds an unlinked volunteer’s account by email at this clinic', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'user-ama' });
+
+      await service.resend(CLINIC_A, EVENT_ID, ASSIGNMENT_ID, 'manager-a');
+
+      expect(prisma.user.findFirst.mock.calls[0][0].where).toMatchObject({
+        email: { equals: 'ama@clinic.org', mode: 'insensitive' },
+        isActive: true,
+        clinicRoles: { some: { clinicId: CLINIC_A } },
+      });
+      expect(push.notify).toHaveBeenCalledWith(['user-ama'], expect.anything());
+    });
+
+    it('emails a volunteer without an account and files nothing in Nkwapa', async () => {
+      await service.resend(CLINIC_A, EVENT_ID, ASSIGNMENT_ID, 'manager-a');
+
+      expect(reminders.sendNotificationNow).toHaveBeenCalledTimes(1);
+      expect(reminders.sendNotificationNow.mock.calls[0][0].recipientUserId).toBeNull();
+      expect(push.notify).not.toHaveBeenCalled();
     });
 
     it(`refuses the resend after ${ROSTER_RESEND_LIMIT} in an hour with 429`, async () => {

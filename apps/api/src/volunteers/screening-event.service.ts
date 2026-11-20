@@ -5,18 +5,30 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { ScreeningEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailStatusService } from '../notifications/email/email-status.service';
+import { PushService } from '../push/push.service';
 import {
   VOLUNTEER_ROSTER_ASSIGNED_V1,
   VOLUNTEER_ROSTER_CANCELLED_V1,
   VOLUNTEER_ROSTER_REMOVED_V1,
   VOLUNTEER_ROSTER_UPDATED_V1,
+  formatEventWhen,
 } from '../notifications/templates/volunteer-roster';
+
+const ROSTER_TEMPLATES = new Map(
+  [
+    VOLUNTEER_ROSTER_ASSIGNED_V1,
+    VOLUNTEER_ROSTER_UPDATED_V1,
+    VOLUNTEER_ROSTER_CANCELLED_V1,
+    VOLUNTEER_ROSTER_REMOVED_V1,
+  ].map((template) => [template.key, template]),
+);
 import type {
   CancelScreeningEventDto,
   CreateScreeningEventDto,
@@ -52,6 +64,7 @@ export class ScreeningEventService {
     private readonly auditService: AuditService,
     private readonly reminderService: ReminderService,
     private readonly emailStatus: EmailStatusService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   async list(clinicId: string) {
@@ -454,27 +467,47 @@ export class ScreeningEventService {
     options: { markNotified?: boolean; extra?: Record<string, unknown> } = {},
   ) {
     const { event, clinic } = ctx;
+    const accountUserId = await this.accountFor(ctx.clinicId, recipient.id);
+    const payload = {
+      firstName: recipient.volunteerContact.displayName.trim().split(/\s+/)[0] ?? null,
+      clinicName: clinic.name,
+      timezone: clinic.timezone,
+      title: event.title,
+      startsAt: event.startsAt.toISOString(),
+      endsAt: event.endsAt.toISOString(),
+      siteName: event.siteName,
+      siteAddress: event.siteAddress,
+      notes: event.notes,
+      senderName: ctx.senderName,
+      ...options.extra,
+    };
     const reminder = await this.reminderService.sendNotificationNow({
       clinicId: ctx.clinicId,
       recipientType: 'USER',
+      recipientUserId: accountUserId,
       screeningEventAssignmentId: recipient.id,
       toAddress: recipient.volunteerContact.email,
       templateKey,
-      payload: {
-        firstName: recipient.volunteerContact.displayName.trim().split(/\s+/)[0] ?? null,
-        clinicName: clinic.name,
-        timezone: clinic.timezone,
-        title: event.title,
-        startsAt: event.startsAt.toISOString(),
-        endsAt: event.endsAt.toISOString(),
-        siteName: event.siteName,
-        siteAddress: event.siteAddress,
-        notes: event.notes,
-        senderName: ctx.senderName,
-        ...options.extra,
-      },
+      payload,
       actorUserId: ctx.actorUserId,
     });
+    // A volunteer with an account also sees it in Nkwapa; the email still goes regardless.
+    const template = ROSTER_TEMPLATES.get(templateKey);
+    if (accountUserId && template && this.push) {
+      try {
+        const parsed = template.parse(payload);
+        this.push.notify([accountUserId], {
+          title: template.render(parsed).subject,
+          body: [formatEventWhen(parsed), event.siteName].filter(Boolean).join(' · '),
+          url: '/notifications',
+          tag: `roster:${recipient.id}`,
+          kind: 'ASSIGNMENT',
+          clinicId: ctx.clinicId,
+        });
+      } catch {
+        // Best effort: the email is the record of being told, and it has already been queued.
+      }
+    }
     if (options.markNotified) {
       await this.prisma.screeningEventAssignment.update({
         where: { id: recipient.id },
@@ -482,6 +515,29 @@ export class ScreeningEventService {
       });
     }
     return reminder;
+  }
+
+  /**
+   * The Nkwapa account behind a roster entry, if any: the contact's linked account, else an
+   * active account with the same email and a role at this clinic (the rule `link` enforces).
+   */
+  private async accountFor(clinicId: string, assignmentId: string): Promise<string | null> {
+    const assignment = await this.prisma.screeningEventAssignment.findUnique({
+      where: { id: assignmentId },
+      select: { volunteerContact: { select: { linkedUserId: true, email: true } } },
+    });
+    const contact = assignment?.volunteerContact;
+    if (!contact) return null;
+    if (contact.linkedUserId) return contact.linkedUserId;
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: { equals: contact.email, mode: 'insensitive' },
+        isActive: true,
+        clinicRoles: { some: { clinicId } },
+      },
+      select: { id: true },
+    });
+    return user?.id ?? null;
   }
 
   private audit(
