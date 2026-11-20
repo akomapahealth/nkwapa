@@ -40,7 +40,8 @@ export function AppActionRow({
           ) : null}
         </div>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {/* Stacked on a phone, the action lines up with the text, not under the icon. */}
+      {action ? <div className="shrink-0 pl-8 sm:pl-0">{action}</div> : null}
     </li>
   );
 }

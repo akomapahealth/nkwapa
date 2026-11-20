@@ -49,9 +49,7 @@ for (const theme of ['light', 'dark']) {
       await expect(page.getByRole('button', { name: 'Collapse navigation' })).toBeVisible({
         visible: width >= 1200,
       });
-      await expect(
-        page.getByRole('banner').getByRole('link', { name: /^Notifications/ }),
-      ).toBeVisible();
+      await expect(page.getByRole('banner').getByLabel(/^Notifications/)).toBeVisible();
       await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible();
       if (!phone) {
         const bounds = await rail.locator('nav a').evaluateAll((links) =>

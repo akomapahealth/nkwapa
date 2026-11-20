@@ -102,8 +102,9 @@ for (const role of Object.keys(EXPECTED)) {
       });
 
       // The bell's name carries the unread count ("Notifications, 2 unread") when there is one.
-      const bell = banner.getByRole('link', { name: /^Notifications/ });
-      await expect(bell).toHaveAttribute('href', '/notifications');
+      // From tablet width the bell opens the latest in place, with a way to the full page.
+      const bell = banner.getByLabel(/^Notifications/);
+      await expect(bell).toHaveAttribute('aria-haspopup', 'dialog');
       const box = await hitTarget(bell);
       expect(box.height).toBeGreaterThanOrEqual(44);
       expect(box.width).toBeGreaterThanOrEqual(44);
@@ -128,7 +129,7 @@ for (const role of Object.keys(EXPECTED)) {
 
       // Phone: the bell stays in the header; the account items close the menu sheet.
       await page.setViewportSize({ width: 390, height: 844 });
-      await expect(banner.getByRole('link', { name: /^Notifications/ })).toBeVisible();
+      await expect(banner.getByLabel(/^Notifications/)).toBeVisible();
       await page.getByRole('button', { name: 'More', exact: true }).click();
       const sheet = page.getByRole('dialog');
       await expect
