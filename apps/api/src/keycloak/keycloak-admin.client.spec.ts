@@ -351,6 +351,46 @@ describe('KeycloakAdminClient', () => {
     });
   });
 
+  describe('invite attributes (#383)', () => {
+    it('merges into the full representation, removing attributes set to null', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(
+          jsonResponse({
+            id: 'u1',
+            email: 'ama@clinic.org',
+            attributes: { keep: ['yes'], nkwapa_invite_code: ['NKP-1'] },
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse(undefined, 204));
+
+      await expect(
+        client().setUserAttributes('u1', {
+          nkwapa_invite_clinic: 'Accra Clinic',
+          nkwapa_invite_code: null,
+        }),
+      ).resolves.toBe('UPDATED');
+
+      const [url, init] = fetchMock.mock.calls[2];
+      expect(String(url)).toBe('http://keycloak.test/admin/realms/nkwapa/users/u1');
+      expect(init.method).toBe('PUT');
+      expect(JSON.parse(String(init.body))).toEqual({
+        id: 'u1',
+        email: 'ama@clinic.org',
+        attributes: { keep: ['yes'], nkwapa_invite_clinic: ['Accra Clinic'] },
+      });
+    });
+
+    it('reports a missing identity rather than throwing', async () => {
+      fetchMock
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse({ error: 'User not found' }, 404));
+
+      await expect(client().setUserAttributes('gone', { a: 'b' })).resolves.toBe('NOT_FOUND');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('transport failures', () => {
     it('retries once when a cached token has been revoked under us', async () => {
       fetchMock

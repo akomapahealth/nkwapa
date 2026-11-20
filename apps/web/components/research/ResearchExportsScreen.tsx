@@ -511,8 +511,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
             <div className="border-t border-rule pt-4">
               <p className="text-sm font-medium text-foreground">Destination</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                The research storage this server is configured with. Completed runs show where they
-                were published.
+                This server&apos;s research storage. Completed runs show where they went.
               </p>
             </div>
 
@@ -587,7 +586,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
             Export activity
           </RecordSectionTitle>
           <RecordSectionDescription>
-            Manual and scheduled runs, approval, processing, publishing and downloads.
+            Manual and scheduled runs, approvals, publishing and downloads.
           </RecordSectionDescription>
         </RecordSectionHeader>
         <RecordSectionContent className="space-y-4">
@@ -652,7 +651,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
                 : {
                     title: 'No exports yet',
                     description:
-                      'Request your first research pack above. It will appear here while it waits for approval and while it processes.',
+                      'Request a research pack above. It shows here while it waits and runs.',
                     icon: FileArchive,
                   }
             }

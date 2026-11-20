@@ -391,6 +391,39 @@ export class ReminderService {
     return reminder;
   }
 
+  /**
+   * Records an email another system already sent, so the ledger stays the one list of what went
+   * out. Keycloak's account-setup email carries the whole invitation (#383) and is sent
+   * synchronously: execute-actions-email returns an error if SMTP refuses, so a call that
+   * succeeded is a send. Same template key as our own invite email, so filters and labels match.
+   */
+  async recordExternalSend(params: SendNotificationParams & { provider: string }) {
+    if (!isTemplateKey(params.templateKey)) {
+      throw new Error(`Unknown notification template: ${params.templateKey}`);
+    }
+    const now = new Date();
+    const reminder = await this.prisma.reminder.create({
+      data: {
+        clinicId: params.clinicId,
+        patientId: params.recipientType === 'PATIENT' ? (params.patientId ?? null) : null,
+        recipientType: params.recipientType,
+        recipientUserId: params.recipientType === 'USER' ? (params.recipientUserId ?? null) : null,
+        portalInviteId: params.portalInviteId ?? null,
+        staffInviteId: params.staffInviteId ?? null,
+        channel: 'EMAIL',
+        toAddress: params.toAddress ?? '',
+        templateKey: params.templateKey,
+        payloadJson: JSON.stringify(params.payload),
+        scheduledAt: now,
+        sentAt: now,
+        status: 'SENT',
+        providerMessageId: params.provider,
+      },
+    });
+    await this.auditReminderCreate(params.clinicId, params.actorUserId, reminder, params.requestId);
+    return reminder;
+  }
+
   async scheduleFollowUpReminder(params: ScheduleFollowUpParams): Promise<Reminder> {
     const payloadJson = JSON.stringify({
       patientCode: params.patientCode,

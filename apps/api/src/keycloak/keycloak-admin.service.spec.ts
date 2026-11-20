@@ -31,6 +31,7 @@ type ClientMock = {
   setUserEnabled: jest.Mock;
   logoutUser: jest.Mock;
   updateUserNames: jest.Mock;
+  setUserAttributes: jest.Mock;
 };
 
 function createClient(overrides: Partial<ClientMock> = {}): ClientMock {
@@ -43,6 +44,7 @@ function createClient(overrides: Partial<ClientMock> = {}): ClientMock {
     setUserEnabled: jest.fn().mockResolvedValue('UPDATED'),
     logoutUser: jest.fn().mockResolvedValue('LOGGED_OUT'),
     updateUserNames: jest.fn().mockResolvedValue('UPDATED'),
+    setUserAttributes: jest.fn().mockResolvedValue('UPDATED'),
     ...overrides,
   };
 }
@@ -356,5 +358,90 @@ describe('KeycloakAdminService.updateIdentityNames', () => {
       failureReason: 'KEYCLOAK_ADMIN_TIMEOUT',
     });
     expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).not.toContain('Mensah');
+  });
+});
+
+describe('KeycloakAdminService invite context (#383)', () => {
+  const CONTEXT = {
+    kind: 'staff' as const,
+    clinicName: 'Accra Clinic',
+    roleLabel: 'Volunteer',
+    inviterName: 'Dr Director',
+    expiresAt: new Date('2026-12-01T00:00:00.000Z'),
+  };
+
+  beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('writes the context before the setup email, so the email can render it', async () => {
+    const client = createClient();
+
+    await service(client).provisionInvitedIdentity({ ...INPUT, inviteContext: CONTEXT });
+
+    expect(client.setUserAttributes).toHaveBeenCalledWith('kc-1', {
+      nkwapa_invite_kind: 'staff',
+      nkwapa_invite_clinic: 'Accra Clinic',
+      nkwapa_invite_role: 'Volunteer',
+      nkwapa_invite_inviter: 'Dr Director',
+      nkwapa_invite_code: null,
+      nkwapa_invite_expires: String(CONTEXT.expiresAt.getTime()),
+    });
+    expect(client.setUserAttributes.mock.invocationCallOrder[0]).toBeLessThan(
+      client.executeActionsEmail.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('still sends the email when the context cannot be written', async () => {
+    const client = createClient({
+      setUserAttributes: jest
+        .fn()
+        .mockRejectedValue(new KeycloakAdminError('KEYCLOAK_ADMIN_TIMEOUT')),
+    });
+
+    const result = await service(client).provisionInvitedIdentity({
+      ...INPUT,
+      inviteContext: CONTEXT,
+    });
+
+    expect(result.outcome).toBe('PROVISIONED');
+    expect(client.executeActionsEmail).toHaveBeenCalled();
+  });
+
+  it('writes nothing for an account that needs no setup email', async () => {
+    const client = createClient({
+      findUserByEmail: jest
+        .fn()
+        .mockResolvedValue({ id: 'kc-2', enabled: true, emailVerified: true }),
+      hasPasswordCredential: jest.fn().mockResolvedValue(true),
+    });
+
+    await service(client).provisionInvitedIdentity({ ...INPUT, inviteContext: CONTEXT });
+
+    expect(client.setUserAttributes).not.toHaveBeenCalled();
+  });
+
+  it('clears every invite attribute, and never throws', async () => {
+    const client = createClient({
+      setUserAttributes: jest.fn().mockRejectedValue(new Error('boom')),
+    });
+
+    await expect(service(client).clearInviteContext('kc-1')).resolves.toBeUndefined();
+    expect(client.setUserAttributes).toHaveBeenCalledWith('kc-1', {
+      nkwapa_invite_kind: null,
+      nkwapa_invite_clinic: null,
+      nkwapa_invite_role: null,
+      nkwapa_invite_inviter: null,
+      nkwapa_invite_code: null,
+      nkwapa_invite_expires: null,
+    });
+  });
+
+  it('does nothing without an identity to clear', async () => {
+    const client = createClient();
+    await service(client).clearInviteContext(null);
+    expect(client.setUserAttributes).not.toHaveBeenCalled();
   });
 });

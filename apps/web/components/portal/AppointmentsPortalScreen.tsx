@@ -599,7 +599,7 @@ export function AppointmentsPortalScreen() {
                       density="compact"
                       icon={CalendarDays}
                       title="No appointments in this view"
-                      description="Confirmed appointments and past outcomes will appear here after your clinic schedules them."
+                      description="Confirmed and past visits show here once your clinic schedules them."
                     />
                   ) : (
                     <div className="space-y-3">

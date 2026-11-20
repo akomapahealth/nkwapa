@@ -28,7 +28,7 @@ export default function AdminClinicsPage() {
       <RouteGuard requiredPermission="CLINIC.MANAGE">
         <NoAccessState
           title="You don't have access to clinic administration"
-          description="Creating and deactivating clinics is limited to Directors and system admins. Staff and role changes are available to you under Staff."
+          description="Only Directors and system admins manage clinics. Staff and roles are under Staff."
           action={
             <Button asChild variant="outline">
               <Link href="/admin/users">Go to Staff</Link>
