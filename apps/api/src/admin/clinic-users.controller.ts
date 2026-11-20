@@ -19,6 +19,14 @@ import { ClinicScoped } from '../auth/decorators/clinic-scoped.decorator';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { AdminService } from './admin.service';
+import { IsOptional } from 'class-validator';
+import { ToSanitizedString } from '../common/validation';
+
+class SearchClinicUsersQueryDto {
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 120 })
+  q?: string;
+}
 
 @Controller('clinics/:clinicId/users')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
@@ -40,6 +48,21 @@ export class ClinicUsersController {
       },
       clinicId,
       status,
+    );
+  }
+
+  @Get('search')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.CLINIC_MANAGE)
+  async searchClinicUsers(
+    @Param('clinicId') clinicId: string,
+    @Query() query: SearchClinicUsersQueryDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.adminService.searchClinicUsers(
+      { userId: req.user.user.id, roles: req.user.roles },
+      clinicId,
+      query.q ?? '',
     );
   }
 

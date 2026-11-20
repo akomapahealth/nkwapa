@@ -33,6 +33,26 @@ describe('PatientRepository - residential location filters', () => {
     expect(where.OR).toBeUndefined();
   });
 
+  it('matches a full name across the name columns, word by word (smart search)', async () => {
+    await repository.findMany({ primaryClinicId: 'clinic-1', search: 'Ama  Mensah' });
+
+    const where = whereOf();
+    expect(where.primaryClinicId).toBe('clinic-1');
+    const fullName = (where.OR as Array<Record<string, unknown>>).find((entry) => 'AND' in entry);
+    const words = (fullName?.AND as Array<{ OR: Array<Record<string, { contains: string }>> }>).map(
+      (clause) => clause.OR[0].firstName.contains,
+    );
+    expect(words).toEqual(['Ama', 'Mensah']);
+  });
+
+  it('keeps a one-word search to the per-column match', async () => {
+    await repository.findMany({ primaryClinicId: 'clinic-1', search: 'Mensah' });
+
+    expect((whereOf().OR as Array<Record<string, unknown>>).some((entry) => 'AND' in entry)).toBe(
+      false,
+    );
+  });
+
   it('applies region and status as equality filters', async () => {
     await repository.findMany({
       primaryClinicId: 'clinic-1',

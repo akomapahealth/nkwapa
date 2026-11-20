@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MoreHorizontal, RefreshCw, Settings, UserPen } from 'lucide-react';
+import { MoreHorizontal, RefreshCw, Search, Settings, UserPen } from 'lucide-react';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { AppNavList } from '@/components/app-shell/AppNavList';
 import {
@@ -20,6 +20,7 @@ import { portalNavItems } from '@/lib/portal-nav';
 import { getNavItemHref, isNavItemActive, type AppNavItem } from '@/lib/app-nav';
 import { getMobileNavigation } from '@/lib/mobile-nav';
 import { cn } from '@/lib/utils';
+import { SMART_SEARCH_OPEN_EVENT } from '@/lib/smart-search';
 
 /** Shared phone presentation; each shell supplies its existing destinations. */
 export function BottomNav({
@@ -43,6 +44,7 @@ export function BottomNav({
       : isNavItemActive(pathname, item, clinicId);
   const [open, setOpen] = useState(false);
   const syncAfterClose = useRef(false);
+  const searchAfterClose = useRef(false);
   const moreTrigger = useRef<HTMLButtonElement>(null);
   const previousPath = useRef(pathname);
 
@@ -147,6 +149,13 @@ export function BottomNav({
             event.preventDefault();
             document.getElementById('main-content')?.focus();
           }
+          if (searchAfterClose.current) {
+            searchAfterClose.current = false;
+            event.preventDefault();
+            // The header's Smart Search owns the palette; More only hands over to it.
+            requestAnimationFrame(() => window.dispatchEvent(new Event(SMART_SEARCH_OPEN_EVENT)));
+            return;
+          }
           if (!syncAfterClose.current) return;
           syncAfterClose.current = false;
           event.preventDefault();
@@ -164,6 +173,19 @@ export function BottomNav({
           </SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-4">
+          {!portal ? (
+            <button
+              type="button"
+              className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-input bg-background px-3 text-left text-base text-muted-foreground transition-colors duration-fast hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => {
+                searchAfterClose.current = true;
+                setOpen(false);
+              }}
+            >
+              <Search aria-hidden="true" className="size-[18px] shrink-0" />
+              Search pages, patients, staff…
+            </button>
+          ) : null}
           {more.length > 0 && (
             <AppNavList
               bootstrap={bootstrap}

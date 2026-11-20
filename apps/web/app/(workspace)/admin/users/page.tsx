@@ -426,6 +426,11 @@ export default function AdminUsersPage() {
   const [portalFilter, setPortalFilter] = useState<PortalFilter>('ALL');
   // One search for the roster and the invitations below it (#383).
   const [query, setQuery] = useState('');
+  // Smart Search opens this page at a person: /admin/users?q=Name.
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.search).get('q');
+    if (fromLink) setQuery(fromLink);
+  }, []);
   const [rows, setRows] = useState<StaffAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
