@@ -39,7 +39,8 @@ export class ClinicStaffInvitesController {
   @Track('staff.invite.create')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.CLINIC_STAFF_INVITE)
-  @RateLimit({ key: 'staff_invite_create', limit: 30, windowSeconds: 600, scope: 'user' })
+  // 100, not 30: a CSV import sends one request per row (#383).
+  @RateLimit({ key: 'staff_invite_create', limit: 100, windowSeconds: 600, scope: 'user' })
   async create(
     @Param() params: ClinicIdParamDto,
     @Body() dto: CreateStaffInviteDto,

@@ -48,7 +48,7 @@ import {
   type OrganizationFilter,
 } from '@/lib/organization-filter';
 import { Badge } from '@/components/ui/badge';
-import { TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
+import { ListSearch, TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
 import { Button } from '@/components/ui/button';
 import {
   RecordSection,
@@ -424,6 +424,8 @@ export default function AdminUsersPage() {
   const [organizationFilter, setOrganizationFilter] = useState<OrganizationFilter>(null);
   const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
   const [portalFilter, setPortalFilter] = useState<PortalFilter>('ALL');
+  // One search for the roster and the invitations below it (#383).
+  const [query, setQuery] = useState('');
   const [rows, setRows] = useState<StaffAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -635,11 +637,19 @@ export default function AdminUsersPage() {
   const showOrganizationFilter =
     viewMode === 'all' && isSystemAdmin && shouldOfferOrganizationFilter(organizations);
 
+  const needle = query.trim().toLowerCase();
   const visibleRows = rows.filter(
     (row) =>
+      (!needle ||
+        row.displayName.toLowerCase().includes(needle) ||
+        (row.email ?? '').toLowerCase().includes(needle)) &&
       roleMatchesFilter(row, roleFilter) &&
       patientPortalMatchesFilter(row, portalFilter) &&
       memberMatchesZone(row.clinicMemberships, zoneLookup, appliedZoneFilter),
+  );
+  const showInvites = viewMode === 'clinic' && Boolean(activeClinicId) && canInviteStaff;
+  const memberEmails = new Set(
+    rows.flatMap((row) => (row.email && row.isActive ? [row.email.toLowerCase()] : [])),
   );
   const activeCount = rows.filter((row) => row.isActive).length;
   const inactiveCount = rows.filter((row) => !row.isActive).length;
@@ -1137,11 +1147,23 @@ export default function AdminUsersPage() {
           applies the same seats (a director of this clinic, or a system admin) and the role
           ceiling; this only avoids offering a button that would be refused.
         */}
-        {viewMode === 'clinic' && activeClinicId && canInviteStaff ? (
+        {/* Members and invitations are one list to the person looking someone up. */}
+        <ListSearch
+          id="staff-search"
+          label={showInvites ? 'Search staff and invitations' : 'Search staff'}
+          placeholder="Name or email…"
+          value={query}
+          onChange={setQuery}
+          className="max-w-xl"
+        />
+
+        {showInvites && activeClinicId ? (
           <StaffInvitesCard
             clinicId={activeClinicId}
             clinicName={activeClinicName}
             getToken={getToken}
+            query={query}
+            memberEmails={memberEmails}
             onChanged={() => void fetchRows({ background: true })}
           />
         ) : null}
@@ -1152,11 +1174,7 @@ export default function AdminUsersPage() {
               {viewMode === 'clinic' ? 'Clinic roster' : 'All users'}
             </h2>
             <p aria-live="polite" className="mt-1 text-sm text-muted-foreground">
-              {viewMode === 'clinic'
-                ? activeClinicName
-                  ? `Lifecycle controls for ${activeClinicName}.`
-                  : 'Choose a clinic to load the roster.'
-                : 'System-wide user visibility for platform administration.'}{' '}
+              {viewMode === 'clinic' && !activeClinicName ? 'Choose a clinic. ' : null}
               {loading ? null : (
                 <span className="tabular-nums">
                   Showing {visibleRows.length} of {rows.length}.

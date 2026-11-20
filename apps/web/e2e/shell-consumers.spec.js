@@ -117,12 +117,14 @@ for (const theme of ['light', 'dark']) {
     });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/admin/users');
-    const search = page.getByRole('searchbox', { name: 'Search invitations by name or email' });
+    const search = page.getByRole('searchbox', { name: 'Search staff and invitations' });
     await search.fill('Shell');
     const table = page.getByRole('table', { name: 'Staff invitations', exact: true });
     await expect(table).toBeVisible();
     await table.getByRole('button', { name: 'Invitee', exact: true }).click();
-    const invitations = page.locator('.data-table-adaptive').filter({ has: search });
+    const invitations = page
+      .locator('.data-table-adaptive')
+      .filter({ has: page.getByRole('group', { name: 'Show invitations', exact: true }) });
     await invitations.getByRole('button', { name: 'Next page', exact: true }).click();
     await expect(table.locator('tbody tr').first()).toContainText('Synthetic Shell 10');
     const before = requests;
