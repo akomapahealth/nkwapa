@@ -153,11 +153,11 @@ export function StationLineLanes({
 
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <span aria-hidden="true" className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded-sm bg-primary" />
+          <span className="h-3 w-5 rounded bg-primary" />
           Longest wait
         </span>
         <span aria-hidden="true" className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded-sm border border-warning bg-warning-surface" />
+          <span className="h-3 w-5 rounded border border-warning bg-warning-surface" />
           Over {LONG_WAIT_MINUTES} minutes
         </span>
         {onShiftNow !== null ? <span>{onShiftNow} staff on shift now.</span> : null}

@@ -307,7 +307,7 @@ export default function StationsPage() {
         }}
         className={cn(
           'flex flex-col bg-card p-0 pb-[env(safe-area-inset-bottom)]',
-          wideSheet ? 'w-full sm:max-w-md' : 'max-h-[85dvh] rounded-t-xl',
+          wideSheet ? 'w-full sm:max-w-md' : 'max-h-[85dvh] rounded-t-2xl',
         )}
       >
         <SheetHeader className="px-5 pb-4 pr-20 text-left">

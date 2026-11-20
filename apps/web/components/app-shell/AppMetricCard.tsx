@@ -81,11 +81,11 @@ export function AppMetricCard({
     </>
   );
   const bodyClass =
-    'flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg py-2 pl-3 text-left [@media(pointer:coarse)]:min-h-11';
+    'flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md py-2 pl-3 text-left [@media(pointer:coarse)]:min-h-11';
   return (
     <div
       className={cn(
-        'flex max-w-full shrink-0 snap-start items-center rounded-lg',
+        'flex max-w-full shrink-0 snap-start items-center rounded-md',
         help ? 'pr-1.5' : 'pr-3',
         zero
           ? 'text-muted-foreground shadow-[inset_0_0_0_1px_hsl(var(--border))]'
@@ -134,7 +134,7 @@ export function AppMetricGroup({
         tabIndex={0}
         className={cn(
           METRIC_ROW,
-          'rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+          'rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           className,
         )}
       >

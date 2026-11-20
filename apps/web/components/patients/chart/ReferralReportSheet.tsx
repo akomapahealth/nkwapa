@@ -218,7 +218,7 @@ export function ReferralReportSheet({
         side={wide ? 'right' : 'bottom'}
         className={cn(
           'flex flex-col bg-card p-0 pb-[env(safe-area-inset-bottom)]',
-          wide ? 'w-full sm:max-w-lg' : 'max-h-[92dvh] rounded-t-xl',
+          wide ? 'w-full sm:max-w-lg' : 'max-h-[92dvh] rounded-t-2xl',
         )}
       >
         <SheetHeader className="shrink-0 px-5 pb-4 text-left">

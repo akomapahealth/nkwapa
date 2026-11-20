@@ -186,7 +186,7 @@ export function ListFilters({
               side={wideSheet ? 'right' : 'bottom'}
               className={cn(
                 'flex flex-col bg-card p-0 pb-[env(safe-area-inset-bottom)]',
-                wideSheet ? 'w-full sm:max-w-lg' : 'max-h-[90dvh] rounded-t-xl',
+                wideSheet ? 'w-full sm:max-w-lg' : 'max-h-[90dvh] rounded-t-2xl',
               )}
             >
               <SheetHeader className="shrink-0 px-5 pb-4 text-left">

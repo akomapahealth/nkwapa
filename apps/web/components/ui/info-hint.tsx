@@ -96,7 +96,7 @@ export function InfoHint({
           collisionPadding={12}
           onOpenAutoFocus={(event) => event.preventDefault()}
           className={cn(
-            'z-[120] w-72 max-w-[calc(100vw-24px)] rounded-lg border border-border/80 bg-popover px-4 py-3 type-body text-left text-popover-foreground shadow-md outline-none',
+            'z-[120] w-72 max-w-[calc(100vw-24px)] rounded-xl border border-border/80 bg-popover px-4 py-3 type-body text-left text-popover-foreground shadow-md outline-none',
             // Scales from the trigger, not from its own centre. Exit is quicker than entry: the
             // user has already decided to move on.
             'anchored-overlay origin-[--radix-popover-content-transform-origin]',

@@ -68,4 +68,4 @@ Built around the physical screening day: a patient walks between stations, each 
 
 ## Accessibility & Inclusion
 
-WCAG 2.2 AA throughout. Touch targets at least 44px in the staff app and the portal; on a mouse, buttons are 36px and fields 40px, with small and icon buttons keeping a 44px hit area (owner decision 2026-11-10). Keyboard reachable, visible focus, reduced motion respected, light and dark themes both designed and measured. Plain-language labels for non-technical staff and patients.
+WCAG 2.2 AA throughout. Touch targets at least 44px in the staff app and the portal; on a mouse, buttons are 32px and fields 36px, every button keeping a 44px hit area (owner decisions 2026-11-10 and 2026-11-20). Keyboard reachable, visible focus, reduced motion respected, light and dark themes both designed and measured. Plain-language labels for non-technical staff and patients.

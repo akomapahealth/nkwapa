@@ -673,20 +673,17 @@ export function StationLineBoard() {
               aria-label="Station line legend"
             >
               <span className="inline-flex items-center gap-2">
-                <span aria-hidden="true" className="h-3 w-5 rounded-sm bg-primary" />
+                <span aria-hidden="true" className="h-3 w-5 rounded bg-primary" />
                 With staff
               </span>
               <span className="inline-flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="h-3 w-5 rounded-sm border border-input bg-muted"
-                />
+                <span aria-hidden="true" className="h-3 w-5 rounded border border-input bg-muted" />
                 Waiting
               </span>
               <span className="inline-flex items-center gap-2">
                 <span
                   aria-hidden="true"
-                  className="h-3 w-5 rounded-sm border border-warning bg-warning-surface"
+                  className="h-3 w-5 rounded border border-warning bg-warning-surface"
                 />
                 Waiting over {LONG_WAIT_MINUTES} min
               </span>
