@@ -168,7 +168,8 @@ export default function StationsPage() {
     !canWriteShift ||
     !shiftControls.canSubmit ||
     shiftControls.busy ||
-    view.isRefreshing ||
+    // Not view.isRefreshing: polling refreshes every 12 s and, on a slow clinic connection, that
+    // kept Start/End shift disabled most of the time (#385). The server refuses a stale change.
     awaitingShift !== null;
   const canUseStation =
     Boolean(currentShift && !currentShift.pendingSync && !currentShift.pendingCheckOut) &&

@@ -61,6 +61,19 @@ describe('OPS permissions', () => {
     }
   });
 
+  it('lets leaders end anyone’s shift without letting a director start one (#385)', () => {
+    expect(computeEffectivePermissions([UserRole.DIRECTOR])).toContain(
+      PERMISSIONS.OPS_SHIFT_MANAGE,
+    );
+    expect(computeEffectivePermissions([UserRole.DIRECTOR])).not.toContain(
+      PERMISSIONS.OPS_SHIFT_WRITE,
+    );
+    expect(computeEffectivePermissions([UserRole.MANAGER])).toContain(PERMISSIONS.OPS_SHIFT_MANAGE);
+    for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER]) {
+      expect(computeEffectivePermissions([role])).not.toContain(PERMISSIONS.OPS_SHIFT_MANAGE);
+    }
+  });
+
   it('grants managers clinic scope but not org-wide research export approval', () => {
     const permissions = computeEffectivePermissions([UserRole.MANAGER]);
 
