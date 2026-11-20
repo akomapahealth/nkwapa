@@ -55,7 +55,7 @@ import {
   type ResearchOverview,
 } from '@/lib/research';
 import { ResearchOverviewPanel } from './ResearchOverviewPanel';
-import { ResearchReasonDialog, type ReasonPrompt } from './ResearchReasonDialog';
+import { ReasonDialog, type ReasonPrompt } from '@/components/ui/reason-dialog';
 import { ResearchRunDetails } from './ResearchRunDetails';
 import { ResearchRunKey } from './ResearchRunKey';
 import { ResearchSchedulesPanel } from './ResearchSchedulesPanel';
@@ -875,7 +875,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
         </RecordSectionContent>
       </RecordSection>
 
-      <ResearchReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
+      <ReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
     </div>
   );
 }

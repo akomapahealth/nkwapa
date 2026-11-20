@@ -42,6 +42,7 @@ import { ClinicalNotePanel } from '@/components/clinical-notes/ClinicalNotePanel
 import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
 import styles from '@/components/encounters/encounter-workspace.module.css';
 import { confirmAction } from '@/components/ui/confirm-dialog';
+import { DraftDeleteSection } from '@/components/encounters/DraftDeleteSection';
 import { formatOpsDateTime, formatOpsDay } from '@/lib/ops';
 
 function hasPermission(permissions: string[], perm: string): boolean {
@@ -71,6 +72,7 @@ interface EncounterDetail {
   diabetesScreening?: Record<string, unknown>;
   hypertensionAssessment?: Record<string, unknown>;
   carePlan?: Record<string, unknown>;
+  clinicalNote?: { status: string } | null;
 }
 
 export default function EncounterDetailPage() {
@@ -333,6 +335,8 @@ export default function EncounterDetailPage() {
     encounter.preceptorReviewedById &&
     hasPermission(perms, 'DOCTOR.FINALIZE');
   const stage = encounterStage(encounter.status, Boolean(encounter.preceptorReviewedById));
+  const canDeleteDraft =
+    encounter.status === 'DRAFT' && Boolean(bootstrap?.globalRoles?.includes('SYSTEM_ADMIN'));
 
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
@@ -697,6 +701,20 @@ export default function EncounterDetailPage() {
             ) : null}
           </div>
         )}
+
+        {canDeleteDraft && clinicId && getToken ? (
+          <DraftDeleteSection
+            clinicId={clinicId}
+            encounterId={encounterId}
+            patientId={encounter.patientId}
+            noteStatus={encounter.clinicalNote?.status ?? null}
+            getToken={getToken}
+            onDeleted={async () => {
+              await syncNow(clinicId);
+              await fetchData();
+            }}
+          />
+        ) : null}
       </div>
     </RouteGuard>
   );
