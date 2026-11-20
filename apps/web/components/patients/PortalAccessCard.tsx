@@ -38,6 +38,7 @@ import {
   describeInviteContact,
   describeInviteDeliveryGap,
   describeInviteIdentity,
+  describeInviteEmail,
   describeInviteExpiry,
   describeInviteStatus,
   describePortalAccessStatus,
@@ -303,13 +304,9 @@ export function PortalAccessCard({
                       <dt className="sr-only">Invitation email</dt>
                       <dd>
                         <Badge
-                          variant={getStatusVariant(
-                            currentInvite.emailDelivery?.status ?? 'QUEUED',
-                          )}
+                          variant={getStatusVariant(describeInviteEmail(currentInvite).status)}
                         >
-                          {currentInvite.emailDelivery
-                            ? `Invite email ${currentInvite.emailDelivery.status.toLowerCase()}`
-                            : 'Invite email not sent'}
+                          {describeInviteEmail(currentInvite).label}
                         </Badge>
                       </dd>
                       {currentInvite.emailDelivery?.failureReason ? (

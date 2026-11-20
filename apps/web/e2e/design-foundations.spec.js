@@ -100,11 +100,13 @@ for (const theme of ['light', 'dark']) {
         expect(styles.roles[role].font).toMatch(/Source.?Serif.?4/i);
       for (const role of ['section-title', 'body', 'label', 'meta', 'metric', 'data'])
         expect(styles.roles[role].font).toMatch(/IBM.?Plex.?Sans/i);
-      expect(styles.roles['page-title'].size).toBe(width === 390 ? '30px' : '36px');
+      // #383: phones step titles and running text down a size (MASTER type table).
+      const phone = width === 390;
+      expect(styles.roles['page-title'].size).toBe(phone ? '24px' : '36px');
       expect(styles.roles['record-title'].size).toBe(width === 390 ? '24px' : '30px');
       for (const [role, size, lineHeight, weight] of [
-        ['section-title', '18px', '28px', '600'],
-        ['body', '16px', '24px', '400'],
+        ['section-title', phone ? '16px' : '18px', phone ? '24px' : '28px', '600'],
+        ['body', phone ? '15px' : '16px', phone ? '22px' : '24px', '400'],
         ['label', '14px', '20px', '500'],
         ['meta', '12px', '16px', '400'],
         ['metric', '32px', '36px', '600'],
@@ -141,7 +143,7 @@ for (const theme of ['light', 'dark']) {
         scroll: el.scrollWidth,
         body: getComputedStyle(el.querySelector('.type-body')).fontSize,
       }));
-      expect(zoomed.body).toBe('32px');
+      expect(zoomed.body).toBe(width === 390 ? '30px' : '32px');
       expect(zoomed.scroll).toBeLessThanOrEqual(zoomed.client);
     });
   }

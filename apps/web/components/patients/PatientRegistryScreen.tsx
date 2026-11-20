@@ -399,7 +399,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     return {
       title: otherFiltersActive ? 'No patients found' : 'No patients in this clinic yet',
       description: otherFiltersActive
-        ? 'Try a broader search term or clearing a filter, or confirm the patient is registered in this clinic.'
+        ? 'Try a broader search, clear a filter, or check they are registered here.'
         : 'Patients appear here as they are registered in this clinic.',
       icon: Users,
     };
@@ -495,7 +495,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         count={total}
         description="Search this clinic's records and move patients into care."
         helpTitle="How patient search works"
-        helpText="Search by name, patient code, phone number, or the last four digits of the stored ID. Results update as you type and stay scoped to this clinic. Open the chart from any result, or check the patient into OPS when your role allows it."
+        helpText="Name, patient code, phone, or the last four digits of the ID. Results stay in this clinic; open a chart or check the patient in."
         actions={
           canCreatePatient ? (
             <Button asChild>

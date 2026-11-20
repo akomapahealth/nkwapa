@@ -168,7 +168,7 @@ export function HealthPortalScreen() {
           <PortalHero
             clinicName={clinicName}
             title="Your health readings"
-            description="See how your readings change over time and share new readings with your care team."
+            description="Your readings over time. Share new ones with your care team."
             contentClassName="flex flex-wrap gap-3"
           >
             <Button asChild>

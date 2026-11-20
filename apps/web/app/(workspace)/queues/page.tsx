@@ -435,7 +435,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
         title="Queues"
         description="Visits moving from draft to review to sign-off."
         helpTitle="How the queues work"
-        helpText="Each lane groups encounters by the step they are currently in so staff can jump straight to the right record without bouncing between screens."
+        helpText="Each lane holds the visits at that step, so you can go straight to the record."
         actions={
           <Button
             variant="ghost"
@@ -600,8 +600,8 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
             <ResourceState
               state={state}
               errorTitle="The queues could not be loaded"
-              offlineDescription="You are offline. Reconnect to load the queues. Any visits already shown are the last version loaded."
-              offlineDetail="Reconnect to load the queues. Any visits already shown are the last version loaded."
+              offlineDescription="You are offline. Reconnect to load the queues. Showing the last visits loaded."
+              offlineDetail="Reconnect to load the queues. Showing the last visits loaded."
             >
               {(snapshot) => {
                 const page = snapshot.lanes[lane];
@@ -635,8 +635,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                     {lane === 'cosign' &&
                     (applied.bpClassification || applied.glucoseFlagged || applied.riskTier) ? (
                       <p className="text-sm text-muted-foreground">
-                        HAP notes are filtered by search and dates only. BP, glucose and tier
-                        filters do not apply to them.
+                        HAP notes filter by search and dates only.
                       </p>
                     ) : null}
                     {snapshot.counts === null && lane !== 'cosign' ? (
@@ -653,8 +652,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                       <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
                         <h2 className="type-section-title">No visits match</h2>
                         <p className="max-w-md text-sm leading-6 text-muted-foreground">
-                          Nothing in this lane matches the search and filters. Clear them to see the
-                          whole lane.
+                          Clear the search and filters to see the whole lane.
                         </p>
                         <Button
                           variant="outline"
@@ -674,7 +672,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                       ) : (
                         <p className="py-6 text-sm text-muted-foreground">
                           {!state.isOnline || state.isStale || state.isRefreshing
-                            ? 'No visits in the last loaded version. Refresh when connected to check this lane.'
+                            ? 'No visits in the last load. Refresh when back online.'
                             : 'The total and loaded visits differ. Refresh queues to check this lane.'}
                         </p>
                       ))}

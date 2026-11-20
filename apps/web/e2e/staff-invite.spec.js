@@ -4,7 +4,12 @@ const { fillStaffName } = require('../playwright/staff-name');
 
 const { storageStateFor } = require('../playwright/roles');
 const { apiRequestAs } = require('../playwright/api-client');
-const { clearMailpitInbox, findMessageTo, messageContent } = require('../playwright/mailpit');
+const {
+  clearMailpitInbox,
+  countMessagesTo,
+  findMessageTo,
+  messageContent,
+} = require('../playwright/mailpit');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -74,7 +79,7 @@ async function sendInvitation(page, email, name) {
 
 /** From the Keycloak setup email to a signed-in invitee, held on the acceptance page. */
 async function completeAccountSetup(page, email) {
-  const setup = await findMessageTo(email, { subjectMatch: /choose your nkwapa password/i });
+  const setup = await findMessageTo(email, { subjectMatch: /set up your nkwapa account/i });
   const link = (setup.Text || '').match(
     /https?:\/\/[^\s"<]*\/realms\/nkwapa\/login-actions\/action-token[^\s"<]+/,
   )?.[0];
@@ -137,18 +142,19 @@ test('a director-level admin invites a volunteer, and an account is created', as
   await expect(row.getByText('Account created')).toBeVisible({ timeout: 30_000 });
 });
 
-test('both emails arrive, and neither talks about a health record', async () => {
-  const invite = await findMessageTo(INVITE_EMAIL, { subjectMatch: /invited to join/i });
-  const inviteBody = messageContent(invite);
-  clinicName = invite.Subject.match(/join (.+) on Nkwapa/)?.[1];
-  expect(clinicName, 'the subject names the clinic').toBeTruthy();
+// #383: one email carries the whole invitation, where there used to be two.
+test('one email carries the invitation, and it says nothing about a health record', async () => {
+  const invite = await findMessageTo(INVITE_EMAIL, { subjectMatch: /set up your nkwapa account/i });
+  const body = messageContent(invite);
+  clinicName = (invite.Text || '').match(/Join (.+) on Nkwapa/)?.[1];
+  expect(clinicName, 'the email names the clinic').toBeTruthy();
 
-  expect(inviteBody).toContain('Volunteer');
-  expect(inviteBody).toContain('Choose your Nkwapa password');
-  expect(inviteBody).not.toMatch(/health record|patient code/i);
-
-  const setup = await findMessageTo(INVITE_EMAIL, { subjectMatch: /choose your nkwapa password/i });
-  expect(messageContent(setup)).toContain('/realms/nkwapa/login-actions/action-token');
+  expect(body).toContain('Volunteer');
+  expect(body).toContain('/realms/nkwapa/login-actions/action-token');
+  // Whole days, never "10079 minutes".
+  expect(body).toMatch(/expires in \d+ days?/);
+  expect(body).not.toMatch(/health record|patient code/i);
+  expect(await countMessagesTo(INVITE_EMAIL)).toBe(1);
 });
 
 test('the invitee sets a password, signs in, and is held on the acceptance page', async () => {
@@ -255,36 +261,35 @@ test('the agreement holds a volunteer until they sign with their own name', asyn
   await inviteePage.goto('/dashboard');
 });
 
-test('invitations keep status and search on separate tablet rows', async ({ page }) => {
-  // Search only appears above six invitations; pad the real list so a fresh database has enough.
-  await page.route(/\/clinics\/[^/]+\/staff-invites(\?.*)?$/, async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback();
-    const response = await route.fetch();
-    const body = await response.json();
-    const items = [...body.items];
-    for (let i = 0; items.length > 0 && items.length < 8; i += 1) {
-      items.push({ ...items[0], id: `synthetic-${i}`, email: `synthetic.${i}@nkwapa.local` });
-    }
-    await route.fulfill({ response, json: { ...body, items } });
-  });
+// #383: one search above both lists; the status filter keeps its own single row.
+test('one search covers staff and invitations, and the status filter stays on one row', async ({
+  page,
+}) => {
   await openInvitations(page);
+  const search = page.getByRole('searchbox', { name: 'Search staff and invitations', exact: true });
+  const invitations = page.getByRole('table', { name: 'Staff invitations', exact: true });
   for (const width of [600, 744, 840, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     const status = page.getByRole('group', { name: 'Show invitations', exact: true });
-    const search = page.getByRole('searchbox', {
-      name: 'Search invitations by name or email',
-      exact: true,
-    });
-    const groupBox = await status.boundingBox();
     const searchBox = await search.boundingBox();
-    expect(searchBox.y).toBeGreaterThanOrEqual(groupBox.y + groupBox.height);
-    expect(Math.abs(groupBox.width - searchBox.width)).toBeLessThanOrEqual(2);
+    const groupBox = await status.boundingBox();
+    expect(searchBox.y + searchBox.height).toBeLessThanOrEqual(groupBox.y);
     const tops = await status
       .getByRole('button')
       .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
     expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
   }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await search.fill(INVITE_EMAIL);
+  await expect(invitations.getByRole('row').filter({ hasText: INVITE_EMAIL })).toBeVisible();
+  // The same box filters the roster: the invitee accepted earlier, so they are on it once.
+  await expect(page.getByText(/^Showing 1 of \d+\.$/)).toBeVisible();
+  await expect(
+    page.getByRole('table', { name: 'Staff accounts' }).getByText(INVITE_EMAIL),
+  ).toBeVisible();
+  await search.fill('');
 });
 
 test('the profile page edits the name and phone, and the header follows without signing in again', async () => {

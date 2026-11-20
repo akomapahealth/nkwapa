@@ -511,7 +511,7 @@ html:not(.dark) .theme-dark-only {
   /* Public type roles for #265 and later page work. Keep their definitions
      emitted before consumers migrate; the Tailwind safelist names these roles. */
   .type-page-title {
-    @apply font-heading text-page-title font-semibold tracking-tight sm:text-page-title-lg;
+    @apply font-heading text-page-title-sm font-semibold tracking-tight sm:text-page-title-lg;
     overflow-wrap: anywhere;
   }
   .type-record-title {
@@ -519,10 +519,10 @@ html:not(.dark) .theme-dark-only {
     overflow-wrap: anywhere;
   }
   .type-section-title {
-    @apply font-body text-section-title font-semibold;
+    @apply font-body text-section-title-sm font-semibold sm:text-section-title;
   }
   .type-body {
-    @apply font-body text-body-copy font-normal;
+    @apply font-body text-body-copy-sm font-normal sm:text-body-copy;
   }
   .type-label {
     @apply font-body text-field-label font-medium;

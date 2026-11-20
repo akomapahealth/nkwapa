@@ -43,6 +43,9 @@ const PLAN = {
     '/status',
     '/research',
     '/volunteers',
+    '/follow-up',
+    '/settings/offline-access',
+    '/account/agreement',
   ],
   director: [
     '/dashboard',
@@ -465,6 +468,7 @@ test('public and authentication routes', async ({ page }) => {
   }
   for (const route of [
     '/api/version',
+    '/api/csp-report',
     '/manifest.webmanifest',
     '/opengraph-image',
     '/twitter-image',

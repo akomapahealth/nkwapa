@@ -23,3 +23,11 @@ export function describeInviteAccountSetup(
       return 'UNKNOWN';
   }
 }
+
+/**
+ * Whether Keycloak's setup email went out, which since #383 is the whole invitation: it names
+ * the clinic and role itself, so our own invite email is sent only when this is false.
+ */
+export function identityEmailSent(status: PortalInviteIdentityStatus): boolean {
+  return status === 'PROVISIONED' || status === 'EXISTING_PENDING';
+}

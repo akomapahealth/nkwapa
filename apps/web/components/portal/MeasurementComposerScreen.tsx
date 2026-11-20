@@ -296,7 +296,7 @@ export function MeasurementComposerScreen() {
 
         <PortalPanel
           title="Measurement details"
-          description="Record your reading and add notes if there is anything unusual your care team should know."
+          description="Add a note if anything about the reading was unusual."
         >
           <form
             onSubmit={handleSubmit}
@@ -447,7 +447,7 @@ export function MeasurementComposerScreen() {
                   id="notes"
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Optional context, such as symptoms, timing, or anything unusual about the reading."
+                  placeholder="Optional: symptoms, timing, anything unusual."
                   rows={5}
                   maxLength={2000}
                 />
@@ -515,7 +515,7 @@ export function MeasurementComposerScreen() {
                     density="compact"
                     icon={activeOption.icon}
                     title="No saved reading yet"
-                    description={`Your most recent ${activeOption.label.toLowerCase()} reading will appear here once you save one.`}
+                    description={`Your latest ${activeOption.label.toLowerCase()} reading shows here once you save one.`}
                   />
                 ) : (
                   <div className="border-b border-border py-3">

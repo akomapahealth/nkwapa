@@ -4,6 +4,7 @@ const { skipWelcomeTour } = require('../playwright/welcome-tour');
 const { storageStateFor } = require('../playwright/roles');
 const {
   clearMailpitInbox,
+  countMessagesTo,
   findMessageTo,
   mailpitFetch,
   messageContent,
@@ -112,38 +113,27 @@ test('staff invite a patient who has no account, and an account is created', asy
   await expect(page.getByText('Account created')).toBeVisible({ timeout: 30_000 });
 });
 
-test('both emails arrive, and each one names the other', async () => {
-  const invite = await findMessageTo(INVITE_EMAIL, { subjectMatch: /patient account/i });
-  const inviteBody = messageContent(invite);
+// #383: one email carries the invitation, the patient code and the setup link.
+test('one email carries the whole invitation', async () => {
+  const setup = await findMessageTo(INVITE_EMAIL, { subjectMatch: /set up your nkwapa account/i });
+  const body = messageContent(setup);
 
   // The claim step asks for this, and the email is where most patients will read it.
-  expect(inviteBody).toContain(patientCode);
-  // The sentence at the centre of the bug: registration is disabled, so this was never true.
-  expect(inviteBody).not.toMatch(/create an account/i);
-  expect(inviteBody).toContain('Choose your Nkwapa password');
-
-  const setup = await findMessageTo(INVITE_EMAIL, { subjectMatch: /choose your nkwapa password/i });
-  const setupBody = messageContent(setup);
-
+  expect(body).toContain(patientCode);
+  expect(body).toMatch(/patient account/i);
+  // The sentence at the centre of the original bug: registration is disabled.
+  expect(body).not.toMatch(/create an account/i);
   // Possession of the inbox is what authorises the flow. The link carries the action token.
-  expect(setupBody).toContain('/realms/nkwapa/login-actions/action-token');
-  expect(setupBody).toContain('key=');
-
-  /*
-    The pairing is one-directional on purpose, and the direction matters.
-
-    The invitation names this message by subject, because the message carrying the clinic and
-    the patient code is the one with standing to vouch for a bare link. This message cannot
-    return the favour unconditionally: every Keycloak required-actions email renders from the
-    same template, including the one an administrator sends when resetting a doctor's
-    password, and that reader has no invitation to be pointed at.
-  */
-  expect(setupBody).toContain('If you were invited to the patient portal');
-  expect(setupBody).not.toMatch(/health record online/i);
+  expect(body).toContain('/realms/nkwapa/login-actions/action-token');
+  expect(body).toContain('key=');
+  // Whole days, never "10079 minutes".
+  expect(body).toMatch(/expires in \d+ days?/);
+  expect(body).not.toMatch(/health record online/i);
+  expect(await countMessagesTo(INVITE_EMAIL)).toBe(1);
 });
 
 test('the patient sets a password and reaches the claim form', async () => {
-  const setup = await findMessageTo(INVITE_EMAIL, { subjectMatch: /choose your nkwapa password/i });
+  const setup = await findMessageTo(INVITE_EMAIL, { subjectMatch: /set up your nkwapa account/i });
   const link = (setup.Text || '').match(
     /https?:\/\/[^\s"<]*\/realms\/nkwapa\/login-actions\/action-token[^\s"<]+/,
   )?.[0];
@@ -205,7 +195,7 @@ test('resending does not create a second account or reset the chosen password', 
     action, which is exactly how a resend would take away the password the patient chose.
   */
   const search = await mailpitFetch(
-    `/api/v1/search?query=${encodeURIComponent(`to:${INVITE_EMAIL} subject:"Choose your Nkwapa password"`)}`,
+    `/api/v1/search?query=${encodeURIComponent(`to:${INVITE_EMAIL} subject:"Set up your Nkwapa account"`)}`,
   );
   const { messages } = await search.json();
   expect(messages).toHaveLength(1);
