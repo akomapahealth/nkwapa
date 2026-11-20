@@ -410,7 +410,7 @@ export default function StationsPage() {
           <SectionSkeleton lines={3} />
         ) : !knownShift ? (
           <InlineNotice tone="info">
-            Shift status is unavailable. Load the station line before starting or ending a shift.
+            Shift status is unavailable. Load the station line first.
           </InlineNotice>
         ) : (
           <StationShiftStrip
@@ -437,8 +437,7 @@ export default function StationsPage() {
         {closedNotice ? <InlineNotice tone="warning">{closedNotice}</InlineNotice> : null}
         {currentShift && (currentShift.pendingSync || currentShift.pendingCheckOut) ? (
           <InlineNotice tone="info" live={false}>
-            Your shift change still needs to sync. Station choices and taking patients need a
-            server-confirmed active shift.
+            Your shift change still needs to sync. Stations and patients wait until it does.
           </InlineNotice>
         ) : null}
         {myPatients.length ? (
@@ -480,7 +479,7 @@ export default function StationsPage() {
               No station yet
             </h2>
             <p className="text-sm text-muted-foreground">
-              Choose where you are working today. The patients waiting there will show here.
+              Choose where you are working today. Patients waiting there show here.
             </p>
             <Button disabled={!canUseStation} onClick={() => setStationSheetOpen(true)}>
               Choose your station

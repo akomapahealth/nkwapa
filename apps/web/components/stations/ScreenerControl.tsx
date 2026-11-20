@@ -114,7 +114,7 @@ export function ScreenerControl({
           <ScreenerNameField
             id={nameId}
             label="Name of the person screening"
-            hint="They don't need an account. Every patient you finish is recorded as seen by them, until you change this or end your shift."
+            hint="No account needed. Patients you finish are recorded as seen by them until you change this or end your shift."
             value={name}
             pickedId={contactId}
             error={error}
