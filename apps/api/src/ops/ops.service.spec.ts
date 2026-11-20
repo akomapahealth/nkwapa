@@ -869,17 +869,49 @@ describe('OpsService', () => {
         });
       });
 
-      it('refuses an end time before the shift began', async () => {
+      it('ends the shift now when a skewed device stamped the end before it began', async () => {
         prisma.staffShift.findUnique.mockResolvedValueOnce(shift());
 
-        const body = await errorBody(
-          service.checkOut(
-            'clinic-1',
-            SHIFT_ID,
-            'user-1',
-            replay('2026-03-21T07:00:00.000Z', checkoutRef),
-          ),
+        await service.checkOut(
+          'clinic-1',
+          SHIFT_ID,
+          'user-1',
+          replay('2026-03-21T07:00:00.000Z', checkoutRef),
         );
+
+        expect(prisma.staffShift.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ checkedOutAt: NOW }) }),
+        );
+      });
+
+      it('applies an end that syncs on a later clinic day, at the time it was tapped (#385)', async () => {
+        prisma.staffShift.findUnique.mockResolvedValueOnce(
+          shift({ checkedInAt: new Date('2026-03-20T08:00:00.000Z') }),
+        );
+
+        await service.checkOut(
+          'clinic-1',
+          SHIFT_ID,
+          'user-1',
+          replay('2026-03-20T17:00:00.000Z', checkoutRef),
+        );
+
+        expect(prisma.staffShift.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              status: 'CLOSED',
+              checkedOutAt: new Date('2026-03-20T17:00:00.000Z'),
+            }),
+          }),
+        );
+      });
+
+      it('still refuses a live end stamped before the start', async () => {
+        prisma.staffShift.findUnique.mockResolvedValueOnce(
+          shift({ checkedInAt: new Date('2026-03-21T13:00:00.000Z') }),
+        );
+
+        const body = await errorBody(service.checkOut('clinic-1', SHIFT_ID, 'user-1'));
 
         expect(body).toMatchObject({ code: 'INVALID_OPS_TIME_ORDER' });
       });
@@ -895,6 +927,44 @@ describe('OpsService', () => {
             replay('2026-03-21T11:00:00.000Z', checkoutRef),
           ),
         ).rejects.toThrow(ForbiddenException);
+      });
+    });
+
+    describe('a lead ending someone else’s shift (#385)', () => {
+      it('closes it, names who ended it on the audit row, and tells the owner', async () => {
+        const notify = jest.fn();
+        (service as unknown as { push: { notify: jest.Mock } }).push = { notify };
+        prisma.staffShift.findUnique.mockResolvedValueOnce(shift({ userId: 'volunteer-9' }));
+        prisma.staffShift.update.mockResolvedValueOnce(
+          shift({ userId: 'volunteer-9', status: 'CLOSED' }),
+        );
+        prisma.userClinicRole.findMany.mockResolvedValueOnce([{ role: 'DIRECTOR' }]);
+
+        await service.checkOut('clinic-1', SHIFT_ID, 'director-1');
+
+        expect(prisma.staffShift.update).toHaveBeenCalled();
+        const audit = auditService.logWrite.mock.calls.find(
+          ([entry]) => entry.action === 'SHIFT.CHECKOUT',
+        )?.[0];
+        expect(JSON.parse(audit.afterJson)).toMatchObject({
+          endedByUserId: 'director-1',
+          endedForUserId: 'volunteer-9',
+        });
+        expect(notify).toHaveBeenCalledWith(
+          ['volunteer-9'],
+          expect.objectContaining({ title: 'Your shift was ended', clinicId: 'clinic-1' }),
+        );
+      });
+
+      it('does not notify anyone when people end their own shift', async () => {
+        const notify = jest.fn();
+        (service as unknown as { push: { notify: jest.Mock } }).push = { notify };
+        prisma.staffShift.findUnique.mockResolvedValueOnce(shift());
+
+        await service.checkOut('clinic-1', SHIFT_ID, 'user-1');
+
+        expect(notify).not.toHaveBeenCalled();
+        expect(prisma.userClinicRole.findMany).not.toHaveBeenCalled();
       });
     });
 

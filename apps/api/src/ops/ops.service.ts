@@ -188,8 +188,9 @@ export class OpsService {
       throw new NotFoundException({ code: 'SHIFT_NOT_FOUND', message: 'Shift not found' });
     }
 
-    const canManage = await this.canManageClinicShift(clinicId, actorUserId);
-    if (existing.userId !== actorUserId && !canManage) {
+    const endedByOther = existing.userId !== actorUserId;
+    const canManage = endedByOther && (await this.canManageClinicShift(clinicId, actorUserId));
+    if (endedByOther && !canManage) {
       throw new ForbiddenException(
         'Only the shift owner or clinic managers can check out this shift',
       );
@@ -205,7 +206,12 @@ export class OpsService {
       });
     }
 
-    const checkedOutAt = await this.writeTime(clinicId, context);
+    let checkedOutAt = await this.writeTime(clinicId, context, { allowEarlierDay: true });
+    // A queued end stamped before the server's start (a skewed device clock) ends it now instead
+    // of being refused and leaving the shift open.
+    if (context.replay && checkedOutAt.getTime() < existing.checkedInAt.getTime()) {
+      checkedOutAt = new Date();
+    }
     if (checkedOutAt.getTime() < existing.checkedInAt.getTime()) {
       throw new BadRequestException({
         code: 'INVALID_OPS_TIME_ORDER',
@@ -246,10 +252,26 @@ export class OpsService {
         entityType: 'StaffShift',
         entityId: shift.id,
         beforeJson: JSON.stringify(existing),
-        afterJson: JSON.stringify(shift),
+        // Names who ended it when it was not the owner (#385).
+        afterJson: JSON.stringify(
+          endedByOther
+            ? { ...shift, endedByUserId: actorUserId, endedForUserId: shift.userId }
+            : shift,
+        ),
       });
       return shift;
     });
+
+    if (endedByOther) {
+      this.push?.notify([existing.userId], {
+        title: 'Your shift was ended',
+        body: 'A clinic lead ended your shift. Start a new one if you are still working.',
+        url: '/dashboard',
+        tag: `shift-ended:${existing.id}`,
+        kind: 'ASSIGNMENT',
+        clinicId,
+      });
+    }
 
     return this.toShiftDetail(updated);
   }
@@ -912,10 +934,19 @@ export class OpsService {
   }
 
   /** When an online write happens now; when a replayed one happened on the device. */
-  private async writeTime(clinicId: string, context: OpsWriteContext): Promise<Date> {
+  private async writeTime(
+    clinicId: string,
+    context: OpsWriteContext,
+    options?: { allowEarlierDay?: boolean },
+  ): Promise<Date> {
     const now = new Date();
     if (!context.replay) return now;
-    return resolveReplayTime(context.replay.occurredAt, now, await this.clinicTimeZone(clinicId));
+    return resolveReplayTime(
+      context.replay.occurredAt,
+      now,
+      await this.clinicTimeZone(clinicId),
+      options,
+    );
   }
 
   /**

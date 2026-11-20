@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -58,6 +59,28 @@ export class OpsController {
   async checkOut(
     @Param('clinicId') clinicId: string,
     @Param('shiftId') shiftId: string,
+    @Request()
+    req: {
+      user: ReqUserWithRoles;
+      headers?: { 'x-request-id'?: string };
+    },
+  ) {
+    return this.opsService.checkOut(clinicId, shiftId, req.user.user.id, {
+      requestId: req.headers?.['x-request-id'] ?? randomUUID(),
+    });
+  }
+
+  /**
+   * A manager, director or system admin ends someone else's shift (#385). Separate from
+   * check-out so a director can do it without OPS.SHIFT.WRITE, which would also let them start
+   * shifts; the service still checks the leader's seat at this clinic.
+   */
+  @Post('shifts/:shiftId/end')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_SHIFT_MANAGE)
+  async endShift(
+    @Param('clinicId') clinicId: string,
+    @Param('shiftId', ParseUUIDPipe) shiftId: string,
     @Request()
     req: {
       user: ReqUserWithRoles;

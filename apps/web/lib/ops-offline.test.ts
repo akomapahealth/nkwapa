@@ -206,6 +206,32 @@ describe('overlayPendingShifts', () => {
     expect(shift).toMatchObject({ shiftId: 'shift-server', pendingCheckOut: 'retrying' });
   });
 
+  it('leaves out a refused start, so it no longer shows as on duty (#385)', () => {
+    const shifts = overlayPendingShifts(
+      [],
+      pendingOpsWrites([start({ syncState: 'blocked' })]),
+      me,
+    );
+
+    expect(shifts).toEqual([]);
+  });
+
+  it('offers End shift again after a refused end, instead of "saved on this device" forever', () => {
+    const end = queued(
+      buildShiftCheckOutMutation({
+        ...actor,
+        shiftId: 'shift-server',
+        occurredAt: '2026-03-21T12:00:00.000Z',
+      }),
+      { syncState: 'blocked' },
+    );
+
+    const [shift] = overlayPendingShifts([serverShift()], pendingOpsWrites([end]), me);
+
+    expect(shift.shiftId).toBe('shift-server');
+    expect(shift.pendingCheckOut).toBeUndefined();
+  });
+
   it('attributes a queued shift to whoever queued it, not whoever is signed in now', () => {
     const shifts = overlayPendingShifts([], pendingOpsWrites([start()]), {
       userId: 'user-7',

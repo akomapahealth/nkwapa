@@ -161,21 +161,25 @@ export const PENDING_SYNC_LABEL: Record<OutboxSyncState, string> = {
  *
  * The server's copy always wins: once a queued start of shift appears in a loaded roster it has
  * applied, and the queued copy is no longer drawn. A queued end of shift keeps the shift listed,
- * marked as ending, because the person is still on the floor until the server agrees.
+ * marked as ending, because the person is still on the floor until the server agrees. Blocked
+ * changes are left out; the sync center still lists them.
  */
 export function overlayPendingShifts(
   shifts: readonly ActiveShift[],
   pending: readonly PendingOpsWrite[],
   actor: { userId: string | null | undefined; displayName?: string | null },
 ): WithPendingSync<ActiveShift>[] {
+  // A blocked change will never apply (#385). Drawing it kept a refused start on screen as "on
+  // duty" and hid End shift behind a refused end, so the person could never end the shift.
+  const live = pending.filter((write) => write.state !== 'blocked');
   const ending = new Map(
-    pending
+    live
       .filter((write) => write.entityType === OPS_ENTITY.SHIFT_CHECK_OUT)
       .map((write) => [write.entityId, write.state]),
   );
   const known = new Set(shifts.map((shift) => shift.shiftId));
 
-  const queued: WithPendingSync<ActiveShift>[] = pending
+  const queued: WithPendingSync<ActiveShift>[] = live
     .filter((write) => write.entityType === OPS_ENTITY.SHIFT_CHECK_IN && !known.has(write.entityId))
     .flatMap((write) => {
       const userId = write.localContext.actorUserId ?? actor.userId;

@@ -53,6 +53,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { EndShiftForButton } from '@/components/ops/EndShiftForButton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -219,6 +220,7 @@ export function StationLineBoard() {
   const clinicId = getBootstrapActiveClinicId(bootstrap);
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const canManage = perms.includes('*') || perms.includes('OPS.STATION.MANAGE');
+  const canEndOthersShifts = perms.includes('*') || perms.includes('OPS.SHIFT.MANAGE');
   const [tableView, setTableView] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [date, setDate] = useState(getTodayInTimeZone());
@@ -712,6 +714,21 @@ export function StationLineBoard() {
                         'No station chosen'}{' '}
                       · {member.activeVisitCount} active patients
                     </p>
+                    {canEndOthersShifts &&
+                    isToday &&
+                    clinicId &&
+                    member.shiftId &&
+                    member.user.id !== bootstrap?.userId ? (
+                      <div className="mt-2">
+                        <EndShiftForButton
+                          clinicId={clinicId}
+                          shiftId={member.shiftId}
+                          displayName={member.user.displayName}
+                          isOnline={isOnline}
+                          onEnded={refresh}
+                        />
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>

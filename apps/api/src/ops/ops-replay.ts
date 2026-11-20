@@ -20,7 +20,17 @@ export const OPS_REPLAY_CLOCK_SKEW_MS = 5 * 60_000;
  *
  * A device a little ahead of the server is clamped to the server's now; one far ahead is refused.
  */
-export function resolveReplayTime(occurredAt: Date, now: Date, timeZone: string): Date {
+export function resolveReplayTime(
+  occurredAt: Date,
+  now: Date,
+  timeZone: string,
+  /**
+   * Ending a shift is the exception (#385). A shift left open overnight because its queued end
+   * synced the next day stays "on duty" forever if the end is refused, so an end is applied at
+   * the time it was tapped whatever the day.
+   */
+  { allowEarlierDay = false }: { allowEarlierDay?: boolean } = {},
+): Date {
   if (Number.isNaN(occurredAt.getTime())) {
     throw new BadRequestException({
       code: 'INVALID_OPS_TIME_ORDER',
@@ -33,7 +43,10 @@ export function resolveReplayTime(occurredAt: Date, now: Date, timeZone: string)
       message: 'This device’s clock is ahead of the clinic’s. Check the date and time settings.',
     });
   }
-  if (todayInTimeZone(timeZone, occurredAt) !== todayInTimeZone(timeZone, now)) {
+  if (
+    !allowEarlierDay &&
+    todayInTimeZone(timeZone, occurredAt) !== todayInTimeZone(timeZone, now)
+  ) {
     throw new BadRequestException({
       code: 'OPS_REPLAY_EXPIRED',
       message: 'This action was recorded on an earlier clinic day and can no longer be applied.',
