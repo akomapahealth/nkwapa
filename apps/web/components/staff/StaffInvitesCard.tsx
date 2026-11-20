@@ -11,6 +11,7 @@ import {
   MailPlus,
   RotateCw,
   Trash2,
+  FileUp,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -50,8 +51,7 @@ import {
   type StaffInviteFilter,
   type StaffInviteRole,
 } from '@/lib/staff-invite';
-import { AppMetricCard, AppMetricGroup } from '@/components/app-shell/AppMetricCard';
-import { ListSearch } from '@/components/app-shell/ListToolbar';
+import { BulkInviteDialog } from '@/components/staff/BulkInviteDialog';
 import { InfoHint } from '@/components/ui/info-hint';
 import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
 import { cn } from '@/lib/utils';
@@ -94,14 +94,15 @@ export interface StaffInvitesCardProps {
   clinicId: string;
   clinicName: string | null;
   getToken: GetToken | undefined;
+  /** The page's one search, shared with the roster (#383). */
+  query: string;
+  /** Active members' addresses, so a CSV import can flag them before sending. */
+  memberEmails: ReadonlySet<string>;
   /** Called after an invitation changes, so the roster can refresh if someone just accepted. */
   onChanged?: () => void;
 }
 
 type Busy = { inviteId: string; action: StaffInviteAction } | null;
-
-/** The list size at which a search box earns its place. */
-const SEARCH_THRESHOLD = 6;
 
 const FILTERS: Array<{ value: StaffInviteFilter; label: string; description?: string }> = [
   { value: 'ALL', label: 'All' },
@@ -142,6 +143,8 @@ export function StaffInvitesCard({
   clinicId,
   clinicName,
   getToken,
+  query,
+  memberEmails,
   onChanged,
 }: StaffInvitesCardProps) {
   const { isOnline } = useSync();
@@ -153,7 +156,7 @@ export function StaffInvitesCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [filter, setFilter] = useState<StaffInviteFilter>('ALL');
-  const [query, setQuery] = useState('');
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState('');
@@ -196,6 +199,15 @@ export function StaffInvitesCard({
     for (const invite of invites) tally[staffInviteBucket(invite.status)] += 1;
     return tally;
   }, [invites]);
+  const openInviteEmails = useMemo(
+    () =>
+      new Set(
+        invites
+          .filter((invite) => staffInviteBucket(invite.status) === 'OPEN')
+          .map((invite) => invite.email.toLowerCase()),
+      ),
+    [invites],
+  );
   const visible = useMemo(
     () => filterStaffInvites(invites, { filter, query }),
     [invites, filter, query],
@@ -347,15 +359,32 @@ export function StaffInvitesCard({
             Invite a colleague to {clinicName ?? 'this clinic'} by email. They set their own
             password and get the role only once they accept.
           </InfoHint>
+          {!loading && !loadError && invites.length > 0 ? (
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {counts.OPEN} open
+              {counts.EXPIRED > 0 ? ` · ${counts.EXPIRED} expired` : ''}
+            </span>
+          ) : null}
         </div>
-        <Button
-          className="w-full compact:w-auto"
-          onClick={openDialog}
-          disabled={!getToken || invitableRoles.length === 0}
-        >
-          <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-          Invite a colleague
-        </Button>
+        <div className="flex w-full gap-2 compact:w-auto">
+          <Button
+            variant="outline"
+            className="flex-1 compact:flex-none"
+            onClick={() => setBulkOpen(true)}
+            disabled={!getToken || invitableRoles.length === 0}
+          >
+            <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
+            Import CSV
+          </Button>
+          <Button
+            className="flex-1 compact:flex-none"
+            onClick={openDialog}
+            disabled={!getToken || invitableRoles.length === 0}
+          >
+            <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Invite a colleague
+          </Button>
+        </div>
       </RecordSectionHeader>
 
       <RecordSectionContent className="space-y-4">
@@ -363,22 +392,6 @@ export function StaffInvitesCard({
         {notice ? <InlineNotice tone="success">{notice}</InlineNotice> : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
 
-        {!loading && !loadError && invites.length > 0 ? (
-          <AppMetricGroup variant="strip">
-            <AppMetricCard
-              title="Open invitations"
-              value={counts.OPEN}
-              icon={MailPlus}
-              detail="Invitations that can still be accepted."
-            />
-            <AppMetricCard
-              title="Expired invitations"
-              value={counts.EXPIRED}
-              icon={MailPlus}
-              detail="Invitations past their acceptance deadline."
-            />
-          </AppMetricGroup>
-        ) : null}
         {loading ? (
           <SectionSkeleton lines={3} />
         ) : loadError ? (
@@ -388,9 +401,7 @@ export function StaffInvitesCard({
             onRetry={() => void load()}
           />
         ) : invites.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No invitations have been sent for this clinic yet.
-          </p>
+          <p className="text-sm text-muted-foreground">No invitations yet.</p>
         ) : (
           <DataTable
             bleed
@@ -400,34 +411,23 @@ export function StaffInvitesCard({
             getRowId={(invite) => invite.id}
             initialPageSize={10}
             toolbar={
-              <div className="flex w-full min-w-0 flex-col gap-3">
-                <SegmentedControl
-                  label="Show invitations"
-                  scrollable
-                  value={filter}
-                  options={FILTERS.map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                    description: option.description,
-                  }))}
-                  onChange={setFilter}
-                />
-                {invites.length > SEARCH_THRESHOLD ? (
-                  <ListSearch
-                    id="staff-invites-search"
-                    label="Search invitations by name or email"
-                    placeholder="Name or email…"
-                    value={query}
-                    onChange={setQuery}
-                  />
-                ) : null}
-              </div>
+              <SegmentedControl
+                label="Show invitations"
+                scrollable
+                value={filter}
+                options={FILTERS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                  description: option.description,
+                }))}
+                onChange={setFilter}
+              />
             }
             emptyState={
               <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
                 {query.trim()
                   ? `No invitations match \u201c${query.trim()}\u201d.`
-                  : 'No invitations here.'}
+                  : 'Nothing here.'}
               </p>
             }
             renderMobileRow={(invite) => (
@@ -442,8 +442,7 @@ export function StaffInvitesCard({
           <DialogHeader>
             <DialogTitle>Invite a colleague</DialogTitle>
             <DialogDescription>
-              Use an address only they read. Whoever opens the email can accept the role, so shared
-              inboxes are refused.
+              Use an address only they read. Shared inboxes are refused.
             </DialogDescription>
           </DialogHeader>
 
@@ -452,8 +451,7 @@ export function StaffInvitesCard({
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium text-foreground">Their name</legend>
               <p className="text-xs text-muted-foreground">
-                Add it if you know it and they go straight in. Leave it blank and they are asked for
-                it when they first sign in.
+                Optional. If blank, they add it when they first sign in.
               </p>
               <StaffNameFields
                 idPrefix="staff-invite"
@@ -527,8 +525,7 @@ export function StaffInvitesCard({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Director and System admin access is never sent by email; assign it by hand on this
-              page.
+              Director and admin access is assigned on this page, never by email.
             </p>
 
             {confirmReuse ? <InlineNotice tone="warning">{confirmReuse}</InlineNotice> : null}
@@ -552,6 +549,20 @@ export function StaffInvitesCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkInviteDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        clinicId={clinicId}
+        getToken={getToken}
+        invitableRoles={invitableRoles}
+        memberEmails={memberEmails}
+        openInviteEmails={openInviteEmails}
+        onSent={() => {
+          void load();
+          onChanged?.();
+        }}
+      />
     </section>
   );
 }
