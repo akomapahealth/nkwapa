@@ -28,7 +28,7 @@ const ACCOUNT_SETUP_VALUES: PortalInviteAccountSetup[] = [
 ];
 
 /** The companion message from Keycloak, named by subject so the pair does not read as a phish. */
-const PASSWORD_EMAIL_SUBJECT = 'Choose your Nkwapa password';
+const PASSWORD_EMAIL_SUBJECT = 'Set up your Nkwapa account';
 
 /**
  * An invitation to join a clinic's staff.

@@ -191,6 +191,17 @@ reconcile_events() {
   fi
 }
 
+# The API stores each invitation's clinic, role and expiry on the user so the setup email can
+# show them (#383). Keycloak 26 drops attributes the user profile does not declare; ADMIN_EDIT
+# keeps them, writable and visible only through the admin API, never to the user.
+reconcile_user_profile() {
+  if kcadm update users/profile -r "$RECONCILE_REALM" -s unmanagedAttributePolicy=ADMIN_EDIT >/dev/null 2>&1; then
+    log "user profile: admin-only unmanaged attributes enabled"
+  else
+    log "WARNING: setting the user profile attribute policy in realm ${RECONCILE_REALM} failed"
+  fi
+}
+
 # A second factor can only be set up through these required actions.
 reconcile_required_actions() {
   local registered action name
@@ -359,6 +370,7 @@ reconcile() {
   reconcile_audience_mapper
   reconcile_web_client
   reconcile_events
+  reconcile_user_profile
   reconcile_required_actions
   reconcile_admin_mfa_flow
 

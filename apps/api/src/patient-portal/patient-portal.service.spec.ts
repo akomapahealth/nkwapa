@@ -1395,8 +1395,8 @@ describe('PatientPortalService', () => {
         }
       });
 
-      it('creates the account before the email that describes it goes out', async () => {
-        await service.createPortalInvite(
+      it('puts the clinic and patient code in the setup email and sends no second email', async () => {
+        const result = await service.createPortalInvite(
           'clinic-1',
           'patient-1',
           { email: 'ama@example.com' },
@@ -1410,12 +1410,38 @@ describe('PatientPortalService', () => {
           lastName: 'Mensah',
           claimRedirectUri: 'https://app.nkwapa.app/claim-record?continue=1',
           lifespanSeconds: 14 * 24 * 60 * 60,
+          inviteContext: expect.objectContaining({
+            kind: 'portal',
+            clinicName: expect.any(String),
+          }),
+        });
+        expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+        expect(result.emailDelivery).toBeNull();
+      });
+
+      it('sends our own invite email when the patient already has a working account', async () => {
+        keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
+          outcome: 'ALREADY_ACTIVE',
+          keycloakUserId: 'kc-9',
+          actionsSent: [],
+          failureReason: null,
         });
 
-        const provisionOrder =
-          keycloakAdminService.provisionInvitedIdentity.mock.invocationCallOrder[0];
-        const emailOrder = reminderService.sendNotificationNow.mock.invocationCallOrder[0];
-        expect(provisionOrder).toBeLessThan(emailOrder);
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(reminderService.sendNotificationNow).toHaveBeenCalledTimes(1);
+        expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+          expect.objectContaining({
+            templateKey: 'PORTAL_INVITE_V1',
+            payload: expect.objectContaining({ accountSetup: 'EXISTING_ACCOUNT' }),
+          }),
+        );
       });
 
       it('records the outcome on the invite so the chart can show it later', async () => {

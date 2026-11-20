@@ -117,6 +117,25 @@ export function describePortalAccessStatus(status: PortalAccessStatus): StatusDe
 }
 
 /**
+ * The invite email line. Since #383 an invite sends one email: Keycloak's setup email when the
+ * account still needs a password (no delivery row of ours exists then), our own otherwise.
+ */
+export function describeInviteEmail(invite: {
+  emailDelivery: PortalInviteDelivery | null;
+  identity?: PortalInviteIdentity | null;
+}): { label: string; status: string } {
+  if (invite.emailDelivery) {
+    const status = invite.emailDelivery.status;
+    return { label: `Invite email ${status.toLowerCase()}`, status };
+  }
+  const status = invite.identity?.status;
+  if (status === 'PROVISIONED' || status === 'EXISTING_PENDING') {
+    return { label: 'Invite email sent', status: 'SENT' };
+  }
+  return { label: 'Invite email not sent', status: 'QUEUED' };
+}
+
+/**
  * What an individual invite's state means.
  *
  * Expired is a warning rather than a failure: nothing went wrong, the window closed. It is
@@ -300,7 +319,7 @@ function closingInstruction(status: PortalInviteIdentityStatus | null): string {
   switch (status) {
     case 'PROVISIONED':
     case 'EXISTING_PENDING':
-      return 'Look for the email titled "Choose your Nkwapa password" and use the link in it to set your password. Then sign in and confirm your patient code and date of birth.';
+      return 'Look for the email titled "Set up your Nkwapa account" and use the link in it to set your password. Then sign in and confirm your patient code and date of birth.';
     case 'ALREADY_ACTIVE':
       return 'Sign in with the email address the clinic has on file, then confirm your patient code and date of birth.';
     default:

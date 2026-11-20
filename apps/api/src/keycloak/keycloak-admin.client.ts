@@ -150,6 +150,34 @@ export class KeycloakAdminClient {
   }
 
   /**
+   * Merge attributes into an identity; a null value removes that attribute.
+   *
+   * Read-modify-write of the whole representation, as kcadm does: a PUT carrying only
+   * `attributes` would be validated against the user profile without the email and names.
+   */
+  async setUserAttributes(
+    userId: string,
+    attributes: Record<string, string | null>,
+  ): Promise<'UPDATED' | 'NOT_FOUND'> {
+    const path = `/users/${encodeURIComponent(userId)}`;
+    const current = await this.send('GET', path);
+    if (current.status === 404) return 'NOT_FOUND';
+    if (!current.ok) await this.fail(current, 'GET /users/:id');
+    const user = (await current.json()) as KeycloakUser & {
+      attributes?: Record<string, string[]>;
+    };
+    const merged = { ...(user.attributes ?? {}) };
+    for (const [key, value] of Object.entries(attributes)) {
+      if (value === null) delete merged[key];
+      else merged[key] = [value];
+    }
+    const response = await this.send('PUT', path, { ...user, attributes: merged });
+    if (response.status === 404) return 'NOT_FOUND';
+    if (!response.ok) await this.fail(response, 'PUT /users/:id');
+    return 'UPDATED';
+  }
+
+  /**
    * Turn an identity's ability to sign in on or off.
    *
    * A partial representation, carrying `enabled` alone. Keycloak 26 applies it without touching

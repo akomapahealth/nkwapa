@@ -68,7 +68,7 @@ import {
   resolveIdentityActionLifespanSeconds,
   resolvePortalInviteExpiry,
 } from '../common/portal-invite-lifecycle';
-import { describeInviteAccountSetup } from '../common/invite-account-setup';
+import { describeInviteAccountSetup, identityEmailSent } from '../common/invite-account-setup';
 import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
 import type { ProvisionInvitedIdentityResult } from '../keycloak/keycloak-admin.service';
 import { describeInviteStateForStaff, formatInviteExpiryDate } from './portal-invite-presentation';
@@ -1474,13 +1474,16 @@ export class PatientPortalService {
 
     // Before the email, so the message never arrives ahead of the account it describes.
     const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
-    const delivery = await this.sendPortalInviteEmail(
-      invite,
-      actorUserId,
-      false,
-      identity.identityStatus,
-      requestId,
-    );
+    // Keycloak's setup email already carries the whole invitation; ours would be a second (#383).
+    const delivery = identityEmailSent(identity.identityStatus)
+      ? null
+      : await this.sendPortalInviteEmail(
+          invite,
+          actorUserId,
+          false,
+          identity.identityStatus,
+          requestId,
+        );
 
     return this.serializePortalInvite({ ...invite, ...identity }, delivery);
   }
@@ -1539,13 +1542,15 @@ export class PatientPortalService {
     // Idempotent by construction: provisioning reads Keycloak's own state, so a resend
     // re-sends only what is still outstanding and never resets a chosen password.
     const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
-    const delivery = await this.sendPortalInviteEmail(
-      invite,
-      actorUserId,
-      true,
-      identity.identityStatus,
-      requestId,
-    );
+    const delivery = identityEmailSent(identity.identityStatus)
+      ? null
+      : await this.sendPortalInviteEmail(
+          invite,
+          actorUserId,
+          true,
+          identity.identityStatus,
+          requestId,
+        );
 
     return this.serializePortalInvite({ ...invite, ...identity }, delivery);
   }
@@ -1606,10 +1611,13 @@ export class PatientPortalService {
       );
     }
 
-    const patient = await this.prisma.patient.findUnique({
-      where: { id: invite.patientId },
-      select: { firstName: true, lastName: true },
-    });
+    const [patient, clinic] = await Promise.all([
+      this.prisma.patient.findUnique({
+        where: { id: invite.patientId },
+        select: { firstName: true, lastName: true, patientCode: true },
+      }),
+      this.prisma.clinic.findUnique({ where: { id: invite.clinicId }, select: { name: true } }),
+    ]);
 
     const result = await this.keycloakAdminService.provisionInvitedIdentity({
       email: invite.email,
@@ -1617,6 +1625,12 @@ export class PatientPortalService {
       lastName: patient?.lastName ?? null,
       claimRedirectUri: buildPortalClaimRedirectUri(appPublicUrl),
       lifespanSeconds: resolveIdentityActionLifespanSeconds(invite.expiresAt, new Date()),
+      inviteContext: {
+        kind: 'portal',
+        clinicName: clinic?.name ?? 'Your clinic',
+        patientCode: patient?.patientCode ?? null,
+        expiresAt: invite.expiresAt,
+      },
     });
 
     return this.recordInviteIdentity(invite, actorUserId, result, requestId);
@@ -1762,6 +1776,7 @@ export class PatientPortalService {
       afterJson: JSON.stringify(updated),
       requestId,
     });
+    await this.keycloakAdminService.clearInviteContext(invite.keycloakUserId);
 
     return this.serializePortalInvite(updated);
   }
@@ -2013,6 +2028,8 @@ export class PatientPortalService {
       afterJson: JSON.stringify(link),
       requestId,
     });
+    // The patient code has done its job; keep it out of later reset emails.
+    await this.keycloakAdminService.clearInviteContext(user.keycloakSub);
 
     return {
       success: true,
