@@ -186,7 +186,7 @@ export function EventForm({
           onChange={(event) => setNotes(event.target.value)}
         />
         <p id="event-notes-hint" className="text-sm text-muted-foreground">
-          Included in the roster email. Never write anything about a patient here.
+          Goes in the roster email, so never write about a patient
         </p>
       </div>
       {initial && hasNotifiedVolunteers ? (

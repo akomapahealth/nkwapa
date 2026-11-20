@@ -67,7 +67,7 @@ const DialogContent = React.forwardRef<
             // Centred by margin, not a translate, so the motion owns transform and scales from the
             // centre. R7.3: the same transition clock as menus and Selects (globals.css), so a dialog
             // closed mid-entrance reverses from where it is instead of restarting its exit.
-            'anchored-overlay fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-6',
+            'anchored-overlay fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1.5rem)] max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-5',
             variant === 'form' && 'dialog-form',
             className,
           )}

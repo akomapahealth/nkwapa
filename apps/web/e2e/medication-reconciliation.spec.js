@@ -51,6 +51,7 @@ test('medication reconciliation covers clinical, pharmacy, validation, and respo
   await selectOption(page, dialog, 'Status', 'Stopped');
   await dialog.getByLabel('End date').fill(new Date().toISOString().slice(0, 10));
   await dialog.getByRole('button', { name: 'Save revision' }).click();
+  await expect(dialog).toBeHidden();
 
   await expect(page.getByRole('heading', { name: 'No current medications' })).toBeVisible();
   await expect(page.getByText('Stopped', { exact: true })).toBeVisible();
@@ -63,20 +64,20 @@ test('medication reconciliation covers clinical, pharmacy, validation, and respo
   await expect(historyDialog.getByText('Revision 1')).toBeVisible();
   await historyDialog.press('Escape');
 
-  await page.getByRole('button', { name: 'Add pharmacy' }).click();
+  await page.getByRole('button', { name: 'Add pharmacy', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Add pharmacy' });
   await dialog.getByLabel('Pharmacy name', { exact: true }).fill('First Community Pharmacy');
   await dialog.getByLabel('Address line 1').fill('1 Main Street');
   await dialog.getByLabel('City').fill('Accra');
-  await dialog.getByRole('button', { name: 'Add pharmacy' }).click();
+  await dialog.getByRole('button', { name: 'Add pharmacy', exact: true }).click();
   await page.getByRole('button', { name: 'Make preferred' }).click();
   await expect(page.getByText('Preferred', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Add pharmacy' }).click();
+  await page.getByRole('button', { name: 'Add pharmacy', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Add pharmacy' });
   await dialog.getByLabel('Pharmacy name', { exact: true }).fill('Second Community Pharmacy');
   await dialog.getByLabel('City').fill('Kumasi');
-  await dialog.getByRole('button', { name: 'Add pharmacy' }).click();
+  await dialog.getByRole('button', { name: 'Add pharmacy', exact: true }).click();
   await page.getByRole('button', { name: 'Make preferred' }).click();
 
   const firstPharmacy = page.getByRole('listitem').filter({ hasText: 'First Community Pharmacy' });

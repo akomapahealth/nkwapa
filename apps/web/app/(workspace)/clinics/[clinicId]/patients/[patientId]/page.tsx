@@ -13,6 +13,8 @@ import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { hasPermission, readApiError, formatOpsDay, formatOpsDateTime } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
+import { sexAgeLabel } from '@/components/patients/PatientContextBar';
+import { ageInYears } from '@/lib/stations';
 import { PatientProfileHeader } from '@/components/patients/chart/PatientProfileHeader';
 import profileStyles from '@/components/patients/chart/patient-profile.module.css';
 import { db } from '@/lib/db';
@@ -232,6 +234,14 @@ function PatientChartWorkspace() {
   useEffect(() => {
     void loadSummary();
   }, [loadSummary]);
+
+  // Quiet: the overview keeps showing while the patient bar's allergy status catches up.
+  const refreshAllergies = useCallback(() => {
+    if (!getToken) return;
+    void fetchPatientChartSummary(clinicId, patientId, getToken)
+      .then(setSummary)
+      .catch(() => {});
+  }, [clinicId, getToken, patientId]);
 
   const fetchSelfReports = useCallback(async () => {
     if (!getToken || !canViewSelfReports || !isOnline) return;
@@ -599,7 +609,7 @@ function PatientChartWorkspace() {
         ) : (
           <InlineErrorState
             title="This chart is not on this device yet"
-            description="It has not been synced to this device. Reconnect to open it; it will be kept here for next time."
+            description="This device does not have it yet. Reconnect to open it."
             onRetry={() => void fetchPatient()}
           />
         )}
@@ -637,6 +647,9 @@ function PatientChartWorkspace() {
         }
         digitalAddress={patient.residentialDigitalAddress}
         clinicId={clinicId}
+        sexAge={sexAgeLabel(patient.sex, ageInYears(patient.dob ?? null))}
+        allergies={summary?.allergies}
+        tier={canSeeTier && followUp.data ? (followUp.data.current?.tier ?? null) : undefined}
         badges={
           <>
             {canSeeTier && followUp.data ? (
@@ -980,6 +993,7 @@ function PatientChartWorkspace() {
                   patientId={patient.id}
                   userId={userId}
                   canWrite={canWriteMedicalHistory}
+                  onSaved={refreshAllergies}
                 />
               );
             case 'medications':
@@ -1023,7 +1037,7 @@ function PatientChartWorkspace() {
                       <div className="[&_p]:text-sm">
                         <EmptyStateCard
                           title="No patient-reported updates yet"
-                          description="Portal measurements and self-reports will appear here once the patient begins submitting them."
+                          description="Readings the patient sends from the portal show here."
                         />
                       </div>
                     ) : (

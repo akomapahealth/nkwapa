@@ -1,6 +1,6 @@
 'use client';
 
-import { OPS_DEFAULT_TIMEZONE } from '@/lib/ops';
+import { displayTimeZone } from '@/lib/ops';
 
 import type {
   BloodPressureTrendPoint,
@@ -27,7 +27,7 @@ export function formatTrendRangeFrom(days: number) {
 /** A chart tick, in the clinic's zone: "12 Nov" reads one way everywhere, "11/12" does not. */
 export function formatTrendLabel(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
-    timeZone: OPS_DEFAULT_TIMEZONE,
+    timeZone: displayTimeZone(),
     day: 'numeric',
     month: 'short',
   }).format(new Date(value));

@@ -1,5 +1,6 @@
 'use client';
 
+import { confirmPanelLeave } from '@/components/app-shell/WorkspacePanel';
 import type { ReactNode } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyStateCard } from '@/components/ops/OpsShared';
@@ -35,7 +36,9 @@ export function PatientChartTabs({ sections, controller, renderSection }: Patien
   return (
     <Tabs
       value={activeTab}
-      onValueChange={(value) => goToSection(value as PatientChartSectionId)}
+      onValueChange={(value) =>
+        void confirmPanelLeave().then((ok) => ok && goToSection(value as PatientChartSectionId))
+      }
       className="w-full"
     >
       <TabsList aria-label="Patient chart sections">

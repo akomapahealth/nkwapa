@@ -4,7 +4,7 @@
   flex-direction: column;
   gap: 1rem;
   border: 1px solid hsl(var(--border));
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: hsl(var(--surface-2));
   padding: 1rem;
   overflow-wrap: anywhere;

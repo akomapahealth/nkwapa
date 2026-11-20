@@ -9,7 +9,7 @@ import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import {
   CHECKIN_STATUS_ORDER,
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   type ActiveShift,
   type ActiveShiftsResponse,
   type CheckInStatus,
@@ -42,7 +42,7 @@ import {
   SectionSkeleton,
   SelectClinicState,
 } from '@/components/feedback/AppState';
-import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import { TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
 import { cn } from '@/lib/utils';
 import styles from './today-board.module.css';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -190,7 +190,7 @@ function TodayBoardPage() {
   const canEndOthersShifts = hasPermission(permissions, 'OPS.SHIFT.MANAGE');
 
   const timezone =
-    board.data?.checkIns.timezone ?? board.data?.shifts.timezone ?? OPS_DEFAULT_TIMEZONE;
+    board.data?.checkIns.timezone ?? board.data?.shifts.timezone ?? displayTimeZone();
   // Queued shift changes are about today; drawing them on another day's roster would be wrong.
   const isToday = selectedDate === getTodayInTimeZone(timezone);
   const shifts = useMemo(
@@ -654,19 +654,32 @@ function TodayBoardPage() {
                   </RecordSectionDescription>
                 </RecordSectionHeader>
                 <RecordSectionContent className="space-y-3">
-                  <SegmentedControl
-                    label="Show staff by role"
-                    value={shiftRoleFilter}
-                    onChange={setShiftRoleFilter}
-                    className="sm:grid-cols-2"
-                    options={SHIFT_FILTERS.map((value) => ({
-                      value,
-                      label:
-                        value === 'ALL'
-                          ? `All · ${onDuty.length}`
-                          : `${SHIFT_FILTER_LABELS[value]} · ${countByRole(onDuty, value)}`,
-                    }))}
-                  />
+                  {/* Four options: a dropdown, per MASTER §8 (segmented is for 2 or 3). */}
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="today-staff-role-filter"
+                      className="text-sm font-normal text-muted-foreground"
+                    >
+                      Show staff by role
+                    </Label>
+                    <Select
+                      value={shiftRoleFilter}
+                      onValueChange={(value) => setShiftRoleFilter(value as ShiftRole | 'ALL')}
+                    >
+                      <SelectTrigger id="today-staff-role-filter" className={TOOLBAR_SELECT}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SHIFT_FILTERS.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {value === 'ALL'
+                              ? `All · ${onDuty.length}`
+                              : `${SHIFT_FILTER_LABELS[value]} · ${countByRole(onDuty, value)}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {filteredShifts.length === 0 && !board.data ? null : filteredShifts.length ===
                     0 ? (
                     <p className="border-t border-rule py-3 text-sm text-muted-foreground">

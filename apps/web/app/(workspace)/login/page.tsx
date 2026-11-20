@@ -254,11 +254,11 @@ export default function LoginPage() {
 
             <fieldset className={RISE} style={riseDelay(1)}>
               <legend className="type-label text-foreground">I am signing in as</legend>
-              <div className="relative mt-2 grid grid-cols-2 rounded-md bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]">
+              <div className="relative mt-2 grid grid-cols-2 rounded-[10px] bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]">
                 <span
                   aria-hidden="true"
                   className={cn(
-                    'absolute inset-y-[3px] left-[3px] w-[calc(50%-3px)] rounded-[4px] bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.12),inset_0_0_0_1px_hsl(var(--border))] transition-transform duration-base ease-out-strong',
+                    'absolute inset-y-[3px] left-[3px] w-[calc(50%-3px)] rounded-[7px] bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.12),inset_0_0_0_1px_hsl(var(--border))] transition-transform duration-base ease-out-strong',
                     audience === 'staff' && 'translate-x-full',
                   )}
                 />
@@ -266,7 +266,7 @@ export default function LoginPage() {
                   <label
                     key={value}
                     className={cn(
-                      'relative flex min-h-[42px] cursor-pointer touch-manipulation [@media(pointer:coarse)]:min-h-12 items-center justify-center gap-2 rounded-[4px] px-3 text-sm font-medium transition-colors duration-fast ease-out-strong has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
+                      'relative flex min-h-[42px] cursor-pointer touch-manipulation [@media(pointer:coarse)]:min-h-12 items-center justify-center gap-2 rounded-[7px] px-3 text-sm font-medium transition-colors duration-fast ease-out-strong has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
                       audience === value
                         ? 'font-semibold text-primary'
                         : 'text-muted-foreground hover:text-foreground',

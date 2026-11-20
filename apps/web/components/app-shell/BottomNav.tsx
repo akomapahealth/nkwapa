@@ -143,7 +143,7 @@ export function BottomNav({
       </nav>
       <SheetContent
         side="bottom"
-        className="flex max-h-[85dvh] flex-col rounded-t-xl border-border bg-card p-0 pb-[env(safe-area-inset-bottom)]"
+        className="flex max-h-[85dvh] flex-col rounded-t-2xl border-border bg-card p-0 pb-[env(safe-area-inset-bottom)]"
         onCloseAutoFocus={(event) => {
           if (window.matchMedia('(min-width: 600px)').matches) {
             event.preventDefault();
@@ -176,7 +176,7 @@ export function BottomNav({
           {!portal ? (
             <button
               type="button"
-              className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-input bg-background px-3 text-left text-base text-muted-foreground transition-colors duration-fast hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-11 w-full items-center gap-3 rounded-md border border-input bg-background px-3 text-left text-base text-muted-foreground transition-colors duration-fast hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => {
                 searchAfterClose.current = true;
                 setOpen(false);

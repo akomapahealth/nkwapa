@@ -224,8 +224,7 @@ export function ClinicMetadataDialog({
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Create clinic' : 'Edit clinic'}</DialogTitle>
           <DialogDescription>
-            Location metadata drives organization reporting and zone filtering, so a clinic needs a
-            time zone and a location code that is unique in its organization.
+            Used for reports and zone filters. The location code must be unique in the organization.
           </DialogDescription>
         </DialogHeader>
 

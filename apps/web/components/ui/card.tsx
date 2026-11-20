@@ -17,7 +17,7 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
         // background gradient show through; that gradient is gone, so the alpha only cost contrast
         // on the text sitting on it.
         //
-        // R1.3: the pilot panel. A bordered 8px panel on the one white sheet, with no shadow, so
+        // R1.3: the pilot panel. A bordered 12px panel (2026-11-20; was 8px) on the one white sheet, with no shadow, so
         // the edge alone separates it. Panels sit side by side or in sequence; never nest a Card
         // inside a Card.
         'rounded-lg border border-border bg-card text-card-foreground',
@@ -31,7 +31,11 @@ Card.displayName = 'Card';
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex flex-col space-y-1.5 p-6', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex flex-col space-y-1.5 p-4 compact:p-5', className)}
+      {...props}
+    />
   ),
 );
 CardHeader.displayName = 'CardHeader';
@@ -72,14 +76,18 @@ CardDescription.displayName = 'CardDescription';
 
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('p-6 pt-0', className)} {...props} />
+    <div ref={ref} className={cn('p-4 pt-0 compact:p-5 compact:pt-0', className)} {...props} />
   ),
 );
 CardContent.displayName = 'CardContent';
 
 const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex items-center p-6 pt-0', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex items-center p-4 pt-0 compact:p-5 compact:pt-0', className)}
+      {...props}
+    />
   ),
 );
 CardFooter.displayName = 'CardFooter';

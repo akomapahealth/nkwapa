@@ -13,7 +13,7 @@ import {
   type RegistryView,
 } from '@/lib/patient-registry-url';
 import {
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   formatOpsDay,
   getTodayInTimeZone,
   hasPermission,
@@ -180,7 +180,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
     The clinic's timezone arrives with the first filtered page; until then the default zone
     (every clinic today) decides what "Today" means. Bootstrap does not carry it.
   */
-  const [timeZone, setTimeZone] = useState(OPS_DEFAULT_TIMEZONE);
+  const [timeZone, setTimeZone] = useState(displayTimeZone());
   const today = getTodayInTimeZone(timeZone);
 
   // A range the API would refuse is explained beside the dates and never sent. A refusal the
@@ -494,6 +494,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         title="Patients"
         count={total}
         description="Search this clinic's records and move patients into care."
+        hideDescriptionOnPhone
         helpTitle="How patient search works"
         helpText="Name, patient code, phone, or the last four digits of the ID. Results stay in this clinic; open a chart or check the patient in."
         actions={

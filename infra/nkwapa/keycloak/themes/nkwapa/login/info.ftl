@@ -1,5 +1,7 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=false journey="setup" step=(requiredActions??)?then(2, 3) eyebrow="Account setup"; section>
+<#-- Shown after an invitation and after a password reset alike; Keycloak does not say which. -->
+<#assign appUrl = (properties.nkwapaWebOrigins!'')?split(",")[0]?trim?remove_ending("/") />
+<@layout.registrationLayout displayMessage=false journey="setup" step=(requiredActions??)?then(2, 3) eyebrow="Your password"; section>
     <#if section = "header">
         <#-- messageHeader is a message KEY, not a sentence. Printing it directly put the
              literal text "accountUpdatedTitle" in front of every patient who finished
@@ -37,15 +39,14 @@
                     <a class="nkwapa-btn-primary nkwapa-btn-primary--link" href="${actionUri}">
                         <#if actionUriTitle??>${kcSanitize(actionUriTitle)?no_esc}<#else>${kcSanitize(msg("doContinue"))?no_esc}</#if>
                     </a>
+                <#elseif appUrl?has_content>
+                    <#-- Through Nkwapa, not url.loginUrl: that sign-in has no redirect to return to. -->
+                    <a class="nkwapa-btn-primary nkwapa-btn-primary--link" href="${appUrl}/login">
+                        ${kcSanitize(msg("nkwapaSignIn"))?no_esc}
+                    </a>
                 <#elseif client?? && client.baseUrl?has_content>
                     <a class="nkwapa-btn-primary nkwapa-btn-primary--link" href="${client.baseUrl}">
                         ${kcSanitize(msg("backToApplication"))?no_esc}
-                    </a>
-                </#if>
-
-                <#if url.loginUrl??>
-                    <a class="nkwapa-secondary-link" href="${url.loginUrl}">
-                        ${kcSanitize(msg("backToLogin"))?no_esc}
                     </a>
                 </#if>
             </div>

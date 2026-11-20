@@ -1,5 +1,6 @@
 'use client';
 
+import { displayTimeZone } from '@/lib/ops';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Fingerprint, LockKeyhole, UserRound } from 'lucide-react';
 import type { OfflineGrantClaims } from '@nkwapa/db/offline-grant';
@@ -79,7 +80,7 @@ export function OfflineSessionGate({
       <FullscreenStatus
         icon={UserRound}
         title="Who is using this device?"
-        description="You are offline. Choose your name to unlock your offline session. Changes save on this device and send after you sign in with a connection."
+        description="You are offline. Choose your name to unlock. Changes send after you next sign in online."
         detail={
           <ul className="divide-y divide-border overflow-hidden rounded-md border border-border">
             {identities.map((row) => (
@@ -211,7 +212,7 @@ function UnlockForm({
     <FullscreenStatus
       icon={LockKeyhole}
       title={`Unlock as ${identity.displayName}`}
-      description="You are offline. Enter your offline PIN to keep working. Changes save on this device and send after you sign in with a connection."
+      description="You are offline. Enter your PIN to keep working. Changes send after you next sign in online."
       detail={
         <form onSubmit={submitPin} noValidate className="space-y-4">
           <div className="space-y-1.5">
@@ -292,6 +293,6 @@ function formatUntil(iso: string) {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'Africa/Accra',
+    timeZone: displayTimeZone(),
   }).format(new Date(iso));
 }

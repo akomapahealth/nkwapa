@@ -48,7 +48,7 @@ import {
   type OrganizationFilter,
 } from '@/lib/organization-filter';
 import { Badge } from '@/components/ui/badge';
-import { ListSearch, TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
+import { ListFilters, ListSearch } from '@/components/app-shell/ListToolbar';
 import { Button } from '@/components/ui/button';
 import {
   RecordSection,
@@ -92,6 +92,14 @@ type RoleName = 'SYSTEM_ADMIN' | 'DIRECTOR' | 'MANAGER' | 'DOCTOR' | 'VOLUNTEER'
 
 type PortalLinkStatus = 'LINKED' | 'ROLE_ONLY' | 'LINK_ONLY' | 'NONE';
 type PortalFilter = 'ALL' | 'MISMATCH' | PortalLinkStatus;
+const PORTAL_FILTER_LABELS: Record<PortalFilter, string> = {
+  ALL: 'All portal states',
+  MISMATCH: 'Mismatch only',
+  ROLE_ONLY: 'Role only',
+  LINK_ONLY: 'Link only',
+  LINKED: 'Linked',
+  NONE: 'No portal access',
+};
 
 interface PatientPortalLinkState {
   status: PortalLinkStatus;
@@ -182,6 +190,11 @@ interface StaffAccessRow {
 }
 
 type StatusFilter = 'active' | 'inactive' | 'all';
+const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
+  active: 'Active only',
+  inactive: 'Deactivated only',
+  all: 'All accounts',
+};
 type ViewMode = 'clinic' | 'all';
 
 const ROLES: RoleName[] = ['SYSTEM_ADMIN', 'DIRECTOR', 'MANAGER', 'DOCTOR', 'VOLUNTEER', 'PATIENT'];
@@ -1050,7 +1063,7 @@ export default function AdminUsersPage() {
       <EmptyState
         icon={Users}
         title="No staff records match these filters"
-        description="Adjust the status or role filters, or wait until the user signs into Nkwapa for the first time."
+        description="Change the filters, or wait for their first sign-in."
       />
     );
 
@@ -1060,6 +1073,7 @@ export default function AdminUsersPage() {
         <AppPageHeader
           title="Staff and access"
           description="Manage clinic access and roster status."
+          hideDescriptionOnPhone
           helpTitle="How access changes work"
           helpText="Use Active clinic for day-to-day roster changes, switch to All users when you need cross-clinic or global account checks, and remember that deactivating an account blocks access without removing audit history."
           actions={
@@ -1187,23 +1201,63 @@ export default function AdminUsersPage() {
               )}
             </p>
           </div>
-          <div
-            role="group"
-            aria-label="Roster filters"
-            className="flex flex-wrap items-center gap-x-4 gap-y-2"
+          <ListFilters
+            groupLabel="Roster filters"
+            sheetTitle="Filter roster"
+            chips={[
+              ...(activeClinicZoneLabel
+                ? [{ label: 'Clinic zone', value: activeClinicZoneLabel }]
+                : []),
+              {
+                label: 'Status',
+                value: statusFilter === 'active' ? null : STATUS_FILTER_LABELS[statusFilter],
+                onRemove: () => setStatusFilter('active'),
+              },
+              {
+                label: 'Role',
+                value: roleFilter === 'ALL' ? null : formatRoleLabel(roleFilter),
+                onRemove: () => setRoleFilter('ALL'),
+              },
+              {
+                label: 'Portal',
+                value: portalFilter === 'ALL' ? null : PORTAL_FILTER_LABELS[portalFilter],
+                onRemove: () => setPortalFilter('ALL'),
+              },
+              {
+                label: 'Organization',
+                value:
+                  organizationFilter === null
+                    ? null
+                    : organizationFilterOptions(organizations).find(
+                        (option) => option.value === organizationFilterToSelect(organizationFilter),
+                      )?.label,
+                onRemove: () => setOrganizationFilter(null),
+              },
+              {
+                label: 'Zone',
+                value:
+                  zoneFilter === null
+                    ? null
+                    : zoneOptions.find((option) => option.value === zoneFilterToSelect(zoneFilter))
+                        ?.label,
+                onRemove: () => setZoneFilter(null),
+              },
+            ]}
+            onClearAll={() => {
+              setStatusFilter('active');
+              setRoleFilter('ALL');
+              setPortalFilter('ALL');
+              setZoneFilter(null);
+              setOrganizationFilter(null);
+            }}
           >
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor="staff-status-filter"
-                className="text-sm font-normal text-muted-foreground"
-              >
-                Account status
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="staff-status-filter">Account status</Label>
               <Select
                 value={statusFilter}
                 onValueChange={(value) => setStatusFilter(value as StatusFilter)}
               >
-                <SelectTrigger id="staff-status-filter" className={TOOLBAR_SELECT}>
+                <SelectTrigger id="staff-status-filter" className="w-full">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1214,15 +1268,10 @@ export default function AdminUsersPage() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor="staff-role-filter"
-                className="text-sm font-normal text-muted-foreground"
-              >
-                Role focus
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="staff-role-filter">Role focus</Label>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger id="staff-role-filter" className={TOOLBAR_SELECT}>
+                <SelectTrigger id="staff-role-filter" className="w-full">
                   <SelectValue placeholder="Filter by role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1237,18 +1286,13 @@ export default function AdminUsersPage() {
             </div>
 
             {showPortalFilter ? (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="staff-portal-filter"
-                  className="text-sm font-normal text-muted-foreground"
-                >
-                  Patient portal state
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="staff-portal-filter">Patient portal state</Label>
                 <Select
                   value={portalFilter}
                   onValueChange={(value) => setPortalFilter(value as PortalFilter)}
                 >
-                  <SelectTrigger id="staff-portal-filter" className={TOOLBAR_SELECT}>
+                  <SelectTrigger id="staff-portal-filter" className="w-full">
                     <SelectValue placeholder="Filter by portal state" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1264,20 +1308,15 @@ export default function AdminUsersPage() {
             ) : null}
 
             {showOrganizationFilter ? (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="staff-organization-filter"
-                  className="text-sm font-normal text-muted-foreground"
-                >
-                  Organization
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="staff-organization-filter">Organization</Label>
                 <Select
                   value={organizationFilterToSelect(organizationFilter)}
                   onValueChange={(value) =>
                     setOrganizationFilter(organizationFilterFromSelect(value))
                   }
                 >
-                  <SelectTrigger id="staff-organization-filter" className={TOOLBAR_SELECT}>
+                  <SelectTrigger id="staff-organization-filter" className="w-full">
                     <SelectValue placeholder="All organizations" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1292,18 +1331,13 @@ export default function AdminUsersPage() {
             ) : null}
 
             {showZoneFilter ? (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="staff-zone-filter"
-                  className="text-sm font-normal text-muted-foreground"
-                >
-                  Zone
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="staff-zone-filter">Zone</Label>
                 <Select
                   value={zoneFilterToSelect(zoneFilter)}
                   onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
                 >
-                  <SelectTrigger id="staff-zone-filter" className={TOOLBAR_SELECT}>
+                  <SelectTrigger id="staff-zone-filter" className="w-full">
                     <SelectValue placeholder="All zones" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1316,33 +1350,7 @@ export default function AdminUsersPage() {
                 </Select>
               </div>
             ) : null}
-
-            {statusFilter !== 'active' ||
-            roleFilter !== 'ALL' ||
-            portalFilter !== 'ALL' ||
-            zoneFilter !== null ||
-            organizationFilter !== null ? (
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => {
-                  setStatusFilter('active');
-                  setRoleFilter('ALL');
-                  setPortalFilter('ALL');
-                  setZoneFilter(null);
-                  setOrganizationFilter(null);
-                }}
-              >
-                Reset filters
-              </Button>
-            ) : null}
-            {activeClinicZoneLabel ? (
-              <span className="text-sm text-muted-foreground">
-                Clinic zone{' '}
-                <span className="font-medium text-foreground">{activeClinicZoneLabel}</span>
-              </span>
-            ) : null}
-          </div>
+          </ListFilters>
           {loading ? (
             <div className="space-y-4">
               <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
@@ -1460,8 +1468,7 @@ export default function AdminUsersPage() {
               {selectedUser ? nameForRow(selectedUser) : 'Manage access'}
             </SheetTitle>
             <SheetDescription className="leading-6">
-              Review clinic access, broader memberships, and safe lifecycle actions before making
-              changes.
+              Access, memberships and account actions.
             </SheetDescription>
           </SheetHeader>
           {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
@@ -1479,8 +1486,7 @@ export default function AdminUsersPage() {
                 <RecordSectionHeader>
                   <h3 className="type-section-title">Identity and cleanup</h3>
                   <RecordSectionDescription>
-                    Use identity metadata to confirm whether this is the current sign-in account or
-                    a stale legacy record.
+                    Check this is their current sign-in account, not an old record.
                   </RecordSectionDescription>
                 </RecordSectionHeader>
                 <RecordSectionContent className="divide-y divide-rule border-b border-rule">
@@ -1686,7 +1692,7 @@ export default function AdminUsersPage() {
                       density="compact"
                       icon={ShieldAlert}
                       title="No roles in the active clinic"
-                      description="Switch the header clinic or open the clinic roster view to manage a different clinic-scoped membership."
+                      description="To change access at another clinic, switch clinic in the header."
                     />
                   )}
                 </RecordSectionContent>
@@ -1696,8 +1702,7 @@ export default function AdminUsersPage() {
                 <RecordSectionHeader>
                   <h3 className="type-section-title">Broader access summary</h3>
                   <RecordSectionDescription>
-                    Use this section to spot global roles or memberships outside the clinic before
-                    deactivating the account.
+                    Roles and memberships outside this clinic.
                   </RecordSectionDescription>
                 </RecordSectionHeader>
                 <RecordSectionContent className="space-y-3">
@@ -1728,7 +1733,7 @@ export default function AdminUsersPage() {
                       density="compact"
                       icon={ShieldAlert}
                       title="No role records found"
-                      description="This usually means the user has not been granted any clinic or global access yet."
+                      description="They have no clinic or global access yet."
                     />
                   )}
                 </RecordSectionContent>
@@ -1739,8 +1744,8 @@ export default function AdminUsersPage() {
                   <RecordSectionHeader>
                     <h3 className="type-section-title">Assign a new role</h3>
                     <RecordSectionDescription>
-                      Directors can assign roles only for clinics they direct. System admins can
-                      assign staff and admin roles here.
+                      Directors assign roles at clinics they direct. System admins can assign any
+                      role.
                     </RecordSectionDescription>
                   </RecordSectionHeader>
                   <RecordSectionContent className="space-y-4">
@@ -1812,8 +1817,8 @@ export default function AdminUsersPage() {
                   <RecordSectionHeader>
                     <h3 className="type-section-title">Reactivate account</h3>
                     <RecordSectionDescription>
-                      Restores access to Nkwapa and re-enables their sign-in. They keep their
-                      existing password and are emailed to say so.
+                      Restores their access and sign-in. Their password is unchanged, and they get
+                      an email.
                     </RecordSectionDescription>
                   </RecordSectionHeader>
                   <RecordSectionContent>
@@ -1859,9 +1864,8 @@ export default function AdminUsersPage() {
                   <RecordSectionHeader>
                     <h3 className="type-section-title">Deactivate account</h3>
                     <RecordSectionDescription>
-                      This blocks API and app access without deleting audit or clinical history,
-                      then disables their sign-in and ends any open sessions. For someone who also
-                      works in another clinic, only this clinic&apos;s access is withdrawn.
+                      Blocks sign-in and ends their sessions. Records and audit history stay, and
+                      other clinics keep their access.
                     </RecordSectionDescription>
                   </RecordSectionHeader>
                   <RecordSectionContent className="space-y-4">
@@ -1901,8 +1905,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Remove clinic role</DialogTitle>
             <DialogDescription className="leading-6">
-              This removes the selected role from the active clinic only. Audit history stays intact
-              and any other clinic or global access remains untouched.
+              Removes this role at this clinic only. Other access and audit history stay.
             </DialogDescription>
           </DialogHeader>
           <div className="border-y border-rule py-3 text-sm">
@@ -1938,8 +1941,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Correct name</DialogTitle>
             <DialogDescription className="leading-6">
-              The name shows on every record this person works on. The change is audited and reaches
-              their sign-in account too.
+              Shown on every record they work on. The change is audited.
             </DialogDescription>
           </DialogHeader>
           {selectedUser ? (
@@ -1970,8 +1972,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Deactivate account</DialogTitle>
             <DialogDescription className="leading-6">
-              This sets the user to inactive and blocks API access globally. Existing audit logs,
-              encounters, and clinic records are preserved.
+              Blocks their access everywhere. Their records and audit history stay.
             </DialogDescription>
           </DialogHeader>
           <div className="border-y border-rule py-3 text-sm">

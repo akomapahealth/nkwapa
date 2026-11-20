@@ -100,8 +100,7 @@ export function InstallInstructionsDialog() {
           </div>
           <DialogTitle className="font-heading text-2xl">{content.title}</DialogTitle>
           <DialogDescription>
-            Nkwapa opens straight into your workspace, and changes saved on this device are better
-            protected from being cleared.
+            Opens straight into your workspace, and keeps saved changes safer on this device.
           </DialogDescription>
         </DialogHeader>
         <ol className="space-y-3">

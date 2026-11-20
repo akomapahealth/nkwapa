@@ -70,6 +70,8 @@ export interface SwitchableClinic extends ClinicUnits {
   name: string;
   region: string | null;
   zoneCode: string | null;
+  /** IANA zone the clinic's days, times and dates are kept in. */
+  timezone: string;
 }
 
 const SWITCHABLE_CLINIC_SELECT = {
@@ -77,6 +79,7 @@ const SWITCHABLE_CLINIC_SELECT = {
   name: true,
   region: true,
   zoneCode: true,
+  timezone: true,
   glucoseUnit: true,
   bodyUnit: true,
   hba1cUnit: true,

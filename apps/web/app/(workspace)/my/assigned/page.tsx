@@ -9,7 +9,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import {
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   type ActiveShiftsResponse,
   type MyAssignmentSummary,
   type MyAssignmentsResponse,
@@ -40,7 +40,14 @@ import {
   opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import { TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -104,7 +111,7 @@ export default function MyAssignedPage() {
 
   const assignments = view.data?.assignments.items ?? [];
   const timezone =
-    view.data?.assignments.timezone ?? view.data?.shifts.timezone ?? OPS_DEFAULT_TIMEZONE;
+    view.data?.assignments.timezone ?? view.data?.shifts.timezone ?? displayTimeZone();
   const isToday = selectedDate === getTodayInTimeZone(timezone);
   const shifts = useMemo(
     () =>
@@ -439,23 +446,38 @@ export default function MyAssignedPage() {
                     Cases aligned to your current clinic role.
                   </p>
                 </div>
-                <SegmentedControl
-                  label="Filter assigned patients"
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                  className="sm:w-[30rem]"
-                  options={[
-                    { value: 'ALL', label: 'All' },
-                    { value: 'ASSIGNED', label: 'Assigned' },
-                    { value: 'IN_PROGRESS', label: 'In progress' },
-                    { value: 'COMPLETED', label: 'Completed' },
-                  ]}
-                />
+                {/* Four options: a dropdown, per MASTER §8 (segmented is for 2 or 3). */}
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor="assigned-status-filter"
+                    className="text-sm font-normal text-muted-foreground"
+                  >
+                    Show
+                  </Label>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => setStatusFilter(value as StaffFilter)}
+                  >
+                    <SelectTrigger
+                      id="assigned-status-filter"
+                      aria-label="Filter assigned patients"
+                      className={TOOLBAR_SELECT}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All</SelectItem>
+                      <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                      <SelectItem value="IN_PROGRESS">In progress</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               {!view.data ? null : filteredAssignments.length === 0 ? (
                 <EmptyStateCard
                   title="Nothing assigned yet"
-                  description="As soon as the manager pairs you to a patient, the case will appear here."
+                  description="Patients show here once a manager pairs you."
                 />
               ) : (
                 <DataTable

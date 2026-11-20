@@ -1,3 +1,4 @@
+import { CLINIC_DEFAULT_TIMEZONE } from '@nkwapa/db';
 import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
 import { formatPersonName } from '@nkwapa/db';
 import {
@@ -138,8 +139,6 @@ type AppointmentRequestWithRelations = Prisma.AppointmentRequestGetPayload<{
 type AppointmentScheduleWithRelations = Prisma.AppointmentGetPayload<{
   include: typeof appointmentScheduleInclude;
 }>;
-
-const CLINIC_TIMEZONE_FALLBACK = 'Africa/Accra';
 
 type AppointmentLifecycleAction = 'reschedule' | 'cancel' | 'complete' | 'no-show';
 
@@ -3411,7 +3410,7 @@ export class PatientPortalService {
       where: { id: clinicId },
       select: { timezone: true },
     });
-    return clinic?.timezone ?? CLINIC_TIMEZONE_FALLBACK;
+    return clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE;
   }
 
   private parseDateTime(value: string, fieldName: string) {

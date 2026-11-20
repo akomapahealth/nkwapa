@@ -91,6 +91,7 @@ function StaffActivityContent() {
       <AppPageHeader
         title="Staff activity"
         description="Who did what work here, and when."
+        hideDescriptionOnPhone
         hint="Listed by name, not ranked."
         helpTitle="What these numbers are"
         helpText="Each figure counts the records a person worked on, from the audit trail: a form saved several times counts once. It shows workload, not performance, and leaves out time spent with patients that does not produce a record. No patient is named here."

@@ -1,4 +1,4 @@
-import { formatPersonName } from '@nkwapa/db';
+import { CLINIC_DEFAULT_TIMEZONE, formatPersonName } from '@nkwapa/db';
 import {
   BadRequestException,
   Body,
@@ -50,6 +50,8 @@ export interface Membership {
   clinicName: string;
   /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
   zoneCode: string | null;
+  /** The IANA zone the clinic keeps its days and times in. */
+  timezone: string;
   roles: string[];
   /** The units this clinic types and reads screening values in. */
   units: ClinicUnits;
@@ -81,6 +83,7 @@ export function membershipsFor(
       clinicId,
       clinicName: clinic.name,
       zoneCode: clinic.zoneCode ?? null,
+      timezone: clinic.timezone ?? CLINIC_DEFAULT_TIMEZONE,
       roles: [...(rolesByClinic.get(clinicId) ?? [])],
       units: clinicUnits(clinic),
     });
@@ -93,6 +96,7 @@ export interface AvailableClinic {
   clinicName: string;
   /** The clinic's reporting zone, or `null`. Context for the UI, never a permission. */
   zoneCode: string | null;
+  timezone: string;
   units: ClinicUnits;
 }
 
@@ -206,6 +210,7 @@ export class AuthController {
       clinicId: clinic.id,
       clinicName: clinic.name,
       zoneCode: clinic.zoneCode ?? null,
+      timezone: clinic.timezone ?? CLINIC_DEFAULT_TIMEZONE,
       units: clinicUnits(clinic),
     }));
     const availableClinicIds = new Set(availableClinics.map((clinic) => clinic.clinicId));

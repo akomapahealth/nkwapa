@@ -216,6 +216,7 @@ export function RegisterPatientScreen({
       <AppPageHeader
         title="Register a new patient"
         description="Capture the essentials and move the patient into care."
+        hideDescriptionOnPhone
         helpTitle="How registration works"
         helpText="Record identity, contact details, and a trusted ID in one pass. Nkwapa checks for duplicate national IDs before it creates the chart. A patient with no ID document can still be registered, and the ID added later."
       />
@@ -447,7 +448,7 @@ export function RegisterPatientScreen({
 
             <FormSectionCard
               title="Contact details"
-              description="Add the best follow-up channels your team can use after today’s visit."
+              description="How the team can reach them after today."
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">

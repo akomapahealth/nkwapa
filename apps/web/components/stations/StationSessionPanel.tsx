@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
-import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime } from '@/lib/ops';
+import { displayTimeZone, formatOpsDateTime } from '@/lib/ops';
 import {
   canCorrectPerformer,
   describeRouteStop,
@@ -107,7 +107,7 @@ export function StationSessionPanel({
         vitals={vitals}
         diabetes={diabetes}
         eye={eye}
-        timezone={OPS_DEFAULT_TIMEZONE}
+        timezone={displayTimeZone()}
       />
       <RecordSection aria-labelledby="station-route-title">
         <RecordSectionHeader>
@@ -119,7 +119,7 @@ export function StationSessionPanel({
           <ol className="border-t border-rule text-sm">
             {timeline.map((stop) => {
               const line = describeRouteStop(stop, (iso) =>
-                formatOpsDateTime(iso, OPS_DEFAULT_TIMEZONE),
+                formatOpsDateTime(iso, displayTimeZone()),
               );
               return (
                 <li key={stop.id} className="border-b border-rule py-3">

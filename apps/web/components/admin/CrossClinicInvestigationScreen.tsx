@@ -388,7 +388,7 @@ export function CrossClinicInvestigationScreen() {
               {data.items.length === 0 ? (
                 <EmptyState
                   title="No pairs match these filters"
-                  description="Try a broader decision or match strength, clear the search, or show every clinic pair."
+                  description="Widen the filters or clear the search."
                   icon={SearchX}
                   density="compact"
                 />

@@ -1,6 +1,7 @@
 import {
   getActiveBootstrapClinic,
   getBootstrapActiveClinicId,
+  getClinicTimeZone,
   getSwitchableClinics,
   isStoredClinicIdValid,
 } from '@/lib/bootstrap-clinics';
@@ -53,5 +54,19 @@ describe('bootstrap clinic helpers', () => {
 
     expect(isStoredClinicIdValid(bootstrap, 'inactive-clinic')).toBe(false);
     expect(getActiveBootstrapClinic(bootstrap, 'inactive-clinic')).toBeNull();
+  });
+
+  it('reads the clinic zone, falling back for a missing or unknown zone', () => {
+    const bootstrap = {
+      availableClinics: [
+        { clinicId: 'nairobi', clinicName: 'Nairobi', timezone: 'Africa/Nairobi' },
+        { clinicId: 'bad', clinicName: 'Bad', timezone: 'Mars/Olympus' },
+        { clinicId: 'old', clinicName: 'Old build' },
+      ],
+    };
+    expect(getClinicTimeZone(bootstrap, 'nairobi')).toBe('Africa/Nairobi');
+    expect(getClinicTimeZone(bootstrap, 'bad')).toBe('Africa/Accra');
+    expect(getClinicTimeZone(bootstrap, 'old')).toBe('Africa/Accra');
+    expect(getClinicTimeZone(bootstrap, null)).toBe('Africa/Accra');
   });
 });

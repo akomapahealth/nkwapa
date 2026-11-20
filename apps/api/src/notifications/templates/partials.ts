@@ -1,3 +1,4 @@
+import { CLINIC_DEFAULT_TIMEZONE } from '@nkwapa/db';
 const HTML_ESCAPES: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',
@@ -17,7 +18,8 @@ export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => HTML_ESCAPES[character]);
 }
 
-export const DEFAULT_TIMEZONE = 'Africa/Accra';
+/** A payload with no zone reads in the default clinic zone. */
+export const DEFAULT_TIMEZONE = CLINIC_DEFAULT_TIMEZONE;
 
 function formatInTimeZone(
   value: Date,

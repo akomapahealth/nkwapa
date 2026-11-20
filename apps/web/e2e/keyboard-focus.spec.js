@@ -108,8 +108,8 @@ test.describe('workspace', () => {
   test('the page behind an open Select is inert, and focus returns to the trigger', async ({
     page,
   }) => {
-    await page.goto('/admin/users');
-    const trigger = page.locator('#staff-status-filter');
+    await page.goto('/admin/clinics');
+    const trigger = page.locator('#clinic-zone-filter');
     await expect(trigger).toBeVisible();
     await trigger.focus();
     await page.keyboard.press('Enter');

@@ -150,8 +150,8 @@ export function ResearchOverviewPanel({
           </RecordSectionTitle>
           <RecordSectionDescription>
             {canApprove
-              ? 'Runs waiting for approval, and failed or skipped runs from the last 30 days that have not been run again.'
-              : 'What is waiting on a director. You can follow it here; a director makes the call.'}
+              ? 'Runs awaiting approval, and failed or skipped runs from the last 30 days.'
+              : 'What is waiting on a director.'}
           </RecordSectionDescription>
         </RecordSectionHeader>
         <RecordSectionContent>

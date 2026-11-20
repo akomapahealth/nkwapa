@@ -56,6 +56,7 @@ export default function AccountPage() {
       <AppPageHeader
         title="Profile"
         description="How you appear to colleagues, and how Nkwapa reaches you."
+        hideDescriptionOnPhone
         actions={
           <Button asChild variant="outline">
             <Link href="/settings">

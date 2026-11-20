@@ -93,7 +93,7 @@ async function completeAccountSetup(page, email) {
   await page.fill('#password-new', PASSWORD);
   await page.fill('#password-confirm', PASSWORD);
   await page.click('input[type="submit"], button[type="submit"]');
-  await expect(page.getByText(/your account is ready/i)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/your password is saved/i)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('link', { name: /continue to nkwapa/i }).click();
 
   await page.waitForURL(/realms\/nkwapa/, { timeout: 60_000 });
@@ -270,14 +270,11 @@ test('one search covers staff and invitations, and the status filter stays on on
   const invitations = page.getByRole('table', { name: 'Staff invitations', exact: true });
   for (const width of [600, 744, 840, 1024]) {
     await page.setViewportSize({ width, height: 900 });
-    const status = page.getByRole('group', { name: 'Show invitations', exact: true });
+    // Five filters are a dropdown now (MASTER §8); it sits below the search.
+    const status = page.getByRole('combobox', { name: 'Show invitations', exact: true });
     const searchBox = await search.boundingBox();
-    const groupBox = await status.boundingBox();
-    expect(searchBox.y + searchBox.height).toBeLessThanOrEqual(groupBox.y);
-    const tops = await status
-      .getByRole('button')
-      .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
-    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1);
+    const statusBox = await status.boundingBox();
+    expect(searchBox.y + searchBox.height).toBeLessThanOrEqual(statusBox.y);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
   }
 
@@ -380,7 +377,9 @@ test('a cancelled invitation stays visible and stops granting anything', async (
   await cancelled;
 
   // Under its own filter, and removable from the list once it will not be resent.
-  await page.getByRole('button', { name: 'Cancelled', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Show invitations', exact: true }).click();
+  await page.getByRole('option', { name: 'Cancelled', exact: true }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
   await expect(row).toBeVisible();
   const removed = page.waitForResponse(
     (response) => /\/staff-invites\/[^/]+\/remove$/.test(response.url()) && response.ok(),

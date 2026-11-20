@@ -210,7 +210,7 @@ export function Combobox({
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          className="flex h-[var(--field-height)] w-full rounded-sm border border-input bg-card px-3 py-2 pr-10 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:ring-destructive"
+          className="flex h-[var(--field-height)] w-full rounded-md border border-input bg-card px-3 py-2 pr-10 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:ring-destructive"
         />
         <ChevronDown
           aria-hidden="true"
@@ -235,7 +235,7 @@ export function Combobox({
         // aria-controls, and naming it "Time zone" too gives the field's name to two elements.
         aria-label="Suggestions"
         hidden={!open}
-        className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
+        className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-popover py-1 text-sm shadow-md"
       >
         {visible.length === 0 ? (
           <li className="px-3 py-2 text-muted-foreground">{emptyLabel}</li>

@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import styles from './patient-profile.module.css';
+import { PatientContextBar } from '@/components/patients/PatientContextBar';
+import type { ChartAllergySummary } from '@/lib/patient-chart';
+import type { FollowUpTier } from '@nkwapa/db/follow-up-stratification';
 import { avatarToneProps } from '@/lib/avatar-tone';
 import { formatPersonName, type PersonNameParts } from '@/lib/person-name';
 
@@ -17,6 +19,9 @@ export function PatientProfileHeader({
   clinicId,
   badges,
   actions,
+  sexAge,
+  allergies,
+  tier,
 }: {
   /** The full name heads the chart; the avatar and the compact bar use first and last (#342). */
   person: PersonNameParts;
@@ -27,69 +32,15 @@ export function PatientProfileHeader({
   clinicId: string;
   badges: ReactNode;
   actions: ReactNode;
+  /** For the pinned bar: "F · 34 y". */
+  sexAge?: string | null;
+  allergies?: ChartAllergySummary | null;
+  /** Only for people who may see the follow-up tier. */
+  tier?: FollowUpTier | null;
 }) {
   const name = formatPersonName(person);
   const shortName = formatPersonName(person, 'short');
   const header = useRef<HTMLElement>(null);
-  const compact = useRef<HTMLDivElement>(null);
-  const [context, setContext] = useState({ visible: false, top: 0, left: 0, width: 0 });
-
-  useEffect(() => {
-    const element = header.current;
-    if (!element) return;
-    const shell = document.querySelector('header');
-    let frame = 0;
-    const measure = () => {
-      const rect = element.getBoundingClientRect();
-      const top = Math.max(0, shell?.getBoundingClientRect().bottom ?? 0);
-      const focused = document.activeElement;
-      const focusRect =
-        focused instanceof HTMLElement &&
-        focused.closest('main') &&
-        focused !== document.querySelector('main')
-          ? focused.getBoundingClientRect()
-          : null;
-      // Identity must never obscure a control the browser has scrolled into keyboard focus.
-      const coversFocus =
-        focusRect &&
-        focusRect.bottom > top &&
-        focusRect.top < top + (compact.current?.offsetHeight ?? 0);
-      const next = {
-        visible: rect.bottom <= top && !coversFocus,
-        top,
-        left: rect.left,
-        width: rect.width,
-      };
-      setContext((previous) =>
-        Object.keys(next).every(
-          (key) => previous[key as keyof typeof next] === next[key as keyof typeof next],
-        )
-          ? previous
-          : next,
-      );
-    };
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(measure);
-    };
-    const observer = new ResizeObserver(schedule);
-    observer.observe(element);
-    if (shell) observer.observe(shell);
-    // Capture also observes scrolling inside the workspace, not only document scrolling.
-    document.addEventListener('scroll', schedule, true);
-    document.addEventListener('focusin', schedule);
-    document.addEventListener('focusout', schedule);
-    window.addEventListener('resize', schedule);
-    measure();
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      document.removeEventListener('scroll', schedule, true);
-      document.removeEventListener('focusin', schedule);
-      document.removeEventListener('focusout', schedule);
-      window.removeEventListener('resize', schedule);
-    };
-  }, []);
 
   return (
     <>
@@ -129,26 +80,14 @@ export function PatientProfileHeader({
           </div>
         </div>
       </header>
-      {context.width > 0
-        ? createPortal(
-            <div
-              ref={compact}
-              aria-hidden="true"
-              data-visible={context.visible}
-              className={styles.context}
-              style={{ top: context.top, left: context.left, width: context.width, margin: 0 }}
-            >
-              <span className="min-w-0 truncate font-semibold">{shortName}</span>
-              <span
-                className="min-w-0 truncate font-mono text-xs text-muted-foreground"
-                translate="no"
-              >
-                {patientCode}
-              </span>
-            </div>,
-            document.body,
-          )
-        : null}
+      <PatientContextBar
+        anchor={header}
+        name={shortName}
+        code={patientCode}
+        sexAge={sexAge}
+        allergies={allergies}
+        tier={tier}
+      />
     </>
   );
 }

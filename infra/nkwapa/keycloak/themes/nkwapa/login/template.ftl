@@ -57,11 +57,12 @@
             {"label": "Your work opens", "detail": "Staff see their clinic. Patients see their record."}
         ] />
     <#elseif journey == "setup">
-        <#local journeyTitle = "Setting up your account" />
+        <#-- Invitations and password resets share these pages, so the steps fit both. -->
+        <#local journeyTitle = "Choosing your password" />
         <#local journeySteps = [
-            {"label": "Open your invitation email", "detail": "The link brought you here."},
+            {"label": "Open the link we emailed you", "detail": "The link brought you here."},
             {"label": "Choose a password", "detail": "And confirm your email address if asked."},
-            {"label": "Finish in Nkwapa", "detail": "Staff accept their clinic and role. Patients confirm their clinic card."}
+            {"label": "Sign in to Nkwapa", "detail": "New accounts finish setting up there."}
         ] />
     <#elseif journey == "reset">
         <#local journeyTitle = "Resetting your password" />

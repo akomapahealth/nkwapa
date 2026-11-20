@@ -564,7 +564,7 @@ export default function RemindersPage() {
           ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
             <EmptyStateCard
               title="No reminders match the current filters"
-              description="Try a wider date range or a broader status filter to review reminder activity."
+              description="Widen the dates or the status filter."
             />
           ) : (
             <>

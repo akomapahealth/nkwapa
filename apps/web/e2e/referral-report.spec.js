@@ -21,7 +21,7 @@ async function createPatient(page) {
 }
 
 async function openSheet(page) {
-  await page.getByRole('button', { name: 'Referral report' }).click();
+  await page.getByRole('button', { name: 'Referral report', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Referral report' });
   await expect(sheet.getByRole('checkbox', { name: /At a glance/ })).toBeChecked();
   return sheet;
@@ -72,7 +72,7 @@ test.describe('doctor', () => {
 
     // Closing drops the passcode: the next report starts from a fresh form.
     await done.getByRole('button', { name: 'Done' }).click();
-    await page.getByRole('button', { name: 'Referral report' }).click();
+    await page.getByRole('button', { name: 'Referral report', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Referral report' })).toBeVisible();
     await expect(page.getByTestId('referral-passcode')).toHaveCount(0);
     await expect(page.getByLabel('Reason for referral')).toHaveValue('');
@@ -108,10 +108,10 @@ test.describe('doctor', () => {
   test('is unavailable offline and says why', async ({ page, context }) => {
     await createPatient(page);
     await context.setOffline(true);
-    await expect(page.getByRole('button', { name: 'Referral report' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Referral report', exact: true })).toBeDisabled();
     await expect(page.getByText('Referral report needs a connection')).toBeVisible();
     await context.setOffline(false);
-    await expect(page.getByRole('button', { name: 'Referral report' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Referral report', exact: true })).toBeEnabled();
   });
 });
 
@@ -171,6 +171,6 @@ test.describe('director', () => {
     await expect(page.getByRole('heading', { name: /E2E Unclaimed/i })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole('button', { name: 'Referral report' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Referral report', exact: true })).toHaveCount(0);
   });
 });
