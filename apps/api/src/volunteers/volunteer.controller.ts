@@ -40,6 +40,17 @@ export class VolunteerController {
     return this.volunteerService.create(params.clinicId, req.user.user.id, body);
   }
 
+  @Post('from-account')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.VOLUNTEER_ROSTER_MANAGE)
+  addFromAccount(
+    @Param() params: ClinicIdParamDto,
+    @Body() body: LinkVolunteerDto,
+    @Request() req: VolunteerRequest,
+  ) {
+    return this.volunteerService.addFromAccount(params.clinicId, req.user.user.id, body.userId);
+  }
+
   @Patch(':id')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.VOLUNTEER_ROSTER_MANAGE)

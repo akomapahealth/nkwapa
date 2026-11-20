@@ -15,6 +15,13 @@ export interface VolunteerContact {
   linkCandidate?: { id: string; displayName: string } | null;
 }
 
+/** A clinic account not in the directory yet; adding one creates a linked contact. */
+export interface ClinicAccount {
+  id: string;
+  displayName: string;
+  email: string;
+}
+
 export type ScreeningEventStatus = 'SCHEDULED' | 'CANCELLED' | 'COMPLETED';
 
 export interface ScreeningEvent {
