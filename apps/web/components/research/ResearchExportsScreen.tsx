@@ -390,6 +390,7 @@ export function ResearchExportsScreen({ clinicId }: { clinicId: string }) {
           context={clinicName ?? undefined}
           title="Research exports"
           description="Readiness, runs and de-identified packs."
+          hideDescriptionOnPhone
           actions={
             <Button
               variant="outline"

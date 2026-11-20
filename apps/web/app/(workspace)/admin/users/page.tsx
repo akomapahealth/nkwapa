@@ -1050,7 +1050,7 @@ export default function AdminUsersPage() {
       <EmptyState
         icon={Users}
         title="No staff records match these filters"
-        description="Adjust the status or role filters, or wait until the user signs into Nkwapa for the first time."
+        description="Change the filters, or wait for their first sign-in."
       />
     );
 
@@ -1060,6 +1060,7 @@ export default function AdminUsersPage() {
         <AppPageHeader
           title="Staff and access"
           description="Manage clinic access and roster status."
+          hideDescriptionOnPhone
           helpTitle="How access changes work"
           helpText="Use Active clinic for day-to-day roster changes, switch to All users when you need cross-clinic or global account checks, and remember that deactivating an account blocks access without removing audit history."
           actions={
@@ -1460,8 +1461,7 @@ export default function AdminUsersPage() {
               {selectedUser ? nameForRow(selectedUser) : 'Manage access'}
             </SheetTitle>
             <SheetDescription className="leading-6">
-              Review clinic access, broader memberships, and safe lifecycle actions before making
-              changes.
+              Access, memberships and account actions.
             </SheetDescription>
           </SheetHeader>
           {!isOnline ? <StaleDataNotice isOnline={false} /> : null}
@@ -1479,8 +1479,7 @@ export default function AdminUsersPage() {
                 <RecordSectionHeader>
                   <h3 className="type-section-title">Identity and cleanup</h3>
                   <RecordSectionDescription>
-                    Use identity metadata to confirm whether this is the current sign-in account or
-                    a stale legacy record.
+                    Check this is their current sign-in account, not an old record.
                   </RecordSectionDescription>
                 </RecordSectionHeader>
                 <RecordSectionContent className="divide-y divide-rule border-b border-rule">
@@ -1686,7 +1685,7 @@ export default function AdminUsersPage() {
                       density="compact"
                       icon={ShieldAlert}
                       title="No roles in the active clinic"
-                      description="Switch the header clinic or open the clinic roster view to manage a different clinic-scoped membership."
+                      description="To change access at another clinic, switch clinic in the header."
                     />
                   )}
                 </RecordSectionContent>
@@ -1696,8 +1695,7 @@ export default function AdminUsersPage() {
                 <RecordSectionHeader>
                   <h3 className="type-section-title">Broader access summary</h3>
                   <RecordSectionDescription>
-                    Use this section to spot global roles or memberships outside the clinic before
-                    deactivating the account.
+                    Roles and memberships outside this clinic.
                   </RecordSectionDescription>
                 </RecordSectionHeader>
                 <RecordSectionContent className="space-y-3">
@@ -1728,7 +1726,7 @@ export default function AdminUsersPage() {
                       density="compact"
                       icon={ShieldAlert}
                       title="No role records found"
-                      description="This usually means the user has not been granted any clinic or global access yet."
+                      description="They have no clinic or global access yet."
                     />
                   )}
                 </RecordSectionContent>
@@ -1739,8 +1737,8 @@ export default function AdminUsersPage() {
                   <RecordSectionHeader>
                     <h3 className="type-section-title">Assign a new role</h3>
                     <RecordSectionDescription>
-                      Directors can assign roles only for clinics they direct. System admins can
-                      assign staff and admin roles here.
+                      Directors assign roles at clinics they direct. System admins can assign any
+                      role.
                     </RecordSectionDescription>
                   </RecordSectionHeader>
                   <RecordSectionContent className="space-y-4">
@@ -1812,8 +1810,8 @@ export default function AdminUsersPage() {
                   <RecordSectionHeader>
                     <h3 className="type-section-title">Reactivate account</h3>
                     <RecordSectionDescription>
-                      Restores access to Nkwapa and re-enables their sign-in. They keep their
-                      existing password and are emailed to say so.
+                      Restores their access and sign-in. Their password is unchanged, and they get
+                      an email.
                     </RecordSectionDescription>
                   </RecordSectionHeader>
                   <RecordSectionContent>
@@ -1859,9 +1857,8 @@ export default function AdminUsersPage() {
                   <RecordSectionHeader>
                     <h3 className="type-section-title">Deactivate account</h3>
                     <RecordSectionDescription>
-                      This blocks API and app access without deleting audit or clinical history,
-                      then disables their sign-in and ends any open sessions. For someone who also
-                      works in another clinic, only this clinic&apos;s access is withdrawn.
+                      Blocks sign-in and ends their sessions. Records and audit history stay, and
+                      other clinics keep their access.
                     </RecordSectionDescription>
                   </RecordSectionHeader>
                   <RecordSectionContent className="space-y-4">
@@ -1901,8 +1898,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Remove clinic role</DialogTitle>
             <DialogDescription className="leading-6">
-              This removes the selected role from the active clinic only. Audit history stays intact
-              and any other clinic or global access remains untouched.
+              Removes this role at this clinic only. Other access and audit history stay.
             </DialogDescription>
           </DialogHeader>
           <div className="border-y border-rule py-3 text-sm">
@@ -1938,8 +1934,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Correct name</DialogTitle>
             <DialogDescription className="leading-6">
-              The name shows on every record this person works on. The change is audited and reaches
-              their sign-in account too.
+              Shown on every record they work on. The change is audited.
             </DialogDescription>
           </DialogHeader>
           {selectedUser ? (
@@ -1970,8 +1965,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>Deactivate account</DialogTitle>
             <DialogDescription className="leading-6">
-              This sets the user to inactive and blocks API access globally. Existing audit logs,
-              encounters, and clinic records are preserved.
+              Blocks their access everywhere. Their records and audit history stay.
             </DialogDescription>
           </DialogHeader>
           <div className="border-y border-rule py-3 text-sm">

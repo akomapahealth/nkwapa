@@ -486,12 +486,12 @@ export function MedicalHistoryPanel({
         </CardHeader>
         <CardContent className={ruled ? 'space-y-3 px-0 pb-5' : 'space-y-3'}>
           {offline ? (
-            <ChartSectionOffline description="Showing history saved on this device. Pending changes sync automatically once you reconnect." />
+            <ChartSectionOffline description="Showing history saved on this device. Changes send when you reconnect." />
           ) : null}
           {loadError ? (
             <ChartSectionError
               title="Medical history could not be loaded"
-              description={`${loadError} Nothing is listed until it loads, so missing records are never read as none.`}
+              description={`${loadError} Nothing is listed until it loads.`}
               onRetry={() => void load()}
             />
           ) : null}
@@ -584,7 +584,7 @@ export function MedicalHistoryPanel({
         <DialogHeader>
           <DialogTitle>{editing ? 'Revise history record' : 'Add history record'}</DialogTitle>
           <DialogDescription>
-            Saving creates a new auditable revision. Earlier clinical values remain available.
+            Saved as an audited revision. Earlier values stay available.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">

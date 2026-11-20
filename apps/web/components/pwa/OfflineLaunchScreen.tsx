@@ -42,7 +42,7 @@ export function OfflineLaunchScreen({ notice }: { notice?: string | null } = {})
     <FullscreenStatus
       icon={WifiOff}
       title="You are offline"
-      description="Nkwapa needs a connection to sign you in. Changes saved on this device are safe and will send when you are back online. This page retries by itself when the connection returns."
+      description="Nkwapa needs a connection to sign you in. Changes saved here are safe. This page retries on its own."
       primaryAction={
         <Button className="rounded-md" onClick={() => window.location.reload()}>
           <RefreshCw className="h-4 w-4" aria-hidden="true" />

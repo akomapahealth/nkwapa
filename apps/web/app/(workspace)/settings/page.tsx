@@ -63,6 +63,7 @@ export default function SettingsPage() {
       <AppPageHeader
         title="Your settings"
         description="How Nkwapa looks and works for you on this device."
+        hideDescriptionOnPhone
       />
 
       <div className="space-y-6">

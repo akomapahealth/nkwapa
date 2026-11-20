@@ -434,6 +434,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
         className="border-b-0 pb-0 md:pb-0"
         title="Queues"
         description="Visits moving from draft to review to sign-off."
+        hideDescriptionOnPhone
         helpTitle="How the queues work"
         helpText="Each lane holds the visits at that step, so you can go straight to the record."
         actions={
@@ -516,7 +517,7 @@ function QueueWorkspace({ clinicId, lanes }: { clinicId: string; lanes: Lane[] }
                 High glucose only
               </Label>
               <p id="queue-glucose-help" className="text-sm leading-5 text-muted-foreground">
-                Fasting 126 mg/dL or more, or random 200 mg/dL or more.
+                Fasting 126 mg/dL or more, or random 200 mg/dL or more
               </p>
             </div>
           </div>

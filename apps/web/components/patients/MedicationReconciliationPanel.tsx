@@ -865,7 +865,7 @@ export function MedicationReconciliationPanel({
         <AllergySummaryBanner titleAs="h2" summary={allergies} compact />
         <ChartSectionError
           title="Medications could not be loaded"
-          description={`${loadError} Nothing is shown until the list loads, so an empty list is never mistaken for no medications.`}
+          description={`${loadError} The list stays hidden until it loads.`}
           onRetry={() => void load()}
         />
       </div>
@@ -891,7 +891,7 @@ export function MedicationReconciliationPanel({
         }
       />
       {offline ? (
-        <ChartSectionOffline description="Showing medications saved on this device. Pending changes sync automatically once you reconnect." />
+        <ChartSectionOffline description="Showing medications saved on this device. Changes send when you reconnect." />
       ) : null}
       {notice ? (
         <StatusMessage icon={CheckCircle2} tone="success">
@@ -1330,7 +1330,7 @@ function MedicationEmpty({
       <ChartSectionEmpty
         icon={CircleSlash2}
         title="No medications saved on this device"
-        description="This device has no copy of this patient's medications. Reconnect to see the full list before relying on it."
+        description="This device has no copy of these medications. Reconnect to see the list."
       />
     );
   }
@@ -1417,8 +1417,7 @@ function MedicationDialog({
           {editing ? 'Revise reported medication' : 'Add reported medication'}
         </DialogTitle>
         <DialogDescription>
-          Saving creates an auditable clinical revision. It never creates a prescription or Drug
-          catalog entry.
+          Saved as an audited revision. It does not create a prescription.
         </DialogDescription>
       </DialogHeader>
       <RequiredLegend />
@@ -1569,7 +1568,7 @@ function MedicationDialog({
             </Label>
           </div>
           <p id="medication-present-hint" className="text-sm text-muted-foreground">
-            Still being taken, with no end date recorded.
+            Still being taken, with no end date recorded
           </p>
         </div>
         <SelectField

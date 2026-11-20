@@ -430,7 +430,7 @@ export function SelectClinicState({
     <EmptyState
       icon={Building2}
       title="Select a clinic first"
-      description={`${surface} is scoped to one clinic, so it needs to know which clinic you are working in. Choose one in the header to continue.`}
+      description={`${surface} works one clinic at a time. Choose a clinic in the header.`}
       action={action}
       className={className}
     />

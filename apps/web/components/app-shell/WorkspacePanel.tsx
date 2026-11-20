@@ -67,7 +67,7 @@ export function WorkspacePanel({
   /** Ask before closing once something was typed. Off when nothing typed is lost by closing. */
   confirmClose?: boolean;
   className?: string;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const id = useId();
   const side = useWideSheet(SIDE_PANEL_MIN_WIDTH);

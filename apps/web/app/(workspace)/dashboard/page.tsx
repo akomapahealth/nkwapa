@@ -169,7 +169,11 @@ export default function DashboardPage() {
     return (
       <RouteGuard requiredPermission="DASHBOARD.READ">
         <div className="space-y-6">
-          <AppPageHeader title="Dashboard" description="Current clinic totals and next work." />
+          <AppPageHeader
+            title="Dashboard"
+            description="Current clinic totals and next work."
+            hideDescriptionOnPhone
+          />
           <SelectClinicState surface="The dashboard" />
         </div>
       </RouteGuard>

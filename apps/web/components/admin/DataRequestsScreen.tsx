@@ -288,8 +288,8 @@ export function DataRequestsScreen() {
               {closing?.status === 'DECLINED' ? 'Decline request' : 'Complete request'}
             </DialogTitle>
             <DialogDescription>
-              The patient sees this note in their portal. Say what was done, or which part cannot be
-              done and why, for example the law that requires a record to be kept.
+              The patient sees this in their portal. Say what was done, or what cannot be done and
+              why.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

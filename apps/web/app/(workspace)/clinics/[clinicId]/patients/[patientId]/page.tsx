@@ -601,7 +601,7 @@ function PatientChartWorkspace() {
         ) : (
           <InlineErrorState
             title="This chart is not on this device yet"
-            description="It has not been synced to this device. Reconnect to open it; it will be kept here for next time."
+            description="This device does not have it yet. Reconnect to open it."
             onRetry={() => void fetchPatient()}
           />
         )}
@@ -1028,7 +1028,7 @@ function PatientChartWorkspace() {
                       <div className="[&_p]:text-sm">
                         <EmptyStateCard
                           title="No patient-reported updates yet"
-                          description="Portal measurements and self-reports will appear here once the patient begins submitting them."
+                          description="Readings the patient sends from the portal show here."
                         />
                       </div>
                     ) : (

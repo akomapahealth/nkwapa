@@ -166,6 +166,7 @@ export default function NotificationsPage() {
       <AppPageHeader
         title="Notifications"
         description="Messages, urgent findings, requests and invitations for you, newest first."
+        hideDescriptionOnPhone
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {canSeeDelivery ? (

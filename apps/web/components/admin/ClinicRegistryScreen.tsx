@@ -346,6 +346,7 @@ export function ClinicRegistryScreen() {
         title="Clinics"
         count={clinics.data ? rows.length : undefined}
         description="Clinic records, locations and availability."
+        hideDescriptionOnPhone
         helpTitle="What you manage here"
         helpText="Create clinics and keep their location, zone and details current. History is kept."
         actions={<Button onClick={openCreate}>Create clinic</Button>}

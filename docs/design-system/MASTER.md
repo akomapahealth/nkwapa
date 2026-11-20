@@ -641,6 +641,18 @@ contract supersedes the earlier divided-panel/ledger layout.
 
 `AppPageHeader` sits on the canvas, not inside a card: the title is the page's heading, not one more panel among the panels below it. Since W3 polish there is no hairline under it either: it doubled up with the group rule of the first section, so space alone separates header from work.
 
+**Copy length (2026-11-20).** What sits on screen is short; reasons live one tap away.
+
+- A page description is one line under ~70 characters. Where the title already says it, pass
+  `hideDescriptionOnPhone` to `AppPageHeader` and the phone shows the title alone.
+- Section, dialog and sheet descriptions and empty states are one sentence, two at most when the
+  second is a consequence ("This cannot be undone.").
+- Field hints follow GOV.UK: one short sentence, no full stop, no links.
+- No link inside a description; it gets its own line.
+- Safety, consent and de-identification wording keeps its meaning and stays in `ProgressiveHelp`
+  (#63). Trim the words, never the rule.
+- No "please", and nothing that restates the label or the obvious.
+
 **Header voice (W3 polish).** The description is one line under ~70 characters that changes what
 the reader does next ("Charts that may be the same person, strongest match first."). Policy,
 reasons and lists of types go into `hint` / `helpText` beside the title. A data line ("12

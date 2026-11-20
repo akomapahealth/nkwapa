@@ -514,8 +514,8 @@ export function PortalAccessCard({
               {currentInvite ? 'Replace portal invitation' : 'Create portal invite'}
             </DialogTitle>
             <DialogDescription className="leading-6">
-              An invitation email goes to the address you enter, carrying the patient code and a
-              link to sign in. A phone number alone stages the invitation without sending anything.
+              We email the patient code and a sign-in link. With only a phone number, nothing is
+              sent yet.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -609,8 +609,8 @@ export function PortalAccessCard({
           <DialogHeader>
             <DialogTitle>Cancel this invitation?</DialogTitle>
             <DialogDescription className="leading-6">
-              The patient will no longer be able to claim their record with it. If they have already
-              been given the details, you will need to send a new invitation and tell them.
+              The patient can no longer claim their record with it. If they already have the
+              details, send a new invitation.
             </DialogDescription>
           </DialogHeader>
           {cancelTarget ? (

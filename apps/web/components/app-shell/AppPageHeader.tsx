@@ -9,6 +9,7 @@ export function AppPageHeader({
   title,
   count,
   description,
+  hideDescriptionOnPhone,
   hint,
   helpTitle,
   helpText,
@@ -30,6 +31,8 @@ export function AppPageHeader({
   count?: number;
   /** One short line (under ~70 characters) that changes what the reader does next. */
   description?: React.ReactNode;
+  /** Drop the description below 600px, where the title already says it and space is short. */
+  hideDescriptionOnPhone?: boolean;
   /** One sentence of help, shown in a bubble beside the title. */
   hint?: string;
   /** A short name for longer help; the bubble's heading when `helpText` is set. */
@@ -83,7 +86,12 @@ export function AppPageHeader({
             ) : null}
           </div>
           {description ? (
-            <p className="type-body mt-1.5 max-w-2xl text-pretty text-muted-foreground">
+            <p
+              className={cn(
+                'type-body mt-1.5 max-w-2xl text-pretty text-muted-foreground',
+                hideDescriptionOnPhone && 'hidden compact:block',
+              )}
+            >
               {description}
             </p>
           ) : null}

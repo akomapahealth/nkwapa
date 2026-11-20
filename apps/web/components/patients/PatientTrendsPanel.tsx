@@ -128,8 +128,8 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
           <div className="space-y-2">
             <h2 className="type-section-title">Trends</h2>
             <CardDescription className="max-w-3xl text-sm">
-              Clinic readings and the patient&apos;s home readings on one timeline. A visit&apos;s
-              readings appear as soon as they are saved, before the visit is finalized.
+              Clinic and home readings on one timeline. Visit readings show as soon as they are
+              saved.
             </CardDescription>
           </div>
         </CardHeader>
@@ -196,7 +196,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               <MeasurementTrendChart
                 staffRecord
                 title={`${selectedConfig.label} trend`}
-                description="Encounter measurements recorded by clinic staff across the selected range."
+                description="Clinic measurements over the selected range."
                 emptyMessage={`No ${selectedConfig.label.toLowerCase()} readings were recorded in this timeframe.`}
                 valueSuffix={suffixFor(selectedConfig.key, selectedConfig.suffix)}
                 lines={[
@@ -212,7 +212,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
               <MeasurementTrendChart
                 staffRecord
                 title="Blood pressure trend"
-                description="Encounter and patient-entered systolic/diastolic values across the selected range."
+                description="Clinic and home blood pressure over the selected range."
                 emptyMessage="No blood pressure readings were recorded in this timeframe."
                 valueSuffix=" mmHg"
                 lines={[
@@ -225,7 +225,7 @@ export function PatientTrendsPanel({ patientId, clinicId }: PatientTrendsPanelPr
             <MeasurementTrendChart
               staffRecord
               title="Glucose trend"
-              description="Encounter and patient-entered glucose values across the selected range."
+              description="Clinic and home glucose over the selected range."
               emptyMessage="No glucose readings were recorded in this timeframe."
               valueSuffix={` ${glucoseUnitLabel(units.glucoseUnit)}`}
               lines={[{ key: 'glucose', label: 'Glucose', color: 'hsl(var(--chart-2))' }]}

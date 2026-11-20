@@ -263,8 +263,8 @@ export function AppointmentRequestsPanel({
           </RecordSectionTitle>
           <RecordSectionDescription>
             {canManage
-              ? 'Confirm to book the visit and its reminder, or decline with a reason the patient sees.'
-              : 'Requests patients have sent this clinic. Acting on them requires appointment write access.'}
+              ? 'Confirm to book the visit, or decline with a reason the patient sees.'
+              : 'Requests patients have sent this clinic.'}
           </RecordSectionDescription>
         </div>
         <Button
@@ -311,7 +311,7 @@ export function AppointmentRequestsPanel({
             <EmptyStateCard
               icon={<Inbox className="h-5 w-5" aria-hidden="true" />}
               title="No requests waiting"
-              description="New visit, reschedule, and cancellation requests from patients appear here as soon as they are sent."
+              description="Patient requests show here as soon as they are sent."
             />
           ) : (
             <>

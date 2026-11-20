@@ -115,6 +115,7 @@ function StationSetupContent() {
       <AppPageHeader
         title="Station setup"
         description="Station order, and how many each can see at once."
+        hideDescriptionOnPhone
         helpTitle="What capacity means"
         helpText="How many patients a station can see at the same time: chairs, BP cuffs, consulting rooms. It is not how many staff are on it. When a station is full and patients still wait, the limit is equipment or space; when it has room and patients wait, the limit is staff."
         actions={

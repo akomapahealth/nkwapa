@@ -477,7 +477,7 @@ export default function MyAssignedPage() {
               {!view.data ? null : filteredAssignments.length === 0 ? (
                 <EmptyStateCard
                   title="Nothing assigned yet"
-                  description="As soon as the manager pairs you to a patient, the case will appear here."
+                  description="Patients show here once a manager pairs you."
                 />
               ) : (
                 <DataTable

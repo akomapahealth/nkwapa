@@ -54,6 +54,7 @@ function MetricsContent() {
       <AppPageHeader
         title="Metrics"
         description="How key workflows run here, and why they fail."
+        hideDescriptionOnPhone
         helpTitle="What these numbers are"
         helpText="Counts of activity, recorded without names, contact details or clinical values. For who did what to which record, use the audit log."
         actions={
