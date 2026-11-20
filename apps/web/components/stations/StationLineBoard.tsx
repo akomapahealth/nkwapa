@@ -742,7 +742,7 @@ export function StationLineBoard() {
             <DialogDescription>
               {override ? patientName(override.visit.patient) : ''}.{' '}
               {override?.kind === 'assign'
-                ? `They are waiting at ${override.visit.station.name}. The person you choose sees them next, and the assignment is recorded in the audit trail.`
+                ? `Waiting at ${override.visit.station.name}. Whoever you choose sees them next; this is audited.`
                 : 'A reason is recorded in the audit trail.'}
             </DialogDescription>
           </DialogHeader>

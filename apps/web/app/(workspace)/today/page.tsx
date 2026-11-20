@@ -430,7 +430,7 @@ function TodayBoardPage() {
           title="Today board"
           description={`Live clinic flow. Times in ${timezone}.`}
           helpTitle="How the board updates"
-          helpText="Staff check-ins, patient arrivals, and volunteer assignments refresh here so OPS can see who is available and which patients still need a pair."
+          helpText="Check-ins, arrivals and pairings update live: who is free, and who still needs a pair."
           actions={
             <div className="flex items-end gap-2 compact:gap-3">
               <div className="space-y-2">
@@ -738,8 +738,7 @@ function TodayBoardPage() {
             <div className="space-y-5">
               {volunteerOptions.length === 0 || doctorOptions.length === 0 ? (
                 <InlineNotice tone="error">
-                  At least one active volunteer shift and one active doctor shift are required
-                  before a patient can be assigned.
+                  Assigning needs an active volunteer shift and an active doctor shift.
                 </InlineNotice>
               ) : null}
 
