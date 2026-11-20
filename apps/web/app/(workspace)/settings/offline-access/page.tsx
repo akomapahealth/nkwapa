@@ -1,5 +1,6 @@
 'use client';
 
+import { displayTimeZone } from '@/lib/ops';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, Fingerprint, LaptopMinimal, WifiOff } from 'lucide-react';
@@ -423,6 +424,6 @@ function formatDateTime(iso: string) {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'Africa/Accra',
+    timeZone: displayTimeZone(),
   }).format(new Date(iso));
 }

@@ -9,7 +9,7 @@ import {
   getEligibleShiftRoles,
   getTodayInTimeZone,
   hasPermission,
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   type ActiveShiftsResponse,
   type ShiftRole,
 } from '@/lib/ops';
@@ -85,7 +85,7 @@ export function DashboardShiftControls() {
     onApplied: view.refresh,
   });
   const shift = controls.currentShift;
-  const timezone = view.data?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const timezone = view.data?.timezone ?? displayTimeZone();
   // Missing/failed reads are unknown, never evidence that this person is off duty.
   const known = Boolean(view.data || shift);
   // Hold the action until its read/overlay catches up, then release it. A later external

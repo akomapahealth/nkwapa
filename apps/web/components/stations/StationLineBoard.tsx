@@ -8,7 +8,7 @@ import { RefreshCw, AlertTriangle, UserX, ClipboardCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { OPS_DEFAULT_TIMEZONE, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
+import { displayTimeZone, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
 import { useOpsView } from '@/lib/use-ops-view';
 import {
   assignableStaff,
@@ -240,9 +240,9 @@ export function StationLineBoard() {
     isValid: isStationBoard,
   });
   const { isOnline, refresh } = view;
-  const isToday = date === getTodayInTimeZone(view.data?.timezone ?? OPS_DEFAULT_TIMEZONE);
+  const isToday = date === getTodayInTimeZone(view.data?.timezone ?? displayTimeZone());
   usePolling(refresh, isOnline && isToday && Boolean(clinicId));
-  const timezone = view.data?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const timezone = view.data?.timezone ?? displayTimeZone();
   const screeners = screenersByUser(view.data?.onShift);
   const stations = (view.data?.stations ?? []).filter(
     (station) => station.active || station.visits.length > 0,

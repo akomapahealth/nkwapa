@@ -9,7 +9,7 @@ import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import {
   CHECKIN_STATUS_ORDER,
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   type ActiveShift,
   type ActiveShiftsResponse,
   type CheckInStatus,
@@ -190,7 +190,7 @@ function TodayBoardPage() {
   const canEndOthersShifts = hasPermission(permissions, 'OPS.SHIFT.MANAGE');
 
   const timezone =
-    board.data?.checkIns.timezone ?? board.data?.shifts.timezone ?? OPS_DEFAULT_TIMEZONE;
+    board.data?.checkIns.timezone ?? board.data?.shifts.timezone ?? displayTimeZone();
   // Queued shift changes are about today; drawing them on another day's roster would be wrong.
   const isToday = selectedDate === getTodayInTimeZone(timezone);
   const shifts = useMemo(

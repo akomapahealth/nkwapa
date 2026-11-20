@@ -1,3 +1,4 @@
+import { CLINIC_DEFAULT_TIMEZONE } from '@nkwapa/db';
 import {
   ConflictException,
   Injectable,
@@ -276,8 +277,9 @@ export class FollowUpFlagService implements OnModuleInit {
     if (this.enabled) {
       this.scheduler.register({
         jobName: FOLLOW_UP_FLAGS_DAILY_JOB,
-        // Directors read it at the start of the day; Nkwapa's clinics are all in Ghana.
-        cron: { pattern: DEFAULT_FOLLOW_UP_CONFIG.dailyDigestCron, tz: 'Africa/Accra' },
+        // Directors read it at the start of the day.
+        // shortcut: one digest at the default zone's morning; per-clinic runs once clinics span zones.
+        cron: { pattern: DEFAULT_FOLLOW_UP_CONFIG.dailyDigestCron, tz: CLINIC_DEFAULT_TIMEZONE },
         run: () => this.daily(),
       });
     }

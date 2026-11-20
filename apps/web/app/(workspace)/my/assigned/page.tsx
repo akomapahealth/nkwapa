@@ -9,7 +9,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import {
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   type ActiveShiftsResponse,
   type MyAssignmentSummary,
   type MyAssignmentsResponse,
@@ -111,7 +111,7 @@ export default function MyAssignedPage() {
 
   const assignments = view.data?.assignments.items ?? [];
   const timezone =
-    view.data?.assignments.timezone ?? view.data?.shifts.timezone ?? OPS_DEFAULT_TIMEZONE;
+    view.data?.assignments.timezone ?? view.data?.shifts.timezone ?? displayTimeZone();
   const isToday = selectedDate === getTodayInTimeZone(timezone);
   const shifts = useMemo(
     () =>

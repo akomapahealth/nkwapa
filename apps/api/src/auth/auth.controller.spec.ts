@@ -65,17 +65,31 @@ describe('AuthController', () => {
         name: 'Test Clinic',
         region: 'Greater Accra',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         ...GH_UNITS,
       },
-      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
+      {
+        id: 'clinic-2',
+        name: 'Second Clinic',
+        region: 'Ashanti',
+        zoneCode: null,
+        timezone: 'Africa/Accra',
+      },
     ]);
     clinicService.listActiveSwitchableClinics.mockResolvedValue([
-      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
+      {
+        id: 'clinic-2',
+        name: 'Second Clinic',
+        region: 'Ashanti',
+        zoneCode: null,
+        timezone: 'Africa/Accra',
+      },
       {
         id: 'clinic-1',
         name: 'Test Clinic',
         region: 'Greater Accra',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         ...GH_UNITS,
       },
     ]);
@@ -116,6 +130,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         units: GH_UNITS,
         roles: ['MANAGER'],
       },
@@ -123,6 +138,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-2',
         clinicName: 'Second Clinic',
         zoneCode: null,
+        timezone: 'Africa/Accra',
         // Sent without units: a row that predates them reads as the stored units.
         units: STORED_UNITS,
         roles: ['VOLUNTEER'],
@@ -133,6 +149,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-2',
         clinicName: 'Second Clinic',
         zoneCode: null,
+        timezone: 'Africa/Accra',
         // Sent without units: a row that predates them reads as the stored units.
         units: STORED_UNITS,
       },
@@ -140,6 +157,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         units: GH_UNITS,
       },
     ]);
@@ -152,12 +170,19 @@ describe('AuthController', () => {
 
   it('lets global system admins with no clinic roles switch to any active clinic', async () => {
     clinicService.listActiveSwitchableClinics.mockResolvedValue([
-      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
+      {
+        id: 'clinic-2',
+        name: 'Second Clinic',
+        region: 'Ashanti',
+        zoneCode: null,
+        timezone: 'Africa/Accra',
+      },
       {
         id: 'clinic-1',
         name: 'Test Clinic',
         region: 'Greater Accra',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         ...GH_UNITS,
       },
     ]);
@@ -183,6 +208,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-2',
         clinicName: 'Second Clinic',
         zoneCode: null,
+        timezone: 'Africa/Accra',
         // Sent without units: a row that predates them reads as the stored units.
         units: STORED_UNITS,
       },
@@ -190,6 +216,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         units: GH_UNITS,
       },
     ]);
@@ -200,12 +227,19 @@ describe('AuthController', () => {
 
   it('falls back when a system admin requests a clinic that is not active', async () => {
     clinicService.listActiveSwitchableClinics.mockResolvedValue([
-      { id: 'clinic-2', name: 'Second Clinic', region: 'Ashanti', zoneCode: null },
+      {
+        id: 'clinic-2',
+        name: 'Second Clinic',
+        region: 'Ashanti',
+        zoneCode: null,
+        timezone: 'Africa/Accra',
+      },
       {
         id: 'clinic-1',
         name: 'Test Clinic',
         region: 'Greater Accra',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         ...GH_UNITS,
       },
     ]);
@@ -233,6 +267,7 @@ describe('AuthController', () => {
         name: 'Test Clinic',
         region: 'Greater Accra',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         ...GH_UNITS,
       },
     ]);
@@ -242,6 +277,7 @@ describe('AuthController', () => {
         name: 'Test Clinic',
         region: 'Greater Accra',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         ...GH_UNITS,
       },
     ]);
@@ -272,6 +308,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         units: GH_UNITS,
         roles: ['MANAGER'],
       },
@@ -281,6 +318,7 @@ describe('AuthController', () => {
         clinicId: 'clinic-1',
         clinicName: 'Test Clinic',
         zoneCode: 'coastal',
+        timezone: 'Africa/Accra',
         units: GH_UNITS,
       },
     ]);

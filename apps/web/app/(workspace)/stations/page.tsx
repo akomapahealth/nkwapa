@@ -9,7 +9,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import {
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   formatOpsDateTime,
   getEligibleShiftRoles,
   getTodayInTimeZone,
@@ -133,7 +133,7 @@ export default function StationsPage() {
   const { isOnline, refresh } = view;
   usePolling(refresh, enabled && isOnline && Boolean(clinicId));
 
-  const timezone = view.data?.board?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const timezone = view.data?.board?.timezone ?? displayTimeZone();
   const stations = useMemo(
     () => (view.data?.board?.stations ?? []).filter((station) => station.active),
     [view.data],

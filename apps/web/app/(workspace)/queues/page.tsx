@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { HYPERTENSION_CLASSIFICATIONS, HYPERTENSION_LABELS } from '@/lib/hypertension';
-import { OPS_DEFAULT_TIMEZONE } from '@/lib/ops';
+import { displayTimeZone } from '@/lib/ops';
 import { cn } from '@/lib/utils';
 import {
   encounterQueueQuery,
@@ -111,7 +111,7 @@ interface QueueSnapshot {
   cosignTotal: number;
 }
 /** A clinic-local YYYY-MM-DD for comparing against the date filters. */
-const clinicDay = new Intl.DateTimeFormat('en-CA', { timeZone: OPS_DEFAULT_TIMEZONE });
+const clinicDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: displayTimeZone() });
 
 function hasPermission(permissions: string[], perm: string): boolean {
   return permissions.includes('*') || permissions.includes(perm);
@@ -199,7 +199,7 @@ function filterCosign(rows: QueueRow[], filters: QueueFilters) {
   return rows.filter((row) => {
     if (search && !`${row.patientName} ${row.patientCode}`.toLowerCase().includes(search))
       return false;
-    const day = clinicDay.format(new Date(row.createdAt));
+    const day = clinicDay().format(new Date(row.createdAt));
     if (filters.createdFrom && day < filters.createdFrom) return false;
     if (filters.createdTo && day > filters.createdTo) return false;
     return true;

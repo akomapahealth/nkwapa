@@ -1,5 +1,6 @@
 'use client';
 
+import { displayTimeZone } from '@/lib/ops';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
@@ -738,7 +739,7 @@ async function fetchJson<T>(
 
 function patientResult(row: PatientRow, clinicId: string): SearchResult {
   const lastSeen = row.lastVisitAt
-    ? ` · Last seen ${new Date(row.lastVisitAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Accra' })}`
+    ? ` · Last seen ${new Date(row.lastVisitAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: displayTimeZone() })}`
     : '';
   return {
     id: `patient:${row.id}`,
