@@ -37,38 +37,33 @@ const GUIDANCE: Record<
 > = {
   patient: {
     destination: 'Open your patient record after secure sign-in.',
-    landing:
-      'Your own record opens. The first time, you confirm the patient code on your clinic card.',
+    landing: 'Your record opens. The first time, confirm the code on your clinic card.',
     help: [
       {
         title: 'Getting access',
-        detail:
-          'Ask your clinic for portal access. They send an email with a link to choose your password.',
+        detail: 'Ask your clinic. They email you a link to set your password.',
       },
       {
         title: 'Keep your clinic card nearby',
-        detail: 'You confirm its patient code once, the first time you sign in.',
+        detail: 'You confirm its patient code once, at first sign-in.',
       },
       {
         title: 'Link not working?',
-        detail:
-          'Invitation links expire after a few days. Ask the clinic front desk to send a new one.',
+        detail: 'Links expire after a few days. Ask the front desk for a new one.',
       },
     ],
   },
   staff: {
     destination: 'Open your clinic workspace after secure sign-in.',
-    landing: 'Your clinic workspace opens. If you work at more than one clinic, you choose which.',
+    landing: 'Your clinic workspace opens. Work at several? You pick one.',
     help: [
       {
         title: 'Joining a clinic team',
-        detail:
-          'Your clinic administrator invites you from the staff page. Open the email link to choose a password, then accept the clinic and role.',
+        detail: 'Your clinic admin invites you by email. Open the link, set a password, accept.',
       },
       {
         title: 'Link not working?',
-        detail:
-          'Invitation links expire after a few days. Ask your clinic administrator to send a new one.',
+        detail: 'Links expire after a few days. Ask your clinic admin for a new one.',
       },
     ],
   },
@@ -175,7 +170,7 @@ export default function LoginPage() {
     return (
       <PageSkeleton
         title="Finishing your account setup"
-        description="Your password is saved. Taking you to sign in, where you confirm your details and open your record."
+        description="Password saved. Next, sign in and confirm your details."
         className="min-h-screen"
       />
     );
@@ -189,16 +184,15 @@ export default function LoginPage() {
   const nextSteps = [
     {
       title: 'A secure sign-in page opens',
-      detail: 'It is separate from this page, so your password never passes through it.',
+      detail: 'Your password never passes through this page.',
     },
     {
       title: 'Enter your email and password',
-      detail:
-        'The password you chose from your invitation email. Forgot it? Choose “Forgot password” there.',
+      detail: 'The one you set from your invitation. Forgot it? Use “Forgot password”.',
     },
     {
       title: nextPath ? 'You return to where you were' : 'Your work opens',
-      detail: nextPath ? 'Nkwapa brings you back to the page you were on.' : guidance.landing,
+      detail: nextPath ? 'Straight back to the page you were on.' : guidance.landing,
     },
   ];
 
@@ -252,7 +246,7 @@ export default function LoginPage() {
                 </h1>
                 <p className="text-sm leading-6 text-muted-foreground md:text-base">
                   {error
-                    ? 'The secure sign-in service did not respond. Your workspace data has not loaded, and you can retry without losing your place.'
+                    ? "The sign-in service didn't respond. Nothing is lost; try again."
                     : destinationCopy}
                 </p>
               </div>
@@ -305,8 +299,7 @@ export default function LoginPage() {
                 <div className="space-y-1">
                   <p className="font-semibold text-foreground">Secure sign-in is affected</p>
                   <p className="text-muted-foreground">
-                    {error} The public home page is still available, but clinic records stay
-                    protected until sign-in reconnects.
+                    {error} Records stay locked until sign-in reconnects.
                   </p>
                 </div>
               </div>
@@ -320,8 +313,8 @@ export default function LoginPage() {
               <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
                 <Lock className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>
-                  <span className="font-medium text-foreground">Invitation only.</span> There is no
-                  sign-up: every account starts with an email from a clinic.
+                  <span className="font-medium text-foreground">Invitation only.</span> Accounts
+                  start with an email from a clinic.
                 </span>
               </p>
             </div>

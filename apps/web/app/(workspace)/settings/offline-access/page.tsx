@@ -72,7 +72,7 @@ export default function OfflineAccessPage() {
       </Button>
       <AppPageHeader
         title="Offline access"
-        description="Keep working on this device after it starts with no connection. You unlock it with a PIN, and changes send after you next sign in online."
+        description="Work here with no connection. Unlock with a PIN; changes send when you're back online."
       />
       {!isWebFeatureEnabled('offlineSession') ? (
         <InlineNotice tone="info" live={false}>
@@ -144,7 +144,7 @@ function TurnOn({ disabled, onChange }: { disabled: boolean; onChange: () => Pro
       <RecordSectionHeader>
         <RecordSectionTitle className="text-lg">Use this device offline</RecordSectionTitle>
         <RecordSectionDescription>
-          Choose a PIN only you know. Turn this on only on a device your clinic trusts you to use.
+          A PIN only you know, on a device your clinic trusts.
         </RecordSectionDescription>
       </RecordSectionHeader>
       <RecordSectionContent>
@@ -197,7 +197,7 @@ function TurnOn({ disabled, onChange }: { disabled: boolean; onChange: () => Pro
                   Also unlock with fingerprint or face
                 </Label>
                 <p className="text-muted-foreground">
-                  Your device asks once now. The PIN still works if this stops working.
+                  Asked once now. Your PIN keeps working either way.
                 </p>
               </div>
             </div>
@@ -230,7 +230,7 @@ function ThisDeviceOn({
     const confirmed = await confirmAction({
       title: 'Turn off offline access on this device?',
       description:
-        'You will need a connection to sign in here. Changes already saved on this device stay and send after you sign in.',
+        'Signing in here will need a connection. Saved changes stay and send after you sign in.',
       confirmLabel: 'Turn off',
     });
     if (!confirmed || !getToken) return;

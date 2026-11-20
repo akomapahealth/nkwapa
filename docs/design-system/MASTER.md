@@ -462,17 +462,18 @@ specimen injects them before any component uses them.
 
 | Utility              | Family         | Size / line height, below 640px | Size / line height, from 640px | Weight | Figures      |
 | -------------------- | -------------- | ------------------------------- | ------------------------------ | ------ | ------------ |
-| `type-page-title`    | Source Serif 4 | 30 / 36px                       | 36 / 40px                      | 600    | Proportional |
+| `type-page-title`    | Source Serif 4 | 24 / 32px                       | 36 / 40px                      | 600    | Proportional |
 | `type-record-title`  | Source Serif 4 | 24 / 32px                       | 30 / 36px                      | 600    | Proportional |
-| `type-section-title` | IBM Plex Sans  | 18 / 28px                       | 18 / 28px                      | 600    | Proportional |
-| `type-body`          | IBM Plex Sans  | 16 / 24px                       | 16 / 24px                      | 400    | Proportional |
+| `type-section-title` | IBM Plex Sans  | 16 / 24px                       | 18 / 28px                      | 600    | Proportional |
+| `type-body`          | IBM Plex Sans  | 15 / 22px                       | 16 / 24px                      | 400    | Proportional |
 | `type-label`         | IBM Plex Sans  | 14 / 20px                       | 14 / 20px                      | 500    | Proportional |
 | `type-meta`          | IBM Plex Sans  | 12 / 16px                       | 12 / 16px                      | 400    | Proportional |
 | `type-metric`        | IBM Plex Sans  | 32 / 36px                       | 32 / 36px                      | 600    | Tabular      |
 | `type-data`          | IBM Plex Sans  | 14 / 20px                       | 14 / 20px                      | 400    | Tabular      |
 
 Sizes and line heights are stored in rem in `tailwind.config.js`; the table
-assumes the browser's default 16px root. Browser text scaling remains enabled.
+assumes the browser's default 16px root. The phone column was cut a step in #383 so a
+phone screen shows more than its header; form inputs stay 16px so iOS does not zoom on focus. Browser text scaling remains enabled.
 Page and record titles wrap long words when needed; prose containers should
 remain roughly 45 to 75 characters wide (the specimen uses 65ch). Use the serif
 roles for page titles and patient names; use Plex roles for operational section

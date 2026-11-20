@@ -32,11 +32,16 @@ module.exports = {
         desktop: '1200px',
       },
       fontSize: {
+        // Phone steps (#383): below 640px titles and running text drop a size so a screen holds
+        // more than its header. Inputs keep 16px (ui/input.tsx), or iOS zooms on focus.
+        'page-title-sm': ['1.5rem', '2rem'],
         'page-title': ['1.875rem', '2.25rem'],
         'page-title-lg': ['2.25rem', '2.5rem'],
         'record-title': ['1.5rem', '2rem'],
         'record-title-lg': ['1.875rem', '2.25rem'],
+        'section-title-sm': ['1rem', '1.5rem'],
         'section-title': ['1.125rem', '1.75rem'],
+        'body-copy-sm': ['0.9375rem', '1.375rem'],
         'body-copy': ['1rem', '1.5rem'],
         'field-label': ['0.875rem', '1.25rem'],
         metadata: ['0.75rem', '1rem'],
