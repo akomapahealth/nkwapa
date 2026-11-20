@@ -31,12 +31,14 @@ describe('sync conflict catalog', () => {
 
   // A merge cannot be undone and a finalized encounter cannot be reopened by a replay; if either
   // stopped being deterministic, the server would re-run the handler for every retry.
-  it.each(['PATIENT_MERGED', 'DUPLICATE_NATIONAL_ID', 'CONFLICT_FINALIZED'] as const)(
-    'treats %s as deterministic',
-    (key) => {
-      expect(DETERMINISTIC_SYNC_CONFLICT_CODES.has(key)).toBe(true);
-    },
-  );
+  it.each([
+    'PATIENT_MERGED',
+    'DUPLICATE_NATIONAL_ID',
+    'CONFLICT_FINALIZED',
+    'ENCOUNTER_DELETED',
+  ] as const)('treats %s as deterministic', (key) => {
+    expect(DETERMINISTIC_SYNC_CONFLICT_CODES.has(key)).toBe(true);
+  });
 
   // Transient and fixable outcomes must stay retryable, or a device can never drain its queue
   // after the cause is fixed.

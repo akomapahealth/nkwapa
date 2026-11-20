@@ -76,6 +76,27 @@ describe('describeSyncFailure', () => {
     });
   });
 
+  describe('deleted visit', () => {
+    it('links the chart, never the deleted visit, and offers no retry', () => {
+      const description = describeSyncFailure(
+        failed(
+          'ENCOUNTER_DELETED',
+          {},
+          {
+            entityType: 'encounter',
+            entityId: 'enc-1',
+            payloadJson: '{"patientId":"patient-1"}',
+          },
+        ),
+        context,
+      );
+
+      expect(description.title).toBe('This visit was deleted');
+      expect(description.encounterHref).toBeUndefined();
+      expect(description.actions).toEqual(['open-patient', 'discard']);
+    });
+  });
+
   describe('merged chart', () => {
     const merged = failed(
       'PATIENT_MERGED',
