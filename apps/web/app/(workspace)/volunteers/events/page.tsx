@@ -1,5 +1,6 @@
 'use client';
 
+import { displayTimeZone } from '@/lib/ops';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -53,7 +54,7 @@ function EventsContent() {
       return response.json();
     },
   });
-  const timezone = events.data?.timezone ?? 'Africa/Accra';
+  const timezone = events.data?.timezone ?? displayTimeZone();
   const open = (event: ScreeningEvent) => router.push(`/volunteers/events/${event.id}`);
 
   const columns: DataTableColumn<ScreeningEvent>[] = [

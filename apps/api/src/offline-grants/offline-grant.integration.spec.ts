@@ -95,6 +95,7 @@ describeGrants('offline grants (#207)', () => {
             name: true,
             region: true,
             zoneCode: true,
+            timezone: true,
             glucoseUnit: true,
             bodyUnit: true,
             hba1cUnit: true,

@@ -1,5 +1,6 @@
 'use client';
 
+import { displayTimeZone } from '@/lib/ops';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Fingerprint, LockKeyhole, UserRound } from 'lucide-react';
 import type { OfflineGrantClaims } from '@nkwapa/db/offline-grant';
@@ -292,6 +293,6 @@ function formatUntil(iso: string) {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'Africa/Accra',
+    timeZone: displayTimeZone(),
   }).format(new Date(iso));
 }

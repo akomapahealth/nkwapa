@@ -1,4 +1,5 @@
 import { resolveClinicUnits, type ClinicUnits } from '@nkwapa/db/measurement-units';
+import { OPS_DEFAULT_TIMEZONE as CLINIC_DEFAULT_TIMEZONE } from '@/lib/ops';
 
 export interface BootstrapClinic {
   clinicId: string;
@@ -17,6 +18,8 @@ export interface BootstrapClinic {
    * the stored units, labelled as such, rather than in a guessed unit.
    */
   units?: Partial<ClinicUnits> | null;
+  /** IANA zone the clinic keeps its days and times in. Optional for the same reason as `zoneCode`. */
+  timezone?: string | null;
 }
 
 export interface BootstrapMembership extends BootstrapClinic {
@@ -58,6 +61,7 @@ export function getSwitchableClinics(
       clinicName: membership.clinicName,
       zoneCode: membership.zoneCode ?? null,
       ...(membership.units ? { units: membership.units } : {}),
+      ...(membership.timezone ? { timezone: membership.timezone } : {}),
     })),
   );
 }
@@ -101,4 +105,21 @@ export function getClinicUnits(
     ? getSwitchableClinics(bootstrap).find((candidate) => candidate.clinicId === clinicId)
     : null;
   return resolveClinicUnits(clinic?.units);
+}
+
+/** The zone `clinicId` keeps its days in; the default when unknown or not a real IANA zone. */
+export function getClinicTimeZone(
+  bootstrap: BootstrapClinicSource | null | undefined,
+  clinicId: string | null | undefined,
+): string {
+  const zone = clinicId
+    ? getSwitchableClinics(bootstrap).find((candidate) => candidate.clinicId === clinicId)?.timezone
+    : null;
+  if (!zone) return CLINIC_DEFAULT_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zone });
+    return zone;
+  } catch {
+    return CLINIC_DEFAULT_TIMEZONE;
+  }
 }

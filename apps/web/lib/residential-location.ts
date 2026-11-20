@@ -1,3 +1,4 @@
+import { displayTimeZone } from '@/lib/ops';
 import {
   DIGITAL_ADDRESS_EXAMPLE,
   GHANA_DISTRICTS_BY_REGION,
@@ -268,14 +269,15 @@ export const REGION_OPTIONS = GHANA_REGIONS.map((region) => ({
   label: GHANA_REGION_LABELS[region],
 }));
 
-const CAPTURED_AT_FORMAT = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Africa/Accra',
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
+const capturedAtFormat = () =>
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: displayTimeZone(),
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 /** "This device, at a home visit · ±12 m · 15 Nov 2026, 10:04" */
 export function describePositionCapture(position: ResidentialPosition): string {
@@ -284,6 +286,6 @@ export function describePositionCapture(position: ResidentialPosition): string {
   ];
   if (position.accuracyM != null) parts.push(`±${position.accuracyM} m`);
   const when = position.capturedAt ? new Date(position.capturedAt) : null;
-  if (when && !Number.isNaN(when.getTime())) parts.push(CAPTURED_AT_FORMAT.format(when));
+  if (when && !Number.isNaN(when.getTime())) parts.push(capturedAtFormat().format(when));
   return parts.join(' · ');
 }

@@ -19,8 +19,10 @@ import {
   readApiError,
 } from './api';
 import { getBootstrapRetryDelay } from './route-access';
+import { setDisplayTimeZone } from './ops';
 import {
   getBootstrapActiveClinicId,
+  getClinicTimeZone,
   getClinicUnits,
   isStoredClinicIdValid,
   type BootstrapClinic,
@@ -193,6 +195,8 @@ export function BootstrapProvider({
     activeClinicIdOverride !== undefined
       ? activeClinicIdOverride
       : (getBootstrapActiveClinicId(bootstrap) ?? getStoredActiveClinicId());
+  // Set during render, before children format a date: every clock time and "today" follow it.
+  setDisplayTimeZone(getClinicTimeZone(bootstrap, activeClinicId));
 
   const fetchWhoami = useCallback(async () => {
     if (offlineGrant) {

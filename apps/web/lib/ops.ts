@@ -2,6 +2,15 @@ import { todayInTimeZone } from '@nkwapa/db/clinic-day';
 
 export const OPS_DEFAULT_TIMEZONE = 'Africa/Accra';
 
+let displayZone = OPS_DEFAULT_TIMEZONE;
+/** The active clinic's zone, which BootstrapProvider sets; the default before whoami answers. */
+export function displayTimeZone() {
+  return displayZone;
+}
+export function setDisplayTimeZone(zone: string) {
+  displayZone = zone;
+}
+
 export const SHIFT_ROLES = ['VOLUNTEER', 'DOCTOR', 'MANAGER'] as const;
 
 export const CHECKIN_STATUS_ORDER = [
@@ -140,11 +149,11 @@ function formatInTimeZone(
  * as `?date=` and the window the API resolves for it can never disagree about which day the
  * clinic is having.
  */
-export function getTodayInTimeZone(timeZone = OPS_DEFAULT_TIMEZONE) {
+export function getTodayInTimeZone(timeZone = displayTimeZone()) {
   return todayInTimeZone(timeZone);
 }
 
-export function formatOpsDate(date: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+export function formatOpsDate(date: string, timeZone = displayTimeZone()) {
   return formatInTimeZone(`${date}T12:00:00.000Z`, timeZone, {
     weekday: 'short',
     month: 'short',
@@ -154,11 +163,11 @@ export function formatOpsDate(date: string, timeZone = OPS_DEFAULT_TIMEZONE) {
 }
 
 /** A moment's calendar day at the clinic, e.g. "Nov 5, 2026" (a last visit, not its time). */
-export function formatOpsDay(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+export function formatOpsDay(value: string, timeZone = displayTimeZone()) {
   return formatInTimeZone(value, timeZone, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export function formatOpsDateTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+export function formatOpsDateTime(value: string, timeZone = displayTimeZone()) {
   return formatInTimeZone(value, timeZone, {
     month: 'short',
     day: 'numeric',
@@ -168,7 +177,7 @@ export function formatOpsDateTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE
 }
 
 /** A record's exact moment, with year and seconds: audit entries are compared to the second. */
-export function formatOpsTimestamp(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+export function formatOpsTimestamp(value: string, timeZone = displayTimeZone()) {
   return formatInTimeZone(value, timeZone, {
     year: 'numeric',
     month: 'short',
@@ -179,7 +188,7 @@ export function formatOpsTimestamp(value: string, timeZone = OPS_DEFAULT_TIMEZON
   });
 }
 
-export function formatOpsTime(value: string, timeZone = OPS_DEFAULT_TIMEZONE) {
+export function formatOpsTime(value: string, timeZone = displayTimeZone()) {
   return formatInTimeZone(value, timeZone, {
     hour: 'numeric',
     minute: '2-digit',

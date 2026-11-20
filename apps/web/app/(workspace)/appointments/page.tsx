@@ -90,7 +90,7 @@ import {
   type StaffAppointmentsResponse,
 } from '@/lib/patient-portal';
 import {
-  OPS_DEFAULT_TIMEZONE,
+  displayTimeZone,
   formatOpsDate,
   formatOpsDateTime,
   formatOpsTime,
@@ -550,7 +550,7 @@ export default function StaffAppointmentsPage() {
     void loadSchedule();
   }, [loadSchedule]);
 
-  const timezone = appointmentsData?.timezone ?? OPS_DEFAULT_TIMEZONE;
+  const timezone = appointmentsData?.timezone ?? displayTimeZone();
   const items = useMemo(() => appointmentsData?.items ?? [], [appointmentsData?.items]);
   const summary = appointmentsData?.summary ?? {
     total: 0,

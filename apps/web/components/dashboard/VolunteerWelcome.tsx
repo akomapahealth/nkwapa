@@ -6,7 +6,7 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { hasPermission } from '@/lib/ops';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { OPS_DEFAULT_TIMEZONE } from '@/lib/ops';
+import { displayTimeZone } from '@/lib/ops';
 import { DashboardShiftControls } from './DashboardShiftControls';
 import { DashboardIllustration } from './DashboardIllustration';
 import styles from './volunteer-welcome.module.css';
@@ -36,13 +36,13 @@ export function VolunteerWelcome({
   useEffect(() => {
     setNow(new Date());
   }, []);
-  // Clinic time, not the browser's (PRODUCT.md: times are shown in Africa/Accra).
+  // Clinic time, not the browser's.
   const hour = now
     ? Number(
         new Intl.DateTimeFormat('en-GB', {
           hour: 'numeric',
           hourCycle: 'h23',
-          timeZone: OPS_DEFAULT_TIMEZONE,
+          timeZone: displayTimeZone(),
         }).format(now),
       )
     : undefined;
@@ -125,7 +125,7 @@ export function VolunteerWelcome({
                     weekday: 'long',
                     day: 'numeric',
                     month: 'long',
-                    timeZone: OPS_DEFAULT_TIMEZONE,
+                    timeZone: displayTimeZone(),
                   }).format(now)}
                 </p>
               ) : null}

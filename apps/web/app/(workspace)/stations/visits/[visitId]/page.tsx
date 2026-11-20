@@ -11,12 +11,7 @@ import { apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import {
-  OPS_DEFAULT_TIMEZONE,
-  formatOpsDateTime,
-  getTodayInTimeZone,
-  formatOpsDay,
-} from '@/lib/ops';
+import { displayTimeZone, formatOpsDateTime, getTodayInTimeZone, formatOpsDay } from '@/lib/ops';
 import { isFullySynced } from '@/lib/sync';
 import {
   cancelCheckIn,
@@ -247,7 +242,7 @@ export default function StationVisitPage() {
     );
   }
 
-  const timezone = OPS_DEFAULT_TIMEZONE;
+  const timezone = displayTimeZone();
 
   return (
     <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
