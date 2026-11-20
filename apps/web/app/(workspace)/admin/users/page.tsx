@@ -48,7 +48,7 @@ import {
   type OrganizationFilter,
 } from '@/lib/organization-filter';
 import { Badge } from '@/components/ui/badge';
-import { ListSearch, TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
+import { ListFilters, ListSearch } from '@/components/app-shell/ListToolbar';
 import { Button } from '@/components/ui/button';
 import {
   RecordSection,
@@ -92,6 +92,14 @@ type RoleName = 'SYSTEM_ADMIN' | 'DIRECTOR' | 'MANAGER' | 'DOCTOR' | 'VOLUNTEER'
 
 type PortalLinkStatus = 'LINKED' | 'ROLE_ONLY' | 'LINK_ONLY' | 'NONE';
 type PortalFilter = 'ALL' | 'MISMATCH' | PortalLinkStatus;
+const PORTAL_FILTER_LABELS: Record<PortalFilter, string> = {
+  ALL: 'All portal states',
+  MISMATCH: 'Mismatch only',
+  ROLE_ONLY: 'Role only',
+  LINK_ONLY: 'Link only',
+  LINKED: 'Linked',
+  NONE: 'No portal access',
+};
 
 interface PatientPortalLinkState {
   status: PortalLinkStatus;
@@ -182,6 +190,11 @@ interface StaffAccessRow {
 }
 
 type StatusFilter = 'active' | 'inactive' | 'all';
+const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
+  active: 'Active only',
+  inactive: 'Deactivated only',
+  all: 'All accounts',
+};
 type ViewMode = 'clinic' | 'all';
 
 const ROLES: RoleName[] = ['SYSTEM_ADMIN', 'DIRECTOR', 'MANAGER', 'DOCTOR', 'VOLUNTEER', 'PATIENT'];
@@ -1188,23 +1201,63 @@ export default function AdminUsersPage() {
               )}
             </p>
           </div>
-          <div
-            role="group"
-            aria-label="Roster filters"
-            className="flex flex-wrap items-center gap-x-4 gap-y-2"
+          <ListFilters
+            groupLabel="Roster filters"
+            sheetTitle="Filter roster"
+            chips={[
+              ...(activeClinicZoneLabel
+                ? [{ label: 'Clinic zone', value: activeClinicZoneLabel }]
+                : []),
+              {
+                label: 'Status',
+                value: statusFilter === 'active' ? null : STATUS_FILTER_LABELS[statusFilter],
+                onRemove: () => setStatusFilter('active'),
+              },
+              {
+                label: 'Role',
+                value: roleFilter === 'ALL' ? null : formatRoleLabel(roleFilter),
+                onRemove: () => setRoleFilter('ALL'),
+              },
+              {
+                label: 'Portal',
+                value: portalFilter === 'ALL' ? null : PORTAL_FILTER_LABELS[portalFilter],
+                onRemove: () => setPortalFilter('ALL'),
+              },
+              {
+                label: 'Organization',
+                value:
+                  organizationFilter === null
+                    ? null
+                    : organizationFilterOptions(organizations).find(
+                        (option) => option.value === organizationFilterToSelect(organizationFilter),
+                      )?.label,
+                onRemove: () => setOrganizationFilter(null),
+              },
+              {
+                label: 'Zone',
+                value:
+                  zoneFilter === null
+                    ? null
+                    : zoneOptions.find((option) => option.value === zoneFilterToSelect(zoneFilter))
+                        ?.label,
+                onRemove: () => setZoneFilter(null),
+              },
+            ]}
+            onClearAll={() => {
+              setStatusFilter('active');
+              setRoleFilter('ALL');
+              setPortalFilter('ALL');
+              setZoneFilter(null);
+              setOrganizationFilter(null);
+            }}
           >
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor="staff-status-filter"
-                className="text-sm font-normal text-muted-foreground"
-              >
-                Account status
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="staff-status-filter">Account status</Label>
               <Select
                 value={statusFilter}
                 onValueChange={(value) => setStatusFilter(value as StatusFilter)}
               >
-                <SelectTrigger id="staff-status-filter" className={TOOLBAR_SELECT}>
+                <SelectTrigger id="staff-status-filter" className="w-full">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1215,15 +1268,10 @@ export default function AdminUsersPage() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor="staff-role-filter"
-                className="text-sm font-normal text-muted-foreground"
-              >
-                Role focus
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="staff-role-filter">Role focus</Label>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger id="staff-role-filter" className={TOOLBAR_SELECT}>
+                <SelectTrigger id="staff-role-filter" className="w-full">
                   <SelectValue placeholder="Filter by role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1238,18 +1286,13 @@ export default function AdminUsersPage() {
             </div>
 
             {showPortalFilter ? (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="staff-portal-filter"
-                  className="text-sm font-normal text-muted-foreground"
-                >
-                  Patient portal state
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="staff-portal-filter">Patient portal state</Label>
                 <Select
                   value={portalFilter}
                   onValueChange={(value) => setPortalFilter(value as PortalFilter)}
                 >
-                  <SelectTrigger id="staff-portal-filter" className={TOOLBAR_SELECT}>
+                  <SelectTrigger id="staff-portal-filter" className="w-full">
                     <SelectValue placeholder="Filter by portal state" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1265,20 +1308,15 @@ export default function AdminUsersPage() {
             ) : null}
 
             {showOrganizationFilter ? (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="staff-organization-filter"
-                  className="text-sm font-normal text-muted-foreground"
-                >
-                  Organization
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="staff-organization-filter">Organization</Label>
                 <Select
                   value={organizationFilterToSelect(organizationFilter)}
                   onValueChange={(value) =>
                     setOrganizationFilter(organizationFilterFromSelect(value))
                   }
                 >
-                  <SelectTrigger id="staff-organization-filter" className={TOOLBAR_SELECT}>
+                  <SelectTrigger id="staff-organization-filter" className="w-full">
                     <SelectValue placeholder="All organizations" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1293,18 +1331,13 @@ export default function AdminUsersPage() {
             ) : null}
 
             {showZoneFilter ? (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="staff-zone-filter"
-                  className="text-sm font-normal text-muted-foreground"
-                >
-                  Zone
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="staff-zone-filter">Zone</Label>
                 <Select
                   value={zoneFilterToSelect(zoneFilter)}
                   onValueChange={(value) => setZoneFilter(zoneFilterFromSelect(value))}
                 >
-                  <SelectTrigger id="staff-zone-filter" className={TOOLBAR_SELECT}>
+                  <SelectTrigger id="staff-zone-filter" className="w-full">
                     <SelectValue placeholder="All zones" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1317,33 +1350,7 @@ export default function AdminUsersPage() {
                 </Select>
               </div>
             ) : null}
-
-            {statusFilter !== 'active' ||
-            roleFilter !== 'ALL' ||
-            portalFilter !== 'ALL' ||
-            zoneFilter !== null ||
-            organizationFilter !== null ? (
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => {
-                  setStatusFilter('active');
-                  setRoleFilter('ALL');
-                  setPortalFilter('ALL');
-                  setZoneFilter(null);
-                  setOrganizationFilter(null);
-                }}
-              >
-                Reset filters
-              </Button>
-            ) : null}
-            {activeClinicZoneLabel ? (
-              <span className="text-sm text-muted-foreground">
-                Clinic zone{' '}
-                <span className="font-medium text-foreground">{activeClinicZoneLabel}</span>
-              </span>
-            ) : null}
-          </div>
+          </ListFilters>
           {loading ? (
             <div className="space-y-4">
               <SectionSkeleton lines={5} className="border-0 bg-transparent p-0 shadow-none" />
