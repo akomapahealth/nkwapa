@@ -302,7 +302,13 @@ function EventContent() {
           </section>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-rule-strong pt-5">
-            <h2 className="type-section-title">Roster</h2>
+            <div className="min-w-0">
+              <h2 className="type-section-title">Roster</h2>
+              <p className="text-sm text-muted-foreground">
+                Everyone is emailed. Volunteers with a Nkwapa account at this clinic also see it in
+                their notifications.
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" disabled={!writable} onClick={() => setAdding(true)}>
                 <UserPlus aria-hidden="true" />
