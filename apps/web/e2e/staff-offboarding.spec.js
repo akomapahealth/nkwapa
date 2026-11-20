@@ -80,7 +80,7 @@ test('a fresh volunteer is invited, sets a password, and holds a live session', 
   });
   expect(invited.status()).toBe(201);
 
-  const setup = await findMessageTo(EMAIL, { subjectMatch: /choose your nkwapa password/i });
+  const setup = await findMessageTo(EMAIL, { subjectMatch: /set up your nkwapa account/i });
   const link = (setup.Text || '').match(
     /https?:\/\/[^\s"<]*\/realms\/nkwapa\/login-actions\/action-token[^\s"<]+/,
   )?.[0];

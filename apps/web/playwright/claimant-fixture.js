@@ -30,7 +30,7 @@ async function createClaimantStorageState(browser) {
       timeout: 30_000,
     });
 
-    const setup = await findMessageTo(email, { subjectMatch: /choose your nkwapa password/i });
+    const setup = await findMessageTo(email, { subjectMatch: /set up your nkwapa account/i });
     const link = (setup.Text || '').match(
       /https?:\/\/[^\s"<]*\/realms\/nkwapa\/login-actions\/action-token[^\s"<]+/,
     )?.[0];

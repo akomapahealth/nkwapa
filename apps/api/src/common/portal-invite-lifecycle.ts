@@ -207,7 +207,9 @@ export function buildPortalClaimRedirectUri(appPublicUrl: string): string {
   return `${appPublicUrl}${PORTAL_CLAIM_PATH}?${PORTAL_CLAIM_CONTINUE_QUERY}`;
 }
 
-const MIN_IDENTITY_ACTION_LIFESPAN_SECONDS = 60 * 60;
+const HOUR_SECONDS = 60 * 60;
+const DAY_SECONDS = 24 * HOUR_SECONDS;
+const MIN_IDENTITY_ACTION_LIFESPAN_SECONDS = HOUR_SECONDS;
 const MAX_IDENTITY_ACTION_LIFESPAN_SECONDS = MAX_TTL_DAYS * 24 * 60 * 60;
 const DEFAULT_IDENTITY_ACTION_LIFESPAN_SECONDS = DEFAULT_PORTAL_INVITE_TTL_DAYS * 24 * 60 * 60;
 
@@ -231,8 +233,14 @@ export function resolveIdentityActionLifespanSeconds(
     return DEFAULT_IDENTITY_ACTION_LIFESPAN_SECONDS;
   }
   const seconds = Math.floor((expiresAt.getTime() - now.getTime()) / 1000);
-  return Math.min(
+  const clamped = Math.min(
     MAX_IDENTITY_ACTION_LIFESPAN_SECONDS,
     Math.max(MIN_IDENTITY_ACTION_LIFESPAN_SECONDS, seconds),
   );
+  // Keycloak's linkExpirationFormatter only says "days" or "hours" for an exact multiple, so
+  // round to one. Down, with a small grace: a 14-day invite sent a second ago still reads
+  // "14 days", and the link outlives the invite by at most the grace, never by most of a day.
+  const unit = clamped >= DAY_SECONDS ? DAY_SECONDS : HOUR_SECONDS;
+  const grace = unit === DAY_SECONDS ? HOUR_SECONDS : 60;
+  return Math.max(unit, Math.floor((clamped + grace) / unit) * unit);
 }

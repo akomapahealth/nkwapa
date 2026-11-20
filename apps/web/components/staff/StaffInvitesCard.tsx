@@ -26,6 +26,7 @@ import {
 import { FieldLabel, focusFirstInvalid, RequiredLegend } from '@/components/ui/field';
 import { StaffNameFields } from '@/components/account/StaffNameForm';
 import {
+  describeInviteEmail,
   describeInviteExpiry,
   describeRenewalRequest,
   formatInviteDate,
@@ -606,9 +607,7 @@ function InviteSetup({ invite }: { invite: StaffInvite }) {
         ) : null}
         <span className="inline-flex items-center gap-1">
           <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-          {invite.emailDelivery
-            ? `Invite email ${invite.emailDelivery.status.toLowerCase()}`
-            : 'Invite email not sent'}
+          {describeInviteEmail(invite).label}
         </span>
       </p>
       {needsAttention && identity ? (

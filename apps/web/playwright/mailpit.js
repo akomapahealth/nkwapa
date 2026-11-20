@@ -77,6 +77,19 @@ async function findMessageTo(recipient, { timeout = 30_000, subjectMatch } = {})
   throw new Error(`Timed out waiting for an email to ${recipient}`);
 }
 
+/**
+ * How many messages are addressed to `recipient`. Waits first, so an email still in the API's
+ * background queue gets the chance to arrive and be counted.
+ */
+async function countMessagesTo(recipient, { settleMs = 3000 } = {}) {
+  await new Promise((resolve) => setTimeout(resolve, settleMs));
+  const response = await mailpitFetch(
+    `/api/v1/search?query=${encodeURIComponent(`to:${recipient}`)}`,
+  );
+  const payload = await response.json();
+  return (payload.messages || []).length;
+}
+
 /** Subject, text and HTML as one searchable string. */
 function messageContent(message) {
   return `${message.Subject || ''}\n${message.Text || ''}\n${message.HTML || ''}`;
@@ -87,5 +100,6 @@ module.exports = {
   mailpitFetch,
   clearMailpitInbox,
   findMessageTo,
+  countMessagesTo,
   messageContent,
 };

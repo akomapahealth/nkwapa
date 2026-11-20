@@ -211,6 +211,34 @@ describe('resolveIdentityActionLifespanSeconds', () => {
     );
   });
 
+  // Keycloak prints anything that isn't a whole number of days or hours in minutes
+  // ("expires in 10079 minutes"), so the lifespan rounds down to one.
+  // A fresh invite is a few seconds short of its full term; it must still read "14 days".
+  it('gives a just-issued invite its full term in days', () => {
+    expect(resolveIdentityActionLifespanSeconds(new Date(inDays(14).getTime() - 5_000), now)).toBe(
+      14 * 24 * 60 * 60,
+    );
+    expect(
+      resolveIdentityActionLifespanSeconds(new Date(now.getTime() + 72 * 3_600_000 - 5_000), now),
+    ).toBe(3 * 24 * 60 * 60);
+  });
+
+  it('rounds down to whole days, or whole hours under a day', () => {
+    const hour = 60 * 60 * 1000;
+    expect(
+      resolveIdentityActionLifespanSeconds(new Date(inDays(7).getTime() - 2 * hour), now),
+    ).toBe(6 * 24 * 60 * 60);
+    expect(
+      resolveIdentityActionLifespanSeconds(new Date(inDays(1).getTime() - 5 * 60_000), now),
+    ).toBe(23 * 60 * 60);
+    expect(resolveIdentityActionLifespanSeconds(new Date(now.getTime() + 90 * 60_000), now)).toBe(
+      60 * 60,
+    );
+    expect(resolveIdentityActionLifespanSeconds(new Date(now.getTime() + 25 * hour), now)).toBe(
+      24 * 60 * 60,
+    );
+  });
+
   it('caps at the longest invite the deployment can issue', () => {
     expect(resolveIdentityActionLifespanSeconds(inDays(365), now)).toBe(90 * 24 * 60 * 60);
   });

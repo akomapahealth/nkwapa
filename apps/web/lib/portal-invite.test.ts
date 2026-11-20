@@ -1,4 +1,5 @@
 import {
+  describeInviteEmail,
   describeRenewalRequest,
   buildManualInviteInstructions,
   describeInviteContact,
@@ -347,14 +348,14 @@ describe('buildManualInviteInstructions account setup wording', () => {
 
   it('points a newly provisioned patient at the password email by name', () => {
     expect(buildManualInviteInstructions({ ...base, identityStatus: 'PROVISIONED' })).toContain(
-      'Choose your Nkwapa password',
+      'Set up your Nkwapa account',
     );
   });
 
   it('tells a patient who already has an account simply to sign in', () => {
     const text = buildManualInviteInstructions({ ...base, identityStatus: 'ALREADY_ACTIVE' });
     expect(text).toMatch(/sign in with the email address/i);
-    expect(text).not.toContain('Choose your Nkwapa password');
+    expect(text).not.toContain('Set up your Nkwapa account');
   });
 
   it('falls back to wording true of any invitation when nothing is known', () => {
@@ -380,4 +381,43 @@ describe('describeRenewalRequest (#307)', () => {
     expect(describeRenewalRequest(null)).toBeNull();
     expect(describeRenewalRequest(undefined)).toBeNull();
   });
+});
+
+describe('describeInviteEmail', () => {
+  const delivery = {
+    status: 'FAILED',
+    failureReason: null,
+    sentAt: null,
+    createdAt: '2026-11-19T00:00:00Z',
+  };
+  const identity = (status: string) =>
+    ({ status, provisionedAt: null, failureReason: null }) as never;
+
+  it('reports our own email when we sent one', () => {
+    expect(
+      describeInviteEmail({
+        emailDelivery: delivery as never,
+        identity: identity('ALREADY_ACTIVE'),
+      }),
+    ).toEqual({
+      label: 'Invite email failed',
+      status: 'FAILED',
+    });
+  });
+
+  // #383: Keycloak's setup email is the invitation, and it leaves no delivery row of ours.
+  it.each(['PROVISIONED', 'EXISTING_PENDING'])('reads %s as sent by Keycloak', (status) => {
+    expect(describeInviteEmail({ emailDelivery: null, identity: identity(status) }).label).toBe(
+      'Invite email sent',
+    );
+  });
+
+  it.each(['FAILED', 'SKIPPED', 'NOT_REQUESTED'])(
+    'says not sent when nothing went out (%s)',
+    (status) => {
+      expect(describeInviteEmail({ emailDelivery: null, identity: identity(status) }).label).toBe(
+        'Invite email not sent',
+      );
+    },
+  );
 });
