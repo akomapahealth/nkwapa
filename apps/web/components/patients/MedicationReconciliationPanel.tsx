@@ -1,5 +1,6 @@
 'use client';
 
+import { WorkspacePanel } from '@/components/app-shell/WorkspacePanel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -1405,213 +1406,214 @@ function MedicationDialog({
   onSave: () => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="form" className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>
-            {editing ? 'Revise reported medication' : 'Add reported medication'}
-          </DialogTitle>
-          <DialogDescription>
-            Saving creates an auditable clinical revision. It never creates a prescription or Drug
-            catalog entry.
-          </DialogDescription>
-        </DialogHeader>
-        <RequiredLegend />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="medication-name"
-            label="Medication name"
-            required
-            value={form.medicationName}
-            onChange={(value) => setForm((current) => ({ ...current, medicationName: value }))}
+    <WorkspacePanel
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? 'Revise reported medication' : 'Add reported medication'}
+      className="max-w-3xl"
+    >
+      <DialogHeader>
+        <DialogTitle>
+          {editing ? 'Revise reported medication' : 'Add reported medication'}
+        </DialogTitle>
+        <DialogDescription>
+          Saving creates an auditable clinical revision. It never creates a prescription or Drug
+          catalog entry.
+        </DialogDescription>
+      </DialogHeader>
+      <RequiredLegend />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          id="medication-name"
+          label="Medication name"
+          required
+          value={form.medicationName}
+          onChange={(value) => setForm((current) => ({ ...current, medicationName: value }))}
+        />
+        <div className="relative space-y-2">
+          <Label htmlFor="medication-drug-search">Link clinic Drug</Label>
+          <Input
+            id="medication-drug-search"
+            value={drugQuery}
+            onChange={(event) => {
+              setDrugQuery(event.target.value);
+              if (!event.target.value) setForm((current) => ({ ...current, drugId: '' }));
+            }}
+            placeholder="Search without adding to catalog"
+            autoComplete="off"
           />
-          <div className="relative space-y-2">
-            <Label htmlFor="medication-drug-search">Link clinic Drug</Label>
-            <Input
-              id="medication-drug-search"
-              value={drugQuery}
-              onChange={(event) => {
-                setDrugQuery(event.target.value);
-                if (!event.target.value) setForm((current) => ({ ...current, drugId: '' }));
-              }}
-              placeholder="Search without adding to catalog"
-              autoComplete="off"
-            />
-            {drugResults.length ? (
-              <ul
-                role="listbox"
-                className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border bg-popover p-1 shadow-lg"
-              >
-                {drugResults.map((drug) => (
-                  <li key={drug.id}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={form.drugId === drug.id}
-                      className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => onSelectDrug(drug)}
-                    >
-                      {drug.name}
-                      {drug.genericName ? (
-                        <span className="block text-xs text-muted-foreground">
-                          {drug.genericName}
-                        </span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+          {drugResults.length ? (
+            <ul
+              role="listbox"
+              className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border bg-popover p-1 shadow-lg"
+            >
+              {drugResults.map((drug) => (
+                <li key={drug.id}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={form.drugId === drug.id}
+                    className="w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => onSelectDrug(drug)}
+                  >
+                    {drug.name}
+                    {drug.genericName ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {drug.genericName}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+        <Field
+          id="medication-strength"
+          label="Strength"
+          value={form.strength}
+          onChange={(value) => setForm((current) => ({ ...current, strength: value }))}
+        />
+        <Field
+          id="medication-dose"
+          label="Dose"
+          value={form.dose}
+          onChange={(value) => setForm((current) => ({ ...current, dose: value }))}
+        />
+        <Field
+          id="medication-dose-unit"
+          label="Dose unit"
+          value={form.doseUnit}
+          onChange={(value) => setForm((current) => ({ ...current, doseUnit: value }))}
+        />
+        <Field
+          id="medication-route"
+          label="Route"
+          value={form.route}
+          onChange={(value) => setForm((current) => ({ ...current, route: value }))}
+        />
+        <Field
+          id="medication-frequency"
+          label="Frequency"
+          value={form.frequency}
+          onChange={(value) => setForm((current) => ({ ...current, frequency: value }))}
+        />
+        <Field
+          id="medication-duration"
+          label="Duration"
+          value={form.duration}
+          onChange={(value) => setForm((current) => ({ ...current, duration: value }))}
+        />
+        <Field
+          id="medication-indication"
+          label="Indication"
+          value={form.indication}
+          onChange={(value) => setForm((current) => ({ ...current, indication: value }))}
+        />
+        <SelectField
+          id="medication-status"
+          label="Status"
+          value={form.status}
+          options={MEDICATION_STATUSES.map((value) => ({
+            value,
+            label: statusPresentation[value].label,
+          }))}
+          onChange={(value) =>
+            setForm((current) => ({
+              ...current,
+              status: value as MedicationStatus,
+              // A default, not a rule. Past and stopped medications have ended, so the date
+              // opens without an extra click; ticking Present again is still allowed, because
+              // "they stopped it and nobody knows when" is a real answer.
+              present: value === 'CURRENT' ? current.present : false,
+            }))
+          }
+        />
+        <Field
+          id="medication-start-date"
+          label="Start date"
+          type="date"
+          value={form.startDate}
+          onChange={(value) => setForm((current) => ({ ...current, startDate: value }))}
+        />
+        <div className="space-y-2">
           <Field
-            id="medication-strength"
-            label="Strength"
-            value={form.strength}
-            onChange={(value) => setForm((current) => ({ ...current, strength: value }))}
-          />
-          <Field
-            id="medication-dose"
-            label="Dose"
-            value={form.dose}
-            onChange={(value) => setForm((current) => ({ ...current, dose: value }))}
-          />
-          <Field
-            id="medication-dose-unit"
-            label="Dose unit"
-            value={form.doseUnit}
-            onChange={(value) => setForm((current) => ({ ...current, doseUnit: value }))}
-          />
-          <Field
-            id="medication-route"
-            label="Route"
-            value={form.route}
-            onChange={(value) => setForm((current) => ({ ...current, route: value }))}
-          />
-          <Field
-            id="medication-frequency"
-            label="Frequency"
-            value={form.frequency}
-            onChange={(value) => setForm((current) => ({ ...current, frequency: value }))}
-          />
-          <Field
-            id="medication-duration"
-            label="Duration"
-            value={form.duration}
-            onChange={(value) => setForm((current) => ({ ...current, duration: value }))}
-          />
-          <Field
-            id="medication-indication"
-            label="Indication"
-            value={form.indication}
-            onChange={(value) => setForm((current) => ({ ...current, indication: value }))}
-          />
-          <SelectField
-            id="medication-status"
-            label="Status"
-            value={form.status}
-            options={MEDICATION_STATUSES.map((value) => ({
-              value,
-              label: statusPresentation[value].label,
-            }))}
-            onChange={(value) =>
-              setForm((current) => ({
-                ...current,
-                status: value as MedicationStatus,
-                // A default, not a rule. Past and stopped medications have ended, so the date
-                // opens without an extra click; ticking Present again is still allowed, because
-                // "they stopped it and nobody knows when" is a real answer.
-                present: value === 'CURRENT' ? current.present : false,
-              }))
-            }
-          />
-          <Field
-            id="medication-start-date"
-            label="Start date"
+            id="medication-end-date"
+            label="End date"
             type="date"
-            value={form.startDate}
-            onChange={(value) => setForm((current) => ({ ...current, startDate: value }))}
+            disabled={form.present}
+            value={form.endDate}
+            onChange={(value) => setForm((current) => ({ ...current, endDate: value }))}
           />
-          <div className="space-y-2">
-            <Field
-              id="medication-end-date"
-              label="End date"
-              type="date"
-              disabled={form.present}
-              value={form.endDate}
-              onChange={(value) => setForm((current) => ({ ...current, endDate: value }))}
-            />
-            {/*
+          {/*
               The end date used to be disabled whenever the status was Current, which made a
               known stop date on an ongoing medication impossible to record - a ten-day course
               is current and has an end date. Whether the medication has ended is now its own
               answer rather than one inferred from the status.
             */}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                aria-describedby="medication-present-hint"
-                id="medication-present"
-                checked={form.present}
-                onCheckedChange={(checked) =>
-                  setForm((current) => ({
-                    ...current,
-                    present: checked === true,
-                    endDate: checked === true ? '' : current.endDate,
-                  }))
-                }
-              />
-              <Label htmlFor="medication-present" className="text-sm font-normal">
-                Present
-              </Label>
-            </div>
-            <p id="medication-present-hint" className="text-sm text-muted-foreground">
-              Still being taken, with no end date recorded.
-            </p>
-          </div>
-          <SelectField
-            id="medication-source"
-            label="Source type"
-            value={form.sourceType}
-            options={MEDICATION_SOURCE_TYPES.map((value) => ({
-              value,
-              label: sourceLabels[value],
-            }))}
-            onChange={(value) =>
-              setForm((current) => ({ ...current, sourceType: value as MedicationSourceType }))
-            }
-          />
-          <Field
-            id="medication-source-encounter"
-            label="Source encounter ID"
-            value={form.sourceEncounterId}
-            onChange={(value) => setForm((current) => ({ ...current, sourceEncounterId: value }))}
-          />
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="medication-notes">Notes</Label>
-            <Textarea
-              id="medication-notes"
-              maxLength={4000}
-              value={form.notes}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, notes: event.target.value }))
+          <div className="flex items-center gap-2">
+            <Checkbox
+              aria-describedby="medication-present-hint"
+              id="medication-present"
+              checked={form.present}
+              onCheckedChange={(checked) =>
+                setForm((current) => ({
+                  ...current,
+                  present: checked === true,
+                  endDate: checked === true ? '' : current.endDate,
+                }))
               }
             />
+            <Label htmlFor="medication-present" className="text-sm font-normal">
+              Present
+            </Label>
           </div>
-        </div>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
+          <p id="medication-present-hint" className="text-sm text-muted-foreground">
+            Still being taken, with no end date recorded.
           </p>
-        ) : null}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={saving} onClick={onSave}>
-            {saving ? 'Saving…' : editing ? 'Save revision' : 'Add medication'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <SelectField
+          id="medication-source"
+          label="Source type"
+          value={form.sourceType}
+          options={MEDICATION_SOURCE_TYPES.map((value) => ({
+            value,
+            label: sourceLabels[value],
+          }))}
+          onChange={(value) =>
+            setForm((current) => ({ ...current, sourceType: value as MedicationSourceType }))
+          }
+        />
+        <Field
+          id="medication-source-encounter"
+          label="Source encounter ID"
+          value={form.sourceEncounterId}
+          onChange={(value) => setForm((current) => ({ ...current, sourceEncounterId: value }))}
+        />
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="medication-notes">Notes</Label>
+          <Textarea
+            id="medication-notes"
+            maxLength={4000}
+            value={form.notes}
+            onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+          />
+        </div>
+      </div>
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button disabled={saving} onClick={onSave}>
+          {saving ? 'Saving…' : editing ? 'Save revision' : 'Add medication'}
+        </Button>
+      </DialogFooter>
+    </WorkspacePanel>
   );
 }
 
@@ -1645,62 +1647,63 @@ function PharmacyDialog({
     ['countryCode', 'Country code'],
   ];
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="form" className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{editing ? 'Revise pharmacy' : 'Add pharmacy'}</DialogTitle>
-          <DialogDescription>
-            Pharmacy revisions and preference periods remain auditable.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {fields.map(([key, label, required]) => (
-            <Field
-              key={key}
-              id={`pharmacy-${key}`}
-              label={label}
-              required={required}
-              value={form[key]}
-              onChange={(value) => setForm((current) => ({ ...current, [key]: value }))}
-            />
-          ))}
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="pharmacy-address-text">Address text</Label>
-            <Textarea
-              id="pharmacy-address-text"
-              value={form.addressText}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, addressText: event.target.value }))
-              }
-            />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="pharmacy-notes">Notes</Label>
-            <Textarea
-              id="pharmacy-notes"
-              maxLength={4000}
-              value={form.notes}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, notes: event.target.value }))
-              }
-            />
-          </div>
+    <WorkspacePanel
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? 'Revise pharmacy' : 'Add pharmacy'}
+      className="max-w-2xl"
+    >
+      <DialogHeader>
+        <DialogTitle>{editing ? 'Revise pharmacy' : 'Add pharmacy'}</DialogTitle>
+        <DialogDescription>
+          Pharmacy revisions and preference periods remain auditable.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {fields.map(([key, label, required]) => (
+          <Field
+            key={key}
+            id={`pharmacy-${key}`}
+            label={label}
+            required={required}
+            value={form[key]}
+            onChange={(value) => setForm((current) => ({ ...current, [key]: value }))}
+          />
+        ))}
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="pharmacy-address-text">Address text</Label>
+          <Textarea
+            id="pharmacy-address-text"
+            value={form.addressText}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, addressText: event.target.value }))
+            }
+          />
         </div>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={saving} onClick={onSave}>
-            {saving ? 'Saving…' : editing ? 'Save revision' : 'Add pharmacy'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="pharmacy-notes">Notes</Label>
+          <Textarea
+            id="pharmacy-notes"
+            maxLength={4000}
+            value={form.notes}
+            onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+          />
+        </div>
+      </div>
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button disabled={saving} onClick={onSave}>
+          {saving ? 'Saving…' : editing ? 'Save revision' : 'Add pharmacy'}
+        </Button>
+      </DialogFooter>
+    </WorkspacePanel>
   );
 }
 

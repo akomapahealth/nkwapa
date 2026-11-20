@@ -937,3 +937,11 @@ html:has([data-landing]) {
   width: auto;
   height: 2px;
 }
+
+/* A docked workspace panel (WorkspacePanel, 30rem at 8px from the edge) takes room from the page
+   rather than covering it. */
+@media (min-width: 1200px) {
+  body[data-workspace-open] #main-content {
+    padding-right: calc(30rem + 1.5rem);
+  }
+}

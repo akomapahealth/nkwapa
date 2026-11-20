@@ -1,5 +1,6 @@
 'use client';
 
+import { WorkspacePanel } from '@/components/app-shell/WorkspacePanel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, CircleOff, History, Pencil, Plus } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -574,92 +575,95 @@ export function MedicalHistoryPanel({
         </CardContent>
       </Card>
 
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent variant="form" className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Revise history record' : 'Add history record'}</DialogTitle>
-            <DialogDescription>
-              Saving creates a new auditable revision. Earlier clinical values remain available.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormSelect
-              id="history-category"
-              label="Category"
-              value={form.category}
-              disabled={Boolean(editing)}
-              onChange={(category) =>
-                setForm(() => ({
-                  ...initialForm,
-                  category: category as MedicalHistoryCategory,
-                }))
+      <WorkspacePanel
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        title={editing ? 'Revise history record' : 'Add history record'}
+        className="max-w-2xl"
+      >
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Revise history record' : 'Add history record'}</DialogTitle>
+          <DialogDescription>
+            Saving creates a new auditable revision. Earlier clinical values remain available.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormSelect
+            id="history-category"
+            label="Category"
+            value={form.category}
+            disabled={Boolean(editing)}
+            onChange={(category) =>
+              setForm(() => ({
+                ...initialForm,
+                category: category as MedicalHistoryCategory,
+              }))
+            }
+            options={MEDICAL_HISTORY_CATEGORIES.map((category) => ({
+              value: category,
+              label: categoryLabels[category],
+            }))}
+          />
+          <FormSelect
+            id="history-status"
+            label="Status"
+            value={form.status}
+            onChange={(status) =>
+              setForm((current) => ({
+                ...current,
+                status: status as MedicalHistoryStatus,
+              }))
+            }
+            options={MEDICAL_HISTORY_STATUSES.map((status) => ({
+              value: status,
+              label: statusPresentations[status].label,
+            }))}
+          />
+          <CategoryFields form={form} setForm={setForm} />
+          <DateField
+            id="history-onset-date"
+            label="Onset date"
+            value={form.onsetDate}
+            onChange={(onsetDate) => setForm((current) => ({ ...current, onsetDate }))}
+          />
+          <DateField
+            id="history-occurrence-date"
+            label="Occurrence date"
+            value={form.occurrenceDate}
+            onChange={(occurrenceDate) => setForm((current) => ({ ...current, occurrenceDate }))}
+          />
+          <DateField
+            id="history-resolved-date"
+            label="Resolved date"
+            value={form.resolvedDate}
+            onChange={(resolvedDate) => setForm((current) => ({ ...current, resolvedDate }))}
+          />
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="history-notes">Clinical notes</Label>
+            <Textarea
+              id="history-notes"
+              value={form.notes}
+              maxLength={4000}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, notes: event.target.value }))
               }
-              options={MEDICAL_HISTORY_CATEGORIES.map((category) => ({
-                value: category,
-                label: categoryLabels[category],
-              }))}
             />
-            <FormSelect
-              id="history-status"
-              label="Status"
-              value={form.status}
-              onChange={(status) =>
-                setForm((current) => ({
-                  ...current,
-                  status: status as MedicalHistoryStatus,
-                }))
-              }
-              options={MEDICAL_HISTORY_STATUSES.map((status) => ({
-                value: status,
-                label: statusPresentations[status].label,
-              }))}
-            />
-            <CategoryFields form={form} setForm={setForm} />
-            <DateField
-              id="history-onset-date"
-              label="Onset date"
-              value={form.onsetDate}
-              onChange={(onsetDate) => setForm((current) => ({ ...current, onsetDate }))}
-            />
-            <DateField
-              id="history-occurrence-date"
-              label="Occurrence date"
-              value={form.occurrenceDate}
-              onChange={(occurrenceDate) => setForm((current) => ({ ...current, occurrenceDate }))}
-            />
-            <DateField
-              id="history-resolved-date"
-              label="Resolved date"
-              value={form.resolvedDate}
-              onChange={(resolvedDate) => setForm((current) => ({ ...current, resolvedDate }))}
-            />
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="history-notes">Clinical notes</Label>
-              <Textarea
-                id="history-notes"
-                value={form.notes}
-                maxLength={4000}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, notes: event.target.value }))
-                }
-              />
-            </div>
           </div>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditorOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSave()} disabled={saving}>
-              {saving ? 'Saving…' : editing ? 'Save revision' : 'Add record'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setEditorOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => void handleSave()} disabled={saving}>
+            {saving ? 'Saving…' : editing ? 'Save revision' : 'Add record'}
+          </Button>
+        </DialogFooter>
+      </WorkspacePanel>
 
       <Dialog
         open={Boolean(revisionRecord)}
