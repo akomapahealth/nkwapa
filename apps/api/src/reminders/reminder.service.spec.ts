@@ -101,6 +101,51 @@ describe('ReminderService', () => {
     );
   });
 
+  describe('recordExternalSend', () => {
+    it('records a send Keycloak already made as sent, without queueing it again', async () => {
+      // #383: the invite goes out as Keycloak's email, and the delivery page must still list it.
+      await service.recordExternalSend({
+        clinicId: 'clinic-1',
+        recipientType: 'PATIENT',
+        patientId: 'patient-1',
+        portalInviteId: 'invite-1',
+        toAddress: 'ama@example.org',
+        templateKey: 'PORTAL_INVITE_V1',
+        payload: { patientCode: 'NKP-2026-000001' },
+        actorUserId: 'manager-1',
+        provider: 'keycloak',
+      });
+
+      expect(prisma.reminder.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          channel: 'EMAIL',
+          templateKey: 'PORTAL_INVITE_V1',
+          portalInviteId: 'invite-1',
+          status: 'SENT',
+          sentAt: expect.any(Date),
+          providerMessageId: 'keycloak',
+        }),
+      });
+      expect(reminderQueue.add).not.toHaveBeenCalled();
+      expect(emailProvider.send).not.toHaveBeenCalled();
+      expect(auditService.logWrite).toHaveBeenCalled();
+    });
+
+    it('refuses an unknown template', async () => {
+      await expect(
+        service.recordExternalSend({
+          clinicId: 'clinic-1',
+          recipientType: 'PATIENT',
+          toAddress: 'ama@example.org',
+          templateKey: 'NOPE_V1',
+          payload: {},
+          actorUserId: 'manager-1',
+          provider: 'keycloak',
+        }),
+      ).rejects.toThrow('Unknown notification template');
+    });
+  });
+
   describe('sendNotificationNow', () => {
     const base = {
       clinicId: 'clinic-1',

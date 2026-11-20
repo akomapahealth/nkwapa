@@ -29,7 +29,7 @@ export interface PortalInvitePayload {
 }
 
 /** The companion message from Keycloak. Named so the pair does not read as a phish. */
-const PASSWORD_EMAIL_SUBJECT = 'Choose your Nkwapa password';
+const PASSWORD_EMAIL_SUBJECT = 'Set up your Nkwapa account';
 
 export const PORTAL_INVITE_V1: EmailTemplate<PortalInvitePayload> = {
   key: 'PORTAL_INVITE_V1',

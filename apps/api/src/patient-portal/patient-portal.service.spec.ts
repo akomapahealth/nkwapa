@@ -34,6 +34,7 @@ describe('PatientPortalService', () => {
     scheduleAppointmentReminderNoContact: jest.Mock;
     suppressQueuedAppointmentReminders: jest.Mock;
     sendNotificationNow: jest.Mock;
+    recordExternalSend: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -53,6 +54,13 @@ describe('PatientPortalService', () => {
         status: 'QUEUED',
         failureReason: null,
         sentAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      }),
+      recordExternalSend: jest.fn().mockResolvedValue({
+        id: 'delivery-kc',
+        status: 'SENT',
+        failureReason: null,
+        sentAt: new Date('2026-03-21T09:00:00.000Z'),
         createdAt: new Date('2026-03-21T09:00:00.000Z'),
       }),
     };
@@ -1395,8 +1403,8 @@ describe('PatientPortalService', () => {
         }
       });
 
-      it('creates the account before the email that describes it goes out', async () => {
-        await service.createPortalInvite(
+      it('puts the clinic and patient code in the setup email and sends no second email', async () => {
+        const result = await service.createPortalInvite(
           'clinic-1',
           'patient-1',
           { email: 'ama@example.com' },
@@ -1410,12 +1418,47 @@ describe('PatientPortalService', () => {
           lastName: 'Mensah',
           claimRedirectUri: 'https://app.nkwapa.app/claim-record?continue=1',
           lifespanSeconds: 14 * 24 * 60 * 60,
+          inviteContext: expect.objectContaining({
+            kind: 'portal',
+            clinicName: expect.any(String),
+          }),
+        });
+        expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
+        // Still on the delivery page: Keycloak's send is recorded against the invite.
+        expect(reminderService.recordExternalSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            provider: 'keycloak',
+            templateKey: 'PORTAL_INVITE_V1',
+            portalInviteId: expect.any(String),
+            toAddress: 'ama@example.com',
+          }),
+        );
+        expect(result.emailDelivery).toMatchObject({ status: 'SENT' });
+      });
+
+      it('sends our own invite email when the patient already has a working account', async () => {
+        keycloakAdminService.provisionInvitedIdentity.mockResolvedValueOnce({
+          outcome: 'ALREADY_ACTIVE',
+          keycloakUserId: 'kc-9',
+          actionsSent: [],
+          failureReason: null,
         });
 
-        const provisionOrder =
-          keycloakAdminService.provisionInvitedIdentity.mock.invocationCallOrder[0];
-        const emailOrder = reminderService.sendNotificationNow.mock.invocationCallOrder[0];
-        expect(provisionOrder).toBeLessThan(emailOrder);
+        await service.createPortalInvite(
+          'clinic-1',
+          'patient-1',
+          { email: 'ama@example.com' },
+          'manager-1',
+          'req-1',
+        );
+
+        expect(reminderService.sendNotificationNow).toHaveBeenCalledTimes(1);
+        expect(reminderService.sendNotificationNow).toHaveBeenCalledWith(
+          expect.objectContaining({
+            templateKey: 'PORTAL_INVITE_V1',
+            payload: expect.objectContaining({ accountSetup: 'EXISTING_ACCOUNT' }),
+          }),
+        );
       });
 
       it('records the outcome on the invite so the chart can show it later', async () => {

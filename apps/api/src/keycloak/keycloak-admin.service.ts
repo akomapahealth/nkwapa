@@ -29,6 +29,42 @@ export interface ProvisionInvitedIdentityInput {
   claimRedirectUri: string;
   /** Tied to the invite's own expiry, so link and invitation die together. */
   lifespanSeconds: number;
+  /** Shown in Keycloak's setup email, which is then the only invitation email sent (#383). */
+  inviteContext?: InviteEmailContext;
+}
+
+/** What the setup email says about the invitation. Rendered by executeActions.ftl. */
+export interface InviteEmailContext {
+  kind: 'staff' | 'portal';
+  clinicName: string;
+  /** Staff only, already a label: "Volunteer". */
+  roleLabel?: string | null;
+  inviterName?: string | null;
+  /** Portal only: asked for at the claim step. */
+  patientCode?: string | null;
+  /** The template shows the context only while this is in the future. */
+  expiresAt: Date | null;
+}
+
+/** Admin-only user attributes (realm unmanagedAttributePolicy=ADMIN_EDIT); users never see them. */
+const INVITE_ATTRIBUTE_KEYS = [
+  'nkwapa_invite_kind',
+  'nkwapa_invite_clinic',
+  'nkwapa_invite_role',
+  'nkwapa_invite_inviter',
+  'nkwapa_invite_code',
+  'nkwapa_invite_expires',
+] as const;
+
+function inviteAttributes(context: InviteEmailContext): Record<string, string | null> {
+  return {
+    nkwapa_invite_kind: context.kind,
+    nkwapa_invite_clinic: context.clinicName,
+    nkwapa_invite_role: context.roleLabel ?? null,
+    nkwapa_invite_inviter: context.inviterName ?? null,
+    nkwapa_invite_code: context.patientCode ?? null,
+    nkwapa_invite_expires: context.expiresAt ? String(context.expiresAt.getTime()) : null,
+  };
 }
 
 export interface ProvisionInvitedIdentityResult {
@@ -143,6 +179,24 @@ export class KeycloakAdminService {
   }
 
   /**
+   * Remove the invitation details from an identity once the invite is accepted, claimed or
+   * cancelled, so a later password reset email does not repeat them. Never throws.
+   */
+  async clearInviteContext(keycloakUserId: string | null | undefined): Promise<void> {
+    if (!keycloakUserId || !this.client.isReady) return;
+    try {
+      await this.client.setUserAttributes(
+        keycloakUserId,
+        Object.fromEntries(INVITE_ATTRIBUTE_KEYS.map((key) => [key, null])),
+      );
+    } catch (error) {
+      const code =
+        error instanceof KeycloakAdminError ? error.code : 'KEYCLOAK_ADMIN_REQUEST_FAILED';
+      this.logger.warn(JSON.stringify({ message: 'Invite context clear failed', reason: code }));
+    }
+  }
+
+  /**
    * Enable or disable the identity behind a user, ending its sessions when disabling.
    *
    * Idempotent: setting the flag it already has, or ending sessions that are already gone, is a
@@ -218,6 +272,18 @@ export class KeycloakAdminService {
     input: ProvisionInvitedIdentityInput,
   ): Promise<void> {
     if (actions.length === 0) return;
+    if (input.inviteContext) {
+      // Best effort: without it the email falls back to its generic wording, still one email.
+      await this.client
+        .setUserAttributes(userId, inviteAttributes(input.inviteContext))
+        .catch((error: unknown) => {
+          const code =
+            error instanceof KeycloakAdminError ? error.code : 'KEYCLOAK_ADMIN_REQUEST_FAILED';
+          this.logger.warn(
+            JSON.stringify({ message: 'Invite context write failed', reason: code }),
+          );
+        });
+    }
     await this.client.executeActionsEmail({
       userId,
       actions,

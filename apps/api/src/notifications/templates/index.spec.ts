@@ -204,8 +204,8 @@ describe('portal invite account setup wording', () => {
   describe('when we have just created the account', () => {
     it('points the patient at the companion email by name', () => {
       const message = render('PENDING_PASSWORD');
-      expect(message.text).toContain('Choose your Nkwapa password');
-      expect(message.html).toContain('Choose your Nkwapa password');
+      expect(message.text).toContain('Set up your Nkwapa account');
+      expect(message.html).toContain('Set up your Nkwapa account');
     });
 
     /*
@@ -239,7 +239,7 @@ describe('portal invite account setup wording', () => {
 
     it('does not send them looking for a password email they will not receive', () => {
       const message = render('EXISTING_ACCOUNT');
-      expect(message.text).not.toContain('Choose your Nkwapa password');
+      expect(message.text).not.toContain('Set up your Nkwapa account');
     });
   });
 
@@ -247,7 +247,7 @@ describe('portal invite account setup wording', () => {
     it('gives neutral instructions rather than guessing', () => {
       const message = render('UNKNOWN');
       expect(message.text).toMatch(/sign in with this email address/i);
-      expect(message.text).not.toContain('Choose your Nkwapa password');
+      expect(message.text).not.toContain('Set up your Nkwapa account');
       expect(message.html).toContain('https://app.nkwapa.app/claim-record');
     });
 
@@ -304,7 +304,7 @@ describe('staff invite template', () => {
 
   it('points a new account at the password email, and offers no link it could not use yet', () => {
     const message = renderMessage('STAFF_INVITE_V1', { ...base, accountSetup: 'PENDING_PASSWORD' });
-    expect(message.text).toContain('Choose your Nkwapa password');
+    expect(message.text).toContain('Set up your Nkwapa account');
     expect(message.html).not.toContain('https://app.example/accept-invite');
   });
 

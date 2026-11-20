@@ -8,6 +8,7 @@ export interface KeycloakAdminServiceMock {
   isReady: boolean;
   provisionInvitedIdentity: jest.Mock<Promise<ProvisionInvitedIdentityResult>>;
   updateIdentityNames: jest.Mock<Promise<IdentityAccessResult>>;
+  clearInviteContext: jest.Mock<Promise<void>>;
 }
 
 /**
@@ -39,6 +40,7 @@ export function createKeycloakAdminServiceMock(
       retryable: false,
       failureReason: null,
     }),
+    clearInviteContext: jest.fn().mockResolvedValue(undefined),
   };
 }
 

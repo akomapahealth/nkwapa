@@ -4,7 +4,12 @@ const { fillStaffName } = require('../playwright/staff-name');
 
 const { storageStateFor } = require('../playwright/roles');
 const { apiRequestAs } = require('../playwright/api-client');
-const { clearMailpitInbox, findMessageTo, messageContent } = require('../playwright/mailpit');
+const {
+  clearMailpitInbox,
+  countMessagesTo,
+  findMessageTo,
+  messageContent,
+} = require('../playwright/mailpit');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -74,7 +79,7 @@ async function sendInvitation(page, email, name) {
 
 /** From the Keycloak setup email to a signed-in invitee, held on the acceptance page. */
 async function completeAccountSetup(page, email) {
-  const setup = await findMessageTo(email, { subjectMatch: /choose your nkwapa password/i });
+  const setup = await findMessageTo(email, { subjectMatch: /set up your nkwapa account/i });
   const link = (setup.Text || '').match(
     /https?:\/\/[^\s"<]*\/realms\/nkwapa\/login-actions\/action-token[^\s"<]+/,
   )?.[0];
@@ -137,18 +142,19 @@ test('a director-level admin invites a volunteer, and an account is created', as
   await expect(row.getByText('Account created')).toBeVisible({ timeout: 30_000 });
 });
 
-test('both emails arrive, and neither talks about a health record', async () => {
-  const invite = await findMessageTo(INVITE_EMAIL, { subjectMatch: /invited to join/i });
-  const inviteBody = messageContent(invite);
-  clinicName = invite.Subject.match(/join (.+) on Nkwapa/)?.[1];
-  expect(clinicName, 'the subject names the clinic').toBeTruthy();
+// #383: one email carries the whole invitation, where there used to be two.
+test('one email carries the invitation, and it says nothing about a health record', async () => {
+  const invite = await findMessageTo(INVITE_EMAIL, { subjectMatch: /set up your nkwapa account/i });
+  const body = messageContent(invite);
+  clinicName = (invite.Text || '').match(/Join (.+) on Nkwapa/)?.[1];
+  expect(clinicName, 'the email names the clinic').toBeTruthy();
 
-  expect(inviteBody).toContain('Volunteer');
-  expect(inviteBody).toContain('Choose your Nkwapa password');
-  expect(inviteBody).not.toMatch(/health record|patient code/i);
-
-  const setup = await findMessageTo(INVITE_EMAIL, { subjectMatch: /choose your nkwapa password/i });
-  expect(messageContent(setup)).toContain('/realms/nkwapa/login-actions/action-token');
+  expect(body).toContain('Volunteer');
+  expect(body).toContain('/realms/nkwapa/login-actions/action-token');
+  // Whole days, never "10079 minutes".
+  expect(body).toMatch(/expires in \d+ days?/);
+  expect(body).not.toMatch(/health record|patient code/i);
+  expect(await countMessagesTo(INVITE_EMAIL)).toBe(1);
 });
 
 test('the invitee sets a password, signs in, and is held on the acceptance page', async () => {

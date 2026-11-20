@@ -71,7 +71,7 @@ describe('StaffInviteService', () => {
     userClinicRole: { findFirst: jest.Mock; create: jest.Mock };
   };
   let audit: { logWrite: jest.Mock };
-  let reminders: { sendNotificationNow: jest.Mock };
+  let reminders: { sendNotificationNow: jest.Mock; recordExternalSend: jest.Mock };
   let keycloak: KeycloakAdminServiceMock;
   let deliverability: { assertDomainAcceptsEmail: jest.Mock };
   let userProfile: { applyName: jest.Mock };
@@ -113,6 +113,12 @@ describe('StaffInviteService', () => {
         sentAt: null,
         createdAt: new Date(),
       }),
+      recordExternalSend: jest.fn().mockResolvedValue({
+        status: 'SENT',
+        failureReason: null,
+        sentAt: new Date(),
+        createdAt: new Date(),
+      }),
     };
     keycloak = createKeycloakAdminServiceMock();
     deliverability = { assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined) };
@@ -134,7 +140,7 @@ describe('StaffInviteService', () => {
   const auditActions = () => audit.logWrite.mock.calls.map(([entry]) => entry.action);
 
   describe('issuing', () => {
-    it('lets a director invite a doctor into their own clinic, account first and email second', async () => {
+    it('lets a director invite a doctor, with the whole invitation in the one setup email', async () => {
       const result = await service.create(directorOfA, CLINIC_A, {
         email: 'Ama@Clinic.org',
         role: UserRole.DOCTOR,
@@ -157,33 +163,62 @@ describe('StaffInviteService', () => {
         expect.objectContaining({
           email: 'ama@clinic.org',
           claimRedirectUri: 'https://app.example/accept-invite?continue=1',
-        }),
-      );
-      const provisionedAt = keycloak.provisionInvitedIdentity.mock.invocationCallOrder[0];
-      const sentAt = reminders.sendNotificationNow.mock.invocationCallOrder[0];
-      expect(provisionedAt).toBeLessThan(sentAt);
-
-      expect(reminders.sendNotificationNow).toHaveBeenCalledWith(
-        expect.objectContaining({
-          recipientType: 'USER',
-          recipientUserId: null,
-          staffInviteId: INVITE_ID,
-          toAddress: 'ama@clinic.org',
-          templateKey: 'STAFF_INVITE_V1',
-          payload: expect.objectContaining({
+          inviteContext: {
+            kind: 'staff',
             clinicName: 'Accra Clinic',
-            role: UserRole.DOCTOR,
+            roleLabel: 'Doctor',
             inviterName: 'Dr Director',
-            acceptUrl: 'https://app.example/accept-invite',
-            accountSetup: 'PENDING_PASSWORD',
-            resend: false,
-          }),
+            expiresAt,
+          },
         }),
       );
+      // Keycloak's setup email is the invitation now (#383); ours would be a second email. Its
+      // send is still recorded, so the delivery page lists it.
+      expect(reminders.sendNotificationNow).not.toHaveBeenCalled();
+      expect(reminders.recordExternalSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'keycloak',
+          templateKey: 'STAFF_INVITE_V1',
+          staffInviteId: expect.any(String),
+        }),
+      );
+      expect(result.emailDelivery).toMatchObject({ status: 'SENT' });
+
       expect(auditActions()).toEqual(['STAFF.INVITE.CREATE', 'STAFF.INVITE.IDENTITY']);
       expect(result.identity.status).toBe('PROVISIONED');
       expect(result.status).toBe('PENDING');
     });
+
+    it.each(['ALREADY_ACTIVE', 'FAILED', 'SKIPPED'] as const)(
+      'sends our own invite email when Keycloak sent none (%s)',
+      async (outcome) => {
+        keycloak.provisionInvitedIdentity.mockResolvedValue(
+          provisionResult({ outcome, actionsSent: [] }),
+        );
+
+        await service.create(directorOfA, CLINIC_A, {
+          email: 'ama@clinic.org',
+          role: UserRole.DOCTOR,
+        });
+
+        expect(reminders.sendNotificationNow).toHaveBeenCalledTimes(1);
+        expect(reminders.sendNotificationNow).toHaveBeenCalledWith(
+          expect.objectContaining({
+            recipientType: 'USER',
+            staffInviteId: INVITE_ID,
+            toAddress: 'ama@clinic.org',
+            templateKey: 'STAFF_INVITE_V1',
+            payload: expect.objectContaining({
+              clinicName: 'Accra Clinic',
+              role: UserRole.DOCTOR,
+              inviterName: 'Dr Director',
+              acceptUrl: 'https://app.example/accept-invite',
+              resend: false,
+            }),
+          }),
+        );
+      },
+    );
 
     it('lets a system admin invite into any clinic', async () => {
       await service.create(systemAdmin, CLINIC_B, {
@@ -260,6 +295,9 @@ describe('StaffInviteService', () => {
       });
 
       it('proceeds once the inviter confirms that is the person they mean', async () => {
+        keycloak.provisionInvitedIdentity.mockResolvedValue(
+          provisionResult({ outcome: 'ALREADY_ACTIVE', actionsSent: [] }),
+        );
         prisma.user.findFirst.mockResolvedValue({
           id: 'user-9',
           isActive: true,
@@ -475,6 +513,7 @@ describe('StaffInviteService', () => {
       });
       expect(result.status).toBe('CANCELLED');
       expect(auditActions()).toEqual(['STAFF.INVITE.CANCEL']);
+      expect(keycloak.clearInviteContext).toHaveBeenCalledWith(inviteRow().keycloakUserId);
     });
 
     it('reports a race with an acceptance rather than claiming success', async () => {
@@ -605,6 +644,8 @@ describe('StaffInviteService', () => {
         data: { userId: invitee.id, clinicId: CLINIC_A, role: UserRole.DOCTOR },
       });
       expect(auditActions()).toEqual(['STAFF.INVITE.ACCEPT', 'ROLE.GRANT']);
+      // The invitation is done; a later reset email must not repeat it.
+      expect(keycloak.clearInviteContext).toHaveBeenCalledWith('kc-provisioned-1');
       expect(result).toEqual({
         clinicId: CLINIC_A,
         clinicName: 'Accra Clinic',

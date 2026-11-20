@@ -5,7 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
-import { keycloakAdminServiceProvider } from '../testing/keycloak-admin-fixtures';
+import {
+  createKeycloakAdminServiceMock,
+  keycloakAdminServiceProvider,
+  type KeycloakAdminServiceMock,
+} from '../testing/keycloak-admin-fixtures';
 import {
   FIXTURE_CLINIC_ID,
   FIXTURE_INVITE_ID,
@@ -95,9 +99,12 @@ describe('claiming a patient record', () => {
     }
   }
 
+  let keycloak: KeycloakAdminServiceMock;
+
   beforeEach(async () => {
     jest.useFakeTimers().setSystemTime(IDENTITY_NOW);
     prisma = createIdentityPrismaMock();
+    keycloak = createKeycloakAdminServiceMock();
     auditService = { logWrite: jest.fn().mockResolvedValue(undefined) };
 
     prisma.user.findUnique.mockResolvedValue(claimUserFixture());
@@ -110,13 +117,16 @@ describe('claiming a patient record', () => {
         { provide: AuditService, useValue: auditService },
         {
           provide: ReminderService,
-          useValue: { sendNotificationNow: jest.fn().mockResolvedValue(null) },
+          useValue: {
+            sendNotificationNow: jest.fn().mockResolvedValue(null),
+            recordExternalSend: jest.fn().mockResolvedValue(null),
+          },
         },
         {
           provide: EmailDeliverabilityService,
           useValue: { assertDomainAcceptsEmail: jest.fn().mockResolvedValue(undefined) },
         },
-        keycloakAdminServiceProvider(),
+        keycloakAdminServiceProvider(keycloak),
       ],
     }).compile();
 
@@ -375,6 +385,13 @@ describe('claiming a patient record', () => {
           data: expect.objectContaining({ status: 'CANCELLED' }),
         }),
       );
+    });
+
+    // The patient code has done its job; a later reset email must not repeat it (#383).
+    it('clears the invite details from the identity', async () => {
+      await service.claimPatientRecord(FIXTURE_PORTAL_USER_ID, claimDto, 'req-1');
+
+      expect(keycloak.clearInviteContext).toHaveBeenCalledWith(FIXTURE_KEYCLOAK_SUB);
     });
 
     it('audits the claim against the link it created', async () => {

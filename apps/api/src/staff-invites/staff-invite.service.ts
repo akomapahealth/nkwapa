@@ -15,7 +15,8 @@ import { ReminderService } from '../reminders/reminder.service';
 import { KeycloakAdminService } from '../keycloak/keycloak-admin.service';
 import { EmailDeliverabilityService } from '../common/email-policy';
 import { resolveAppPublicUrl } from '../notifications/email/email-config';
-import { describeInviteAccountSetup } from '../common/invite-account-setup';
+import { describeInviteAccountSetup, identityEmailSent } from '../common/invite-account-setup';
+import { formatRoleLabel } from '../notifications/templates/partials';
 import { resolveIdentityActionLifespanSeconds } from '../common/portal-invite-lifecycle';
 import {
   INVITABLE_STAFF_ROLES,
@@ -208,7 +209,7 @@ export class StaffInviteService {
     });
 
     // Before the email, so the message never arrives ahead of the account it describes.
-    const identity = await this.provisionIdentity(invite, actor.userId, requestId);
+    const identity = await this.provisionIdentity(invite, clinic, actor.userId, requestId);
     const delivery = await this.sendInviteEmail(
       { ...invite, ...identity },
       clinic,
@@ -256,7 +257,7 @@ export class StaffInviteService {
       where: { email: { equals: invite.email, mode: 'insensitive' } },
       select: { id: true },
     });
-    const identity = await this.provisionIdentity(invite, actor.userId, requestId);
+    const identity = await this.provisionIdentity(invite, clinic, actor.userId, requestId);
     const delivery = await this.sendInviteEmail(
       { ...invite, ...identity },
       clinic,
@@ -298,6 +299,7 @@ export class StaffInviteService {
       afterJson: JSON.stringify({ status: 'CANCELLED' }),
       requestId,
     });
+    await this.keycloakAdminService.clearInviteContext(invite.keycloakUserId);
 
     return this.serialize({ ...invite, status: 'CANCELLED', cancelledAt: now }, null, now);
   }
@@ -456,6 +458,7 @@ export class StaffInviteService {
       afterJson: JSON.stringify({ status: 'ACCEPTED', role: invite.role }),
       requestId,
     });
+    await this.keycloakAdminService.clearInviteContext(user.keycloakSub);
 
     const held = await this.prisma.userClinicRole.findFirst({
       where: { userId: user.id, clinicId: invite.clinicId, role: invite.role },
@@ -657,6 +660,7 @@ export class StaffInviteService {
    */
   private async provisionIdentity(
     invite: StaffInvite,
+    clinic: { name: string },
     actorUserId: string,
     requestId?: string,
   ): Promise<IdentityFields> {
@@ -668,6 +672,13 @@ export class StaffInviteService {
           lastName: invite.lastName,
           claimRedirectUri: buildStaffInviteRedirectUri(appPublicUrl),
           lifespanSeconds: resolveIdentityActionLifespanSeconds(invite.expiresAt, new Date()),
+          inviteContext: {
+            kind: 'staff',
+            clinicName: clinic.name,
+            roleLabel: formatRoleLabel(invite.role),
+            inviterName: await this.inviterName(invite),
+            expiresAt: invite.expiresAt,
+          },
         })
       : {
           outcome: 'SKIPPED' as const,
@@ -710,15 +721,11 @@ export class StaffInviteService {
     resend: boolean,
     requestId?: string,
   ) {
-    const inviter = await this.prisma.user.findUnique({
-      where: { id: invite.createdByUserId },
-      select: { displayName: true },
-    });
     const appPublicUrl = resolveAppPublicUrl();
 
-    return this.reminderService.sendNotificationNow({
+    const notification = {
       clinicId: invite.clinicId,
-      recipientType: 'USER',
+      recipientType: 'USER' as const,
       recipientUserId,
       staffInviteId: invite.id,
       toAddress: invite.email,
@@ -727,7 +734,7 @@ export class StaffInviteService {
         clinicName: clinic.name,
         timezone: clinic.timezone,
         role: invite.role,
-        inviterName: inviter?.displayName ?? null,
+        inviterName: await this.inviterName(invite),
         acceptUrl: appPublicUrl ? buildStaffInviteAcceptUrl(appPublicUrl) : null,
         expiresAt: invite.expiresAt.toISOString(),
         resend,
@@ -735,7 +742,20 @@ export class StaffInviteService {
       },
       actorUserId,
       requestId,
+    };
+    // Keycloak's setup email already carries the whole invitation, so ours would be a second
+    // (#383). Its send is still recorded, so the delivery page lists every invite email.
+    return identityEmailSent(invite.identityStatus)
+      ? this.reminderService.recordExternalSend({ ...notification, provider: 'keycloak' })
+      : this.reminderService.sendNotificationNow(notification);
+  }
+
+  private async inviterName(invite: Pick<StaffInvite, 'createdByUserId'>) {
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: invite.createdByUserId },
+      select: { displayName: true },
     });
+    return inviter?.displayName ?? null;
   }
 
   private serialize(
