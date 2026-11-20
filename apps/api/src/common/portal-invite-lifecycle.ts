@@ -238,7 +238,9 @@ export function resolveIdentityActionLifespanSeconds(
     Math.max(MIN_IDENTITY_ACTION_LIFESPAN_SECONDS, seconds),
   );
   // Keycloak's linkExpirationFormatter only says "days" or "hours" for an exact multiple, so
-  // round down to one. Down, not up: the link must never outlive the invite.
+  // round to one. Down, with a small grace: a 14-day invite sent a second ago still reads
+  // "14 days", and the link outlives the invite by at most the grace, never by most of a day.
   const unit = clamped >= DAY_SECONDS ? DAY_SECONDS : HOUR_SECONDS;
-  return Math.floor(clamped / unit) * unit;
+  const grace = unit === DAY_SECONDS ? HOUR_SECONDS : 60;
+  return Math.max(unit, Math.floor((clamped + grace) / unit) * unit);
 }
