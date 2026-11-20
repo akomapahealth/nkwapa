@@ -45,6 +45,7 @@ import { useKeycloak } from '@/app/KeycloakProvider';
 import { getActiveBootstrapClinic, getSwitchableClinics } from '@/lib/bootstrap-clinics';
 import { useToast } from '@/components/ui/toast';
 import { SyncStatusBar } from '@/components/sync/SyncStatusBar';
+import { SmartSearch } from '@/components/search/SmartSearch';
 import { InstallAppMenuItem, InstallInstructionsDialog } from '@/components/pwa/InstallApp';
 import {
   Compass,
@@ -172,7 +173,10 @@ export function Header({
           aria-label={`${switcherLabel}. Switch clinic`}
           className={cn(
             'w-auto min-w-0 max-w-full justify-start gap-2 border-transparent bg-transparent px-2.5 shadow-none hover:bg-muted [&>span]:line-clamp-none',
-            (onToggleSidebar || portal) && 'h-auto min-h-11 min-w-[44px] flex-1 py-1 text-left',
+            // Phones fill the row; from 600px up it is only as wide as the clinic name, so the
+            // switcher no longer stretches across the whole navbar.
+            (onToggleSidebar || portal) &&
+              'h-auto min-h-11 min-w-[44px] flex-1 py-1 text-left compact:max-w-[20rem] compact:flex-none',
             // Phones: 14px back from padding, gap and chevron is what lets a typical clinic name
             // ("Nkwapa Clinic - Demo") fit whole at 390px beside the reserved sync slot.
             'gap-1 px-1.5 [&>svg]:size-3.5 compact:gap-2 compact:px-2.5 compact:[&>svg]:size-4',
@@ -357,6 +361,15 @@ export function Header({
 
         <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center gap-[4px] compact:gap-2">
           <SyncStatusBar clinicId={clinicId} canSync={canSync} recoveryAccess={recoveryAccess} />
+          {/* Phones reach it from the More sheet; the header row is full there. */}
+          {!portal ? (
+            <SmartSearch
+              clinicId={clinicId}
+              switchableClinics={switchableClinics}
+              onSwitchClinic={(value) => void handleClinicChange(value)}
+              className="hidden compact:inline-flex"
+            />
+          ) : null}
           {/*
             Header icons with their names in a tooltip. The notifications bell is on every screen
             size and carries the unread count; any other header icon starts at `md`.

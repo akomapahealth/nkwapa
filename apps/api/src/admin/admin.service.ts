@@ -126,6 +126,42 @@ export class AdminService {
     };
   }
 
+  /**
+   * Staff at this clinic whose name or email contains `q`, for the Smart Search bar. A handful of
+   * rows with the roles held here; the full roster stays on the Staff page.
+   */
+  async searchClinicUsers(actor: AdminActor, clinicId: string, q: string, take = 5) {
+    this.assertCanViewClinicRoster(actor, clinicId);
+    const term = q.trim();
+    if (term.length < 2) return { items: [] };
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        clinicRoles: { some: { clinicId } },
+        OR: [
+          { displayName: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        displayName: true,
+        email: true,
+        clinicRoles: { where: { clinicId }, select: { role: true } },
+      },
+      orderBy: [{ displayName: 'asc' }],
+      take,
+    });
+    return {
+      items: users.map((user) => ({
+        id: user.id,
+        displayName: user.displayName,
+        email: user.email,
+        roles: user.clinicRoles.map((entry) => entry.role),
+      })),
+    };
+  }
+
   async getUserRoles(actor: AdminActor, userId: string) {
     const user = await this.findUserWithRoles(userId);
     if (!user) {
