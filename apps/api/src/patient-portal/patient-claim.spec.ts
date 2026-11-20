@@ -117,7 +117,10 @@ describe('claiming a patient record', () => {
         { provide: AuditService, useValue: auditService },
         {
           provide: ReminderService,
-          useValue: { sendNotificationNow: jest.fn().mockResolvedValue(null) },
+          useValue: {
+            sendNotificationNow: jest.fn().mockResolvedValue(null),
+            recordExternalSend: jest.fn().mockResolvedValue(null),
+          },
         },
         {
           provide: EmailDeliverabilityService,

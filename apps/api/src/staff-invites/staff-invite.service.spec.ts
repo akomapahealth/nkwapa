@@ -71,7 +71,7 @@ describe('StaffInviteService', () => {
     userClinicRole: { findFirst: jest.Mock; create: jest.Mock };
   };
   let audit: { logWrite: jest.Mock };
-  let reminders: { sendNotificationNow: jest.Mock };
+  let reminders: { sendNotificationNow: jest.Mock; recordExternalSend: jest.Mock };
   let keycloak: KeycloakAdminServiceMock;
   let deliverability: { assertDomainAcceptsEmail: jest.Mock };
   let userProfile: { applyName: jest.Mock };
@@ -111,6 +111,12 @@ describe('StaffInviteService', () => {
         status: 'QUEUED',
         failureReason: null,
         sentAt: null,
+        createdAt: new Date(),
+      }),
+      recordExternalSend: jest.fn().mockResolvedValue({
+        status: 'SENT',
+        failureReason: null,
+        sentAt: new Date(),
         createdAt: new Date(),
       }),
     };
@@ -166,9 +172,17 @@ describe('StaffInviteService', () => {
           },
         }),
       );
-      // Keycloak's setup email is the invitation now (#383); ours would be a second email.
+      // Keycloak's setup email is the invitation now (#383); ours would be a second email. Its
+      // send is still recorded, so the delivery page lists it.
       expect(reminders.sendNotificationNow).not.toHaveBeenCalled();
-      expect(result.emailDelivery).toBeNull();
+      expect(reminders.recordExternalSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'keycloak',
+          templateKey: 'STAFF_INVITE_V1',
+          staffInviteId: expect.any(String),
+        }),
+      );
+      expect(result.emailDelivery).toMatchObject({ status: 'SENT' });
 
       expect(auditActions()).toEqual(['STAFF.INVITE.CREATE', 'STAFF.INVITE.IDENTITY']);
       expect(result.identity.status).toBe('PROVISIONED');

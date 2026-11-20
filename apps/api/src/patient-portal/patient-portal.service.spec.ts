@@ -34,6 +34,7 @@ describe('PatientPortalService', () => {
     scheduleAppointmentReminderNoContact: jest.Mock;
     suppressQueuedAppointmentReminders: jest.Mock;
     sendNotificationNow: jest.Mock;
+    recordExternalSend: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -53,6 +54,13 @@ describe('PatientPortalService', () => {
         status: 'QUEUED',
         failureReason: null,
         sentAt: null,
+        createdAt: new Date('2026-03-21T09:00:00.000Z'),
+      }),
+      recordExternalSend: jest.fn().mockResolvedValue({
+        id: 'delivery-kc',
+        status: 'SENT',
+        failureReason: null,
+        sentAt: new Date('2026-03-21T09:00:00.000Z'),
         createdAt: new Date('2026-03-21T09:00:00.000Z'),
       }),
     };
@@ -1416,7 +1424,16 @@ describe('PatientPortalService', () => {
           }),
         });
         expect(reminderService.sendNotificationNow).not.toHaveBeenCalled();
-        expect(result.emailDelivery).toBeNull();
+        // Still on the delivery page: Keycloak's send is recorded against the invite.
+        expect(reminderService.recordExternalSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            provider: 'keycloak',
+            templateKey: 'PORTAL_INVITE_V1',
+            portalInviteId: expect.any(String),
+            toAddress: 'ama@example.com',
+          }),
+        );
+        expect(result.emailDelivery).toMatchObject({ status: 'SENT' });
       });
 
       it('sends our own invite email when the patient already has a working account', async () => {

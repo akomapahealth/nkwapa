@@ -210,17 +210,14 @@ export class StaffInviteService {
 
     // Before the email, so the message never arrives ahead of the account it describes.
     const identity = await this.provisionIdentity(invite, clinic, actor.userId, requestId);
-    // Keycloak's setup email already carries the whole invitation; ours would be a second (#383).
-    const delivery = identityEmailSent(identity.identityStatus)
-      ? null
-      : await this.sendInviteEmail(
-          { ...invite, ...identity },
-          clinic,
-          actor.userId,
-          existing?.id ?? null,
-          false,
-          requestId,
-        );
+    const delivery = await this.sendInviteEmail(
+      { ...invite, ...identity },
+      clinic,
+      actor.userId,
+      existing?.id ?? null,
+      false,
+      requestId,
+    );
 
     // Someone who already has an account sees it in the bell too. No clinic on it: they hold no
     // role there yet, and the bell hides notifications about clinics a reader cannot see.
@@ -261,16 +258,14 @@ export class StaffInviteService {
       select: { id: true },
     });
     const identity = await this.provisionIdentity(invite, clinic, actor.userId, requestId);
-    const delivery = identityEmailSent(identity.identityStatus)
-      ? null
-      : await this.sendInviteEmail(
-          { ...invite, ...identity },
-          clinic,
-          actor.userId,
-          existing?.id ?? null,
-          true,
-          requestId,
-        );
+    const delivery = await this.sendInviteEmail(
+      { ...invite, ...identity },
+      clinic,
+      actor.userId,
+      existing?.id ?? null,
+      true,
+      requestId,
+    );
 
     return this.serialize({ ...invite, ...identity }, delivery, new Date());
   }
@@ -728,9 +723,9 @@ export class StaffInviteService {
   ) {
     const appPublicUrl = resolveAppPublicUrl();
 
-    return this.reminderService.sendNotificationNow({
+    const notification = {
       clinicId: invite.clinicId,
-      recipientType: 'USER',
+      recipientType: 'USER' as const,
       recipientUserId,
       staffInviteId: invite.id,
       toAddress: invite.email,
@@ -747,7 +742,12 @@ export class StaffInviteService {
       },
       actorUserId,
       requestId,
-    });
+    };
+    // Keycloak's setup email already carries the whole invitation, so ours would be a second
+    // (#383). Its send is still recorded, so the delivery page lists every invite email.
+    return identityEmailSent(invite.identityStatus)
+      ? this.reminderService.recordExternalSend({ ...notification, provider: 'keycloak' })
+      : this.reminderService.sendNotificationNow(notification);
   }
 
   private async inviterName(invite: Pick<StaffInvite, 'createdByUserId'>) {

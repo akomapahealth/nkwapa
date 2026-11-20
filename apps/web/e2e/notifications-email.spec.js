@@ -14,8 +14,8 @@ const inviteEmail = process.env.SEED_E2E_CLAIM_EMAIL || 'e2e.claim@nkwapa.local'
 
 /**
  * A resent portal invite now arrives as one email (#383): Keycloak's account-setup message,
- * carrying the clinic and patient code our own email used to. That message does not pass
- * through the delivery ledger, so the SMTP-and-ledger path is covered by
+ * carrying the clinic and patient code our own email used to. The API records that send in the
+ * delivery ledger, so the page still lists it. Our own SMTP path is covered by
  * volunteer-roster.spec.js, whose rota emails still go through it.
  */
 test.describe('portal invite email', () => {
@@ -64,6 +64,11 @@ test.describe('portal invite email', () => {
     await expect(page.getByText('Invite email sent', { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
+
+    // Keycloak sent it, but the delivery page still lists it beside every other email.
+    await page.goto('/notifications/delivery');
+    await expect(page.locator('#main-content')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/portal invite/i).first()).toBeVisible({ timeout: 30_000 });
   });
 
   test('the notifications view is accessible and explains email availability', async ({ page }) => {

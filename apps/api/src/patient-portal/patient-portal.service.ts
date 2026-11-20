@@ -1474,16 +1474,13 @@ export class PatientPortalService {
 
     // Before the email, so the message never arrives ahead of the account it describes.
     const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
-    // Keycloak's setup email already carries the whole invitation; ours would be a second (#383).
-    const delivery = identityEmailSent(identity.identityStatus)
-      ? null
-      : await this.sendPortalInviteEmail(
-          invite,
-          actorUserId,
-          false,
-          identity.identityStatus,
-          requestId,
-        );
+    const delivery = await this.sendPortalInviteEmail(
+      invite,
+      actorUserId,
+      false,
+      identity.identityStatus,
+      requestId,
+    );
 
     return this.serializePortalInvite({ ...invite, ...identity }, delivery);
   }
@@ -1542,15 +1539,13 @@ export class PatientPortalService {
     // Idempotent by construction: provisioning reads Keycloak's own state, so a resend
     // re-sends only what is still outstanding and never resets a chosen password.
     const identity = await this.provisionInviteIdentity(invite, actorUserId, requestId);
-    const delivery = identityEmailSent(identity.identityStatus)
-      ? null
-      : await this.sendPortalInviteEmail(
-          invite,
-          actorUserId,
-          true,
-          identity.identityStatus,
-          requestId,
-        );
+    const delivery = await this.sendPortalInviteEmail(
+      invite,
+      actorUserId,
+      true,
+      identity.identityStatus,
+      requestId,
+    );
 
     return this.serializePortalInvite({ ...invite, ...identity }, delivery);
   }
@@ -1709,9 +1704,9 @@ export class PatientPortalService {
 
     const appPublicUrl = resolveAppPublicUrl();
 
-    return this.reminderService.sendNotificationNow({
+    const notification = {
       clinicId: invite.clinicId,
-      recipientType: 'PATIENT',
+      recipientType: 'PATIENT' as const,
       patientId: invite.patientId,
       portalInviteId: invite.id,
       toAddress: invite.email,
@@ -1728,7 +1723,12 @@ export class PatientPortalService {
       },
       actorUserId,
       requestId,
-    });
+    };
+    // Keycloak's setup email already carries the whole invitation, so ours would be a second
+    // (#383). Its send is still recorded, so the delivery page lists every invite email.
+    return identityEmailSent(identityStatus)
+      ? this.reminderService.recordExternalSend({ ...notification, provider: 'keycloak' })
+      : this.reminderService.sendNotificationNow(notification);
   }
 
   async cancelPortalInvite(
