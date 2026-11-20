@@ -270,6 +270,16 @@ describeRisk('live follow-up tier', () => {
     expect(after).toHaveLength(2);
     expect(after[1].tier).toBe(current.tier);
   });
+  // push.notify files inbox tiles without waiting, so a test polls for them.
+  async function settle<T>(read: () => Promise<T[]>, length: number): Promise<T[]> {
+    for (let i = 0; i < 50; i += 1) {
+      const rows = await read();
+      if (rows.length >= length) return rows;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return read();
+  }
+
   describe('flag notifications (#337)', () => {
     const tiles = () =>
       system((tx) =>
@@ -278,15 +288,6 @@ describeRisk('live follow-up tier', () => {
           select: { userId: true, readAt: true, riskFlagId: true, kind: true },
         }),
       );
-
-    async function settle<T>(read: () => Promise<T[]>, length: number): Promise<T[]> {
-      for (let i = 0; i < 50; i += 1) {
-        const rows = await read();
-        if (rows.length >= length) return rows;
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-      return read();
-    }
 
     it('a move into Urgent records one flag and files a tile for the clinic doctors, not the recorder', async () => {
       await system((tx) =>
@@ -539,10 +540,14 @@ describeRisk('live follow-up tier', () => {
         }),
       );
       expect(assessment?.currentRiskAssessment?.reasons).toContain('MISSED_CONTACT');
-      const tile = await system((tx) =>
-        tx.inboxNotification.findFirst({
-          where: { userId: VOLUNTEER.id, tag: `follow-up-missed-${patientId}` },
-        }),
+      const [tile] = await settle(
+        () =>
+          system((tx) =>
+            tx.inboxNotification.findMany({
+              where: { userId: VOLUNTEER.id, tag: `follow-up-missed-${patientId}` },
+            }),
+          ),
+        1,
       );
       expect(tile?.kind).toBe('FOLLOW_UP_DUE');
     });
