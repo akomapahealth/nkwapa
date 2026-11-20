@@ -103,7 +103,7 @@ export function DashboardShiftControls() {
     !canWrite ||
     !controls.canSubmit ||
     controls.busy ||
-    view.isRefreshing ||
+    // Not view.isRefreshing: background polling must not lock the button (#385).
     awaitingChange !== null;
 
   return (

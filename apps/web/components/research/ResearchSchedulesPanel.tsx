@@ -29,7 +29,7 @@ import {
 } from '@/components/patients/RecordSection';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { showToast } from '@/components/ui/toast';
-import { ResearchReasonDialog, type ReasonPrompt } from './ResearchReasonDialog';
+import { ReasonDialog, type ReasonPrompt } from '@/components/ui/reason-dialog';
 import { ResearchRunKey } from './ResearchRunKey';
 import { ResearchScheduleDialog, type ScheduleDraft } from './ResearchScheduleDialog';
 import { EXPORT_STATUS_STYLES } from './research-status';
@@ -283,7 +283,7 @@ export function ResearchSchedulesPanel({
           )}
         </ResourceState>
       </RecordSectionContent>
-      <ResearchReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
+      <ReasonDialog prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
     </RecordSection>
   );
 }

@@ -324,6 +324,21 @@ export class PatientRepository {
             },
           },
         );
+        // "Ama Mensah": every word must match one of the name or code fields, so a full name
+        // finds the chart even though no single column holds it.
+        const words = s.split(/\s+/).filter(Boolean);
+        if (words.length > 1) {
+          orConditions.push({
+            AND: words.map((word) => ({
+              OR: [
+                { firstName: { contains: word, mode: 'insensitive' as const } },
+                { middleName: { contains: word, mode: 'insensitive' as const } },
+                { lastName: { contains: word, mode: 'insensitive' as const } },
+                { patientCode: { contains: word, mode: 'insensitive' as const } },
+              ],
+            })),
+          });
+        }
         if (s.length === 4) {
           orConditions.push({ nationalIdLast4: s });
         }

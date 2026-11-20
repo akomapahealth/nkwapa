@@ -46,7 +46,7 @@ describe('OPS permissions', () => {
     expect(computeEffectivePermissions([UserRole.SYSTEM_ADMIN])).toEqual(['*']);
   });
 
-  it('gives merge to nobody but the wildcard', () => {
+  it('gives merge and draft deletion to nobody but the wildcard', () => {
     // Consolidating two records is irreversible, so the seat is deliberately unreachable by
     // grant: only SYSTEM_ADMIN's '*' satisfies it, and adding the permission to any role's list
     // would be a policy change rather than a refactor.
@@ -56,7 +56,21 @@ describe('OPS permissions', () => {
         expect(permissions).toEqual(['*']);
       } else {
         expect(permissions).not.toContain(PERMISSIONS.PATIENT_MERGE);
+        expect(permissions).not.toContain(PERMISSIONS.ENCOUNTER_DRAFT_DELETE);
       }
+    }
+  });
+
+  it('lets leaders end anyone’s shift without letting a director start one (#385)', () => {
+    expect(computeEffectivePermissions([UserRole.DIRECTOR])).toContain(
+      PERMISSIONS.OPS_SHIFT_MANAGE,
+    );
+    expect(computeEffectivePermissions([UserRole.DIRECTOR])).not.toContain(
+      PERMISSIONS.OPS_SHIFT_WRITE,
+    );
+    expect(computeEffectivePermissions([UserRole.MANAGER])).toContain(PERMISSIONS.OPS_SHIFT_MANAGE);
+    for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER]) {
+      expect(computeEffectivePermissions([role])).not.toContain(PERMISSIONS.OPS_SHIFT_MANAGE);
     }
   });
 

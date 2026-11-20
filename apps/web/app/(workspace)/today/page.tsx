@@ -82,6 +82,8 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { StationLineBoard } from '@/components/stations/StationLineBoard';
+import { EndShiftForButton } from '@/components/ops/EndShiftForButton';
+import { usePolling } from '@/lib/stations';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 type BoardCheckIn = WithPendingSync<CheckInSummary>;
@@ -185,6 +187,7 @@ function TodayBoardPage() {
     },
   });
   const { isOnline } = board;
+  const canEndOthersShifts = hasPermission(permissions, 'OPS.SHIFT.MANAGE');
 
   const timezone =
     board.data?.checkIns.timezone ?? board.data?.shifts.timezone ?? OPS_DEFAULT_TIMEZONE;
@@ -207,6 +210,9 @@ function TodayBoardPage() {
       }),
     [board.data, pendingWrites, clinicId, selectedDate, timezone],
   );
+
+  // So someone a lead took off shift sees it here without reloading (#385).
+  usePolling(board.refresh, isOnline && isToday && Boolean(clinicId));
 
   const shiftControls = useShiftControls({
     clinicId,
@@ -693,11 +699,18 @@ function TodayBoardPage() {
                             ) : shift.pendingCheckOut ? (
                               <PendingSyncBadge
                                 state={shift.pendingCheckOut}
-                                label={
-                                  shift.pendingCheckOut === 'blocked'
-                                    ? 'Shift end needs attention'
-                                    : 'Ending · pending sync'
-                                }
+                                label="Ending · pending sync"
+                              />
+                            ) : canEndOthersShifts &&
+                              isToday &&
+                              clinicId &&
+                              shift.userId !== bootstrap?.userId ? (
+                              <EndShiftForButton
+                                clinicId={clinicId}
+                                shiftId={shift.shiftId}
+                                displayName={shift.displayName}
+                                isOnline={isOnline}
+                                onEnded={board.refresh}
                               />
                             ) : null}
                           </div>

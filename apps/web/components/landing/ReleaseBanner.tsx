@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowRight, ArrowUpRight, X } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import {
   Dialog,
   DialogClose,
@@ -182,18 +182,6 @@ function WhatsNew({ release, released }: { release: Release; released: string })
             {CONTACT_EMAIL}
           </a>
         </p>
-        {release.url && (
-          <a
-            href={release.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-1 rounded-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Technical notes on GitHub
-            <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
-        )}
       </footer>
     </DialogContent>
   );

@@ -51,6 +51,10 @@ describe('SyncService', () => {
   beforeEach(async () => {
     const mockPrisma = {
       $executeRaw: jest.fn().mockResolvedValue(1),
+      auditEvent: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       syncMutation: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({}),
@@ -814,6 +818,16 @@ describe('SyncService', () => {
       expect(prisma.encounter.upsert).not.toHaveBeenCalled();
     });
 
+    it('refuses a queued change that would recreate a visit a system admin deleted (#384)', async () => {
+      (prisma.auditEvent.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'audit-1' });
+
+      const results = await pushEncounter({ patientId: 'patient-1', status: 'DRAFT' });
+
+      expect(results[0].status).toBe(SYNC_MUTATION_RESULT_STATUS.CONFLICT);
+      expect(results[0].conflictType).toBe('ENCOUNTER_DELETED');
+      expect(prisma.encounter.upsert).not.toHaveBeenCalled();
+    });
+
     it('still applies a queued draft encounter', async () => {
       const results = await pushEncounter({ patientId: 'patient-1', status: 'DRAFT' });
 
@@ -1538,6 +1552,48 @@ describe('SyncService', () => {
             primaryClinicId: 'clinic-1',
             mergedIntoPatientId: { not: null },
           }),
+        }),
+      );
+    });
+  });
+
+  describe('draft visits a system admin deleted (#384)', () => {
+    it('sends their ids from the audit tombstones and advances the cursor past them', async () => {
+      const client = prisma as unknown as Record<string, { findMany: jest.Mock }>;
+      for (const model of [
+        'patient',
+        'encounter',
+        'vitals',
+        'tobaccoScreening',
+        'diabetesScreening',
+        'hypertensionAssessment',
+        'encounterMedicationAdherence',
+        'carePlan',
+        'patientConsent',
+        'prescription',
+        'medicalHistoryRecord',
+        'medicalHistoryRevision',
+        'patientMedicationRecord',
+        'patientMedicationRevision',
+        'medicationReconciliationEvent',
+        'patientPharmacyRecord',
+        'patientPharmacyRevision',
+        'patientPharmacyPreference',
+      ]) {
+        client[model] = { ...client[model], findMany: jest.fn().mockResolvedValue([]) };
+      }
+      const deletedAt = new Date('2026-11-20T09:00:00.000Z');
+      client.auditEvent.findMany.mockResolvedValue([
+        { id: 'audit-1', entityId: 'enc-gone', createdAt: deletedAt },
+      ]);
+
+      const result = await service.pull('clinic-1', '2026-11-19T00:00:00.000Z|x');
+
+      expect(result.deletedEncounterIds).toEqual(['enc-gone']);
+      expect(result.cursor).toBe(`${deletedAt.toISOString()}|audit-1`);
+      expect(client.auditEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ clinicId: 'clinic-1', action: 'ENCOUNTER.DELETE' }),
         }),
       );
     });

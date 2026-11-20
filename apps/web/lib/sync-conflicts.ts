@@ -90,6 +90,14 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
       'A manager combined this patient’s charts while this device was offline. The old chart no longer accepts changes.',
     nextStep: 'Open the current chart and re-enter this change there, then discard this copy.',
   },
+  ENCOUNTER_DELETED: {
+    title: 'This visit was deleted',
+    explanation:
+      'A system admin deleted this draft visit while this device was offline, so the change has nowhere to go.',
+    nextStep:
+      'Open the patient’s chart and start a new visit if it is still needed, then discard this copy.',
+    tone: 'warning',
+  },
   PATIENT_NATIONAL_ID_REQUIRED: {
     title: 'This new patient needs an ID',
     explanation: 'A chart needs an ID number, or "No ID document" for a patient who has none.',
@@ -381,7 +389,8 @@ export function describeSyncFailure(
       description.actionLabels['open-ops-board'] = 'Open my assignments';
     }
   }
-  if (encounterId && category !== 'patient') {
+  // A deleted visit has no page left to open.
+  if (encounterId && category !== 'patient' && code !== 'ENCOUNTER_DELETED') {
     description.encounterHref = encounterHref(encounterId);
     description.actions.push('open-encounter');
   }
