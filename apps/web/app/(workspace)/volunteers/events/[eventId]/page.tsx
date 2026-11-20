@@ -16,6 +16,7 @@ import {
   volunteersPath,
   type RosterRow,
   type ScreeningEventDetail,
+  type ClinicAccount,
   type VolunteerContact,
 } from '@/lib/volunteers';
 import { RouteGuard } from '@/components/RouteGuard';
@@ -362,10 +363,24 @@ function EventContent() {
               )
             }
             onClose={() => setAdding(false)}
-            onAdd={(ids) =>
+            onAdd={(picks) =>
               run(
                 'add',
                 async () => {
+                  // An account is added to the directory first (linked, from its own name and
+                  // email), so nobody with an account is typed in by hand.
+                  const ids: string[] = [];
+                  for (const pick of picks) {
+                    if (pick.kind === 'contact') ids.push(pick.id);
+                    else
+                      ids.push(
+                        (
+                          (await call(`${volunteersPath(clinicId)}/from-account`, 'POST', {
+                            userId: pick.id,
+                          })) as { id: string }
+                        ).id,
+                      );
+                  }
                   await call(`${base}/roster`, 'POST', { volunteerContactIds: ids });
                   showToast({
                     title: `${ids.length} volunteer${ids.length === 1 ? '' : 's'} added`,
@@ -465,6 +480,8 @@ function EventContent() {
   );
 }
 
+type RosterPick = { kind: 'contact' | 'account'; id: string };
+
 function AddVolunteersDialog({
   open,
   clinicId,
@@ -476,11 +493,12 @@ function AddVolunteersDialog({
   clinicId: string;
   rosteredIds: Set<string>;
   onClose: () => void;
-  onAdd: (ids: string[]) => Promise<void>;
+  onAdd: (picks: RosterPick[]) => Promise<void>;
 }) {
   const [search, setSearch] = useState('');
+  // Keys are `contact:<id>` or `account:<id>`.
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const directory = useAsyncResource<{ items: VolunteerContact[] }>({
+  const directory = useAsyncResource<{ items: VolunteerContact[]; accounts?: ClinicAccount[] }>({
     resourceKey: `${clinicId}:${open}`,
     enabled: open && Boolean(clinicId),
     requiresOnline: true,
@@ -497,15 +515,30 @@ function AddVolunteersDialog({
   });
   const candidates = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return (directory.data?.items ?? []).filter(
-      (contact) =>
-        contact.isActive &&
-        !rosteredIds.has(contact.id) &&
-        (!query ||
-          contact.displayName.toLowerCase().includes(query) ||
-          contact.email.includes(query)),
-    );
+    const matches = (person: { displayName: string; email: string }) =>
+      !query || person.displayName.toLowerCase().includes(query) || person.email.includes(query);
+    const contacts = (directory.data?.items ?? [])
+      .filter((contact) => contact.isActive && !rosteredIds.has(contact.id) && matches(contact))
+      .map((contact) => ({
+        key: `contact:${contact.id}`,
+        pick: { kind: 'contact', id: contact.id } as RosterPick,
+        displayName: contact.displayName,
+        email: contact.email,
+        hasAccount: Boolean(contact.linkedUserId),
+      }));
+    const accounts = (directory.data?.accounts ?? []).filter(matches).map((account) => ({
+      key: `account:${account.id}`,
+      pick: { kind: 'account', id: account.id } as RosterPick,
+      displayName: account.displayName,
+      email: account.email,
+      hasAccount: true,
+    }));
+    return [...contacts, ...accounts].sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [directory.data, rosteredIds, search]);
+  const byKey = useMemo(
+    () => new Map(candidates.map((candidate) => [candidate.key, candidate.pick])),
+    [candidates],
+  );
 
   const close = () => {
     setPicked(new Set());
@@ -518,7 +551,7 @@ function AddVolunteersDialog({
       <DialogContent variant="form">
         <DialogHeader>
           <DialogTitle>Add volunteers</DialogTitle>
-          <DialogDescription>Active volunteers from the directory.</DialogDescription>
+          <DialogDescription>The directory and everyone with an account here.</DialogDescription>
         </DialogHeader>
         <div className="space-y-1">
           <Label htmlFor="roster-search">Search by name or email</Label>
@@ -540,30 +573,33 @@ function AddVolunteersDialog({
               </p>
             ) : (
               <ul className="space-y-2">
-                {candidates.map((contact) => (
+                {candidates.map((person) => (
                   <li
-                    key={contact.id}
+                    key={person.key}
                     className="flex min-h-11 items-center gap-3 border-b border-rule"
                   >
                     <Checkbox
                       className="relative before:absolute before:-inset-3.5 before:content-['']"
-                      id={`pick-${contact.id}`}
-                      checked={picked.has(contact.id)}
+                      id={`pick-${person.key}`}
+                      checked={picked.has(person.key)}
                       onCheckedChange={(checked) =>
                         setPicked((current) => {
                           const next = new Set(current);
-                          if (checked === true) next.add(contact.id);
-                          else next.delete(contact.id);
+                          if (checked === true) next.add(person.key);
+                          else next.delete(person.key);
                           return next;
                         })
                       }
                     />
                     <Label
-                      htmlFor={`pick-${contact.id}`}
+                      htmlFor={`pick-${person.key}`}
                       className="flex-1 cursor-pointer py-3 font-normal leading-snug"
                     >
-                      <span className="font-medium">{contact.displayName}</span>
-                      <span className="block break-all text-muted-foreground">{contact.email}</span>
+                      <span className="font-medium">{person.displayName}</span>
+                      {person.hasAccount ? (
+                        <span className="ml-2 text-xs text-muted-foreground">Has an account</span>
+                      ) : null}
+                      <span className="block break-all text-muted-foreground">{person.email}</span>
                     </Label>
                   </li>
                 ))}
@@ -578,7 +614,12 @@ function AddVolunteersDialog({
           <Button
             disabled={picked.size === 0}
             onClick={async () => {
-              await onAdd([...picked]);
+              await onAdd(
+                [...picked].flatMap((key) => {
+                  const pick = byKey.get(key);
+                  return pick ? [pick] : [];
+                }),
+              );
               setPicked(new Set());
             }}
           >

@@ -46,7 +46,12 @@ export class VolunteerService {
       this.clinicStaffWithEmail(clinicId),
     ]);
     const byEmail = new Map(staff.map((user) => [user.email, user]));
+    const inDirectory = new Set(contacts.map((contact) => contact.email));
     return {
+      // Clinic accounts not in the directory yet: picked by name, never retyped (addFromAccount).
+      accounts: staff
+        .filter((user) => !inDirectory.has(user.email))
+        .map((user) => ({ id: user.id, displayName: user.displayName, email: user.email })),
       items: contacts.map((contact) => {
         // Offered, never applied: the manager links explicitly.
         const candidate = contact.linkedUserId ? undefined : byEmail.get(contact.email);
@@ -71,6 +76,41 @@ export class VolunteerService {
         email: dto.email,
         phoneE164: dto.phoneE164 || null,
         notes: dto.notes || null,
+        createdByUserId: actorUserId,
+      },
+    });
+    await this.audit(clinicId, actorUserId, 'VOLUNTEER.CREATE', contact, null);
+    return this.serialize(contact);
+  }
+
+  /**
+   * Add someone with a clinic account to the directory, linked, from the account's own name and
+   * email. Idempotent: an existing contact with that email is linked (if it is not) and returned.
+   * The email is the account's, already checked when they were invited, so no domain lookup.
+   */
+  async addFromAccount(clinicId: string, actorUserId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, isActive: true, clinicRoles: { some: { clinicId } } },
+      select: { id: true, displayName: true, email: true },
+    });
+    const email = user?.email?.trim().toLowerCase();
+    if (!user || !email) {
+      throw new BadRequestException({
+        code: 'VOLUNTEER_ACCOUNT_NOT_ALLOWED',
+        message: 'Only an active account with a role at this clinic and an email can be added.',
+      });
+    }
+    const existing = await this.prisma.volunteerContact.findFirst({ where: { clinicId, email } });
+    if (existing) {
+      if (existing.linkedUserId) return this.serialize(existing);
+      return this.link(clinicId, existing.id, actorUserId, user.id);
+    }
+    const contact = await this.prisma.volunteerContact.create({
+      data: {
+        clinicId,
+        displayName: user.displayName,
+        email,
+        linkedUserId: user.id,
         createdByUserId: actorUserId,
       },
     });

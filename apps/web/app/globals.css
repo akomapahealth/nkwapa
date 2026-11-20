@@ -186,8 +186,8 @@
     --sidebar: 180 23.8% 95.9%;
     --sidebar-border: 190.9 18% 88%;
     --sidebar-muted-foreground: 197.5 12.4% 38%;
-    /* 0.5rem gives the R0 radius scale: xl 12, lg 8, md 6, sm 4. No squircles. */
-    --radius: 0.5rem;
+    /* 0.75rem gives the radius scale (2026-11-20): 2xl 20, xl 16, lg 12, md 8, sm 6. No squircles. */
+    --radius: 0.75rem;
     /*
       Motion, per MASTER.md section 7: 150ms for colour and opacity, 200ms for position, nothing
       longer in a clinical view. The curves are stronger than the CSS keywords, which start too
@@ -263,12 +263,14 @@
 
   @media (pointer: fine) {
     :root {
-      --button-height: 2.25rem;
+      /* 2026-11-20: 32px buttons and 36px fields. Small buttons keep the 32px height so a row of
+         buttons lines up; they differ only in padding and text size. */
+      --button-height: 2rem;
       --button-height-sm: 2rem;
-      --button-height-lg: 2.5rem;
-      --field-height: 2.5rem;
+      --button-height-lg: 2.25rem;
+      --field-height: 2.25rem;
       --menu-row-height: 2.25rem;
-      --tab-height: 2.5rem;
+      --tab-height: 2.25rem;
     }
   }
 
@@ -801,12 +803,12 @@ html:has([data-landing]) {
     max-width: none;
     max-height: calc(100dvh - var(--keyboard-inset, 0px) - env(safe-area-inset-top) - 0.75rem);
     border-width: 1px 0 0;
-    border-radius: 0.75rem 0.75rem 0 0;
-    padding-inline: max(1.5rem, env(safe-area-inset-left)) max(1.5rem, env(safe-area-inset-right));
+    border-radius: 1.25rem 1.25rem 0 0;
+    padding-inline: max(1.25rem, env(safe-area-inset-left)) max(1.25rem, env(safe-area-inset-right));
     transition-timing-function: var(--ease-drawer);
   }
   .dialog-form:not(:has(.dialog-footer)) {
-    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
   }
   .dialog-form .dialog-footer {
     margin-inline: min(-1.5rem, calc(-1 * env(safe-area-inset-left)))

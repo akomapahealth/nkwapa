@@ -8,7 +8,8 @@ const { clearMailpitInbox, findMessageTo, messageContent } = require('../playwri
   #226: a clinic's volunteer directory, a screening day, its roster, and the roster email.
 
   The `staff` identity is a director, who holds VOLUNTEER.ROSTER.MANAGE as a manager does. The
-  people rostered have no Nkwapa account; the email reaches them anyway, through the ledger.
+  people typed in have no Nkwapa account; the email reaches them anyway, through the ledger.
+  Someone with an account is picked by name instead of typed.
 */
 
 async function clinicIdFor(role) {
@@ -111,6 +112,19 @@ test.describe('as a director', () => {
     expect(messageContent(message)).toContain(`Saturday screening ${run}`);
     expect(messageContent(message)).toContain('Community hall');
     expect(message.HTML || '').not.toMatch(/href=/i);
+
+    // Someone with an account is found by name and added without typing their details.
+    await page.getByRole('button', { name: 'Add volunteers' }).click();
+    const accounts = page.getByRole('dialog');
+    await accounts.getByLabel('Search by name or email').fill('E2E Volunteer');
+    await expect(accounts.getByText('Has an account').first()).toBeVisible();
+    await accounts
+      .getByLabel(/E2E Volunteer/)
+      .first()
+      .check();
+    await accounts.getByRole('button', { name: /^Add 1/ }).click();
+    await expect(accounts).toBeHidden();
+    await expect(roster.getByRole('row').filter({ hasText: 'E2E Volunteer' })).toBeVisible();
   });
 });
 

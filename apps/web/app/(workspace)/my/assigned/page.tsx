@@ -40,7 +40,14 @@ import {
   opsOfflineHint,
 } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
-import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import { TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -439,18 +446,33 @@ export default function MyAssignedPage() {
                     Cases aligned to your current clinic role.
                   </p>
                 </div>
-                <SegmentedControl
-                  label="Filter assigned patients"
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                  className="sm:w-[30rem]"
-                  options={[
-                    { value: 'ALL', label: 'All' },
-                    { value: 'ASSIGNED', label: 'Assigned' },
-                    { value: 'IN_PROGRESS', label: 'In progress' },
-                    { value: 'COMPLETED', label: 'Completed' },
-                  ]}
-                />
+                {/* Four options: a dropdown, per MASTER §8 (segmented is for 2 or 3). */}
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor="assigned-status-filter"
+                    className="text-sm font-normal text-muted-foreground"
+                  >
+                    Show
+                  </Label>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => setStatusFilter(value as StaffFilter)}
+                  >
+                    <SelectTrigger
+                      id="assigned-status-filter"
+                      aria-label="Filter assigned patients"
+                      className={TOOLBAR_SELECT}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All</SelectItem>
+                      <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                      <SelectItem value="IN_PROGRESS">In progress</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               {!view.data ? null : filteredAssignments.length === 0 ? (
                 <EmptyStateCard

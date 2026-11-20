@@ -157,6 +157,61 @@ describe('VolunteerService', () => {
     });
   });
 
+  describe('addFromAccount', () => {
+    const account = { id: USER_ID, displayName: 'Kofi Mensah', email: ' Kofi@Clinic.org ' };
+
+    it('creates a linked contact from the account, with no domain lookup', async () => {
+      prisma.user.findFirst.mockResolvedValueOnce(account);
+      const created = await service.addFromAccount(CLINIC_A, 'manager-a', USER_ID);
+      expect(prisma.user.findFirst.mock.calls[0][0].where).toMatchObject({
+        id: USER_ID,
+        isActive: true,
+        clinicRoles: { some: { clinicId: CLINIC_A } },
+      });
+      expect(prisma.volunteerContact.create.mock.calls[0][0].data).toMatchObject({
+        clinicId: CLINIC_A,
+        displayName: 'Kofi Mensah',
+        email: 'kofi@clinic.org',
+        linkedUserId: USER_ID,
+      });
+      expect(created.linkedUserId).toBe(USER_ID);
+      expect(deliverability.assertDomainAcceptsEmail).not.toHaveBeenCalled();
+      expect(audit.logWrite.mock.calls[0][0]).toMatchObject({ action: 'VOLUNTEER.CREATE' });
+    });
+
+    it('refuses an account with no role at this clinic', async () => {
+      prisma.user.findFirst.mockResolvedValueOnce(null);
+      await expect(service.addFromAccount(CLINIC_A, 'manager-a', USER_ID)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(prisma.volunteerContact.create).not.toHaveBeenCalled();
+    });
+
+    it('links an existing unlinked contact with that email instead of duplicating it', async () => {
+      prisma.user.findFirst
+        .mockResolvedValueOnce(account)
+        .mockResolvedValueOnce({ id: USER_ID, email: 'kofi@clinic.org' });
+      prisma.volunteerContact.findFirst
+        .mockResolvedValueOnce(contactRow({ email: 'kofi@clinic.org' }))
+        .mockResolvedValueOnce(contactRow({ email: 'kofi@clinic.org' }));
+      await service.addFromAccount(CLINIC_A, 'manager-a', USER_ID);
+      expect(prisma.volunteerContact.create).not.toHaveBeenCalled();
+      expect(prisma.volunteerContact.update.mock.calls[0][0].data).toEqual({
+        linkedUserId: USER_ID,
+      });
+    });
+  });
+
+  it('lists clinic accounts that are not in the directory yet', async () => {
+    prisma.volunteerContact.findMany.mockResolvedValueOnce([contactRow()]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      { id: 'u1', displayName: 'Ama Owusu', email: 'AMA@clinic.org' },
+      { id: 'u2', displayName: 'Kofi Mensah', email: 'kofi@clinic.org' },
+    ]);
+    const { accounts } = await service.list(CLINIC_A);
+    expect(accounts).toEqual([{ id: 'u2', displayName: 'Kofi Mensah', email: 'kofi@clinic.org' }]);
+  });
+
   it('offers a link candidate by matching email but never links on its own', async () => {
     prisma.volunteerContact.findMany.mockResolvedValue([{ ...contactRow(), linkedUser: null }]);
     prisma.user.findMany.mockResolvedValue([

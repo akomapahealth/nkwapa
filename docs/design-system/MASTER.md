@@ -136,11 +136,11 @@ Status colour is never the only signal. Pair every status fill with a label or i
 
 The tinted badge pattern is `bg-<token>/12` plus `text-<token>-ink`.
 
-**Tags (R1.3).** `Badge` is the pilot `.tag`: 24px minimum height (it wraps rather than overflow), 4px radius, 12.5px semibold, no shadow, no hover. No call site may round it into a pill. Variants: `secondary` neutral (`--surface-2` fill, `--border` edge, muted ink, 5.72:1); `info` for selected or suggested (`--selected` with `--primary`, 4.53:1); `gold` for "new" highlights only (6.31:1), never a state; `draft`, `review`, `finalized`, `warning` as before; `severe`; `destructive` filled.
+**Tags (R1.3).** `Badge` is the pilot `.tag`: 24px minimum height (it wraps rather than overflow), 6px radius (never a pill), 12.5px semibold, no shadow, no hover. No call site may round it into a pill. Variants: `secondary` neutral (`--surface-2` fill, `--border` edge, muted ink, 5.72:1); `info` for selected or suggested (`--selected` with `--primary`, 4.53:1); `gold` for "new" highlights only (6.31:1), never a state; `draft`, `review`, `finalized`, `warning` as before; `severe`; `destructive` filled.
 
 **Blood-pressure severity (R1.3, audit A8).** One map, `HYPERTENSION_BADGE_VARIANTS` in `lib/hypertension.ts`, feeds `statusVariant()` and the hypertension history panel: Normal and Elevated neutral, Stage 1 `warning`, Stage 2 `severe` (`--severe-surface` / `--severe-ink`, hue 20, 5.67:1 light, 6.72:1 dark), Crisis filled `destructive`. The text label always names the stage, so the scale never relies on colour alone. The classifier and saved values are unchanged. The dashboard distribution chart (`HYPERTENSION_TONES`) follows the same ladder for the stages: Stage 1 `warning`, Stage 2 `severe` (bar fill `--severe`, 4.34:1 on the card), Crisis `destructive`; Normal stays success green and Elevated warning there, because a chart needs Normal to differ from Not classified. The station results summary shows the stage as the same tag.
 
-**Panels (R1.3).** `Card` is the bordered panel on the one white sheet: 8px radius, 1px `--border`, `--card` fill, no shadow. Panels sit side by side or in sequence. Never nest a `Card` in a `Card`.
+**Panels (R1.3).** `Card` is the bordered panel on the one white sheet: 12px radius, 1px `--border`, `--card` fill, no shadow. Panels sit side by side or in sequence. Never nest a `Card` in a `Card`.
 
 **All four statuses have an ink token.** Destructive did not until #94, and it was the one status
 still using its fill as text on its own tint, on nine surfaces including
@@ -370,18 +370,21 @@ Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:
 
 ## 5. Radius
 
-`--radius` is `0.5rem` (8px), so the scale is 4 / 6 / 8 / 12 (UI refresh R1.1, R0-AUDIT section 4).
+`--radius` is `0.75rem` (12px), so the scale is 6 / 8 / 12 / 16 / 20 (owner decision 2026-11-20, which replaced the R1.1 scale of 4 / 6 / 8 / 12 because sizes read as large and corners as rigid).
 
-| Step | Value | Used for                                                                  |
-| ---- | ----- | ------------------------------------------------------------------------- |
-| `sm` | 4px   | Buttons, inputs, selects, textareas, badges, tags, tooltips, focus (R3.8) |
-| `md` | 6px   | Tab tops, menu items                                                      |
-| `lg` | 8px   | Panels, popovers, menus                                                   |
-| `xl` | 12px  | The sheet, dialogs, side sheets                                           |
+| Step  | Value | Used for                                                             |
+| ----- | ----- | -------------------------------------------------------------------- |
+| `sm`  | 6px   | Badges and tags (never a pill), key hints, chips, link focus rings   |
+| `md`  | 8px   | Buttons, inputs, selects, textareas, comboboxes, tooltips, list rows |
+| `lg`  | 12px  | Panels (`Card`), toasts, menu and select rows inside a 16px popover  |
+| `xl`  | 16px  | Dialogs, popovers, menus, select and combobox lists, Smart Search    |
+| `2xl` | 20px  | The top edge of a phone bottom sheet                                 |
 
-All four steps are real Tailwind classes, derived from `--radius` in `tailwind.config.js`.
+All five steps are real Tailwind classes, derived from `--radius` in `tailwind.config.js`. `rounded` (4px) is kept for checkbox-sized boxes and legend swatches, where 6px would read as a circle.
 
-**Nothing rounder than 12px, and no squircles.** That rules out `rounded-2xl` (16px) and `rounded-3xl` (24px) as well as arbitrary values. Circles stay for avatars, status dots and route stops only. The one exception is the landing page's phone mock-up bezel in `components/landing/ProductFrames.tsx`, which depicts hardware rather than interface.
+**Nested corners are concentric.** An inner corner is its parent's radius minus the padding (and border) between them, so the curves run parallel: menu rows are 12px inside a 16px menu with 4px padding, and the segmented knob is 7px inside its 10px track with 3px padding. Those two segmented values (`rounded-[10px]` and `rounded-[7px]`, in `SegmentedControl` and the sign-in toggle) are the only arbitrary radii on contract.
+
+**Nothing rounder than 20px, and no squircles.** That rules out `rounded-3xl` and other arbitrary values. Circles stay for avatars, status dots and route stops only. The one exception is the landing page's phone mock-up bezel in `components/landing/ProductFrames.tsx`, which depicts hardware rather than interface.
 
 Measured before the Phase 6 migration: `rounded-[28px]` in 32 files (78 occurrences), plus `[24px]`, `[26px]`, `[30px]` and `[32px]` — five arbitrary radii inside one product, three of them inside the fallback components alone.
 
@@ -567,15 +570,16 @@ keyboard and tooltip scanning remain instant under that preference too.
 
 ## 8. Density, targets, breakpoints
 
-| Rule                       | Value                                                                                                                                          |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Table row height, desktop  | 44px                                                                                                                                           |
-| Table row height, touch    | 52px                                                                                                                                           |
-| Minimum interactive target | 44px under `pointer: coarse`; 44px hit area for small and icon buttons on a mouse                                                              |
-| Button height              | 44px touch, 36px mouse (`--button-height`); small 44 / 32; large 48 / 40 (R3.8)                                                                |
-| Form control height        | 44px touch, 40px mouse (`--field-height`: `Input`, `SelectTrigger`, `Combobox`) (R3.8)                                                         |
-| Tabs and menu rows         | Tabs 48px touch, 40px mouse (`--tab-height`); Select, dropdown and combobox rows 44px touch, 36px mouse (`--menu-row-height`) (R3.8 follow-up) |
-| Breakpoints                | 375 / 768 / 1024 / 1440 (audit widths); named screens `compact` 600, `tablet` 840, `desktop` 1200                                              |
+| Rule                       | Value                                                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Table row height, desktop  | 44px                                                                                                                          |
+| Table row height, touch    | 52px                                                                                                                          |
+| Minimum interactive target | 44px under `pointer: coarse`; 44px hit area for every button size on a mouse                                                  |
+| Button height              | 44px touch, 32px mouse (`--button-height`); small 44 / 32, the same height as its neighbours; large 48 / 36 (2026-11-20)      |
+| Form control height        | 44px touch, 36px mouse (`--field-height`: `Input`, `SelectTrigger`, `Combobox`) (2026-11-20)                                  |
+| Tabs and menu rows         | Tabs 48px touch, 36px mouse (`--tab-height`); Select, dropdown and combobox rows 44px touch, 36px mouse (`--menu-row-height`) |
+| Panel padding              | `Card` 20px from 600px, 16px on phones; dialogs 20px                                                                          |
+| Breakpoints                | 375 / 768 / 1024 / 1440 (audit widths); named screens `compact` 600, `tablet` 840, `desktop` 1200                             |
 
 Both row heights are set by `DataTable` (`components/ui/data-table.tsx`, TanStack Table v9). Row actions are real buttons in a right-aligned final column, one primary at most, so they line up down the column. It also makes the numerals tabular and sticks the column headers, because a roster that runs past a viewport is unreadable once its headers scroll away.
 
@@ -585,14 +589,14 @@ Both row heights are set by `DataTable` (`components/ui/data-table.tsx`, TanStac
 
 The 44px touch floor is enforced in the primitives rather than per call site: `Button`, `Input`, `Select` and its menu rows, `Tabs` triggers, and the two help triggers. Where the glyph must stay small — a help icon, a toast dismiss — the target is a centred pseudo-element rather than a `min-height` on the visible box. `.touch-target` set `min-height`/`min-width` on the element itself, which silently overrode every size a call site asked for and pushed metric-card headers around by 20px.
 
-**Buttons (R1.2, radius R3.8).** Flat fills, semibold labels, 4px radius, no shadow. Primary hovers to `--primary-hover` (`#006A7A`, darker, 6.27:1 with white). `outline` and `secondary` are the same secondary action: white `--card` fill with the 3:1 `--input` boundary, hovering to `--muted` (R0-AUDIT A4). Gold is only the explicit `gold` variant. Destructive keeps `/95` on hover; `/90` falls to 4.51:1. Controls drop their shadow; placeholders stay `--muted-foreground` (5.99:1), not `--faint`.
+**Buttons (R1.2, radius 2026-11-20).** Flat fills, semibold labels, 8px radius, no shadow. Primary hovers to `--primary-hover` (`#006A7A`, darker, 6.27:1 with white). `outline` and `secondary` are the same secondary action: white `--card` fill with the 3:1 `--input` boundary, hovering to `--muted` (R0-AUDIT A4). Gold is only the explicit `gold` variant. Destructive keeps `/95` on hover; `/90` falls to 4.51:1. Controls drop their shadow; placeholders stay `--muted-foreground` (5.99:1), not `--faint`.
 
 Focus rings are `ring-2 ring-ring` everywhere. They were `ring-1` on form controls and `ring-2` on everything else.
 
 **Segmented controls and tabs (R1.4).** Two looks, one job each (master §5.3):
 
-- `SegmentedControl` is for a mutually exclusive view or filter that reshapes one list (Day/Week, time windows, status filters). It is the pilot `.seg`: a `--surface-2` track with a 1px `--border` inset, and a raised `--card` knob that holds the active label in `--primary` (5.22:1 light, 7.67:1 dark). It stays toggle buttons with `aria-pressed`, not tabs. The knob is one shared Motion element (`layoutId`, re-measured only when the value changes) that moves in 220ms `--ease-in-out` and stretches to 1.12 on x mid-move. The active label colour is wiped in by `clip-path`, never by tweening text colour. Only the change a pointer press made animates. A keyboard press, the first render and a change made elsewhere (a reset, back navigation) snap into place. Four options sit 2x2 on a phone and 1x4 from `sm`. Other counts auto-fit at 7rem or wider. The focus ring is inset. Reduced motion removes all of it. Targets are 42px inside the 3px track (48px total), and 48px under `pointer: coarse`.
-- `Tabs` is for substantial record sections with real panels. It is the pilot `.tabs`: muted labels on a `--rule`, the active label in ink with a 2px `--primary` underline. The underline is a shared `layoutId` element that moves in 200ms `--ease-in-out` after a pointer press and snaps for the arrow keys and for changes made elsewhere. The label weight stays 500 in both states, so the active tab never widens and pushes its neighbours. Tabs never wrap. `TabsList` brings its own `overflow-x-auto` wrapper (a Motion `layoutScroll` element, so the underline measures correctly after a press scrolls a tab into view), so call sites add none. The focus ring is inset, because that wrapper clips anything outside the tab. Radix keeps the roles, `aria-selected` and the arrow keys. Targets are 40px on a mouse, 44px by default and 48px under `pointer: coarse` (`--tab-height`).
+- `SegmentedControl` is for 2 or 3 short, mutually exclusive options that reshape one list and are switched often (Day/Week, time windows). Four or more options, or long labels, go in a `Select` with a visible label (the `TOOLBAR_SELECT` pattern); the patient portal is the exception, because GOV.UK and NHS guidance calls dropdowns a last resort for the public (owner decision 2026-11-20). It is the pilot `.seg`: a `--surface-2` track with a 1px `--border` inset, and a raised `--card` knob that holds the active label in `--primary` (5.22:1 light, 7.67:1 dark). It stays toggle buttons with `aria-pressed`, not tabs. The knob is one shared Motion element (`layoutId`, re-measured only when the value changes) that moves in 220ms `--ease-in-out` and stretches to 1.12 on x mid-move. The active label colour is wiped in by `clip-path`, never by tweening text colour. Only the change a pointer press made animates. A keyboard press, the first render and a change made elsewhere (a reset, back navigation) snap into place. Four options sit 2x2 on a phone and 1x4 from `sm`. Other counts auto-fit at 7rem or wider. The focus ring is inset. Reduced motion removes all of it. Options are button height inside the 3px track (32px on a mouse, so 38px total), and 48px under `pointer: coarse`. The track is 10px and the knob 7px.
+- `Tabs` is for substantial record sections with real panels. It is the pilot `.tabs`: muted labels on a `--rule`, the active label in ink with a 2px `--primary` underline. The underline is a shared `layoutId` element that moves in 200ms `--ease-in-out` after a pointer press and snaps for the arrow keys and for changes made elsewhere. The label weight stays 500 in both states, so the active tab never widens and pushes its neighbours. Tabs never wrap. `TabsList` brings its own `overflow-x-auto` wrapper (a Motion `layoutScroll` element, so the underline measures correctly after a press scrolls a tab into view), so call sites add none. The focus ring is inset, because that wrapper clips anything outside the tab. Radix keeps the roles, `aria-selected` and the arrow keys. Targets are 36px on a mouse, 44px by default and 48px under `pointer: coarse` (`--tab-height`).
 - Gold is never a selected state. Neither control has a filled teal segment or a bordered box any more.
 
 ---
@@ -1040,7 +1044,7 @@ page-level list so a tab reads the same whichever role opens it (`ui-refresh/W3-
   **One line per chip** (W3 polish): icon, figure, label and help share a 16px optical size, so
   weight (600 vs 400) carries the emphasis instead of a numeral that dwarfs its own icon. A count
   or rate reads number-first ("47 Needs review"); any other value reads label-first ("Blood
-  pressure 128/82 mmHg"). 40px tall on a mouse, 44px on touch, 8px radius. A zero has no tint
+  pressure 128/82 mmHg"). 36px tall on a mouse, 44px on touch, 8px radius (the control step). A zero has no tint
   or shadow, only a hairline ring. On phones the row scrolls and bleeds to the screen edge, so a
   cut chip reads as "more this way". Never repeat a figure the page already states: no "Total"
   chip beside a header count, no "Visible" chip beside a "N loaded" line, and "Showing x of y"
@@ -1615,7 +1619,7 @@ Shipped in [PR #303](https://github.com/akomapahealth/nkwapa/pull/303); before a
 
 **R5.2 (2026-11-11).** `/login`, every `OnboardingFrame` step and the Keycloak pages now sit on
 the same inset sheet as the portal and staff shells: full-bleed white under 600px, then 8px inside
-the canvas with a 12px radius and a hairline (`.nkwapa-auth-sheet` in the theme). The "I am signing
+the canvas with a 16px radius and a hairline (`.nkwapa-auth-sheet` in the theme). The "I am signing
 in as" control is the pilot `.seg` (surface-2 track, raised card knob, primary label), still a
 native radio group; the filled teal segment is gone. Keycloak fields carry `autocomplete="username"`
 (it was `off` on sign-in, which blocked password managers) and point at their error with

@@ -53,7 +53,7 @@ import {
 } from '@/lib/staff-invite';
 import { BulkInviteDialog } from '@/components/staff/BulkInviteDialog';
 import { InfoHint } from '@/components/ui/info-hint';
-import { SegmentedControl } from '@/components/app-shell/SegmentedControl';
+import { TOOLBAR_SELECT } from '@/components/app-shell/ListToolbar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -104,10 +104,10 @@ export interface StaffInvitesCardProps {
 
 type Busy = { inviteId: string; action: StaffInviteAction } | null;
 
-const FILTERS: Array<{ value: StaffInviteFilter; label: string; description?: string }> = [
+const FILTERS: Array<{ value: StaffInviteFilter; label: string }> = [
   { value: 'ALL', label: 'All' },
-  { value: 'OPEN', label: 'Open', description: 'Waiting to be accepted' },
-  { value: 'EXPIRED', label: 'Expired', description: 'Lapsed before anyone accepted' },
+  { value: 'OPEN', label: 'Open' },
+  { value: 'EXPIRED', label: 'Expired' },
   { value: 'ACCEPTED', label: 'Accepted' },
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
@@ -411,17 +411,30 @@ export function StaffInvitesCard({
             getRowId={(invite) => invite.id}
             initialPageSize={10}
             toolbar={
-              <SegmentedControl
-                label="Show invitations"
-                scrollable
-                value={filter}
-                options={FILTERS.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                  description: option.description,
-                }))}
-                onChange={setFilter}
-              />
+              // Five options: a dropdown, per MASTER §8 (segmented is for 2 or 3).
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="staff-invite-filter"
+                  className="text-sm font-normal text-muted-foreground"
+                >
+                  Show invitations
+                </Label>
+                <Select
+                  value={filter}
+                  onValueChange={(value) => setFilter(value as StaffInviteFilter)}
+                >
+                  <SelectTrigger id="staff-invite-filter" className={TOOLBAR_SELECT}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FILTERS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             }
             emptyState={
               <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">

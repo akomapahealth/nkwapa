@@ -107,12 +107,13 @@
   --nkwapa-font-heading: 'Source Serif 4', Georgia, serif;
   --nkwapa-font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* Radius ------------------------------------------- R0-AUDIT section 4: 4 / 6 / 8 / 12, the
-     app's rounded-sm/md/lg/xl at --radius 0.5rem. No squircles. This file once ran 30 / 20 / 18. */
-  --nkwapa-radius-sm: 4px; /* chips, focus    */
-  --nkwapa-radius-md: 6px; /* controls        */
-  --nkwapa-radius-lg: 8px; /* panels, alerts  */
-  --nkwapa-radius-xl: 12px; /* the sheet       */
+  /* Radius ---------------------------------- MASTER.md section 5 (2026-11-20): 6 / 8 / 12 / 16,
+     the app's rounded-sm/md/lg/xl at --radius 0.75rem. No squircles. This file once ran 30 / 20 / 18.
+     Control heights stay 44-48px here: sign-in is the first screen on every device. */
+  --nkwapa-radius-sm: 6px; /* chips, focus    */
+  --nkwapa-radius-md: 8px; /* controls        */
+  --nkwapa-radius-lg: 12px; /* panels, alerts  */
+  --nkwapa-radius-xl: 16px; /* the sheet       */
 
   /* Motion ------------------------------------------------------ MASTER.md section 7 */
   --nkwapa-duration: 150ms;

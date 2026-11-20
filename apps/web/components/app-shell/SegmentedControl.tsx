@@ -75,7 +75,7 @@ export function SegmentedControl<TValue extends string>({
         role="group"
         aria-label={label}
         className={cn(
-          'h-auto w-full gap-0.5 rounded-md bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]',
+          'h-auto w-full gap-0.5 rounded-[10px] bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]',
           // Four options go 2x2 on a phone rather than 3 + 1, which left one option alone on a row.
           scrollable ? 'flex min-w-0 overflow-x-auto [scrollbar-width:thin]' : 'grid',
           !scrollable && options.length === 4 && 'grid-cols-2 sm:grid-cols-4',
@@ -108,7 +108,7 @@ export function SegmentedControl<TValue extends string>({
                 aria-pressed={selected}
                 aria-describedby={describedBy}
                 onClick={(event) => choose(event, option.value)}
-                className="relative inline-flex shrink-0 min-h-[42px] min-w-11 cursor-pointer touch-manipulation items-center justify-center whitespace-nowrap rounded-[4px] px-3 text-sm font-semibold text-muted-foreground transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-foreground [@media(pointer:coarse)]:min-h-12"
+                className="relative inline-flex shrink-0 min-h-[var(--button-height)] min-w-11 cursor-pointer touch-manipulation items-center justify-center whitespace-nowrap rounded-[7px] px-3 text-sm font-semibold text-muted-foreground transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-foreground [@media(pointer:coarse)]:min-h-12"
               >
                 {selected ? (
                   <motion.span
@@ -125,7 +125,7 @@ export function SegmentedControl<TValue extends string>({
                     {/* shortcut: always stretches on x, also when a wrapped control moves rows;
                         upgrade if a multi-row control ever gets heavy use. */}
                     <motion.span
-                      className="absolute inset-0 rounded-[4px] bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.12),inset_0_0_0_1px_hsl(var(--border))]"
+                      className="absolute inset-0 rounded-[7px] bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.12),inset_0_0_0_1px_hsl(var(--border))]"
                       // Not `initial={false}`: the knob remounts on every change, and that would
                       // start it at the last keyframe, so the stretch would never play.
                       initial={{ scaleX: 1 }}

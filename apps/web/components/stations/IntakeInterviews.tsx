@@ -81,7 +81,7 @@ export function IntakeInterviews({
               <span
                 aria-hidden="true"
                 className={cn(
-                  'grid size-4 place-items-center rounded-sm border',
+                  'grid size-4 place-items-center rounded border',
                   on
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-muted-foreground/60',

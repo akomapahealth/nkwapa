@@ -258,8 +258,8 @@ export function SmartSearch({
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     panel.animate(
       [
-        { clipPath: 'inset(0 0 calc(100% - 44px) calc(100% - 44px) round 10px)', opacity: 0.6 },
-        { clipPath: 'inset(0 0 0 0 round 10px)', opacity: 1 },
+        { clipPath: 'inset(0 0 calc(100% - 44px) calc(100% - 44px) round 16px)', opacity: 0.6 },
+        { clipPath: 'inset(0 0 0 0 round 16px)', opacity: 1 },
       ],
       { duration: 240, easing: EXPAND },
     );
@@ -461,7 +461,7 @@ export function SmartSearch({
                 : undefined
             }
             className={cn(
-              'fixed z-50 flex max-h-[min(34rem,calc(100dvh-1.5rem))] flex-col overflow-hidden rounded-[10px] border border-border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_hsl(var(--foreground)/0.28),0_2px_6px_-2px_hsl(var(--foreground)/0.12)]',
+              'fixed z-50 flex max-h-[min(34rem,calc(100dvh-1.5rem))] flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_hsl(var(--foreground)/0.28),0_2px_6px_-2px_hsl(var(--foreground)/0.12)]',
               !anchor && 'inset-x-3 top-[calc(env(safe-area-inset-top)+0.5rem)]',
             )}
           >

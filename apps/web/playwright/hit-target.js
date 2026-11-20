@@ -1,5 +1,5 @@
 /*
-  The box a pointer can actually hit. Small and icon buttons are 32-36px on a mouse but keep a
+  The box a pointer can actually hit. Buttons are 32px on a mouse but keep a
   44px hit area through an absolutely positioned ::after (MASTER section 8), which boundingBox()
   does not see.
 */
@@ -21,8 +21,8 @@ async function hitTarget(locator) {
     };
   });
 }
-/** The smallest visible text button for this pointer: 44px under touch, 36px on a mouse. */
+/** The smallest visible text button for this pointer: 44px under touch, 32px on a mouse. */
 async function minButtonHeight(page) {
-  return page.evaluate(() => (matchMedia('(pointer: coarse)').matches ? 44 : 36));
+  return page.evaluate(() => (matchMedia('(pointer: coarse)').matches ? 44 : 32));
 }
 module.exports = { hitTarget, minButtonHeight };
