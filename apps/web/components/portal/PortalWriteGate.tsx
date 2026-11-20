@@ -12,10 +12,10 @@ export interface PortalWriteGate {
 }
 
 export const PORTAL_OFFLINE_WRITE_REASON =
-  'You are offline. Sending this needs a connection, and nothing is kept on this device to send later.';
+  'You are offline. Sending needs a connection; nothing is kept to send later.';
 
 export const PORTAL_SAVED_COPY_WRITE_REASON =
-  'You are looking at a saved copy. Refresh to see your latest details before asking for a change.';
+  'This is a saved copy. Refresh before asking for a change.';
 
 /** Said above a saved copy while offline: what on the portal still needs a connection. */
 export const PORTAL_OFFLINE_DETAIL =
@@ -23,7 +23,7 @@ export const PORTAL_OFFLINE_DETAIL =
 
 /** Said offline when this device has no saved copy of the view to show. */
 export const PORTAL_NO_SAVED_COPY =
-  'This page has not been saved on this device yet. It will load as soon as you are back online.';
+  'Not saved on this device yet. It loads when you are back online.';
 
 /**
  * Whether a portal write can be attempted right now (#18).

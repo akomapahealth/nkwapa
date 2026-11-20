@@ -347,7 +347,7 @@ export function FollowUpWorklist({ clinicId }: { clinicId: string }) {
             offlineDescription={
               tab === 'done'
                 ? 'You are offline. Done contacts need a connection; the due tabs still work.'
-                : 'You are offline, and this device has no copy of follow-up yet. Open Follow-up once online to keep one.'
+                : 'You are offline and this device has no copy yet. Open Follow-up online once to keep one.'
             }
             offlineDetail="Calls you record are kept on this device. Taking a contact needs a connection."
             isEmpty={(page) => page.items.length === 0}

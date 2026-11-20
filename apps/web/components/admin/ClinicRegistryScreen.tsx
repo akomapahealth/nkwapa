@@ -202,7 +202,7 @@ export function ClinicRegistryScreen() {
     }
     if (zoneName !== null) return `No clinic is in ${zoneName}.`;
     if (filter === 'needs-attention') {
-      return 'No clinic has a metadata problem. Organization reporting can rely on every record here.';
+      return 'No clinic has a metadata problem.';
     }
     return 'No clinic matches this view.';
   })();
@@ -347,7 +347,7 @@ export function ClinicRegistryScreen() {
         count={clinics.data ? rows.length : undefined}
         description="Clinic records, locations and availability."
         helpTitle="What you manage here"
-        helpText="Create clinics, review their location and zone metadata, and adjust operational details without losing historical records."
+        helpText="Create clinics and keep their location, zone and details current. History is kept."
         actions={<Button onClick={openCreate}>Create clinic</Button>}
       />
 
@@ -366,7 +366,7 @@ export function ClinicRegistryScreen() {
           title="With warnings"
           value={clinics.data ? warningOnlyCount : '…'}
           icon={TriangleAlert}
-          detail="Clinics with only warnings, such as no zone code. Worth fixing, but they never block reporting, so they do not count as needing attention."
+          detail="Only warnings, such as no zone code. They never block reporting."
         />
 
         <AppMetricCard

@@ -261,7 +261,7 @@ export function AppointmentRequestScreen() {
                   id="notes"
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Add symptoms, home readings, or availability notes that may help your care team schedule you."
+                  placeholder="Symptoms, home readings, or when you are free."
                   rows={6}
                   maxLength={2000}
                 />
@@ -373,13 +373,8 @@ export function AppointmentRequestScreen() {
             contentClassName="space-y-3 text-sm leading-6 text-muted-foreground"
           >
             <p>Share the date range that works best for you, not the exact time.</p>
-            <p>
-              Add a short reason so your clinic knows whether you need a routine follow-up, symptom
-              review, or medication discussion.
-            </p>
-            <p>
-              If your clinic confirms the visit, it will show up under Appointments automatically.
-            </p>
+            <p>Add a short reason: a routine follow-up, symptoms, or your medicines.</p>
+            <p>Once your clinic confirms, the visit shows under Appointments.</p>
           </PortalPanel>
         </div>
       </div>

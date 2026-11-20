@@ -474,7 +474,7 @@ export function DuplicateReviewScreen() {
                   : 'No candidates match these filters',
               description:
                 filters.status === 'OPEN' && filtersAreDefault
-                  ? 'Every chart in scope looks like a distinct person. New candidates appear here as patients are registered.'
+                  ? 'Every chart in scope looks like a distinct person.'
                   : 'Try a broader decision or match strength, or clear the search term.',
               icon: Users,
             }}
@@ -483,8 +483,8 @@ export function DuplicateReviewScreen() {
               <>
                 {data.truncated ? (
                   <InlineNotice tone="warning">
-                    There were more candidates than one page can scan. Narrow to a single clinic, or
-                    work through these first and refresh.
+                    Too many candidates for one page. Narrow to one clinic, or work through these
+                    and refresh.
                   </InlineNotice>
                 ) : null}
 
