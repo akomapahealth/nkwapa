@@ -13,6 +13,8 @@ import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { apiFetch } from '@/lib/api';
 import { hasPermission, readApiError, formatOpsDay, formatOpsDateTime } from '@/lib/ops';
 import { usePatientCheckIn } from '@/lib/use-patient-check-in';
+import { sexAgeLabel } from '@/components/patients/PatientContextBar';
+import { ageInYears } from '@/lib/stations';
 import { PatientProfileHeader } from '@/components/patients/chart/PatientProfileHeader';
 import profileStyles from '@/components/patients/chart/patient-profile.module.css';
 import { db } from '@/lib/db';
@@ -637,6 +639,9 @@ function PatientChartWorkspace() {
         }
         digitalAddress={patient.residentialDigitalAddress}
         clinicId={clinicId}
+        sexAge={sexAgeLabel(patient.sex, ageInYears(patient.dob ?? null))}
+        allergies={summary?.allergies}
+        tier={canSeeTier && followUp.data ? (followUp.data.current?.tier ?? null) : undefined}
         badges={
           <>
             {canSeeTier && followUp.data ? (

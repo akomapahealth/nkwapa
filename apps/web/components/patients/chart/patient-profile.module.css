@@ -77,22 +77,6 @@
   height: auto;
   white-space: normal;
 }
-.context {
-  position: fixed;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.625rem 0.75rem;
-  border-bottom: 1px solid hsl(var(--border));
-  background: hsl(var(--surface-2));
-  visibility: hidden;
-  pointer-events: none;
-}
-.context[data-visible='true'] {
-  visibility: visible;
-}
 .details {
   display: grid;
   gap: 1.5rem;

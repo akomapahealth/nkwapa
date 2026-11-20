@@ -1,0 +1,97 @@
+/* The pinned patient bar (PatientContextBar). Fixed under the shell header; the page measures it. */
+.bar {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-2) / 0.92);
+  backdrop-filter: blur(12px) saturate(160%);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    visibility 0s linear var(--duration-fast);
+  font-size: 0.875rem;
+}
+.bar[data-visible='true'] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transform: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bar {
+    background: hsl(var(--surface-2));
+    backdrop-filter: none;
+  }
+}
+.identity {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.625rem;
+}
+.flags {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+/* Sex, age and tier drop on phones; name, code and allergies stay. */
+.wide {
+  display: none;
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+}
+@media (min-width: 600px) {
+  .wide {
+    display: inline-flex;
+  }
+}
+.chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 22rem;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 6px);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+}
+.danger {
+  border-color: hsl(var(--destructive) / 0.35);
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive-ink));
+}
+.caution {
+  border-color: hsl(var(--warning) / 0.35);
+  background: hsl(var(--warning) / 0.1);
+  color: hsl(var(--warning-ink));
+}
+.quiet {
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+}
