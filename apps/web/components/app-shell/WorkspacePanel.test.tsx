@@ -7,7 +7,7 @@ jest.mock('@/components/ui/confirm-dialog', () => ({
   confirmAction: (...args: unknown[]) => mockConfirm(...args),
 }));
 
-import { WorkspacePanel } from './WorkspacePanel';
+import { WorkspacePanel, confirmPanelLeave } from './WorkspacePanel';
 import { DialogTitle } from '@/components/ui/dialog';
 
 // Desktop: every width query matches, so the panel docks beside the page.
@@ -108,9 +108,7 @@ it('hides with the entry kept, then restores from the unsaved button', async () 
   type('Penicillin');
   await act(async () => byLabel('Hide Panel A').click());
   expect(document.body.dataset.workspaceOpen).toBeUndefined();
-  const restore = [...document.querySelectorAll('button')].find((b) =>
-    b.textContent?.includes('not saved'),
-  )!;
+  const restore = byLabel('Show Panel A, not saved');
   expect(document.activeElement).toBe(restore);
   await act(async () => restore.click());
   expect((document.getElementById('field-a') as HTMLInputElement).value).toBe('Penicillin');
@@ -123,4 +121,12 @@ it('opening a second panel asks to discard the first, and closes it on yes', asy
   await flush();
   expect(mockConfirm).toHaveBeenCalledTimes(1);
   expect(closed).toEqual(['A']);
+});
+
+it('asks before a chart tab change would drop typed entries', async () => {
+  await expect(confirmPanelLeave()).resolves.toBe(true);
+  type('Penicillin');
+  mockConfirm.mockResolvedValueOnce(false);
+  await expect(confirmPanelLeave()).resolves.toBe(false);
+  expect(mockConfirm).toHaveBeenCalledTimes(1);
 });

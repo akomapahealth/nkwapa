@@ -253,6 +253,7 @@ export function ChatWidget() {
   return (
     <div
       data-chat-widget=""
+      data-chat-launcher
       className="fixed bottom-[calc(1rem+var(--workspace-bottom-nav-height,0px)+env(safe-area-inset-bottom))] right-[calc(0.75rem+env(safe-area-inset-right))] z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:right-[calc(1.25rem+env(safe-area-inset-right))]"
     >
       <ChatProvider>

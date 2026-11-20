@@ -235,6 +235,14 @@ function PatientChartWorkspace() {
     void loadSummary();
   }, [loadSummary]);
 
+  // Quiet: the overview keeps showing while the patient bar's allergy status catches up.
+  const refreshAllergies = useCallback(() => {
+    if (!getToken) return;
+    void fetchPatientChartSummary(clinicId, patientId, getToken)
+      .then(setSummary)
+      .catch(() => {});
+  }, [clinicId, getToken, patientId]);
+
   const fetchSelfReports = useCallback(async () => {
     if (!getToken || !canViewSelfReports || !isOnline) return;
     setSelfReportsError(null);
@@ -985,6 +993,7 @@ function PatientChartWorkspace() {
                   patientId={patient.id}
                   userId={userId}
                   canWrite={canWriteMedicalHistory}
+                  onSaved={refreshAllergies}
                 />
               );
             case 'medications':

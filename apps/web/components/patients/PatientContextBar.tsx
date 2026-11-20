@@ -25,7 +25,9 @@ function AllergyChip({ allergies }: { allergies: ChartAllergySummary }) {
       <span className={cn(styles.chip, styles.danger)}>
         <AlertTriangle aria-hidden="true" />
         <span className="truncate">
-          Allergies: {shown}
+          {/* Phones show the substance; the icon and tone already say allergy. */}
+          <span className="sr-only compact:not-sr-only">Allergies: </span>
+          {shown}
           {more}
         </span>
       </span>

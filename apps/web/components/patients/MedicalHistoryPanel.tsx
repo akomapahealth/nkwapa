@@ -129,12 +129,15 @@ export function MedicalHistoryPanel({
   patientId,
   userId,
   canWrite,
+  onSaved,
 }: {
   ruled?: boolean;
   clinicId: string;
   patientId: string;
   userId: string;
   canWrite: boolean;
+  /** After a save reaches the server, e.g. so the patient bar's allergy status follows. */
+  onSaved?: () => void;
 }) {
   const getToken = useAuth();
   const [records, setRecords] = useState<MedicalHistoryRecord[]>([]);
@@ -379,6 +382,7 @@ export function MedicalHistoryPanel({
       }
       setEditorOpen(false);
       await load();
+      onSaved?.();
     } catch (saveError) {
       if (!navigator.onLine || saveError instanceof TypeError) {
         await saveOffline(recordId, revisionId, payload);

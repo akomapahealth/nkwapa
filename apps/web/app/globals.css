@@ -944,4 +944,8 @@ html:has([data-landing]) {
   body[data-workspace-open] #main-content {
     padding-right: calc(30rem + 1.5rem);
   }
+  /* Chat steps left of the docked panel instead of covering its corner. */
+  body[data-workspace-open] [data-chat-launcher] {
+    right: calc(30rem + 1.5rem);
+  }
 }

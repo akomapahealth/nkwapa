@@ -30,6 +30,15 @@ async function claim(next: Active): Promise<boolean> {
   return true;
 }
 
+/**
+ * Ask before something unmounts the open panel, such as a chart tab change (panels live inside
+ * their tab). Resolves true straight away when nothing typed would be lost.
+ */
+export async function confirmPanelLeave(): Promise<boolean> {
+  if (!active?.dirty()) return true;
+  return confirmDiscard(active.title);
+}
+
 function confirmDiscard(title: string) {
   return confirmAction({
     title: 'Discard changes?',
@@ -230,12 +239,12 @@ export function WorkspacePanel({
         <button
           ref={restore}
           type="button"
+          aria-label={dirty ? `Show ${title}, not saved` : `Show ${title}`}
           onClick={() => setHidden(false)}
-          className="fixed bottom-6 right-6 z-40 inline-flex min-h-11 items-center gap-2 rounded-xl border bg-card px-4 text-sm font-semibold shadow-lg transition-transform duration-fast ease-out-strong hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="fixed bottom-6 right-24 z-40 inline-flex min-h-11 items-center gap-2 rounded-xl border bg-card px-4 text-sm font-semibold shadow-lg transition-transform duration-fast ease-out-strong hover:bg-muted active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {dirty ? <span className="h-2 w-2 rounded-full bg-warning" aria-hidden="true" /> : null}
           {title}
-          <span className="sr-only">{dirty ? ', not saved. Show' : '. Show'}</span>
         </button>
       ) : null}
     </>
