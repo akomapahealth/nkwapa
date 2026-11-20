@@ -92,7 +92,9 @@ describe('clinical data encrypted at rest (#207)', () => {
     expect(Object.keys(stored).sort()).toEqual(
       ['$sealed', 'clinicId', 'encounterId', 'id', 'updatedAt'].sort(),
     );
-    expect(JSON.stringify(stored)).not.toMatch(/142|91|headaches/);
+    // A leaked value shows up as a JSON value or field name. A bare /142|91/ also matched digits
+    // inside the base64 ciphertext by chance and failed now and then on correct encryption.
+    expect(JSON.stringify(stored)).not.toMatch(/:(142|91)[,}]|systolic|diastolic|headaches/);
     expect(await db.read('vitals', 'vitals-1')).toEqual(reading);
     expect(await db.all('vitals')).toEqual([reading]);
   });
