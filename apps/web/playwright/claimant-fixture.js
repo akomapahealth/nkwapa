@@ -45,7 +45,7 @@ async function createClaimantStorageState(browser) {
     await claim.fill('#password-new', password);
     await claim.fill('#password-confirm', password);
     await claim.click('input[type="submit"], button[type="submit"]');
-    await expect(claim.getByText(/your account is ready/i)).toBeVisible({ timeout: 30_000 });
+    await expect(claim.getByText(/your password is saved/i)).toBeVisible({ timeout: 30_000 });
     await claim.getByRole('link', { name: /continue to nkwapa/i }).click();
     await claim.waitForURL(/realms\/nkwapa/, { timeout: 60_000 });
     await claim.fill('input[name="username"]', email);
