@@ -185,6 +185,7 @@ export default function AuditPage() {
         <AppPageHeader
           title="Audit log"
           description="Trace clinic activity and changes."
+          hideDescriptionOnPhone
           helpTitle="How to investigate activity"
           helpText="Search for a person, or select a name in the results, then narrow by date, action, entity, or request ID to rebuild a timeline for support, governance, or incident review."
         />
@@ -286,7 +287,7 @@ export default function AuditPage() {
           ) : error && rows.length === 0 ? null : !loading && rows.length === 0 ? (
             <EmptyStateCard
               title="No audit events match the current filters"
-              description="Adjust your filters or widen the date range to pull more activity into view."
+              description="Widen the dates or clear a filter."
             />
           ) : (
             <>

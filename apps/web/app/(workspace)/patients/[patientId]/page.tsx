@@ -56,7 +56,7 @@ function LegacyPatientChartRedirect() {
     <div className="space-y-4">
       <InlineErrorState
         title="No active clinic"
-        description="Select a clinic before opening a patient chart. Charts are scoped to the clinic you are working in."
+        description="Choose a clinic in the header to open a chart."
       />
       <Button asChild variant="outline">
         <Link href="/dashboard">

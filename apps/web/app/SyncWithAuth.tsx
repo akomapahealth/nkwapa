@@ -160,7 +160,7 @@ export function SyncWithAuth({ children }: { children: React.ReactNode }) {
       {isDisabledAccount ? (
         <FullscreenStatus
           title="Access has been disabled"
-          description="This account has been deactivated by an administrator. Clinical and portal access stay blocked until the clinic restores the account."
+          description="An administrator deactivated this account. Ask your clinic to restore it."
           tone="danger"
           primaryAction={<Button onClick={logout}>Sign out</Button>}
           secondaryAction={

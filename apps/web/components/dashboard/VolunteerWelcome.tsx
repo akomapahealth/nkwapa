@@ -19,11 +19,14 @@ import styles from './volunteer-welcome.module.css';
 export function VolunteerWelcome({
   titleLevel = 1,
   actions,
+  refresh,
   summary = 'Your work today. Continue intake work and move patients to the next step.',
   solo = false,
 }: {
   titleLevel?: 1 | 2;
   actions?: ReactNode;
+  /** Sits on the date line, so it never strands alone or wraps under the actions on a phone. */
+  refresh?: ReactNode;
   summary?: ReactNode;
   solo?: boolean;
 }) {
@@ -114,17 +117,22 @@ export function VolunteerWelcome({
             ) : null}
             {phase ? <Sky aria-hidden="true" className={styles.sky} /> : null}
           </Heading>
-          {now ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {new Intl.DateTimeFormat(undefined, {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                timeZone: OPS_DEFAULT_TIMEZONE,
-              }).format(now)}
-            </p>
+          {now || refresh ? (
+            <div className="mt-1 flex min-h-8 flex-wrap items-center gap-x-1">
+              {now ? (
+                <p className="text-sm text-muted-foreground">
+                  {new Intl.DateTimeFormat(undefined, {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    timeZone: OPS_DEFAULT_TIMEZONE,
+                  }).format(now)}
+                </p>
+              ) : null}
+              {refresh}
+            </div>
           ) : null}
-          <p className="mb-4 mt-2 max-w-prose text-sm text-muted-foreground">{summary}</p>
+          <p className="mb-4 mt-1 max-w-prose text-sm text-muted-foreground">{summary}</p>
         </div>
         {solo ? null : (
           <div className={styles.illustration}>
@@ -132,7 +140,7 @@ export function VolunteerWelcome({
           </div>
         )}
         {!solo && stationWorkflow && canReadShift ? (
-          // Refresh shares the shift row, level with End shift, rather than sitting alone below it.
+          // Shift controls get their own row; Refresh sits on the date line above.
           <div
             id="volunteer-shift-controls"
             className={`${styles.controls} flex scroll-mt-24 items-end gap-2`}

@@ -54,6 +54,7 @@ test('medical history supports empty, validation, active, historical, revision, 
   await chooseOption(page, dialog, 'Status', 'Resolved');
   await dialog.getByLabel('Resolved date').fill(new Date().toISOString().slice(0, 10));
   await dialog.getByRole('button', { name: 'Save revision' }).click();
+  await expect(dialog).toBeHidden();
 
   await expect(page.getByRole('heading', { name: 'Historical allergies only' })).toBeVisible();
   await expect(page.getByText('Resolved', { exact: true })).toBeVisible();

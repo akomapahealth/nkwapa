@@ -272,7 +272,7 @@ export default function ClaimRecordPage() {
                 autoComplete="off"
               />
               <p id="claim-patient-code-hint" className="text-xs text-muted-foreground">
-                Printed on your clinic card, above your name.
+                Printed on your clinic card, above your name
               </p>
             </div>
             <div className="space-y-1.5">

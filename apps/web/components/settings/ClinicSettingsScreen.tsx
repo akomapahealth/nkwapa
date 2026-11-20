@@ -173,6 +173,7 @@ export function ClinicSettingsScreen({ clinicId }: { clinicId: string }) {
       <AppPageHeader
         title="Clinic settings"
         description="Set research and approval rules."
+        hideDescriptionOnPhone
         helpTitle="How these settings affect the clinic"
         helpText="These controls decide whether the active clinic can run research exports and whether director approval is required before an export is released."
       />

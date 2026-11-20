@@ -971,7 +971,7 @@ export function VitalsForm({
                 id="notes-help"
                 className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground"
               >
-                <span>Optional clinical context. No automated diagnosis is generated.</span>
+                <span>Optional context for the clinician</span>
                 <span className="tabular-nums">{vitals.notes.length}/2000</span>
               </div>
               <FieldError id="notes" message={errors.notes} />

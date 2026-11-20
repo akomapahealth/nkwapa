@@ -494,6 +494,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
         title="Patients"
         count={total}
         description="Search this clinic's records and move patients into care."
+        hideDescriptionOnPhone
         helpTitle="How patient search works"
         helpText="Name, patient code, phone, or the last four digits of the ID. Results stay in this clinic; open a chart or check the patient in."
         actions={

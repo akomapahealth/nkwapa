@@ -43,6 +43,7 @@ import { StationSessionPanel } from '@/components/stations/StationSessionPanel';
 import styles from '@/components/encounters/encounter-workspace.module.css';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { DraftDeleteSection } from '@/components/encounters/DraftDeleteSection';
+import { EncounterPatientBar } from '@/components/encounters/EncounterPatientBar';
 import { formatOpsDateTime, formatOpsDay } from '@/lib/ops';
 
 function hasPermission(permissions: string[], perm: string): boolean {
@@ -103,6 +104,7 @@ export default function EncounterDetailPage() {
   const isClinicalUser = clinicRoles.includes('DOCTOR') || clinicRoles.includes('VOLUNTEER');
   const isDoctor = clinicRoles.includes('DOCTOR');
 
+  const headerRef = useRef<HTMLElement>(null);
   const [encounter, setEncounter] = useState<EncounterDetail | null>(null);
   const [vitals, setVitals] = useState<VitalsRecord | null>(null);
   const [tobacco, setTobacco] = useState<TobaccoScreeningRecord | null>(null);
@@ -341,7 +343,7 @@ export default function EncounterDetailPage() {
   return (
     <RouteGuard requiredPermission="ENCOUNTER.READ">
       <div className="min-w-0 space-y-6 [overflow-wrap:anywhere]">
-        <header className={styles.header}>
+        <header ref={headerRef} className={styles.header}>
           <Link
             className={styles.back}
             href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}
@@ -394,6 +396,16 @@ export default function EncounterDetailPage() {
             ) : null}
           </div>
         </header>
+        {encounter.patient ? (
+          <EncounterPatientBar
+            anchor={headerRef}
+            clinicId={encounter.clinicId}
+            patientId={encounter.patientId}
+            name={formatPersonName(encounter.patient, 'short')}
+            code={encounter.patient.patientCode}
+            permissions={perms}
+          />
+        ) : null}
 
         <EncounterProgress stage={stage} />
 

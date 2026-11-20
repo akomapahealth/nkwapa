@@ -122,7 +122,9 @@ export default function DashboardPage() {
       <Button
         type="button"
         aria-label="Refresh"
-        variant={mainRole === 'VOLUNTEER' ? 'outline' : 'ghost'}
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground hover:text-foreground"
         onClick={() => void fetchDashboard(true)}
         disabled={loading}
       >
@@ -135,7 +137,7 @@ export default function DashboardPage() {
         moved everything beside it every time someone refreshed (MASTER 11). The spinner carries
         the state visually and the live region carries it for assistive technology.
       */}
-        <span className="sr-only compact:not-sr-only">Refresh</span>
+        <span>Refresh</span>
       </Button>
       {/* Keep the live region outside the button: modal hide-others preserves live regions,
           which otherwise leaves the button exposed while hiding its label. */}
@@ -169,7 +171,11 @@ export default function DashboardPage() {
     return (
       <RouteGuard requiredPermission="DASHBOARD.READ">
         <div className="space-y-6">
-          <AppPageHeader title="Dashboard" description="Current clinic totals and next work." />
+          <AppPageHeader
+            title="Dashboard"
+            description="Current clinic totals and next work."
+            hideDescriptionOnPhone
+          />
           <SelectClinicState surface="The dashboard" />
         </div>
       </RouteGuard>
@@ -202,7 +208,7 @@ export default function DashboardPage() {
       <RouteGuard requiredPermission="DASHBOARD.READ">
         <div className="space-y-6">
           <VolunteerWelcome
-            actions={refreshAction}
+            refresh={refreshAction}
             summary="Start your shift, choose a station and take the next patient."
           />
           {status}
@@ -225,7 +231,7 @@ export default function DashboardPage() {
     <RouteGuard requiredPermission="DASHBOARD.READ">
       <div className="space-y-6">
         <VolunteerWelcome
-          actions={refreshAction}
+          refresh={refreshAction}
           {...(mainRole ? {} : { solo: true, summary: 'Current clinic totals and next work.' })}
         />
         {status}

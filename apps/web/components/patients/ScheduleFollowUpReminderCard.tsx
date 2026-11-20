@@ -131,7 +131,7 @@ export function ScheduleFollowUpReminderCard({
           Follow-up reminder
         </CardTitle>
         <CardDescription>
-          Send the patient the clinic&apos;s standard follow-up reminder for a date you choose.
+          Send the standard follow-up reminder for a date you choose.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

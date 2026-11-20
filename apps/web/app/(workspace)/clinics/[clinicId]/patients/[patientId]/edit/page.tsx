@@ -279,6 +279,7 @@ function EditPatientForm() {
       <AppPageHeader
         title={`Edit patient ${patient.patientCode}`}
         description="Update the current chart without changing protected identity history."
+        hideDescriptionOnPhone
         helpTitle="How patient edits work"
         helpText="Demographics and contact details can change here, and offline saves queue a sync when the network is unavailable. The ID document changes only through its own checked, audited step."
       />

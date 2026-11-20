@@ -96,7 +96,7 @@ test('a fresh volunteer is invited, sets a password, and holds a live session', 
   await page.fill('#password-new', PASSWORD);
   await page.fill('#password-confirm', PASSWORD);
   await page.click('input[type="submit"], button[type="submit"]');
-  await expect(page.getByText(/your account is ready/i)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/your password is saved/i)).toBeVisible({ timeout: 30_000 });
   await context.close();
 
   // Signing in once is what creates the local User row, and this session is the one that must end.

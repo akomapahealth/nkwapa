@@ -105,7 +105,7 @@ test.describe('portal invite lifecycle', () => {
       .first()
       .click();
     const confirm = page.getByRole('dialog');
-    await expect(confirm.getByText(/no longer be able to claim/i)).toBeVisible();
+    await expect(confirm.getByText(/can no longer claim their record/i)).toBeVisible();
 
     // Backing out must leave the invitation alone.
     await confirm.getByRole('button', { name: /keep invitation/i }).click();

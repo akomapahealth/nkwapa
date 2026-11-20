@@ -194,7 +194,6 @@ export function ResidentialPositionField({
             </div>
             <p id={`${pasteId}-hint`} className="text-sm leading-5 text-muted-foreground">
               Ask the patient to share their location from Google Maps or WhatsApp, then paste it
-              here.
             </p>
             <FieldError id={pasteId} message={pasteError} />
           </div>

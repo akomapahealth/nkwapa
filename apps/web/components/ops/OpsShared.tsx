@@ -391,7 +391,7 @@ export function ShiftControlCard({
         ) : (
           <EmptyStateCard
             title="No shift role available"
-            description="This account does not currently have a clinic role that can be checked in for OPS scheduling."
+            description="Your role at this clinic cannot start a shift."
           />
         )}
 

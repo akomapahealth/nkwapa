@@ -146,8 +146,8 @@ export function ChangeNationalIdDialog({
           <DialogHeader>
             <DialogTitle>Change ID document</DialogTitle>
             <DialogDescription>
-              Nkwapa checks the new ID against every chart before saving it. The reason is kept in
-              the audit trail; the full number is not.
+              The new ID is checked against every chart. The audit trail keeps the reason, not the
+              number.
             </DialogDescription>
           </DialogHeader>
 

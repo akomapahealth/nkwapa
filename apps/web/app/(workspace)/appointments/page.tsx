@@ -945,7 +945,7 @@ export default function StaffAppointmentsPage() {
           ) : error ? null : items.length === 0 ? (
             <EmptyStateCard
               title="No appointments found"
-              description="Try a different date range or clear one of the filters to broaden the schedule."
+              description="Widen the dates or clear a filter."
             />
           ) : (
             groupedAppointments.map(([date, appointments]) => (

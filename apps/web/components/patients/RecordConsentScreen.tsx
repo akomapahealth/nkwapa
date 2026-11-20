@@ -200,7 +200,7 @@ export function RecordConsentScreen({
                 I attest that the patient has been informed and has granted consent.
               </Label>
               <p id="consent-attestation-help" className="text-sm text-muted-foreground">
-                This confirmation is stored as part of the consent audit trail.
+                Kept in the consent audit trail
               </p>
             </div>
           </div>

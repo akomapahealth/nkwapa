@@ -98,13 +98,15 @@ export function YourDataCard() {
           Your data
         </RecordSectionTitle>
         <RecordSectionDescription>
-          Ask your clinic for a copy of your information, to correct it, to delete what does not
-          have to be kept, or to limit how it is used. Asking never affects your care. See the{' '}
-          <Link href={`${PRIVACY_HREF}#rights`} className="underline underline-offset-4">
-            privacy notice
-          </Link>{' '}
-          for what each one means.
+          Ask your clinic for a copy of your information, a correction, a deletion or limits on its
+          use. Asking never affects your care.
         </RecordSectionDescription>
+        <Link
+          href={`${PRIVACY_HREF}#rights`}
+          className="w-fit text-sm text-primary underline underline-offset-4"
+        >
+          What each request means
+        </Link>
       </RecordSectionHeader>
       <RecordSectionContent className="space-y-5">
         <form noValidate onSubmit={(event) => void submit(event)} className="space-y-3">

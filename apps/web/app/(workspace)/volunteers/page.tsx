@@ -471,7 +471,7 @@ function VolunteersContent() {
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
               />
               <p id="volunteer-notes-hint" className="text-sm text-muted-foreground">
-                For you only. Never write anything about a patient here.
+                Only you see this, so never write about a patient
               </p>
             </div>
             <DialogFooter>

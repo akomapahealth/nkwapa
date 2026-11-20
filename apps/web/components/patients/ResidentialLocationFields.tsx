@@ -96,7 +96,7 @@ export function ResidentialLocationFields({
   return (
     <FormSectionCard
       title="Residential location"
-      description="Where the patient lives, so follow-up and home visits can find them. Separate from their primary clinic."
+      description="Where the patient lives, for follow-up and home visits."
       hint="Region is the only required part. When there is no street address, a Digital Address or the nearest landmark is enough. Choose “Unknown” if you asked and the patient does not know, or leave it “Not recorded” until you can capture it."
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -197,7 +197,7 @@ export function ResidentialLocationFields({
           />
           <p id={`${addressId}-hint`} className="text-sm leading-5 text-muted-foreground">
             From the GhanaPostGPS app, for example{' '}
-            <span className="whitespace-nowrap">{DIGITAL_ADDRESS_EXAMPLE}</span>.
+            <span className="whitespace-nowrap">{DIGITAL_ADDRESS_EXAMPLE}</span>
           </p>
           <FieldError id={addressId} message={addressError} />
         </div>
@@ -215,7 +215,7 @@ export function ResidentialLocationFields({
             }
           />
           <p id={`${idPrefix}-landmark-hint`} className="text-sm leading-5 text-muted-foreground">
-            For example: opposite the Methodist church, blue kiosk.
+            For example: opposite the Methodist church, blue kiosk
           </p>
         </div>
       </div>

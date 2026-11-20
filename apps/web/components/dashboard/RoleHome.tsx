@@ -429,15 +429,17 @@ export function RoleHome({
       <VolunteerWelcome
         solo
         summary={summary}
+        refresh={refresh}
         actions={
-          <>
-            {actions.map((action, index) => (
-              <Button key={action.href} asChild variant={index === 0 ? 'default' : 'outline'}>
-                <Link href={action.href}>{action.label}</Link>
-              </Button>
-            ))}
-            {refresh}
-          </>
+          actions.length ? (
+            <>
+              {actions.map((action, index) => (
+                <Button key={action.href} asChild variant={index === 0 ? 'default' : 'outline'}>
+                  <Link href={action.href}>{action.label}</Link>
+                </Button>
+              ))}
+            </>
+          ) : undefined
         }
       />
       {status}
