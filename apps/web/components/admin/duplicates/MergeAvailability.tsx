@@ -35,7 +35,7 @@ export function MergeUnavailableNotice({
     <InlineNotice tone="warning" live={false}>
       <span className="font-medium">{availability.reason ?? 'These charts cannot be merged.'}</span>{' '}
       {investigation
-        ? 'Consolidating charts across clinics is not supported yet. This pair is counted toward the cross-clinic burden so that decision can be made with real numbers.'
+        ? 'Cross-clinic merges are not supported yet. This pair is counted so that decision rests on real numbers.'
         : availability.recovery}
     </InlineNotice>
   );

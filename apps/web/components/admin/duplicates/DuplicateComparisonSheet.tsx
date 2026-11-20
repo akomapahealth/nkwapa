@@ -143,9 +143,8 @@ export function DuplicateComparisonSheet({
             <div className="space-y-2 border-t-2 border-rule-strong pt-4">
               <h3 className="text-base font-semibold text-foreground">Investigation only</h3>
               <p className="text-sm leading-5 text-muted-foreground">
-                This view counts and compares; it does not record decisions or merge charts. To note
-                what you found about this pair, open it in the duplicate review queue under All
-                clinics.
+                Counts and compares only. To record a decision, open this pair in the review queue
+                under All clinics.
               </p>
               <Button asChild variant="ghost" className="w-full">
                 <Link href="/admin/duplicates">Go to duplicate review</Link>
