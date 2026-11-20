@@ -29,8 +29,6 @@ export interface Release {
   /** YYYY-MM-DD */
   date: string;
   groups: ReleaseGroup[];
-  /** The GitHub release page, when known. */
-  url?: string;
 }
 
 export const CLINIC_NOTES_HEADING = '## For clinic teams';
@@ -189,14 +187,12 @@ export async function getLatestRelease(): Promise<Release> {
       tag_name?: string;
       published_at?: string;
       body?: string | null;
-      html_url?: string;
     };
     const version = release.tag_name?.replace(/^v/, '');
-    const url = release.html_url;
     const date = release.published_at?.slice(0, 10);
     if (!version || !date) return FALLBACK_RELEASE;
     const groups = parseClinicNotes(release.body ?? '');
-    return { version, date, groups, url };
+    return { version, date, groups };
   } catch {
     return FALLBACK_RELEASE;
   }
