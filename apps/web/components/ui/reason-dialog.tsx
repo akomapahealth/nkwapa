@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,14 +19,16 @@ export interface ReasonPrompt {
   description: string;
   confirmLabel: string;
   placeholder: string;
+  /** Red confirm button, for a reason that comes before removing something. */
+  destructive?: boolean;
   onConfirm: (reason: string) => Promise<boolean>;
 }
 
 /**
- * Asks for the reason a reviewer will read later: rejecting an export, rejecting or revoking a
- * schedule, and rerunning a period all record one.
+ * Asks for the reason a reviewer will read later on the audit row: rejecting or rerunning a
+ * research export, revoking a schedule, deleting a draft visit (#384).
  */
-export function ResearchReasonDialog({
+export function ReasonDialog({
   prompt,
   onClose,
 }: {
@@ -35,6 +37,7 @@ export function ResearchReasonDialog({
 }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const fieldId = useId();
 
   const close = () => {
     setReason('');
@@ -60,9 +63,9 @@ export function ResearchReasonDialog({
         </DialogHeader>
 
         <div className="space-y-2">
-          <Label htmlFor="researchReason">Reason</Label>
+          <Label htmlFor={fieldId}>Reason</Label>
           <Textarea
-            id="researchReason"
+            id={fieldId}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             placeholder={prompt?.placeholder}
@@ -75,7 +78,11 @@ export function ResearchReasonDialog({
           <Button variant="outline" onClick={close}>
             Cancel
           </Button>
-          <Button onClick={() => void confirm()} disabled={!reason.trim() || busy}>
+          <Button
+            variant={prompt?.destructive ? 'destructive' : 'default'}
+            onClick={() => void confirm()}
+            disabled={!reason.trim() || busy}
+          >
             {busy ? <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" /> : null}
             {prompt?.confirmLabel}
           </Button>

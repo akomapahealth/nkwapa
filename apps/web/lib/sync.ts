@@ -20,6 +20,17 @@ export { onSyncStatusChange, type SyncStatus, type SyncStatusListener } from './
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
+/** Device tables keyed to a visit; a deleted draft visit takes its rows with it (#384). */
+const ENCOUNTER_CHILD_TABLES = [
+  'vitals',
+  'tobacco_screenings',
+  'diabetes_screenings',
+  'hypertension_assessments',
+  'medication_adherence',
+  'care_plans',
+  'prescriptions',
+] as const;
+
 /**
  * Kept in step with SYNC_PUSH_MAX_MUTATIONS on the API. The whole outbox used to go in one request,
  * so a device that had queued more than the server accepts was refused with a 413 on every pass
@@ -351,6 +362,18 @@ async function pullIntoLocalStore(clinicId: string, headers: Record<string, stri
   const retiredPatientIds = (pull.mergedPatients ?? []).map((merged) => merged.id);
   if (retiredPatientIds.length > 0) {
     await db.patients.bulkDelete(retiredPatientIds);
+  }
+
+  // Draft visits a system admin deleted (#384), with the rows that hung off them.
+  const deletedEncounterIds = pull.deletedEncounterIds ?? [];
+  if (deletedEncounterIds.length > 0) {
+    for (const table of ENCOUNTER_CHILD_TABLES) {
+      for (const encounterId of deletedEncounterIds) {
+        const rows = await db[table].where('encounterId').equals(encounterId).toArray();
+        await db[table].bulkDelete(rows.map((row) => row.id));
+      }
+    }
+    await db.encounters.bulkDelete(deletedEncounterIds);
   }
 
   await db.sync_state.put({

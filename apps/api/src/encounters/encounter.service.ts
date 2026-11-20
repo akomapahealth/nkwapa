@@ -1,11 +1,31 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { Encounter } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { Encounter, Prisma } from '@prisma/client';
 import { CLINIC_DEFAULT_TIMEZONE, clinicDayWindow } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ReminderService } from '../reminders/reminder.service';
 import { EncounterRepository, EncounterFindManyFilters } from './encounter.repository';
 import { CreateEncounterDto } from './dto/create-encounter.dto';
+import { isSystemAdmin, type ScopedRole } from '../auth/clinic-roles';
+import { FollowUpRiskService } from '../follow-up/follow-up-risk.service';
+
+/** The audit action whose rows double as the sync tombstone for a deleted visit (#384). */
+export const ENCOUNTER_DELETE_ACTION = 'ENCOUNTER.DELETE';
+export const CLINICAL_NOTE_DELETE_ACTION = 'CLINICAL_NOTE.DELETE';
+const ID = { select: { id: true } } as const;
+
+export interface DraftDeleteActor {
+  userId: string;
+  roles: readonly ScopedRole[];
+  requestId?: string;
+}
 
 export interface AuditContext {
   clinicId: string;
@@ -20,7 +40,121 @@ export class EncounterService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly reminderService: ReminderService,
+    @Optional() private readonly risk?: FollowUpRiskService,
   ) {}
+
+  /**
+   * Delete a DRAFT visit created by accident (#384). SYSTEM_ADMIN only, checked here as well as
+   * by the route's permission. Its DRAFT note goes with it; a submitted note blocks the delete.
+   * Children cascade per the schema. The audit row keeps the before-state and the reason, and is
+   * also what sync pull reads to tell devices the visit is gone.
+   */
+  async deleteDraft(
+    clinicId: string,
+    encounterId: string,
+    reason: string,
+    actor: DraftDeleteActor,
+  ) {
+    assertDraftDeleteSeat(actor);
+    const patientId = await this.prisma.$transaction(async (tx) => {
+      const encounter = await tx.encounter.findFirst({
+        where: { id: encounterId, clinicId },
+        include: {
+          clinicalNote: { select: { id: true, status: true, version: true } },
+          // Ids of what cascades with it, so the audit row says what went.
+          vitals: ID,
+          tobaccoScreening: ID,
+          diabetesScreening: ID,
+          hypertensionAssessment: ID,
+          carePlan: ID,
+          counsellingRecord: ID,
+          eyeScreening: ID,
+          prescriptions: ID,
+          medicationAdherence: ID,
+          riskFlags: ID,
+        },
+      });
+      if (!encounter) throw new NotFoundException('Encounter not found');
+      if (encounter.status !== 'DRAFT') throw notDraft('visit', encounter.status);
+      const note = encounter.clinicalNote;
+      if (note && note.status !== 'DRAFT') throw notDraft('note', note.status);
+
+      if (note) await tx.clinicalNote.delete({ where: { id: note.id } });
+      try {
+        await tx.encounter.delete({ where: { id: encounter.id } });
+      } catch (err) {
+        // A submitted note is hidden from a system admin by row security, so it surfaces here,
+        // as the note's Restrict foreign key.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+          throw notDraft('note', 'SUBMITTED');
+        }
+        throw err;
+      }
+
+      await this.auditService.logWrite(
+        {
+          clinicId,
+          actorUserId: actor.userId,
+          action: ENCOUNTER_DELETE_ACTION,
+          entityType: 'Encounter',
+          entityId: encounter.id,
+          // The note is selected as id, status and version only: its text never enters the log.
+          beforeJson: JSON.stringify(encounter),
+          afterJson: JSON.stringify({ deleted: true, reason, patientId: encounter.patientId }),
+          requestId: actor.requestId,
+        },
+        tx,
+      );
+      return encounter.patientId;
+    });
+    await this.risk?.recomputeAfterCommit({
+      patientId,
+      trigger: 'PATIENT',
+      actorUserId: actor.userId,
+    });
+    return { deleted: true, patientId };
+  }
+
+  /** Delete only the DRAFT clinical note on a visit, leaving the visit itself (#384). */
+  async deleteDraftNote(
+    clinicId: string,
+    encounterId: string,
+    reason: string,
+    actor: DraftDeleteActor,
+  ) {
+    assertDraftDeleteSeat(actor);
+    return this.prisma.$transaction(async (tx) => {
+      const note = await tx.clinicalNote.findFirst({
+        where: { encounterId, clinicId },
+        select: {
+          id: true,
+          status: true,
+          version: true,
+          encounterId: true,
+          patientId: true,
+          authorUserId: true,
+          createdAt: true,
+        },
+      });
+      if (!note) throw new NotFoundException('Clinical note not found');
+      if (note.status !== 'DRAFT') throw notDraft('note', note.status);
+      await tx.clinicalNote.delete({ where: { id: note.id } });
+      await this.auditService.logWrite(
+        {
+          clinicId,
+          actorUserId: actor.userId,
+          action: CLINICAL_NOTE_DELETE_ACTION,
+          entityType: 'ClinicalNote',
+          entityId: note.id,
+          beforeJson: JSON.stringify(note),
+          afterJson: JSON.stringify({ deleted: true, reason }),
+          requestId: actor.requestId,
+        },
+        tx,
+      );
+      return { deleted: true };
+    });
+  }
 
   async create(dto: CreateEncounterDto, auditContext?: AuditContext): Promise<Encounter> {
     const [clinic, patient, user] = await Promise.all([
@@ -67,6 +201,8 @@ export class EncounterService {
           },
           hypertensionAssessment: true,
           carePlan: true,
+          // Status only, so the page can offer a system admin "Delete draft note" (#384).
+          clinicalNote: { select: { status: true } },
         }
       : undefined;
     return this.encounterRepository.findById(id, include);
@@ -304,6 +440,25 @@ export class EncounterService {
       });
     }
   }
+}
+
+function assertDraftDeleteSeat(actor: DraftDeleteActor) {
+  if (!isSystemAdmin(actor.roles)) {
+    throw new ForbiddenException({
+      code: 'DRAFT_DELETE_FORBIDDEN',
+      message: 'Only System Admin can delete draft visits and notes',
+      recoveryAction: 'Ask a system administrator to delete it.',
+    });
+  }
+}
+
+function notDraft(kind: 'visit' | 'note', status: string) {
+  return new ConflictException({
+    code: 'DRAFT_DELETE_NOT_DRAFT',
+    message: `This ${kind} is ${status.toLowerCase().replace(/_/g, ' ')}, so it can no longer be deleted`,
+    recoveryAction: 'Only drafts can be deleted. Correct a submitted record with an addendum.',
+    details: { kind, status },
+  });
 }
 
 function isCalendarDate(value: string): boolean {

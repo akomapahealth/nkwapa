@@ -18,6 +18,11 @@ export const PERMISSIONS = {
   SCREENING_WRITE: 'SCREENING.WRITE',
   SCREENING_READ: 'SCREENING.READ',
   ENCOUNTER_REVIEW: 'ENCOUNTER.REVIEW',
+  /*
+    Delete a DRAFT visit or DRAFT clinical note made by accident (#384). Granted to no role, like
+    PATIENT_MERGE: only SYSTEM_ADMIN's '*' holds it, and EncounterService asserts the seat again.
+  */
+  ENCOUNTER_DRAFT_DELETE: 'ENCOUNTER.DRAFT.DELETE',
   // Doctor
   DOCTOR_FINALIZE: 'DOCTOR.FINALIZE',
   CAREPLAN_WRITE: 'CAREPLAN.WRITE',

@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Post,
   Body,
@@ -42,6 +43,14 @@ import { ToOptionalBoolean, ToOptionalNumber, ToSanitizedString } from '../commo
 import { Idempotent } from '../idempotency/idempotent.decorator';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Why a draft is being deleted (#384). Kept on the audit row. */
+class DeleteDraftBodyDto {
+  @ToSanitizedString()
+  @IsString()
+  @Length(5, 500)
+  reason!: string;
+}
 
 class CreateEncounterBodyDto {
   @IsUUID()
@@ -246,6 +255,35 @@ export class EncountersController {
       }
       throw err;
     }
+  }
+
+  @Delete(':encounterId')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_DRAFT_DELETE)
+  deleteDraft(
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Body() body: DeleteDraftBodyDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.encounterService.deleteDraft(params.clinicId, params.encounterId, body.reason, {
+      userId: req.user.user.id,
+      roles: req.user.roles,
+    });
+  }
+
+  // Lives here, not on ClinicalNoteController, which stays free of delete routes by design.
+  @Delete(':encounterId/clinical-note')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_DRAFT_DELETE)
+  deleteDraftNote(
+    @Param() params: ClinicAndEncounterParamsDto,
+    @Body() body: DeleteDraftBodyDto,
+    @Request() req: { user: ReqUserWithRoles },
+  ) {
+    return this.encounterService.deleteDraftNote(params.clinicId, params.encounterId, body.reason, {
+      userId: req.user.user.id,
+      roles: req.user.roles,
+    });
   }
 
   @Post()

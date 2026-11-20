@@ -58,6 +58,7 @@ import { AuditService } from '../audit/audit.service';
 import { PatientRepository } from '../patients/patient.repository';
 import { resolveResidentialLocation } from '../patients/residential-location.util';
 import { EncounterRepository } from '../encounters/encounter.repository';
+import { ENCOUNTER_DELETE_ACTION } from '../encounters/encounter.service';
 import { SyncMutationDto, SYNC_OPERATION } from './dto/sync-mutation.dto';
 import { SyncMutationResultDto, SYNC_MUTATION_RESULT_STATUS } from './dto/sync-push-response.dto';
 import { SyncPullResponseDto } from './dto/sync-pull-response.dto';
@@ -826,6 +827,12 @@ export class SyncService {
     metadata?: RequestMetadata,
   ): Promise<SyncMutationResultDto> {
     const existing = await this.encounterRepository.findById(mut.entityId);
+    // A system admin deleted this draft (#384); a queued change must not bring it back.
+    if (!existing && (await this.wasEncounterDeleted(clinicId, mut.entityId))) {
+      return this.refuse(clinicId, mut, SYNC_MUTATION_RESULT_STATUS.CONFLICT, 'ENCOUNTER_DELETED', {
+        message: 'This draft visit was deleted by a system administrator',
+      });
+    }
     if (existing && existing.status === EncounterStatus.FINALIZED) {
       return this.refuse(
         clinicId,
@@ -920,6 +927,14 @@ export class SyncService {
     if (!merged) {
       throw new NotFoundException(`${entityLabel} patient not found in the active clinic`);
     }
+  }
+
+  private async wasEncounterDeleted(clinicId: string, encounterId: string): Promise<boolean> {
+    const tombstone = await this.prisma.auditEvent.findFirst({
+      where: { clinicId, action: ENCOUNTER_DELETE_ACTION, entityId: encounterId },
+      select: { id: true },
+    });
+    return Boolean(tombstone);
   }
 
   /**
@@ -1897,6 +1912,15 @@ export class SyncService {
 
     const where = { clinicId };
     const updatedAtFilter = sinceDate ? { updatedAt: { gt: sinceDate } } : {};
+    // Draft visits a system admin deleted (#384). Their audit rows are the tombstones.
+    const deletedEncounterRows = await this.prisma.auditEvent.findMany({
+      where: {
+        clinicId,
+        action: ENCOUNTER_DELETE_ACTION,
+        ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
+      },
+      select: { id: true, entityId: true, createdAt: true },
+    });
 
     const [
       patients,
@@ -2035,6 +2059,7 @@ export class SyncService {
         updatedAt: preference.updatedAt,
         id: preference.id,
       })),
+      ...deletedEncounterRows.map((row) => ({ updatedAt: row.createdAt, id: row.id })),
     ];
     const maxRow = allRows.reduce(
       (acc, r) =>
@@ -2055,6 +2080,7 @@ export class SyncService {
           ? [{ id: row.id, mergedIntoPatientId: row.mergedIntoPatientId }]
           : [],
       ),
+      deletedEncounterIds: deletedEncounterRows.map((row) => row.entityId),
       encounters,
       vitals,
       tobaccoScreenings,

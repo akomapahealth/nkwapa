@@ -179,6 +179,26 @@ describe('merged charts', () => {
   });
 });
 
+describe('deleted draft visits', () => {
+  it('drops a visit a system admin deleted, and the rows keyed to it', async () => {
+    await db.encounters.bulkPut([{ id: 'enc-gone' }, { id: 'enc-kept' }]);
+    await db.vitals.bulkPut([
+      { id: 'v-gone', encounterId: 'enc-gone' },
+      { id: 'v-kept', encounterId: 'enc-kept' },
+    ]);
+    await db.prescriptions.put({ id: 'rx-gone', encounterId: 'enc-gone' });
+    mockSyncFetch([], { ...EMPTY_PULL, deletedEncounterIds: ['enc-gone'] });
+
+    await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
+
+    expect(await db.encounters.get('enc-gone')).toBeUndefined();
+    expect(await db.vitals.get('v-gone')).toBeUndefined();
+    expect(await db.prescriptions.get('rx-gone')).toBeUndefined();
+    expect(await db.encounters.get('enc-kept')).toBeDefined();
+    expect(await db.vitals.get('v-kept')).toBeDefined();
+  });
+});
+
 describe('status reporting', () => {
   it('says the pass finished but a change needs attention', async () => {
     await db.outbox.put(mutation);

@@ -127,6 +127,7 @@ export const EMPTY_PULL = {
   cursor: 'cursor-1',
   patients: [],
   mergedPatients: [],
+  deletedEncounterIds: [],
   encounters: [],
   vitals: [],
   tobaccoScreenings: [],
