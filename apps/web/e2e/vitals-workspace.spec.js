@@ -338,6 +338,16 @@ for (const theme of ['light', 'dark']) {
       await expect(signal).toContainText('Unsaved BP reading');
       await expect(signal.locator('[aria-current="step"]')).toHaveText(category);
       await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      // The danger-sign notice fades in over 200 ms; axe samples its colour mid-fade otherwise.
+      await page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            // Spinners loop forever; only finite entrance animations can be waited out.
+            .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+            .map((animation) => animation.finished),
+        ),
+      );
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     }
     for (const width of [320, 390, 600, 1200, 1440]) {

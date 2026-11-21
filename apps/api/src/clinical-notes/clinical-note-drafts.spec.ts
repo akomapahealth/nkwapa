@@ -10,15 +10,18 @@ describe('HAP note drafts list', () => {
     roles: [{ clinicId: 'clinic-1', role }],
   });
 
-  it.each([UserRole.DOCTOR, UserRole.VOLUNTEER])('lists a %s their own drafts', async (role) => {
-    const rows = [{ id: 'note-1', encounterId: 'enc-1' }];
-    const repository = { findDraftsForAuthor: jest.fn().mockResolvedValue(rows) };
-    const service = new ClinicalNoteService({} as never, repository as never, {} as never);
-    await expect(service.draftsForAuthor('clinic-1', actor(role))).resolves.toBe(rows);
-    expect(repository.findDraftsForAuthor).toHaveBeenCalledWith('clinic-1', 'user-1');
-  });
+  it.each([UserRole.DOCTOR, UserRole.VOLUNTEER, UserRole.MANAGER])(
+    'lists a %s their own drafts',
+    async (role) => {
+      const rows = [{ id: 'note-1', encounterId: 'enc-1' }];
+      const repository = { findDraftsForAuthor: jest.fn().mockResolvedValue(rows) };
+      const service = new ClinicalNoteService({} as never, repository as never, {} as never);
+      await expect(service.draftsForAuthor('clinic-1', actor(role))).resolves.toBe(rows);
+      expect(repository.findDraftsForAuthor).toHaveBeenCalledWith('clinic-1', 'user-1');
+    },
+  );
 
-  it.each([UserRole.MANAGER, UserRole.DIRECTOR, UserRole.PATIENT])(
+  it.each([UserRole.DIRECTOR, UserRole.PATIENT])(
     'refuses %s, who writes no clinical notes',
     async (role) => {
       const repository = { findDraftsForAuthor: jest.fn() };

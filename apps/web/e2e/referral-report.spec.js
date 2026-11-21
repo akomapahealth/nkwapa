@@ -152,11 +152,12 @@ test.describe('volunteer', () => {
 test.describe('manager', () => {
   test.use({ storageState: storageStateFor('manager') });
 
-  test('can make a report, without signed notes', async ({ page }) => {
+  test('can make a report, with signed notes off by default', async ({ page }) => {
     await createPatient(page);
     const sheet = await openSheet(page);
     await expect(sheet.getByRole('checkbox', { name: /Readings/ })).toBeChecked();
-    await expect(sheet.getByRole('checkbox', { name: /Signed clinical notes/ })).toHaveCount(0);
+    // Managers read notes since the 2026-11-21 screening; notes stay opt-in.
+    await expect(sheet.getByRole('checkbox', { name: /Signed clinical notes/ })).not.toBeChecked();
   });
 });
 
