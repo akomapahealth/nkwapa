@@ -16,6 +16,7 @@ import {
 } from '@/components/patients/RecordSection';
 import styles from './vitals-workspace.module.css';
 import { BloodPressureSignal } from '@/components/patients/BloodPressureSignal';
+import { BpReadingsDialog } from '@/components/BpReadingsDialog';
 import {
   Select,
   SelectContent,
@@ -55,7 +56,8 @@ const NONE_VALUE = '__NONE__';
 function retainEditedFields<T extends object>(current: T, baseline: T, incoming: T): T {
   const next = { ...incoming };
   for (const key of Object.keys(incoming) as (keyof T)[]) {
-    if (current[key] !== baseline[key]) next[key] = current[key];
+    // By value: `stored` and `bpReadings` are rebuilt on every load, so identity always differs.
+    if (JSON.stringify(current[key]) !== JSON.stringify(baseline[key])) next[key] = current[key];
   }
   return next;
 }
@@ -106,6 +108,10 @@ function initialVitals(
   return {
     systolicBp: String(data?.systolicBp ?? ''),
     diastolicBp: String(data?.diastolicBp ?? ''),
+    bpReadings: (data?.bpSystolicReadings ?? []).map((systolic, index) => ({
+      systolic,
+      diastolic: data?.bpDiastolicReadings?.[index] ?? 0,
+    })),
     bpSite: data?.bpSite ?? '',
     bpSiteOther: data?.bpSiteOther ?? '',
     patientPosition: data?.patientPosition ?? '',
@@ -130,7 +136,10 @@ function initialVitals(
 }
 
 /** The form fields that hold typed text. */
-type VitalsTextField = Exclude<keyof VitalsFormValues, 'temperatureUnit' | 'bodyUnit' | 'stored'>;
+type VitalsTextField = Exclude<
+  keyof VitalsFormValues,
+  'temperatureUnit' | 'bodyUnit' | 'stored' | 'bpReadings'
+>;
 
 function initialTobacco(data?: TobaccoScreeningRecord | null): TobaccoFormValues {
   return {
@@ -416,6 +425,7 @@ export function VitalsForm({
   const tobaccoScreeningId = useRef(initialTobaccoData?.id ?? generateClinicalId());
   const { bodyUnit } = useClinicUnits(clinicId);
   const [vitals, setVitals] = useState(() => initialVitals(initialData, bodyUnit));
+  const [readingsOpen, setReadingsOpen] = useState(false);
   const [tobacco, setTobacco] = useState(() => initialTobacco(initialTobaccoData));
   const vitalsBaseline = useRef(initialVitals(initialData, bodyUnit));
   const tobaccoBaseline = useRef(initialTobacco(initialTobaccoData));
@@ -455,7 +465,12 @@ export function VitalsForm({
   }, [initialTobaccoData]);
 
   const updateVital = (field: VitalsTextField, value: string) => {
-    setVitals((current) => ({ ...current, [field]: value }));
+    setVitals((current) => ({
+      ...current,
+      [field]: value,
+      // A BP typed over the average is a single reading again, so the readings no longer apply.
+      ...(field === 'systolicBp' || field === 'diastolicBp' ? { bpReadings: [] } : {}),
+    }));
     setErrors((current) => {
       const next = { ...current };
       delete next[field];
@@ -668,6 +683,40 @@ export function VitalsForm({
                 {numberField('systolicBp', 'Systolic BP (mmHg)')}
                 {numberField('diastolicBp', 'Diastolic BP (mmHg)')}
               </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="outline" onClick={() => setReadingsOpen(true)}>
+                  {vitals.bpReadings?.length ? 'Change readings' : 'Take several readings'}
+                </Button>
+                {vitals.bpReadings?.length ? (
+                  <p className="text-sm text-muted-foreground" data-testid="bp-readings-summary">
+                    Average of{' '}
+                    {vitals.bpReadings
+                      .map((reading) => `${reading.systolic}/${reading.diastolic}`)
+                      .join(', ')}
+                  </p>
+                ) : null}
+              </div>
+              <BpReadingsDialog
+                open={readingsOpen}
+                onOpenChange={setReadingsOpen}
+                initial={vitals.bpReadings}
+                onUse={(readings, average) => {
+                  setVitals((current) => ({
+                    ...current,
+                    systolicBp: String(average.systolic),
+                    diastolicBp: String(average.diastolic),
+                    bpReadings: readings,
+                  }));
+                  setErrors((current) => {
+                    const next = { ...current };
+                    delete next.systolicBp;
+                    delete next.diastolicBp;
+                    return next;
+                  });
+                  setStatus(null);
+                  setStatusIsError(false);
+                }}
+              />
               <BloodPressureSignal
                 systolic={vitals.systolicBp}
                 diastolic={vitals.diastolicBp}

@@ -385,6 +385,8 @@ export {
   BP_ESCALATION_DIASTOLIC,
   BP_HYPOTENSION_SYSTOLIC,
   BP_HYPOTENSION_DIASTOLIC,
+  BP_MAX_READINGS,
+  averageBpReadings,
   classifyBloodPressure,
   shouldPromptRepeat,
   isSeverelyElevated,

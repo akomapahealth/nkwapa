@@ -39,6 +39,8 @@ export const SYNC_PATIENT_SELECT = {
   residentialPositionAccuracyM: true,
   residentialPositionCapturedAt: true,
   mergedIntoPatientId: true,
+  // Every staff member sees the Demo badge, offline too, so nobody treats a training chart as real.
+  isDemo: true,
   createdByUserId: true,
   createdAt: true,
   updatedAt: true,

@@ -215,6 +215,14 @@ export const RESEARCH_FIELD_DECISIONS: Record<
     ...encounterScoped,
     systolicBp: EXPORTED('Core blood pressure measure.'),
     diastolicBp: EXPORTED('Core blood pressure measure.'),
+    bpSystolicReadings: {
+      disposition: 'EXCLUDED_OPERATIONAL',
+      reason: 'The readings behind the exported average, which is the measure analyses use.',
+    },
+    bpDiastolicReadings: {
+      disposition: 'EXCLUDED_OPERATIONAL',
+      reason: 'The readings behind the exported average, which is the measure analyses use.',
+    },
     bpSite: EXPORTED('Measurement context needed to interpret the reading.'),
     bpSiteOther: FREE_TEXT,
     patientPosition: EXPORTED('Measurement context needed to interpret the reading.'),

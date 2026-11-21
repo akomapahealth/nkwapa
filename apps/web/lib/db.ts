@@ -65,6 +65,9 @@ export interface VitalsRecord {
   encounterId: string;
   systolicBp?: number;
   diastolicBp?: number;
+  /** The 2-3 readings of one sitting; systolicBp/diastolicBp hold their average. */
+  bpSystolicReadings?: number[];
+  bpDiastolicReadings?: number[];
   /** @deprecated Migrated to pulseBpm in Dexie v4. */
   heartRate?: number;
   pulseBpm?: number;

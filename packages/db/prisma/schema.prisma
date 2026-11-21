@@ -1185,6 +1185,9 @@ model Patient {
   currentRiskAssessmentId String?       @unique @db.Uuid
   currentRiskTier         FollowUpTier?
 
+  /// A training chart (2026-11-21): kept out of reports, research and outreach. Set by a director.
+  isDemo Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1230,6 +1233,7 @@ model Patient {
   @@index([phoneE164])
   @@index([updatedAt])
   @@index([primaryClinicId, updatedAt, id])
+  @@index([primaryClinicId, isDemo])
   @@index([primaryClinicId, residentialRegion])
   @@index([primaryClinicId, residentialLocationStatus])
   @@index([primaryClinicId, currentRiskTier])
@@ -1645,10 +1649,14 @@ model Vitals {
   clinicId    String @db.Uuid
   encounterId String @unique @db.Uuid
 
-  systolicBp  Int?
-  diastolicBp Int?
-  bpSite      BloodPressureSite?
-  bpSiteOther String?            @db.VarChar(120)
+  /// The reading used for care: the average of `bp*Readings` when several were taken.
+  systolicBp          Int?
+  diastolicBp         Int?
+  /// The 2-3 readings of one sitting, in the order taken; empty when a single reading was taken.
+  bpSystolicReadings  Int[]              @default([])
+  bpDiastolicReadings Int[]              @default([])
+  bpSite              BloodPressureSite?
+  bpSiteOther         String?            @db.VarChar(120)
 
   patientPosition      PatientPosition?
   patientPositionOther String?                @db.VarChar(120)

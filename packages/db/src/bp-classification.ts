@@ -38,6 +38,29 @@ export const BP_SYSTOLIC_MAX = 300;
 export const BP_DIASTOLIC_MIN = 20;
 export const BP_DIASTOLIC_MAX = 200;
 
+/** The most readings one sitting records. */
+export const BP_MAX_READINGS = 3;
+
+/**
+ * The reading to record from several taken at one sitting, a minute or so apart.
+ *
+ * WHO HEARTS and the ISH 2020 guideline: take two or three, and with three, average the last
+ * two, because the first reading of a sitting runs high. With two, average both. Rounded to whole
+ * mmHg, as a cuff reads. A single reading is returned as it is; none returns null.
+ */
+export function averageBpReadings(
+  readings: ReadonlyArray<{ systolic: number; diastolic: number }>,
+): { systolic: number; diastolic: number } | null {
+  if (readings.length === 0) return null;
+  const used = readings.length >= 3 ? readings.slice(-2) : readings;
+  const mean = (values: number[]) =>
+    Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+  return {
+    systolic: mean(used.map((reading) => reading.systolic)),
+    diastolic: mean(used.map((reading) => reading.diastolic)),
+  };
+}
+
 /**
  * Band edges, as the lowest value that belongs to each band.
  *

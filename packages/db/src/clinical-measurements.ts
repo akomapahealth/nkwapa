@@ -28,6 +28,8 @@ export const VITALS_SECTION_FIELDS = {
   bloodPressure: [
     'systolicBp',
     'diastolicBp',
+    'bpSystolicReadings',
+    'bpDiastolicReadings',
     'bpSite',
     'bpSiteOther',
     'patientPosition',

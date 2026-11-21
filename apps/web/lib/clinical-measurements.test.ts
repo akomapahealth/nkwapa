@@ -252,6 +252,8 @@ describe('clinical measurement offline helpers', () => {
         [
           'bpSite',
           'bpSiteOther',
+          'bpSystolicReadings',
+          'bpDiastolicReadings',
           'cuffSize',
           'cuffSizeOther',
           'diastolicBp',

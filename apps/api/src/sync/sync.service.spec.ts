@@ -888,11 +888,11 @@ describe('SyncService', () => {
     });
 
     it('does not let a volunteer seat at another clinic authorize a screening write here', async () => {
-      // Manager at clinic-1, volunteer at clinic-2. The manager seat admits the request; only the
+      // Director at clinic-1, volunteer at clinic-2. The director seat admits the request; only the
       // roles held at clinic-1 may decide what it is allowed to write.
       const results = await push(
         [
-          { clinicId: 'clinic-1', role: 'MANAGER' },
+          { clinicId: 'clinic-1', role: 'DIRECTOR' },
           { clinicId: 'clinic-2', role: 'VOLUNTEER' },
         ],
         'diabetes_screening',

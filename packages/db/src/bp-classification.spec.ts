@@ -1,4 +1,5 @@
 import {
+  averageBpReadings,
   BP_ESCALATION_DIASTOLIC,
   BP_ESCALATION_SYSTOLIC,
   BP_REPEAT_PROMPT_DIASTOLIC,
@@ -134,5 +135,34 @@ describe('isHypotensive', () => {
   it('does not fire on an unmeasured reading', () => {
     expect(isHypotensive(null, null)).toBe(false);
     expect(isHypotensive(Number.NaN, Number.NaN)).toBe(false);
+  });
+});
+
+describe('averageBpReadings', () => {
+  it('averages the last two of three, since the first of a sitting runs high', () => {
+    expect(
+      averageBpReadings([
+        { systolic: 160, diastolic: 100 },
+        { systolic: 142, diastolic: 91 },
+        { systolic: 139, diastolic: 88 },
+      ]),
+    ).toEqual({ systolic: 141, diastolic: 90 });
+  });
+
+  it('averages both of two, rounding to whole mmHg', () => {
+    expect(
+      averageBpReadings([
+        { systolic: 131, diastolic: 84 },
+        { systolic: 134, diastolic: 85 },
+      ]),
+    ).toEqual({ systolic: 133, diastolic: 85 });
+  });
+
+  it('returns a single reading unchanged and nothing for none', () => {
+    expect(averageBpReadings([{ systolic: 120, diastolic: 80 }])).toEqual({
+      systolic: 120,
+      diastolic: 80,
+    });
+    expect(averageBpReadings([])).toBeNull();
   });
 });
