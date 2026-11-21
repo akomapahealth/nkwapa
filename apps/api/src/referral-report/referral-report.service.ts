@@ -106,7 +106,8 @@ export class ReferralReportService {
     );
     // Note content needs a clinical seat here, as on the chart: a system admin's wildcard is not one.
     const clinical = rolesForClinic(actor.roles, clinicId).some(
-      ({ role }) => role === UserRole.DOCTOR || role === UserRole.VOLUNTEER,
+      ({ role }) =>
+        role === UserRole.DOCTOR || role === UserRole.VOLUNTEER || role === UserRole.MANAGER,
     );
     return clinical ? sections : sections.filter((section) => section !== 'NOTES');
   }

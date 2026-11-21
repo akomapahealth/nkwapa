@@ -78,6 +78,7 @@ export const MERGE_BLOCKER_CODES = [
   'ALIAS_CODE_COLLISION',
   'OPEN_PHARMACY_PREFERENCE_CONFLICT',
   'PORTAL_LINK_CONFLICT',
+  'DEMO_MISMATCH',
 ] as const;
 
 export type MergeBlockerCode = (typeof MERGE_BLOCKER_CODES)[number];
@@ -111,6 +112,7 @@ export const MERGE_FINDING_LABELS: Record<MergeFindingCode, string> = {
   ALIAS_CODE_COLLISION: 'The duplicate chart’s code is already recorded against another chart',
   OPEN_PHARMACY_PREFERENCE_CONFLICT: 'Both charts have a current preferred pharmacy',
   PORTAL_LINK_CONFLICT: 'Each chart is linked to a different app account',
+  DEMO_MISMATCH: 'One chart is demo (training) data and the other is a real patient',
   PORTAL_ACCOUNT_RETIRED: 'One app account will lose access to this chart',
   PENDING_INVITES_CANCELLED: 'A portal invitation that has not been used yet will be cancelled',
   WEAK_DUPLICATE_SIGNAL: 'These two charts do not look much alike',
@@ -134,6 +136,8 @@ export const MERGE_FINDING_RECOVERY: Record<MergeFindingCode, string> = {
   CROSS_CLINIC:
     'Charts can only be merged inside one clinic. Record the pair in the duplicate review queue and raise it with both clinics.',
   CLINIC_INACTIVE: 'Reactivate the clinic before consolidating any of its charts.',
+  DEMO_MISMATCH:
+    'A training chart must never absorb or be absorbed by a real one. If the real chart was marked demo by mistake, a director clears the mark first.',
   ALIAS_CODE_COLLISION:
     'Another chart already answers to this code. Ask a system administrator to check which chart is meant to hold it before merging.',
   OPEN_PHARMACY_PREFERENCE_CONFLICT:
@@ -185,6 +189,8 @@ export interface MergeStructuralChart {
   primaryClinicId: string;
   mergedIntoPatientId: string | null;
   primaryClinic: { name: string; isActive: boolean };
+  /** Demo (training) chart; a real chart never merges with one. */
+  isDemo?: boolean;
 }
 
 /**
@@ -203,6 +209,9 @@ export function structuralMergeFindings(
 
   if (canonical.mergedIntoPatientId) findings.push(mergeFinding('CANONICAL_ALREADY_MERGED'));
   if (source.mergedIntoPatientId) findings.push(mergeFinding('SOURCE_ALREADY_MERGED'));
+  if (Boolean(canonical.isDemo) !== Boolean(source.isDemo)) {
+    findings.push(mergeFinding('DEMO_MISMATCH'));
+  }
 
   if (canonical.primaryClinicId !== source.primaryClinicId) {
     findings.push(

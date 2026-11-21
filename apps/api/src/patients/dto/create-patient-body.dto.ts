@@ -1,5 +1,6 @@
 import { NationalIdType, Sex } from '@prisma/client';
 import {
+  IsBoolean,
   IsDateString,
   IsEmail,
   IsEnum,
@@ -63,4 +64,9 @@ export class CreatePatientBodyDto extends ResidentialLocationDto {
   @IsNotEmpty()
   @MaxLength(160)
   nationalId?: string;
+
+  /** A training chart. Only a holder of PATIENT.DEMO.MANAGE may set it. */
+  @IsOptional()
+  @IsBoolean()
+  isDemo?: boolean;
 }

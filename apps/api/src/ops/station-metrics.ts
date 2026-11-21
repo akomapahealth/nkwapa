@@ -59,7 +59,15 @@ export interface StationMetrics {
   /** Whether the day is today, so the "now" figures mean something. */
   live: boolean;
   lowVolume: boolean;
-  checkIns: { total: number; completed: number; leftEarly: number; inClinicNow: number };
+  checkIns: {
+    total: number;
+    /** Finished the review station. */
+    completed: number;
+    leftEarly: number;
+    /** Still in the line when the clinic day was closed, so never finished review. */
+    closedAtDayEnd: number;
+    inClinicNow: number;
+  };
   /** Check-in to the end of the review station, for sessions that finished. */
   timeInClinic: DurationSummary;
   stations: Array<{
@@ -263,8 +271,13 @@ export function computeStationMetrics(input: StationMetricsInput): StationMetric
     lowVolume: checkIns.length < STATION_METRICS_LOW_VOLUME,
     checkIns: {
       total: checkIns.length,
-      completed: checkIns.filter((checkIn) => checkIn.status === 'COMPLETED').length,
+      completed: checkIns.filter(
+        (checkIn) => checkIn.status === 'COMPLETED' && sessionEnd.has(checkIn.id),
+      ).length,
       leftEarly: checkIns.filter((checkIn) => checkIn.status === 'CANCELLED').length,
+      closedAtDayEnd: checkIns.filter(
+        (checkIn) => checkIn.status === 'COMPLETED' && !sessionEnd.has(checkIn.id),
+      ).length,
       inClinicNow: checkIns.filter((checkIn) => OPEN_CHECK_IN.has(checkIn.status)).length,
     },
     timeInClinic,

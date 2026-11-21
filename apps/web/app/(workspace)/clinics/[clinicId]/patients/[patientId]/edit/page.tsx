@@ -39,6 +39,9 @@ import {
 } from '@/lib/residential-location';
 import { normalizeMiddleName } from '@/lib/person-name';
 import { MiddleNameField } from '@/components/patients/MiddleNameField';
+import { DemoPatientField, DEMO_MANAGE_PERMISSION } from '@/components/patients/DemoPatientField';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { hasPermission } from '@/lib/ops';
 
 interface PatientData extends PatientLocationFields {
   id: string;
@@ -57,6 +60,7 @@ interface PatientData extends PatientLocationFields {
   residentialDistrict?: string | null;
   residentialCommunity?: string | null;
   residentialAddressNote?: string | null;
+  isDemo?: boolean;
 }
 
 function EditPatientForm() {
@@ -65,6 +69,8 @@ function EditPatientForm() {
   const clinicId = params.clinicId as string;
   const patientId = params.patientId as string;
   const getToken = useAuth();
+  const permissions = useBootstrap()?.bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  const canMarkDemo = hasPermission(permissions, DEMO_MANAGE_PERMISSION);
 
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +87,7 @@ function EditPatientForm() {
   const [phoneE164, setPhoneE164] = useState('');
   const [email, setEmail] = useState('');
   const [location, setLocation] = useState<ResidentialLocationValue>(emptyResidentialLocation());
+  const [isDemo, setIsDemo] = useState(false);
 
   const fetchPatient = useCallback(async () => {
     setLoading(true);
@@ -121,6 +128,7 @@ function EditPatientForm() {
             residentialPositionSource: local.residentialPositionSource,
             residentialPositionAccuracyM: local.residentialPositionAccuracyM,
             residentialPositionCapturedAt: local.residentialPositionCapturedAt,
+            isDemo: local.isDemo,
           });
         } else {
           setError('Patient not found');
@@ -143,6 +151,7 @@ function EditPatientForm() {
     setPhoneE164(p.phoneE164 ?? '');
     setEmail(p.email ?? '');
     setLocation(toResidentialLocationValue(p));
+    setIsDemo(p.isDemo === true);
   }
 
   useEffect(() => {
@@ -173,6 +182,7 @@ function EditPatientForm() {
     if (sex !== patient.sex) body.sex = sex;
     if (phoneE164 !== (patient.phoneE164 ?? '')) body.phoneE164 = phoneE164;
     if (email !== (patient.email ?? '')) body.email = email;
+    if (canMarkDemo && isDemo !== (patient.isDemo === true)) body.isDemo = isDemo;
 
     // Residential location is diffed and sent as a coherent block; the server
     // re-applies the status invariant.
@@ -396,6 +406,15 @@ function EditPatientForm() {
             setPatient((current) => (current ? { ...current, ...next } : current))
           }
         />
+
+        {canMarkDemo ? (
+          <FormSectionCard
+            title="Training"
+            description="For running volunteers through the workflow without touching real data."
+          >
+            <DemoPatientField checked={isDemo} onChange={setIsDemo} />
+          </FormSectionCard>
+        ) : null}
 
         <div className="flex flex-wrap gap-2 border-t-2 border-rule-strong py-4">
           <Button onClick={handleSave} disabled={saving}>

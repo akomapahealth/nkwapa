@@ -260,6 +260,10 @@ export const MERGE_FINDING_CASES: readonly MergeFindingCase[] = [
       'Pick two charts whose `primaryClinicId` differs. The duplicate queue marks these ineligible.',
   },
   {
+    code: 'DEMO_MISMATCH',
+    staging: 'Mark one chart of a duplicate pair as demo data, then preview the merge.',
+  },
+  {
     code: 'CLINIC_INACTIVE',
     staging: 'Deactivate the clinic that owns both charts, then preview.',
   },

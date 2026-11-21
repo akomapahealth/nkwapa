@@ -15,7 +15,7 @@ Append-only. Revisions carry the expected current revision so a stale offline ed
 | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes |
 | DIRECTOR | yes | no |
-| MANAGER | yes | no |
+| MANAGER | yes | yes |
 | DOCTOR | yes | yes |
 | VOLUNTEER | yes | yes |
 | PATIENT | no | no |
@@ -30,7 +30,7 @@ No HTTP write route exists; vitals are written only through offline sync.
 | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes |
 | DIRECTOR | yes | no |
-| MANAGER | yes | no |
+| MANAGER | yes | yes |
 | DOCTOR | yes | yes |
 | VOLUNTEER | yes | yes |
 | PATIENT | no | no |
@@ -45,7 +45,7 @@ Captured alongside vitals in the same bundle.
 | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes |
 | DIRECTOR | yes | no |
-| MANAGER | yes | no |
+| MANAGER | yes | yes |
 | DOCTOR | yes | yes |
 | VOLUNTEER | yes | yes |
 | PATIENT | no | no |
@@ -60,7 +60,7 @@ The clinician plan is doctor-only, refused by the API for any other role, and wi
 | --- | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes | yes |
 | DIRECTOR | yes | no | no |
-| MANAGER | yes | no | no |
+| MANAGER | yes | yes | no |
 | DOCTOR | yes | yes | yes |
 | VOLUNTEER | yes | yes | no |
 | PATIENT | no | no | no |
@@ -75,7 +75,7 @@ Online-only and never queued, like the counselling record at the station beside 
 | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes |
 | DIRECTOR | yes | no |
-| MANAGER | yes | no |
+| MANAGER | yes | yes |
 | DOCTOR | yes | yes |
 | VOLUNTEER | yes | yes |
 | PATIENT | no | no |
@@ -90,7 +90,7 @@ The clinician plan is doctor-only, refused by the API for any other role, and wi
 | --- | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes | yes |
 | DIRECTOR | yes | no | no |
-| MANAGER | yes | no | no |
+| MANAGER | yes | yes | no |
 | DOCTOR | yes | yes | yes |
 | VOLUNTEER | yes | yes | no |
 | PATIENT | no | no | no |
@@ -120,7 +120,7 @@ An observation about a reconciled medication at one visit, gated on the intervie
 | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes |
 | DIRECTOR | yes | no |
-| MANAGER | yes | no |
+| MANAGER | yes | yes |
 | DOCTOR | yes | yes |
 | VOLUNTEER | yes | yes |
 | PATIENT | no | no |
@@ -135,7 +135,7 @@ Prescription history within this module requires PRESCRIPTION.READ, which a volu
 | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes |
 | DIRECTOR | yes | no |
-| MANAGER | yes | no |
+| MANAGER | yes | yes |
 | DOCTOR | yes | yes |
 | VOLUNTEER | yes | yes |
 | PATIENT | no | no |
@@ -165,7 +165,7 @@ Online-only and never queued. A system administrator must separately hold a doct
 | --- | --- | --- | --- | --- | --- |
 | SYSTEM_ADMIN | yes | yes | yes | yes | yes |
 | DIRECTOR | no | no | no | no | yes |
-| MANAGER | no | no | no | no | yes |
+| MANAGER | yes | yes | no | no | yes |
 | DOCTOR | yes | yes | yes | yes | yes |
 | VOLUNTEER | yes | yes | no | no | yes |
 | PATIENT | no | no | no | no | no |
@@ -224,19 +224,19 @@ Offline: not queued. Every read and write requires a live connection.
 | `CAREPLAN.CLINICIAN_PLAN` | yes | no | no | yes | no | no |
 | `CLINICAL_NOTE.ADDENDUM` | yes | no | no | yes | no | no |
 | `CLINICAL_NOTE.COSIGN` | yes | no | no | yes | no | no |
-| `CLINICAL_NOTE.READ` | yes | no | no | yes | yes | no |
+| `CLINICAL_NOTE.READ` | yes | no | yes | yes | yes | no |
 | `CLINICAL_NOTE.STATUS.READ` | yes | yes | yes | yes | yes | no |
-| `CLINICAL_NOTE.WRITE` | yes | no | no | yes | yes | no |
+| `CLINICAL_NOTE.WRITE` | yes | no | yes | yes | yes | no |
 | `ENCOUNTER.READ` | yes | yes | yes | yes | yes | no |
 | `MEDICAL_HISTORY.READ` | yes | yes | yes | yes | yes | no |
-| `MEDICAL_HISTORY.WRITE` | yes | no | no | yes | yes | no |
+| `MEDICAL_HISTORY.WRITE` | yes | no | yes | yes | yes | no |
 | `MEDICATION_RECONCILIATION.READ` | yes | yes | yes | yes | yes | no |
-| `MEDICATION_RECONCILIATION.WRITE` | yes | no | no | yes | yes | no |
+| `MEDICATION_RECONCILIATION.WRITE` | yes | no | yes | yes | yes | no |
 | `PATIENT.READ` | yes | yes | yes | yes | yes | no |
 | `PATIENT.UPDATE` | yes | yes | yes | yes | no | no |
 | `PRESCRIPTION.READ` | yes | yes | yes | yes | no | no |
 | `PRESCRIPTION.WRITE` | yes | no | no | yes | no | no |
 | `REFERRAL_REPORT.EXPORT` | yes | no | yes | yes | yes | no |
 | `SCREENING.READ` | yes | yes | yes | yes | yes | no |
-| `SCREENING.WRITE` | yes | no | no | yes | yes | no |
+| `SCREENING.WRITE` | yes | no | yes | yes | yes | no |
 

@@ -252,15 +252,43 @@ describe('clinical measurement offline helpers', () => {
         [
           'bpSite',
           'bpSiteOther',
+          'bpSystolicReadings',
+          'bpDiastolicReadings',
           'cuffSize',
           'cuffSizeOther',
           'diastolicBp',
           'patientPosition',
           'patientPositionOther',
+          'pulseBpm',
+          'pulseReadings',
           'systolicBp',
         ].sort(),
       );
       expect(mockTobaccoPut).not.toHaveBeenCalled();
+    });
+
+    it('sends the pulse of each reading only when every reading has one', async () => {
+      const save = (bpReadings: VitalsFormValues['bpReadings']) =>
+        saveClinicalMeasurementsOffline({
+          clinicId: 'clinic-1',
+          encounterId: 'encounter-1',
+          vitalsId: 'vitals-1',
+          tobaccoScreeningId: 'tobacco-1',
+          vitals: { ...vitals, systolicBp: '141', diastolicBp: '90', pulseBpm: '80', bpReadings },
+          tobacco,
+          sections: ['bloodPressure'],
+        });
+      const sent = async (bpReadings: VitalsFormValues['bpReadings']) =>
+        JSON.parse(String((await save(bpReadings)).outbox?.payloadJson)).vitals;
+
+      const full = [
+        { systolic: 160, diastolic: 100, pulse: 96 },
+        { systolic: 142, diastolic: 91, pulse: 81 },
+        { systolic: 139, diastolic: 88, pulse: 78 },
+      ];
+      expect(await sent(full)).toMatchObject({ pulseBpm: 80, pulseReadings: [96, 81, 78] });
+      const partial = [{ systolic: 160, diastolic: 100 }, full[1], full[2]];
+      expect(await sent(partial)).toMatchObject({ pulseBpm: 80, pulseReadings: [] });
     });
 
     it('keeps the other groups of the local copy when anthropometry is saved', async () => {

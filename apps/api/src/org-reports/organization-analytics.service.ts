@@ -1,3 +1,4 @@
+import { REAL_PATIENT } from '../common/demo-patients';
 import {
   BadRequestException,
   ForbiddenException,
@@ -156,6 +157,8 @@ export class OrganizationAnalyticsService {
         Prisma.sql`e."clinicId" IN (${Prisma.join(clinicIds.map((id) => Prisma.sql`${id}::uuid`))})`,
         Prisma.sql`e."createdAt" >= ${range.start}`,
         Prisma.sql`e."createdAt" < ${range.endExclusive}`,
+        // Demo (training) charts are not part of any cohort.
+        Prisma.sql`NOT EXISTS (SELECT 1 FROM "Patient" p WHERE p.id = e."patientId" AND p."isDemo")`,
         ...(query.encounterStatus
           ? [Prisma.sql`e."status" = ${query.encounterStatus}::"EncounterStatus"`]
           : []),
@@ -201,6 +204,7 @@ export class OrganizationAnalyticsService {
         by: ['clinicId', 'status'],
         where: {
           clinicId: { in: clinicIds },
+          patient: REAL_PATIENT,
           startsAt: { gte: range.start, lt: range.endExclusive },
           ...(query.appointmentStatus ? { status: query.appointmentStatus } : {}),
         },

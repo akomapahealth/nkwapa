@@ -685,7 +685,11 @@ export class ClinicalNoteService {
   private requireClinicalRole(actor: ClinicalActor, clinicId: string) {
     if (this.hasRole(actor, clinicId, UserRole.DOCTOR)) return UserRole.DOCTOR;
     if (this.hasRole(actor, clinicId, UserRole.VOLUNTEER)) return UserRole.VOLUNTEER;
-    throw new ForbiddenException('Clinical notes are restricted to doctors and volunteers');
+    // Managers work stations like volunteers (2026-11-21), so their notes need a doctor's cosign too.
+    if (this.hasRole(actor, clinicId, UserRole.MANAGER)) return UserRole.VOLUNTEER;
+    throw new ForbiddenException(
+      'Clinical notes are restricted to doctors, volunteers and managers',
+    );
   }
 
   private requireRole(actor: ClinicalActor, clinicId: string, role: UserRole) {

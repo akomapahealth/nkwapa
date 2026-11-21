@@ -45,6 +45,8 @@ export interface PatientRecord {
   createdByUserId?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** A training chart (2026-11-21); every staff member sees a Demo tag. */
+  isDemo?: boolean;
 }
 
 export interface EncounterRecord {
@@ -65,6 +67,11 @@ export interface VitalsRecord {
   encounterId: string;
   systolicBp?: number;
   diastolicBp?: number;
+  /** The 2-3 readings of one sitting; systolicBp/diastolicBp hold their average. */
+  bpSystolicReadings?: number[];
+  bpDiastolicReadings?: number[];
+  /** One pulse per BP reading, or none; pulseBpm holds their average. */
+  pulseReadings?: number[];
   /** @deprecated Migrated to pulseBpm in Dexie v4. */
   heartRate?: number;
   pulseBpm?: number;

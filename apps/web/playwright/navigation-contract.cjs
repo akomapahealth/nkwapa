@@ -39,6 +39,8 @@ const FLAG_OFF = {
   manager: [
     ['Dashboard', '/dashboard'],
     ['Today board', '/today'],
+    // Managers take patients like volunteers since the 2026-11-21 screening.
+    ['My assigned', '/my/assigned'],
     ['Queues', '/queues'],
     ['Patients', '/clinics/:clinicId/patients'],
     ['Appointments', '/appointments'],
@@ -175,7 +177,7 @@ const PHONE_PRIMARY =
         staff: ['Dashboard', 'Today board', 'My assigned', 'Queues'],
         doctor: ['Dashboard', 'My assigned', 'Queues', 'Patients'],
         volunteer: ['Dashboard', 'My assigned', 'Queues', 'Patients'],
-        manager: ['Dashboard', 'Today board', 'Queues', 'Patients'],
+        manager: ['Dashboard', 'Today board', 'My assigned', 'Queues'],
         director: ['Dashboard', 'Today board', 'Queues', 'Patients'],
       };
 

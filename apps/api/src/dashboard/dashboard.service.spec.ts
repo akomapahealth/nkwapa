@@ -60,7 +60,12 @@ describe('DashboardService clinical measurement metrics', () => {
     ).getClinicalMeasurementMetrics('clinic-1');
 
     expect(prisma.encounter.count).toHaveBeenCalledWith({
-      where: { clinicId: 'clinic-1', createdAt: { gte: expect.any(Date) } },
+      // Demo (training) charts are left out of every metric.
+      where: {
+        patient: { isDemo: false },
+        clinicId: 'clinic-1',
+        createdAt: { gte: expect.any(Date) },
+      },
     });
     expect(metrics).toMatchObject({
       windowDays: 30,
@@ -166,7 +171,7 @@ describe('DashboardService network overview', () => {
     await run(prisma, 'north');
     expect(prisma.patient.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { primaryClinicId: { in: ['clinic-north-1', 'clinic-north-2'] } },
+        where: { isDemo: false, primaryClinicId: { in: ['clinic-north-1', 'clinic-north-2'] } },
       }),
     );
   });

@@ -14,6 +14,7 @@ import {
   assignableStaff,
   assignStationVisit,
   cancelCheckIn,
+  closeClinicDay,
   fetchStationBoard,
   isStationBoard,
   minutesSince,
@@ -54,6 +55,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { EndShiftForButton } from '@/components/ops/EndShiftForButton';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -312,6 +314,33 @@ export function StationLineBoard() {
     }
   }, [override, clinicId, getToken, reason, targetStationId, assigneeUserId, refresh]);
 
+  const [dayClosed, setDayClosed] = useState<string | null>(null);
+  const endDay = useCallback(async () => {
+    if (!clinicId || !getToken) return;
+    const count = new Set(visits.map((visit) => visit.checkInId)).size;
+    const confirmed = await confirmAction({
+      title: 'End the clinic day?',
+      description: `${count} ${count === 1 ? 'patient is' : 'patients are'} still in the line. They will be closed out as "clinic closed", not as left. Their records stay open for review.`,
+      confirmLabel: 'End clinic day',
+      cancelLabel: 'Keep the line open',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await closeClinicDay(clinicId, date, getToken);
+      setDayClosed(
+        `Clinic day closed. ${result.closed} ${result.closed === 1 ? 'patient was' : 'patients were'} closed out.`,
+      );
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  }, [clinicId, getToken, visits, date, refresh]);
+
   return (
     <div className="space-y-6">
       <AppPageHeader
@@ -322,6 +351,16 @@ export function StationLineBoard() {
             {canManage ? (
               <Button asChild variant="outline">
                 <Link href="/stations/setup">Set up stations</Link>
+              </Button>
+            ) : null}
+            {canManage && visits.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void endDay()}
+                disabled={!isOnline || busy}
+              >
+                End clinic day
               </Button>
             ) : null}
             <Input
@@ -369,6 +408,7 @@ export function StationLineBoard() {
         />
       ) : null}
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      {dayClosed ? <InlineNotice tone="success">{dayClosed}</InlineNotice> : null}
 
       {view.isInitialLoading ? (
         <SectionSkeleton lines={6} />

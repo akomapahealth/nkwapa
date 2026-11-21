@@ -34,6 +34,7 @@ export type DuplicatePatientRecord = Prisma.PatientGetPayload<{
     primaryClinicId: true;
     portalUserId: true;
     mergedIntoPatientId: true;
+    isDemo: true;
     createdAt: true;
     updatedAt: true;
     primaryClinic: {
@@ -64,6 +65,7 @@ const DUPLICATE_PATIENT_SELECT = {
   primaryClinicId: true,
   portalUserId: true,
   mergedIntoPatientId: true,
+  isDemo: true,
   createdAt: true,
   updatedAt: true,
   primaryClinic: {

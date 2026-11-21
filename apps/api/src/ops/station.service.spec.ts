@@ -593,6 +593,71 @@ describe('StationService', () => {
     });
   });
 
+  describe('closing the clinic day', () => {
+    function withOpenCheckIns(ctx: ReturnType<typeof setup>) {
+      const tx = ctx.tx as unknown as Record<string, Record<string, jest.Mock>>;
+      tx.clinic.findUnique = jest.fn(async () => ({ timezone: 'Africa/Accra' }));
+      tx.clinic.findMany = jest.fn(async () => [{ id: CLINIC, timezone: 'Africa/Accra' }]);
+      tx.patientCheckIn.findMany = jest.fn(async () => [
+        { id: 'checkin-1', status: 'IN_PROGRESS' },
+      ]);
+      (ctx.prisma as unknown as Record<string, unknown>).clinic = tx.clinic;
+      return tx;
+    }
+
+    it('closes everyone still in the line as clinic closed, not left', async () => {
+      const ctx = setup({ stationId: 'st-review', status: 'QUEUED' });
+      const tx = withOpenCheckIns(ctx);
+      const result = await ctx.service.closeClinicDay(CLINIC, manager, '2026-11-21');
+
+      expect(result).toEqual({ date: '2026-11-21', closed: 1 });
+      expect(tx.patientCheckIn.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId: CLINIC,
+            status: { in: ['WAITING', 'ASSIGNED', 'IN_PROGRESS'] },
+          }),
+        }),
+      );
+      expect(ctx.current()).toMatchObject({ status: 'CANCELLED', endReason: 'CLINIC_CLOSED' });
+      expect(tx.patientCheckIn.update).toHaveBeenCalledWith({
+        where: { id: 'checkin-1' },
+        data: { status: 'COMPLETED' },
+      });
+      // The encounter stays open for the doctor's review.
+      expect(tx.encounter.update).not.toHaveBeenCalled();
+      expect(actions(ctx.audit)).toEqual(['STATION.CANCEL', 'CHECKIN.CLINIC_CLOSE']);
+    });
+
+    it('refuses a volunteer', async () => {
+      const ctx = setup();
+      withOpenCheckIns(ctx);
+      await expect(ctx.service.closeClinicDay(CLINIC, volunteer)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('sweeps only days before the clinic’s today, and their forgotten shifts', async () => {
+      const ctx = setup({ status: 'IN_PROGRESS', claimedByUserId: 'vol-1' });
+      const tx = withOpenCheckIns(ctx);
+      tx.staffShift.findMany.mockResolvedValueOnce([{ id: 'shift-old' }]);
+
+      const result = await ctx.service.closeStaleClinicDays(ctx.tx as never);
+
+      expect(result).toEqual({ checkIns: 1, shifts: 1 });
+      const where = tx.patientCheckIn.findMany.mock.calls[0][0].where;
+      expect(where.checkedInAt).toEqual({ lt: expect.any(Date) });
+      expect(tx.staffShift.update).toHaveBeenCalledWith({
+        where: { id: 'shift-old' },
+        data: expect.objectContaining({ status: 'CLOSED', stationId: null }),
+      });
+      const auditActors = (
+        ctx.audit.logWrite.mock.calls as unknown as [{ actorUserId: string }][]
+      ).map(([event]) => event.actorUserId);
+      expect(new Set(auditActors)).toEqual(new Set(['00000000-0000-4000-8000-00000000dead']));
+    });
+  });
+
   describe('stations', () => {
     it('will not close the review station or one with patients in it', async () => {
       const { service, tx } = setup();

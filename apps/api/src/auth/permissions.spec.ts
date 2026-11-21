@@ -10,13 +10,13 @@ describe('OPS permissions', () => {
     expect(permissions).toContain(PERMISSIONS.APPOINTMENT_READ);
   });
 
-  it('keeps clinical note content limited to doctors and volunteers', () => {
-    for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER]) {
+  it('keeps clinical note content with the clinical roles', () => {
+    for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER, UserRole.MANAGER]) {
       const permissions = computeEffectivePermissions([role]);
       expect(permissions).toContain(PERMISSIONS.CLINICAL_NOTE_READ);
       expect(permissions).toContain(PERMISSIONS.CLINICAL_NOTE_WRITE);
     }
-    for (const role of [UserRole.DIRECTOR, UserRole.MANAGER, UserRole.PATIENT]) {
+    for (const role of [UserRole.DIRECTOR, UserRole.PATIENT]) {
       const permissions = computeEffectivePermissions([role]);
       expect(permissions).not.toContain(PERMISSIONS.CLINICAL_NOTE_READ);
       expect(permissions).not.toContain(PERMISSIONS.CLINICAL_NOTE_WRITE);
@@ -27,9 +27,9 @@ describe('OPS permissions', () => {
         PERMISSIONS.CLINICAL_NOTE_ADDENDUM,
       ]),
     );
-    expect(computeEffectivePermissions([UserRole.VOLUNTEER])).not.toContain(
-      PERMISSIONS.CLINICAL_NOTE_COSIGN,
-    );
+    for (const role of [UserRole.VOLUNTEER, UserRole.MANAGER]) {
+      expect(computeEffectivePermissions([role])).not.toContain(PERMISSIONS.CLINICAL_NOTE_COSIGN);
+    }
   });
 
   it('lets clinic administrators review suspected duplicates but not clinical roles', () => {
@@ -136,13 +136,17 @@ describe('OPS permissions', () => {
     expect(permissions).not.toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
   });
 
-  it('keeps medical history management read-only for managers', () => {
+  it('lets managers work a patient like a volunteer and sign off like a doctor', () => {
     const permissions = computeEffectivePermissions([UserRole.MANAGER]);
-
-    expect(permissions).toContain(PERMISSIONS.MEDICAL_HISTORY_READ);
-    expect(permissions).not.toContain(PERMISSIONS.MEDICAL_HISTORY_WRITE);
-    expect(permissions).toContain(PERMISSIONS.MEDICATION_RECONCILIATION_READ);
-    expect(permissions).not.toContain(PERMISSIONS.MEDICATION_RECONCILIATION_WRITE);
+    for (const permission of computeEffectivePermissions([UserRole.VOLUNTEER])) {
+      expect(permissions).toContain(permission);
+    }
+    expect(permissions).toContain(PERMISSIONS.ENCOUNTER_REVIEW);
+    expect(permissions).toContain(PERMISSIONS.DOCTOR_FINALIZE);
+    // Prescribing, the clinician plan, co-signing and addenda stay with doctors.
+    expect(permissions).not.toContain(PERMISSIONS.PRESCRIPTION_WRITE);
+    expect(permissions).not.toContain(PERMISSIONS.CAREPLAN_CLINICIAN_PLAN);
+    expect(permissions).not.toContain(PERMISSIONS.CLINICAL_NOTE_ADDENDUM);
   });
 
   it('does not grant patient users staff appointment schedule access', () => {

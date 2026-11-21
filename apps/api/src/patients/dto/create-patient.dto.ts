@@ -20,6 +20,7 @@ export interface CreatePatientDto {
   /** Plaintext, encrypted and hashed by the service. Absent for NONE, which stores the patient code. */
   nationalId?: string;
   createdByUserId?: string;
+  isDemo?: boolean;
   // Residential location (see ResidentialLocationDto); resolved by service.
   residentialLocationStatus?: PatientLocationStatus;
   residentialRegion?: GhanaRegion;

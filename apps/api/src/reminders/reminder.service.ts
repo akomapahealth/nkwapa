@@ -95,6 +95,8 @@ export class TransientReminderSendError extends Error {
     this.name = 'TransientReminderSendError';
   }
 }
+/** Why a reminder to a demo (training) chart was never sent. */
+const DEMO_PATIENT_SUPPRESSED = 'DEMO_PATIENT';
 const EMAIL_CHANNEL_UNAVAILABLE = 'EMAIL_CHANNEL_UNAVAILABLE';
 const TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND';
 const QUEUE_UNAVAILABLE = 'QUEUE_UNAVAILABLE';
@@ -1146,6 +1148,12 @@ export class ReminderService {
     }
     if (reminder.status !== 'QUEUED') return null;
     if (reminder.scheduledAt > new Date()) return { notDueUntil: reminder.scheduledAt };
+
+    if (reminder.patient?.isDemo) {
+      // A training chart's phone and email are made up, or belong to the trainee: never send.
+      await this.failReminder(reminder, DEMO_PATIENT_SUPPRESSED, 'REMINDER.SUPPRESS');
+      return null;
+    }
 
     const payload = JSON.parse(reminder.payloadJson) as Record<string, unknown>;
     const appointmentSuppressionReason = await this.getAppointmentSendSuppressionReason(

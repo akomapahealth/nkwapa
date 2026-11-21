@@ -65,13 +65,11 @@ describe('clinical record role matrix', () => {
   );
 
   describe('the clinical access boundary', () => {
-    it('keeps note content with doctors and volunteers only', () => {
+    it('keeps note content with the clinical roles', () => {
       const notes = CLINICAL_RECORD_SURFACES.find((s) => s.id === 'clinical-notes')!;
-      for (const role of [UserRole.DIRECTOR, UserRole.MANAGER]) {
-        expect(roleHolds(role, notes.read)).toBe(false);
-        expect(roleHolds(role, notes.write)).toBe(false);
-      }
-      for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER]) {
+      expect(roleHolds(UserRole.DIRECTOR, notes.read)).toBe(false);
+      expect(roleHolds(UserRole.DIRECTOR, notes.write)).toBe(false);
+      for (const role of [UserRole.DOCTOR, UserRole.VOLUNTEER, UserRole.MANAGER]) {
         expect(roleHolds(role, notes.read)).toBe(true);
       }
     });
@@ -92,15 +90,15 @@ describe('clinical record role matrix', () => {
       }
     });
 
-    it('gives directors and managers read access to general clinical records', () => {
+    it('gives directors read access and managers write access to general clinical records', () => {
       // Policy: general clinical records are visible to the clinic-scoped staff roles. Notes are
-      // the documented exception above.
+      // the documented exception above. Managers also work patients on the line (2026-11-21).
       for (const id of ['medical-history', 'diabetes', 'medication-reconciliation']) {
         const surface = CLINICAL_RECORD_SURFACES.find((s) => s.id === id)!;
         expect(roleHolds(UserRole.DIRECTOR, surface.read)).toBe(true);
         expect(roleHolds(UserRole.MANAGER, surface.read)).toBe(true);
         expect(roleHolds(UserRole.DIRECTOR, surface.write)).toBe(false);
-        expect(roleHolds(UserRole.MANAGER, surface.write)).toBe(false);
+        expect(roleHolds(UserRole.MANAGER, surface.write)).toBe(true);
       }
     });
   });

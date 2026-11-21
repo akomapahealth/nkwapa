@@ -1,3 +1,4 @@
+import { REAL_PATIENT } from '../common/demo-patients';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeIdentificationService } from './de-identification.service';
@@ -273,6 +274,8 @@ export class ResearchTransformService {
           clinicId,
           consentType: 'RESEARCH_DEIDENTIFIED',
           status: 'GRANTED',
+          // Demo (training) charts never reach a research pack.
+          patient: REAL_PATIENT,
         },
         orderBy: [{ grantedAt: 'desc' }],
       }),

@@ -164,7 +164,9 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   });
   await volunteerPage.getByLabel('Note for the next station').fill('BP high, recheck at review.');
   await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
-  await volunteerPage.waitForURL(/\/stations$/, { timeout: 20_000 });
+  // Back at the queue, told where the patient went (screening-day feedback, 2026-11-21).
+  await volunteerPage.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+  await expect(volunteerPage.getByText(/Patient handed on to Glucose/)).toBeVisible();
   await volunteerContext.close();
 
   // Glucose: the reading alone.
@@ -803,7 +805,7 @@ test("a volunteer screening on someone else's account is named on each stop (#22
       timeout: 20_000,
     });
     await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
-    await volunteerPage.waitForURL(/\/stations$/, { timeout: 20_000 });
+    await volunteerPage.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
   } finally {
     await volunteerContext.close();
   }

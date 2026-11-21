@@ -72,6 +72,8 @@ export interface PatientRegistryItem {
   residentialRegion: Patient['residentialRegion'];
   residentialDistrict: string | null;
   residentialCommunity: string | null;
+  /** A training chart; shown to every staff member as a Demo badge. */
+  isDemo: boolean;
   /** The latest encounter at the registry's clinic, as on the chart; null when never seen there. */
   lastVisitAt: Date | null;
   /** Present only when the screened date filter is active. */
@@ -253,6 +255,7 @@ export class PatientService {
           // No last 4 for a code: it would collide across years in search and duplicate review.
           nationalIdLast4: noId ? null : nationalIdLast4(nationalId),
           createdByUserId: dto.createdByUserId,
+          isDemo: dto.isDemo ?? false,
           ...location,
         },
       });
@@ -532,6 +535,7 @@ export class PatientService {
 
     const data: Record<string, unknown> = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName;
+    if (dto.isDemo !== undefined) data.isDemo = dto.isDemo;
     if (dto.middleName !== undefined) data.middleName = dto.middleName;
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
     if (dto.dob !== undefined) data.dob = new Date(dto.dob);
@@ -787,6 +791,7 @@ export class PatientService {
     return {
       id: patient.id,
       patientCode: patient.patientCode,
+      isDemo: patient.isDemo,
       firstName: patient.firstName,
       middleName: patient.middleName,
       lastName: patient.lastName,

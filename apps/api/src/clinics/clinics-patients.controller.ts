@@ -79,6 +79,7 @@ export class ClinicsPatientsController {
     @Body() body: CreatePatientBodyDto,
     @Request() req: { user: { user: { id: string }; roles: unknown[] } },
   ) {
+    this.assertCanSetDemo(body.isDemo, req, params.clinicId);
     const dto = {
       ...body,
       primaryClinicId: params.clinicId,
@@ -207,6 +208,7 @@ export class ClinicsPatientsController {
     @Body() body: UpdatePatientBodyDto,
     @Request() req: { user: { user: { id: string }; roles: unknown[] } },
   ) {
+    this.assertCanSetDemo(body.isDemo, req, params.clinicId);
     const existing = await this.patientService.findById(params.patientId);
     if (!existing) throw new NotFoundException('Patient not found');
     if (existing.primaryClinicId !== params.clinicId) {
@@ -346,5 +348,18 @@ export class ClinicsPatientsController {
   @RequirePermission(PERMISSIONS.PATIENT_SELF_REPORT_READ)
   async listSelfReports(@Param() params: ClinicAndPatientParamsDto) {
     return this.patientPortalService.listSelfReportsForStaff(params.patientId, params.clinicId);
+  }
+
+  /** Only a director or system admin marks a chart as demo data, or clears the mark. */
+  private assertCanSetDemo(
+    isDemo: boolean | undefined,
+    req: { user: { roles: unknown[] } },
+    clinicId: string,
+  ) {
+    if (isDemo === undefined) return;
+    const roles = req.user.roles as ReqUserWithRoles['roles'];
+    if (!hasPermissionAtClinic(roles, clinicId, PERMISSIONS.PATIENT_DEMO_MANAGE)) {
+      throw new ForbiddenException('Only a director can mark a patient as demo data');
+    }
   }
 }

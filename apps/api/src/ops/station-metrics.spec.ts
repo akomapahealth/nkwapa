@@ -173,7 +173,13 @@ describe('computeStationMetrics', () => {
         ],
       }),
     );
-    expect(metrics.checkIns).toEqual({ total: 5, completed: 2, leftEarly: 1, inClinicNow: 2 });
+    expect(metrics.checkIns).toEqual({
+      total: 5,
+      completed: 2,
+      leftEarly: 1,
+      closedAtDayEnd: 0,
+      inClinicNow: 2,
+    });
     expect(metrics.timeInClinic).toEqual({ n: 2, medianMinutes: 60, p90Minutes: 90 });
     expect(metrics.lowVolume).toBe(false);
   });

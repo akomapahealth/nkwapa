@@ -63,9 +63,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { DemoBadge } from '@/components/patients/DemoPatientField';
+
 interface PatientSummary {
   id: string;
   patientCode: string;
+  /** A training chart; every staff member sees a Demo tag. */
+  isDemo?: boolean;
   firstName: string;
   middleName?: string | null;
   lastName: string;
@@ -269,11 +273,14 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       header: 'Patient',
       meta: { className: 'min-w-56 max-w-80 whitespace-normal' },
       cell: ({ row }) => (
-        <PatientIdentity
-          name={formatPersonName(row.original, 'short')}
-          code={row.original.patientCode}
-          idLast4={row.original.nationalIdLast4}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <PatientIdentity
+            name={formatPersonName(row.original, 'short')}
+            code={row.original.patientCode}
+            idLast4={row.original.nationalIdLast4}
+          />
+          <DemoBadge isDemo={row.original.isDemo} />
+        </div>
       ),
     },
     ...(canSeeTier
