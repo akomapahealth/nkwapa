@@ -720,11 +720,11 @@ export class PatientMergeService {
     const [freshCanonical, freshSource] = await Promise.all([
       tx.patient.findUnique({
         where: { id: canonical.id },
-        select: { mergedIntoPatientId: true, primaryClinicId: true },
+        select: { mergedIntoPatientId: true, primaryClinicId: true, isDemo: true },
       }),
       tx.patient.findUnique({
         where: { id: source.id },
-        select: { mergedIntoPatientId: true, primaryClinicId: true },
+        select: { mergedIntoPatientId: true, primaryClinicId: true, isDemo: true },
       }),
     ]);
 
@@ -739,6 +739,9 @@ export class PatientMergeService {
     }
     if (freshCanonical.primaryClinicId !== freshSource.primaryClinicId) {
       throw new ConflictException(this.refusal(mergeFinding('CROSS_CLINIC')));
+    }
+    if (freshCanonical.isDemo !== freshSource.isDemo) {
+      throw new ConflictException(this.refusal(mergeFinding('DEMO_MISMATCH')));
     }
   }
 

@@ -143,6 +143,8 @@ export const PERMISSIONS = {
   PATIENT_PORTAL_LINK: 'PATIENT.PORTAL.LINK',
   // Admin: review suspected duplicate charts. Read-only; merging stays SYSTEM_ADMIN only.
   PATIENT_DUPLICATE_REVIEW: 'PATIENT.DUPLICATE.REVIEW',
+  /** Mark a chart as demo (training) data, kept out of reports, research and outreach. */
+  PATIENT_DEMO_MANAGE: 'PATIENT.DEMO.MANAGE',
   /** Read and answer patients' data rights requests (access, correction, deletion). */
   PATIENT_DATA_REQUEST_MANAGE: 'PATIENT.DATA_REQUEST.MANAGE',
   /*
@@ -192,6 +194,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.PATIENT_PORTAL_LINK,
     PERMISSIONS.PATIENT_DUPLICATE_REVIEW,
     PERMISSIONS.PATIENT_DATA_REQUEST_MANAGE,
+    PERMISSIONS.PATIENT_DEMO_MANAGE,
     PERMISSIONS.RESEARCH_SETTINGS_UPDATE,
     PERMISSIONS.RESEARCH_EXPORT_REQUEST,
     PERMISSIONS.RESEARCH_EXPORT_APPROVE,

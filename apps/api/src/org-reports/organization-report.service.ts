@@ -1,3 +1,4 @@
+import { REAL_PATIENT } from '../common/demo-patients';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -107,12 +108,13 @@ export class OrganizationReportService {
       // Merged-away charts are tombstones, not patients.
       this.prisma.patient.groupBy({
         by: ['primaryClinicId'],
-        where: { primaryClinicId: { in: clinicIds }, mergedIntoPatientId: null },
+        where: { isDemo: false, primaryClinicId: { in: clinicIds }, mergedIntoPatientId: null },
         _count: true,
       }),
       this.prisma.patient.groupBy({
         by: ['primaryClinicId'],
         where: {
+          isDemo: false,
           primaryClinicId: { in: clinicIds },
           mergedIntoPatientId: null,
           createdAt: inWindow,
@@ -121,28 +123,34 @@ export class OrganizationReportService {
       }),
       this.prisma.encounter.groupBy({
         by: ['clinicId'],
-        where: { ...inClinics, createdAt: inWindow },
+        where: { patient: REAL_PATIENT, ...inClinics, createdAt: inWindow },
         _count: true,
       }),
       this.prisma.encounter.groupBy({
         by: ['clinicId'],
-        where: { ...inClinics, createdAt: inWindow, status: 'FINALIZED' },
+        where: { patient: REAL_PATIENT, ...inClinics, createdAt: inWindow, status: 'FINALIZED' },
         _count: true,
       }),
       // The backlog is current state, not windowed: an old draft is still an open draft.
       this.prisma.encounter.groupBy({
         by: ['clinicId'],
-        where: { ...inClinics, status: 'DRAFT' },
-        _count: true,
-      }),
-      this.prisma.encounter.groupBy({
-        by: ['clinicId'],
-        where: { ...inClinics, status: 'IN_REVIEW', preceptorReviewedById: null },
+        where: { patient: REAL_PATIENT, ...inClinics, status: 'DRAFT' },
         _count: true,
       }),
       this.prisma.encounter.groupBy({
         by: ['clinicId'],
         where: {
+          patient: REAL_PATIENT,
+          ...inClinics,
+          status: 'IN_REVIEW',
+          preceptorReviewedById: null,
+        },
+        _count: true,
+      }),
+      this.prisma.encounter.groupBy({
+        by: ['clinicId'],
+        where: {
+          patient: REAL_PATIENT,
           ...inClinics,
           status: 'IN_REVIEW',
           preceptorReviewedById: { not: null },
@@ -153,18 +161,22 @@ export class OrganizationReportService {
       // By collectedAt: when the screening happened, and the column indexed with clinicId.
       this.prisma.hypertensionAssessment.groupBy({
         by: ['clinicId'],
-        where: { ...inClinics, collectedAt: inWindow },
+        where: { encounter: { patient: REAL_PATIENT }, ...inClinics, collectedAt: inWindow },
         _count: true,
       }),
       this.prisma.diabetesScreening.groupBy({
         by: ['clinicId'],
-        where: { ...inClinics, collectedAt: inWindow },
+        where: { encounter: { patient: REAL_PATIENT }, ...inClinics, collectedAt: inWindow },
         _count: true,
       }),
-      this.prisma.carePlan.groupBy({ by: ['clinicId'], where: inClinics, _count: true }),
       this.prisma.carePlan.groupBy({
         by: ['clinicId'],
-        where: { ...inClinics, followUpDate: { not: null } },
+        where: { ...inClinics, encounter: { patient: REAL_PATIENT } },
+        _count: true,
+      }),
+      this.prisma.carePlan.groupBy({
+        by: ['clinicId'],
+        where: { encounter: { patient: REAL_PATIENT }, ...inClinics, followUpDate: { not: null } },
         _count: true,
       }),
       this.prisma.userClinicRole.findMany({
@@ -185,6 +197,9 @@ export class OrganizationReportService {
         FROM "Encounter"
         WHERE "clinicId" IN (${Prisma.join(clinicIds.map((id) => Prisma.sql`${id}::uuid`))})
           AND "createdAt" >= ${windowStart}
+          AND NOT EXISTS (
+            SELECT 1 FROM "Patient" p WHERE p.id = "Encounter"."patientId" AND p."isDemo"
+          )
         GROUP BY 1
       `,
     ]);

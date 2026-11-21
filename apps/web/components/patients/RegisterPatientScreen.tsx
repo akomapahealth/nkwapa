@@ -8,6 +8,7 @@ import { hasPermission, readApiError } from '@/lib/ops';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { generateClientId } from '@/lib/outbox';
+import { DemoPatientField, DEMO_MANAGE_PERMISSION } from '@/components/patients/DemoPatientField';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { apiFetch, type GetToken } from '@/lib/api';
@@ -120,6 +121,8 @@ export function RegisterPatientScreen({
     isWebFeatureEnabled('stationWorkflow') &&
     hasPermission(permissions, 'OPS.CHECKIN.CREATE') &&
     hasPermission(permissions, 'OPS.STATION.WORK');
+  const canMarkDemo = hasPermission(permissions, DEMO_MANAGE_PERMISSION);
+  const [isDemo, setIsDemo] = useState(false);
   const validation = usePatientFormErrors();
   const registryHref = `/clinics/${clinicId}/patients`;
   const [form, setForm] = useState<CreatePatientBody>({
@@ -171,6 +174,7 @@ export function RegisterPatientScreen({
         phoneE164: form.phoneE164 || undefined,
         email: form.email || undefined,
         ...toResidentialLocationPayload(location),
+        ...(canMarkDemo && isDemo ? { isDemo: true } : {}),
       };
 
       const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/patients`, {
@@ -510,6 +514,14 @@ export function RegisterPatientScreen({
             </FormSectionCard>
 
             <ResidentialLocationFields value={location} onChange={setLocation} />
+            {canMarkDemo ? (
+              <FormSectionCard
+                title="Training"
+                description="For running volunteers through the workflow without touching real data."
+              >
+                <DemoPatientField checked={isDemo} onChange={setIsDemo} />
+              </FormSectionCard>
+            ) : null}
           </div>
           <div
             className={styles.actions}

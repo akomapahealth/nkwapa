@@ -49,6 +49,7 @@ import {
   OpsFeedbackNotice,
 } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
+import { DemoBadge } from '@/components/patients/DemoPatientField';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -737,6 +738,7 @@ function NextPatientTicket({
         ) : null}
         <div className="min-w-0">
           <h3 className="break-words text-2xl font-semibold">{patientName(visit.patient)}</h3>
+          <DemoBadge isDemo={visit.patient.isDemo} />
           <p className="mt-1 break-words text-sm text-muted-foreground">
             <span className="font-mono">{visit.patient.patientCode}</span>
             {age !== null ? ` · ${age} yrs` : ''}
@@ -812,6 +814,7 @@ function QueueRow({
         <p className="break-words font-mono text-xs text-muted-foreground">
           {visit.patient.patientCode}
         </p>
+        <DemoBadge isDemo={visit.patient.isDemo} />
         {visit.previous?.handoffNote ? (
           <p className="break-words pt-1 text-sm">
             <span className="text-muted-foreground">Note: </span>

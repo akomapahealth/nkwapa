@@ -67,7 +67,14 @@ const VISIT_INCLUDE = {
       checkedInAt: true,
       encounterId: true,
       patient: {
-        select: { id: true, patientCode: true, firstName: true, lastName: true, dob: true },
+        select: {
+          id: true,
+          patientCode: true,
+          firstName: true,
+          lastName: true,
+          dob: true,
+          isDemo: true,
+        },
       },
     },
   },
@@ -1673,6 +1680,7 @@ export class StationService {
         firstName: patient.firstName,
         lastName: patient.lastName,
         dob: patient.dob ? patient.dob.toISOString().slice(0, 10) : null,
+        isDemo: patient.isDemo,
       },
       queuedAt: visit.queuedAt.toISOString(),
       claimedBy: visit.claimedBy,

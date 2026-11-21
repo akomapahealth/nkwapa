@@ -182,20 +182,20 @@ describe('PatientChartService', () => {
       expect(page.items[0].recorded).not.toHaveProperty('noteStatus');
     });
 
-    it('offers the notes section only to doctors and volunteers', async () => {
+    it('offers the notes section only to the clinical roles', async () => {
       const sectionIdsFor = async (role: UserRole) => {
         const summary = await service.getSummary(CLINIC, PATIENT, actor(role));
         return summary.sections.map((section) => section.id);
       };
       expect(await sectionIdsFor(UserRole.DOCTOR)).toContain('notes');
       expect(await sectionIdsFor(UserRole.VOLUNTEER)).toContain('notes');
-      expect(await sectionIdsFor(UserRole.MANAGER)).not.toContain('notes');
+      expect(await sectionIdsFor(UserRole.MANAGER)).toContain('notes');
       expect(await sectionIdsFor(UserRole.DIRECTOR)).not.toContain('notes');
     });
 
-    it('still reports note activity counts to a manager without exposing content', async () => {
+    it('still reports note activity counts to a director without exposing content', async () => {
       prisma.clinicalNote.count.mockResolvedValue(3);
-      const summary = await service.getSummary(CLINIC, PATIENT, actor(UserRole.MANAGER));
+      const summary = await service.getSummary(CLINIC, PATIENT, actor(UserRole.DIRECTOR));
       expect(summary.noteActivity).toEqual({ pendingCosign: 3, total: 3 });
       expect(summary.sections.map((s) => s.id)).not.toContain('notes');
     });
@@ -635,8 +635,8 @@ describe('PatientChartService', () => {
       expect(sql).not.toContain('"EncounterMedicationAdherence"');
     });
 
-    it('leaves counselling out for a manager, who cannot read it', async () => {
-      const { glance } = await service.getSummary(CLINIC, PATIENT, actor(UserRole.MANAGER));
+    it('leaves counselling out for a director, who cannot read it', async () => {
+      const { glance } = await service.getSummary(CLINIC, PATIENT, actor(UserRole.DIRECTOR));
       expect(glance.screenings.map((entry) => entry.kind)).not.toContain('COUNSELLING');
       expect(capturedSql(prisma.$queryRaw).sql).not.toContain('"CounsellingRecord"');
     });

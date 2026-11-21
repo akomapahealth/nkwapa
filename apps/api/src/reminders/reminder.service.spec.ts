@@ -293,6 +293,19 @@ describe('ReminderService', () => {
       });
     });
 
+    it('never sends to a demo (training) chart', async () => {
+      queueEmailReminder({ patient: { id: 'patient-1', isDemo: true } });
+
+      await service.processReminder('reminder-1');
+
+      expect(emailProvider.send).not.toHaveBeenCalled();
+      expect(smsProvider.send).not.toHaveBeenCalled();
+      expect(prisma.reminder.update).toHaveBeenCalledWith({
+        where: { id: 'reminder-1' },
+        data: { status: 'FAILED', failureReason: 'DEMO_PATIENT' },
+      });
+    });
+
     it('keeps the provider failure code so an operator can act on it', async () => {
       queueEmailReminder();
       emailProvider.send.mockResolvedValue({ success: false, error: 'EMAIL_NOT_CONFIGURED' });

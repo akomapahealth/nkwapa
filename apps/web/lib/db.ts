@@ -45,6 +45,8 @@ export interface PatientRecord {
   createdByUserId?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** A training chart (2026-11-21); every staff member sees a Demo tag. */
+  isDemo?: boolean;
 }
 
 export interface EncounterRecord {

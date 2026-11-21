@@ -46,6 +46,8 @@ export interface StationVisit {
     firstName: string;
     lastName: string;
     dob: string | null;
+    /** A training chart. Optional: copies saved on a device before 2026-11-21 lack it. */
+    isDemo?: boolean;
   };
   queuedAt: string;
   claimedBy: StaffSummary | null;
