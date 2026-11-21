@@ -33,6 +33,7 @@ import {
   MultiChoiceQuestion,
   TextQuestion,
 } from './hypertension/InterviewQuestion';
+import { InterviewReadOnly } from './InterviewFlow';
 
 export interface ClinicianPlanValues {
   clinicianPlanItems: string[];
@@ -287,77 +288,97 @@ export function ClinicianPlanSection({
         </InlineNotice>
       ) : null}
 
-      <MultiChoiceQuestion
-        {...q('plan-items')}
-        label="Plan"
-        value={values.clinicianPlanItems}
-        onChange={(value) => update('clinicianPlanItems', value)}
-        options={planItems}
-        labels={planItemLabels}
-      />
-      {values.clinicianPlanItems.includes('OTHER') ? (
-        <TextQuestion
-          {...q('plan-other')}
-          label="Describe the plan"
-          value={values.clinicianPlanOther}
-          onChange={(value) => update('clinicianPlanOther', value)}
-          maxLength={200}
-        />
-      ) : null}
+      <InterviewReadOnly readOnly={!canEdit}>
+        {/* Read-only, one answer per row like the interview above it, not two up. */}
+        <div
+          className={
+            canEdit ? 'contents' : 'space-y-3 [&_div.grid]:!grid-cols-1 [&_div.grid]:gap-3'
+          }
+        >
+          <MultiChoiceQuestion
+            {...q('plan-items')}
+            label="Plan"
+            value={values.clinicianPlanItems}
+            onChange={(value) => update('clinicianPlanItems', value)}
+            options={planItems}
+            labels={planItemLabels}
+          />
+          {values.clinicianPlanItems.includes('OTHER') ? (
+            <TextQuestion
+              {...q('plan-other')}
+              label="Describe the plan"
+              value={values.clinicianPlanOther}
+              onChange={(value) => update('clinicianPlanOther', value)}
+              maxLength={200}
+            />
+          ) : null}
 
-      {extraFields?.render(disabled)}
+          {extraFields?.render(disabled)}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <ChoiceQuestion
-          {...q('follow-up-window')}
-          label="Follow-up"
-          value={values.followUpWindow}
-          onChange={(value) => update('followUpWindow', value)}
-          options={FOLLOW_UP_WINDOWS}
-          labels={FOLLOW_UP_WINDOW_LABELS}
-        />
-        <ChoiceQuestion
-          {...q('follow-up-owner')}
-          label="Follow-up owner"
-          value={values.followUpOwner}
-          onChange={(value) => update('followUpOwner', value)}
-          options={FOLLOW_UP_OWNERS}
-          labels={FOLLOW_UP_OWNER_LABELS}
-        />
-      </div>
-      {values.followUpWindow === 'OTHER' ? (
-        <TextQuestion
-          {...q('follow-up-other')}
-          label="Describe the follow-up"
-          value={values.followUpOther}
-          onChange={(value) => update('followUpOther', value)}
-          maxLength={120}
-        />
-      ) : null}
-      {/*
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChoiceQuestion
+              {...q('follow-up-window')}
+              label="Follow-up"
+              value={values.followUpWindow}
+              onChange={(value) => update('followUpWindow', value)}
+              options={FOLLOW_UP_WINDOWS}
+              labels={FOLLOW_UP_WINDOW_LABELS}
+            />
+            <ChoiceQuestion
+              {...q('follow-up-owner')}
+              label="Follow-up owner"
+              value={values.followUpOwner}
+              onChange={(value) => update('followUpOwner', value)}
+              options={FOLLOW_UP_OWNERS}
+              labels={FOLLOW_UP_OWNER_LABELS}
+            />
+          </div>
+          {values.followUpWindow === 'OTHER' ? (
+            <TextQuestion
+              {...q('follow-up-other')}
+              label="Describe the follow-up"
+              value={values.followUpOther}
+              onChange={(value) => update('followUpOther', value)}
+              maxLength={120}
+            />
+          ) : null}
+          {/*
         The window is the input; a date is what gets stored.
 
         `CarePlan.followUpDate` is what schedules the patient's reminder on finalize, so saying so
         here stops a clinician wondering whether picking a window was enough.
       */}
-      {values.followUpWindow !== 'NOT_ASSESSED' && values.followUpWindow !== 'OTHER' ? (
-        <p className="text-sm text-muted-foreground">
-          Saving this schedules the patient&rsquo;s follow-up reminder when the encounter is
-          finalized.
-        </p>
-      ) : null}
+          {canEdit &&
+          values.followUpWindow !== 'NOT_ASSESSED' &&
+          values.followUpWindow !== 'OTHER' ? (
+            <p className="text-sm text-muted-foreground">
+              Saving this schedules the patient&rsquo;s follow-up reminder when the encounter is
+              finalized.
+            </p>
+          ) : null}
 
-      <div className="space-y-2">
-        <FieldLabel htmlFor={`${idPrefix}-comments`}>Additional comments</FieldLabel>
-        <Textarea
-          id={`${idPrefix}-comments`}
-          value={values.clinicianComments}
-          onChange={(event) => update('clinicianComments', event.target.value)}
-          disabled={disabled}
-          maxLength={2000}
-          rows={3}
-        />
-      </div>
+          {canEdit ? (
+            <div className="space-y-2">
+              <FieldLabel htmlFor={`${idPrefix}-comments`}>Additional comments</FieldLabel>
+              <Textarea
+                id={`${idPrefix}-comments`}
+                value={values.clinicianComments}
+                onChange={(event) => update('clinicianComments', event.target.value)}
+                disabled={disabled}
+                maxLength={2000}
+                rows={3}
+              />
+            </div>
+          ) : (
+            <TextQuestion
+              id={`${idPrefix}-comments`}
+              label="Additional comments"
+              value={values.clinicianComments}
+              onChange={() => {}}
+            />
+          )}
+        </div>
+      </InterviewReadOnly>
 
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {message ? <InlineNotice tone="success">{message}</InlineNotice> : null}
@@ -368,9 +389,7 @@ export function ClinicianPlanSection({
             {saving ? 'Saving…' : isOnline ? 'Save plan' : 'Queue plan'}
           </Button>
         </FormActions>
-      ) : (
-        <p className="text-sm text-muted-foreground">This plan is read-only.</p>
-      )}
+      ) : null}
     </FormSectionCard>
   );
 }
