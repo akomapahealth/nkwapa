@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Mail, UserPlus } from 'lucide-react';
+import { ArrowLeft, Mail, UserPlus, X } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { useAuth } from '@/lib/auth-context';
@@ -513,12 +513,11 @@ function AddVolunteersDialog({
       return response.json();
     },
   });
-  const candidates = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const matches = (person: { displayName: string; email: string }) =>
-      !query || person.displayName.toLowerCase().includes(query) || person.email.includes(query);
+  // Everyone who can be added, before the search narrows it. Picks are resolved against this, so
+  // a tick survives a later search that hides the person.
+  const everyone = useMemo(() => {
     const contacts = (directory.data?.items ?? [])
-      .filter((contact) => contact.isActive && !rosteredIds.has(contact.id) && matches(contact))
+      .filter((contact) => contact.isActive && !rosteredIds.has(contact.id))
       .map((contact) => ({
         key: `contact:${contact.id}`,
         pick: { kind: 'contact', id: contact.id } as RosterPick,
@@ -526,7 +525,7 @@ function AddVolunteersDialog({
         email: contact.email,
         hasAccount: Boolean(contact.linkedUserId),
       }));
-    const accounts = (directory.data?.accounts ?? []).filter(matches).map((account) => ({
+    const accounts = (directory.data?.accounts ?? []).map((account) => ({
       key: `account:${account.id}`,
       pick: { kind: 'account', id: account.id } as RosterPick,
       displayName: account.displayName,
@@ -534,11 +533,24 @@ function AddVolunteersDialog({
       hasAccount: true,
     }));
     return [...contacts, ...accounts].sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [directory.data, rosteredIds, search]);
-  const byKey = useMemo(
-    () => new Map(candidates.map((candidate) => [candidate.key, candidate.pick])),
-    [candidates],
-  );
+  }, [directory.data, rosteredIds]);
+  const candidates = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return everyone.filter(
+      (person) =>
+        !query ||
+        person.displayName.toLowerCase().includes(query) ||
+        person.email.toLowerCase().includes(query),
+    );
+  }, [everyone, search]);
+  const pickedPeople = everyone.filter((person) => picked.has(person.key));
+  const hiddenPicks = pickedPeople.filter((person) => !candidates.includes(person));
+  const unpick = (key: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
 
   const close = () => {
     setPicked(new Set());
@@ -561,6 +573,24 @@ function AddVolunteersDialog({
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
+        {hiddenPicks.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Also selected:</span>
+            {hiddenPicks.map((person) => (
+              <Button
+                key={person.key}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => unpick(person.key)}
+              >
+                {person.displayName}
+                <X aria-hidden="true" />
+                <span className="sr-only">Remove {person.displayName} from the selection</span>
+              </Button>
+            ))}
+          </div>
+        ) : null}
         <ResourceState state={directory} skeleton={<SectionSkeleton lines={4} />}>
           {() =>
             candidates.length === 0 ? (
@@ -612,18 +642,13 @@ function AddVolunteersDialog({
             Cancel
           </Button>
           <Button
-            disabled={picked.size === 0}
+            disabled={pickedPeople.length === 0}
             onClick={async () => {
-              await onAdd(
-                [...picked].flatMap((key) => {
-                  const pick = byKey.get(key);
-                  return pick ? [pick] : [];
-                }),
-              );
+              await onAdd(pickedPeople.map((person) => person.pick));
               setPicked(new Set());
             }}
           >
-            Add {picked.size > 0 ? picked.size : ''}
+            Add {pickedPeople.length > 0 ? pickedPeople.length : ''}
           </Button>
         </DialogFooter>
       </DialogContent>

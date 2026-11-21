@@ -79,14 +79,16 @@ it('subscribes this browser and saves it for the signed-in person', async () => 
   );
 });
 
-it('on sign-out, forgets the subscription and the opt-in on this device', async () => {
-  const { forgetNotificationsOnDevice, NOTIFICATION_OPT_IN_KEY } = load('AQID');
+it('on sign-out, forgets the subscription, the opt-in and the prompt on this device', async () => {
+  const { forgetNotificationsOnDevice, NOTIFICATION_OPT_IN_KEY, NOTIFICATION_PROMPTED_KEY } =
+    load('AQID');
   const existing = {
     endpoint: 'https://push.example/old',
     unsubscribe: jest.fn(async () => true),
   } as unknown as PushSubscription;
   installPush(existing);
   window.localStorage.setItem(NOTIFICATION_OPT_IN_KEY, 'true');
+  window.localStorage.setItem(NOTIFICATION_PROMPTED_KEY, 'true');
 
   await forgetNotificationsOnDevice(getToken);
 
@@ -96,4 +98,6 @@ it('on sign-out, forgets the subscription and the opt-in on this device', async 
   );
   expect(existing.unsubscribe).toHaveBeenCalled();
   expect(window.localStorage.getItem(NOTIFICATION_OPT_IN_KEY)).toBeNull();
+  // The next person to sign in is asked for themselves.
+  expect(window.localStorage.getItem(NOTIFICATION_PROMPTED_KEY)).toBeNull();
 });

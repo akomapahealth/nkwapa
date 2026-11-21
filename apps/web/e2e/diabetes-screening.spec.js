@@ -108,8 +108,16 @@ test('diabetes screening round-trips longitudinally, offline, read-only, and res
     .getByRole('dialog', { name: 'Finalize this visit?' })
     .getByRole('button', { name: 'Finalize visit' })
     .click();
+  await expect(page.getByRole('heading', { name: 'Visit finalized' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to queues' })).toHaveAttribute(
+    'href',
+    '/queues',
+  );
   await page.getByRole('tab', { name: 'Diabetes' }).click();
-  await expect(page.getByText('This interview is read-only.')).toBeVisible();
+  // Read-only, the interview prints its answers instead of disabled radios.
+  const diabetesPanel = page.getByRole('tabpanel', { name: 'Diabetes' });
+  await expect(diabetesPanel.getByRole('radio')).toHaveCount(0);
+  await expect(diabetesPanel.locator('dd').getByText('Fasting', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save screening' })).toHaveCount(0);
 
   const secondEncounterId = await createEncounter(page, patientId);

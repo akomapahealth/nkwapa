@@ -104,6 +104,11 @@ const sections: LegalSection[] = [
             which you can change in its site settings.
           </li>
           <li>
+            <strong>Whether the installed app has offered notifications since you signed in</strong>{' '}
+            (<code>nkwapa.notifications.prompted</code>), so it asks once rather than every time it
+            opens.
+          </li>
+          <li>
             <strong>A dismissed announcement</strong> (<code>nkwapa.release-banner.dismissed</code>)
           </li>
         </ul>

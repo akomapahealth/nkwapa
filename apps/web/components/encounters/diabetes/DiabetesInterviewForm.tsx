@@ -487,17 +487,20 @@ export function DiabetesInterviewForm({
                 />
               </div>
               <div className="pt-7">
-                <GlucoseUnitSelect
-                  value={values.glucoseUnit}
-                  onChange={(unit) =>
-                    setValues((current) => {
-                      const next = withGlucoseUnit(current, unit);
-                      if (hasSubmitted) setErrors(validateDiabetesInterview(next));
-                      return next;
-                    })
-                  }
-                  disabled={shared.disabled}
-                />
+                {/* Read-only, the unit is already in the glucose label. */}
+                {canEdit ? (
+                  <GlucoseUnitSelect
+                    value={values.glucoseUnit}
+                    onChange={(unit) =>
+                      setValues((current) => {
+                        const next = withGlucoseUnit(current, unit);
+                        if (hasSubmitted) setErrors(validateDiabetesInterview(next));
+                        return next;
+                      })
+                    }
+                    disabled={shared.disabled}
+                  />
+                ) : null}
               </div>
             </div>
             <ChoiceQuestion
@@ -537,16 +540,25 @@ export function DiabetesInterviewForm({
                   onChange={(value) => update('hba1c', value)}
                   decimal={values.hba1cUnit === 'PERCENT'}
                 />
-                <div className="space-y-2">
-                  <FieldLabel htmlFor="dm-hba1c-date">Date taken</FieldLabel>
-                  <Input
+                {canEdit ? (
+                  <div className="space-y-2">
+                    <FieldLabel htmlFor="dm-hba1c-date">Date taken</FieldLabel>
+                    <Input
+                      id="dm-hba1c-date"
+                      type="date"
+                      value={values.hba1cMeasuredOn}
+                      onChange={(event) => update('hba1cMeasuredOn', event.target.value)}
+                      disabled={shared.disabled}
+                    />
+                  </div>
+                ) : (
+                  <DateQuestion
                     id="dm-hba1c-date"
-                    type="date"
+                    label="Date taken"
                     value={values.hba1cMeasuredOn}
-                    onChange={(event) => update('hba1cMeasuredOn', event.target.value)}
-                    disabled={shared.disabled}
+                    onChange={() => {}}
                   />
-                </div>
+                )}
               </>
             ) : null}
           </div>
@@ -900,17 +912,21 @@ export function DiabetesInterviewForm({
               maxLength={200}
             />
           ) : null}
-          <div className="space-y-2">
-            <FieldLabel htmlFor="dm-notes">Notes</FieldLabel>
-            <Textarea
-              id="dm-notes"
-              value={values.notes}
-              onChange={(event) => update('notes', event.target.value)}
-              disabled={shared.disabled}
-              maxLength={2000}
-              rows={3}
-            />
-          </div>
+          {canEdit ? (
+            <div className="space-y-2">
+              <FieldLabel htmlFor="dm-notes">Notes</FieldLabel>
+              <Textarea
+                id="dm-notes"
+                value={values.notes}
+                onChange={(event) => update('notes', event.target.value)}
+                disabled={shared.disabled}
+                maxLength={2000}
+                rows={3}
+              />
+            </div>
+          ) : (
+            <TextQuestion id="dm-notes" label="Notes" value={values.notes} onChange={() => {}} />
+          )}
           <InlineNotice tone="info" live={false}>
             Do not recommend medication changes. Record what the patient takes under Medications.
           </InlineNotice>

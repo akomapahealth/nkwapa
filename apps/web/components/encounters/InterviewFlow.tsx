@@ -348,7 +348,11 @@ export function InterviewFlow({
           data-interview-flow=""
           onPointerDownCapture={markTouched}
           onKeyDownCapture={markTouched}
-          className="grid gap-x-8 gap-y-4 scroll-mt-24 [@container(min-width:48rem)]:grid-cols-[13.5rem_minmax(0,1fr)]"
+          // The rail's column only exists while the rail does: read-only, the answers take the width.
+          className={cn(
+            'grid gap-x-8 gap-y-4 scroll-mt-24',
+            !showAll && '[@container(min-width:48rem)]:grid-cols-[13.5rem_minmax(0,1fr)]',
+          )}
         >
           {showAll ? null : (
             <nav
@@ -508,9 +512,7 @@ export function InterviewFlow({
                   </Button>
                 )}
               </div>
-            ) : (
-              <p className="mt-4 text-sm text-muted-foreground">This interview is read-only.</p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -519,6 +521,31 @@ export function InterviewFlow({
 }
 
 const ActiveSectionContext = createContext<string | null>(null);
+
+/**
+ * True inside a read-only InterviewFlow, where questions print their answer instead of a disabled
+ * control: a doctor signing off reads answers, not every option the patient did not pick.
+ */
+export function useInterviewReadOnly() {
+  const override = useContext(ReadOnlyContext);
+  const flow = useContext(FlowContext);
+  const active = useContext(ActiveSectionContext);
+  if (override !== null) return override;
+  return flow !== null && active === null;
+}
+
+const ReadOnlyContext = createContext<boolean | null>(null);
+
+/** For questions outside an InterviewFlow, such as the clinician plan, that have a locked state. */
+export function InterviewReadOnly({
+  readOnly,
+  children,
+}: {
+  readOnly: boolean;
+  children: React.ReactNode;
+}) {
+  return <ReadOnlyContext.Provider value={readOnly}>{children}</ReadOnlyContext.Provider>;
+}
 
 /**
  * One section of the interview. Hidden, never unmounted, when it is not the one on screen. Its
@@ -551,7 +578,18 @@ export function InterviewSection({
             {description}
           </p>
         ) : null}
-        <div className="mt-5 space-y-6">{children}</div>
+        {/* Read-only, the answers read as one even list: two-up rows go single column, the
+            forms' own question gaps shrink to the list's, and wrappers left empty by a hidden
+            control take no space. */}
+        <div
+          className={
+            showAll
+              ? 'mt-3 space-y-3 [&_div.grid]:!grid-cols-1 [&_div.grid]:gap-3 [&_div:empty]:hidden [&_.space-y-6>*+*]:!mt-3 [&_.space-y-4>*+*]:!mt-3'
+              : 'mt-5 space-y-6'
+          }
+        >
+          {children}
+        </div>
       </section>
     </SectionContext.Provider>
   );
