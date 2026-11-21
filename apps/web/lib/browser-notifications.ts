@@ -13,6 +13,8 @@ import { apiFetch, readApiError, type GetToken } from './api';
  */
 
 export const NOTIFICATION_OPT_IN_KEY = 'nkwapa.notifications.enabled';
+/** Set when the installed app has offered notifications since this sign-in; cleared on sign-out. */
+export const NOTIFICATION_PROMPTED_KEY = 'nkwapa.notifications.prompted';
 /** Posted by the service worker when a notification is clicked; the page navigates. */
 export const NOTIFICATION_CLICK_MESSAGE = 'NKWAPA_NOTIFICATION_CLICK';
 /** Asks the chat panel to open a conversation, from anywhere in the page. */
@@ -156,11 +158,46 @@ export async function removePushSubscription(getToken?: GetToken): Promise<void>
   }
 }
 
+/**
+ * Whether the installed app should offer notifications now: only installed (a browser tab gets
+ * the Account setting, not a popup), only when they are off and can still be turned on (blocked
+ * means the OS settings, which a popup cannot change), and once per sign-in.
+ */
+export function shouldOfferNotificationPrompt({
+  installed,
+  state,
+  prompted,
+}: {
+  installed: boolean;
+  state: NotificationState;
+  prompted: boolean;
+}): boolean {
+  return installed && state === 'off' && !prompted;
+}
+
+export function wasNotificationPromptShown(): boolean {
+  try {
+    return window.localStorage.getItem(NOTIFICATION_PROMPTED_KEY) === 'true';
+  } catch {
+    // Storage blocked: say it was, so a device that cannot remember is not asked on every launch.
+    return true;
+  }
+}
+
+export function markNotificationPromptShown(): void {
+  try {
+    window.localStorage.setItem(NOTIFICATION_PROMPTED_KEY, 'true');
+  } catch {
+    // Storage blocked: wasNotificationPromptShown already reads as shown.
+  }
+}
+
 /** On sign-out: no background pushes here, and the next person to sign in chooses for themselves. */
 export async function forgetNotificationsOnDevice(getToken?: GetToken): Promise<void> {
   await removePushSubscription(getToken);
   try {
     window.localStorage.removeItem(NOTIFICATION_OPT_IN_KEY);
+    window.localStorage.removeItem(NOTIFICATION_PROMPTED_KEY);
   } catch {
     // Storage blocked: the opt-in already reads as off.
   }

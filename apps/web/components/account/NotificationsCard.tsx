@@ -21,7 +21,7 @@ import {
 } from '@/lib/browser-notifications';
 
 /** What reaches a device once notifications are on, per kind of account (#250). */
-const WHAT_NOTIFIES = {
+export const WHAT_NOTIFIES = {
   staff:
     'A notification on this device when a colleague messages you, a patient is assigned to you, a note is waiting for your cosign or a patient needs urgent review.',
   patient: 'A notification on this device when the clinic answers your appointment request.',

@@ -60,6 +60,7 @@ import {
 } from 'lucide-react';
 import { WelcomeTour } from '@/components/onboarding/WelcomeTour';
 import { AccessChangeNotice } from '@/components/account/AccessChangeNotice';
+import { NotificationPrompt } from '@/components/account/NotificationPrompt';
 import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
@@ -539,6 +540,7 @@ export function Header({
       {/* Here because both the workspace and the portal render this header. */}
       <WelcomeTour />
       <AccessChangeNotice />
+      <NotificationPrompt />
       <InstallInstructionsDialog />
     </header>
   );

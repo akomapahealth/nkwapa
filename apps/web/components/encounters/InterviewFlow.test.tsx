@@ -148,3 +148,44 @@ test('saves unsaved answers when the screen is hidden, and not when nothing chan
   await hide();
   expect(onSave).toHaveBeenCalledTimes(1);
 });
+
+test('read-only, questions print their answer instead of a control, at full width', async () => {
+  const { ChoiceQuestion } = await import('./hypertension/InterviewQuestion');
+  await act(async () => {
+    root.render(
+      <InterviewFlow
+        label="Test interview"
+        sections={SECTIONS}
+        canEdit={false}
+        onSave={onSave}
+        saveLabel="Save test"
+        save={{ saving: false, message: null, error: null }}
+      >
+        <InterviewSection id="a" title="First section">
+          <ChoiceQuestion
+            id="c1"
+            label="Status"
+            value="KNOWN"
+            onChange={() => {}}
+            options={['KNOWN', 'NEW', 'NOT_ASKED']}
+            labels={{ KNOWN: 'Known hypertension', NEW: 'Newly elevated', NOT_ASKED: 'Not asked' }}
+          />
+          <ChoiceQuestion
+            id="c2"
+            label="Care site"
+            value="NOT_ASKED"
+            onChange={() => {}}
+            options={['NONE', 'NOT_ASKED']}
+            labels={{ NONE: 'None', NOT_ASKED: 'Not asked' }}
+          />
+        </InterviewSection>
+      </InterviewFlow>,
+    );
+  });
+  expect(container.querySelector('input, [role="radiogroup"]')).toBeNull();
+  const answers = [...container.querySelectorAll('dd')].map((dd) => dd.textContent);
+  expect(answers).toEqual(['Known hypertension', 'Not asked']);
+  // No rail, so no rail column: the answers are the grid's only column.
+  const grid = container.querySelector('[data-interview-flow]')!;
+  expect(grid.className).not.toContain('grid-cols-[13.5rem');
+});

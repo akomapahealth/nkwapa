@@ -95,7 +95,11 @@ import {
 } from '@/lib/encounter-vitals';
 import { HYPERTENSION_LABELS } from '@/lib/hypertension';
 import { ClinicianPlanSection } from '@/components/encounters/ClinicianPlanSection';
-import { InterviewFlow, InterviewSection } from '@/components/encounters/InterviewFlow';
+import {
+  InterviewFlow,
+  InterviewReadOnly,
+  InterviewSection,
+} from '@/components/encounters/InterviewFlow';
 import { MedicationAdherenceSection } from '@/components/encounters/MedicationAdherenceSection';
 import { useMedicationAdherence } from '@/lib/use-medication-adherence';
 import {
@@ -1068,17 +1072,21 @@ export function HypertensionInterviewForm({
               maxLength={200}
             />
           ) : null}
-          <div className="space-y-2">
-            <FieldLabel htmlFor="htn-notes">Notes</FieldLabel>
-            <Textarea
-              id="htn-notes"
-              value={values.notes}
-              onChange={(event) => update('notes', event.target.value)}
-              disabled={shared.disabled}
-              maxLength={2000}
-              rows={3}
-            />
-          </div>
+          {canEdit ? (
+            <div className="space-y-2">
+              <FieldLabel htmlFor="htn-notes">Notes</FieldLabel>
+              <Textarea
+                id="htn-notes"
+                value={values.notes}
+                onChange={(event) => update('notes', event.target.value)}
+                disabled={shared.disabled}
+                maxLength={2000}
+                rows={3}
+              />
+            </div>
+          ) : (
+            <TextQuestion id="htn-notes" label="Notes" value={values.notes} onChange={() => {}} />
+          )}
         </InterviewSection>
       </InterviewFlow>
 
@@ -1092,35 +1100,37 @@ export function HypertensionInterviewForm({
             Derived from {formatBloodPressure(todaysVitals)}:{' '}
             <span className="font-medium">{HYPERTENSION_LABELS[derivedClassification]}</span>
           </p>
-          <CheckboxQuestion
-            id="htn-classification-override"
-            label="Record a different classification"
-            checked={values.classificationOverridden}
-            onChange={(checked) => {
-              update('classificationOverridden', checked);
-              /*
+          <InterviewReadOnly readOnly={!canEdit}>
+            <CheckboxQuestion
+              id="htn-classification-override"
+              label="Record a different classification"
+              checked={values.classificationOverridden}
+              onChange={(checked) => {
+                update('classificationOverridden', checked);
+                /*
                 Seed the override from the derivation rather than from UNKNOWN.
 
                 A clinician ticking this box is disagreeing about a degree, not starting from
                 nothing, and defaulting to "Not classified" would make the safe first save a
                 deletion of the finding.
               */
-              if (checked && values.classification === 'UNKNOWN') {
-                update('classification', derivedClassification);
-              }
-            }}
-            disabled={shared.disabled}
-          />
-          {values.classificationOverridden ? (
-            <ChoiceQuestion
-              {...q('htn-classification')}
-              label="Classification"
-              value={values.classification}
-              onChange={(value) => update('classification', value)}
-              options={HYPERTENSION_CLASSIFICATIONS}
-              labels={HYPERTENSION_LABELS}
+                if (checked && values.classification === 'UNKNOWN') {
+                  update('classification', derivedClassification);
+                }
+              }}
+              disabled={shared.disabled}
             />
-          ) : null}
+            {values.classificationOverridden ? (
+              <ChoiceQuestion
+                {...q('htn-classification')}
+                label="Classification"
+                value={values.classification}
+                onChange={(value) => update('classification', value)}
+                options={HYPERTENSION_CLASSIFICATIONS}
+                labels={HYPERTENSION_LABELS}
+              />
+            ) : null}
+          </InterviewReadOnly>
           {/*
             The interview's save bar stays inside the interview, so the override carries its own.
             Same save as the bar: the classification is a field of the assessment.

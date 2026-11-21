@@ -9,7 +9,6 @@ import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
-import { InlineNotice } from '@/components/ops/OpsShared';
 import { InlineErrorState } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -33,7 +32,7 @@ import {
   type TobaccoScreeningRecord,
   type VitalsRecord,
 } from '@/lib/db';
-import { ArrowLeft, Check, ClipboardCheck, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardCheck, ListChecks, ShieldCheck } from 'lucide-react';
 import { PrescriptionPanel } from '@/components/patients/PrescriptionPanel';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { DiabetesHistoryPanel } from '@/components/patients/DiabetesHistoryPanel';
@@ -114,6 +113,8 @@ export default function EncounterDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  // The step this person just completed here, so the page can offer where to go next.
+  const [justDone, setJustDone] = useState<'submit' | 'review' | null>(null);
   const [activeTab, setActiveTab] = useState(
     searchParams.get('tab') === 'clinical-note' ? 'clinical-note' : 'vitals',
   );
@@ -278,6 +279,10 @@ export default function EncounterDetailPage() {
       const updated = (await res.json()) as EncounterDetail;
       setEncounter(updated);
       await fetchData();
+      if (endpoint !== 'finalize') setJustDone(endpoint);
+      if (endpoint === 'finalize') {
+        requestAnimationFrame(() => document.getElementById('encounter-next')?.focus());
+      }
       if (endpoint === 'review') {
         // The review band's button is gone; hand focus to what replaced it, the sign-off band.
         requestAnimationFrame(() => document.getElementById('encounter-signoff')?.focus());
@@ -344,13 +349,19 @@ export default function EncounterDetailPage() {
     <RouteGuard requiredPermission="ENCOUNTER.READ">
       <div className="min-w-0 space-y-6 [overflow-wrap:anywhere]">
         <header ref={headerRef} className={styles.header}>
-          <Link
-            className={styles.back}
-            href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}
-          >
-            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Back to patient
-          </Link>
+          <nav aria-label="Leave this encounter" className="flex flex-wrap gap-x-6">
+            <Link
+              className={styles.back}
+              href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Back to patient
+            </Link>
+            <Link className={styles.back} href="/queues">
+              <ListChecks className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Queues
+            </Link>
+          </nav>
           <div className={styles.identityRow}>
             <div className={styles.identity}>
               <p className="text-sm text-muted-foreground">Encounter</p>
@@ -415,6 +426,51 @@ export default function EncounterDetailPage() {
             description={error}
             onRetry={() => void fetchData()}
           />
+        ) : null}
+
+        {/* What next, once this person's part of the visit is done: back to the queue for the
+            next patient, or back to this one. Someone who can also take the next step (review,
+            sign-off) gets that band instead, since it is their next step. */}
+        {isFinalized ||
+        (justDone === 'submit' && !canReview) ||
+        (justDone === 'review' && !canFinalize) ? (
+          <section aria-labelledby="encounter-next" className={styles.review}>
+            <div className={styles.signoffText}>
+              <Check className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <div>
+                <h2
+                  id="encounter-next"
+                  tabIndex={-1}
+                  className="font-sans text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isFinalized
+                    ? 'Visit finalized'
+                    : justDone === 'submit'
+                      ? 'Sent for review'
+                      : 'Reviewed, waiting for sign-off'}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {isFinalized
+                    ? 'Every tab stays here to read. Nothing in it can be changed.'
+                    : 'Nothing more is needed from you on this visit.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex w-full flex-wrap gap-2 compact:w-auto">
+              <Button
+                variant="outline"
+                className="h-auto min-w-0 flex-1 whitespace-normal compact:flex-none"
+                asChild
+              >
+                <Link href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}>
+                  Back to patient
+                </Link>
+              </Button>
+              <Button className="h-auto min-w-0 flex-1 whitespace-normal compact:flex-none" asChild>
+                <Link href="/queues">Back to queues</Link>
+              </Button>
+            </div>
+          </section>
         ) : null}
 
         {/* The preceptor's decision leads, in the place sign-off takes once it is made. Routine, so
@@ -670,9 +726,6 @@ export default function EncounterDetailPage() {
 
         {isFinalized && (
           <div className="space-y-4">
-            <InlineNotice tone="info">
-              This encounter is finalized. Every clinical tab remains available in read-only mode.
-            </InlineNotice>
             {carePlan ? (
               <RecordSection aria-labelledby="finalized-care-plan">
                 <RecordSectionHeader>

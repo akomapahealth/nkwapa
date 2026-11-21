@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import {
   focusNextQuestion,
   isUnasked,
+  useInterviewReadOnly,
   useInterviewQuestion,
 } from '@/components/encounters/InterviewFlow';
 
@@ -105,6 +106,29 @@ function Ask({ id, ask }: { id: string; ask?: string }) {
       {ask}
     </p>
   ) : null;
+}
+
+/**
+ * A finished interview's answer: the field's short name, then what was recorded. The spoken
+ * question is left out, since the reader is the doctor, not the patient.
+ */
+function AnswerRow({ label, answer, empty }: { label: string; answer: string; empty: string }) {
+  return (
+    // Sized by its own width, not the viewport: forms put some questions two to a row.
+    <div className="[container-type:inline-size]">
+      <dl className="grid gap-x-6 gap-y-0.5 [@container(min-width:30rem)]:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+        <dt className="text-sm text-muted-foreground">{label}</dt>
+        <dd
+          className={cn(
+            'text-sm [overflow-wrap:anywhere]',
+            answer ? 'font-medium text-foreground' : 'text-muted-foreground',
+          )}
+        >
+          {answer || empty}
+        </dd>
+      </dl>
+    </div>
+  );
 }
 
 /** Answer sets up to this size render as one row of choices instead of a menu. */
@@ -274,6 +298,16 @@ export function ChoiceQuestion({
     display: labels[value] ?? value,
     invalid: Boolean(shell.error),
   });
+  const readOnly = useInterviewReadOnly();
+  if (readOnly) {
+    return (
+      <AnswerRow
+        label={shell.label}
+        answer={isUnasked(value) ? '' : (labels[value] ?? value)}
+        empty="Not asked"
+      />
+    );
+  }
   // Short vocabularies are read out and answered in one press; long ones stay a menu.
   const answerable = options.filter((option) => !isUnasked(option));
   if (answerable.length <= SEGMENTED_MAX) {
@@ -355,6 +389,7 @@ export function MultiChoiceQuestion({
     display: value.map((v) => labels[v] ?? v).join(', '),
     invalid: Boolean(shell.error),
   });
+  const readOnly = useInterviewReadOnly();
   // Where the trailing run of exclusive options starts (options.length when there is none).
   let tailStart = options.length;
   while (tailStart > 0 && (exclusive?.includes(options[tailStart - 1]) ?? false)) tailStart -= 1;
@@ -370,6 +405,16 @@ export function MultiChoiceQuestion({
     }
     onChange([...value.filter((entry) => !(exclusive?.includes(entry) ?? false)), option]);
   };
+
+  if (readOnly) {
+    return (
+      <AnswerRow
+        label={shell.label}
+        answer={value.map((v) => labels[v] ?? v).join(', ')}
+        empty="Not asked"
+      />
+    );
+  }
 
   return (
     <fieldset className="space-y-2" aria-describedby={describedBy({ ...shell, error: undefined })}>
@@ -451,6 +496,8 @@ export function NumberQuestion({
     display: value,
     invalid: Boolean(shell.error),
   });
+  const readOnly = useInterviewReadOnly();
+  if (readOnly) return <AnswerRow label={shell.label} answer={value.trim()} empty="Not recorded" />;
   return (
     <QuestionShell {...shell}>
       <Input
@@ -491,6 +538,8 @@ export function DateQuestion({
     display: value,
     invalid: Boolean(shell.error),
   });
+  const readOnly = useInterviewReadOnly();
+  if (readOnly) return <AnswerRow label={shell.label} answer={value.trim()} empty="Not recorded" />;
   return (
     <QuestionShell {...shell}>
       <Input
@@ -528,6 +577,8 @@ export function TextQuestion({
     display: value,
     invalid: Boolean(shell.error),
   });
+  const readOnly = useInterviewReadOnly();
+  if (readOnly) return <AnswerRow label={shell.label} answer={value.trim()} empty="Not recorded" />;
   return (
     <QuestionShell {...shell}>
       <Input
@@ -558,6 +609,9 @@ export function CheckboxQuestion({
   id: string;
   disabled?: boolean;
 }) {
+  const readOnly = useInterviewReadOnly();
+  // Read-only, only a ticked box says anything; an unticked one is noise beside its answer.
+  if (readOnly) return checked ? <p className="text-sm text-muted-foreground">{label}</p> : null;
   return (
     <div className="flex items-center gap-2">
       <Checkbox

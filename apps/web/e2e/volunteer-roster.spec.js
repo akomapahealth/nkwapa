@@ -91,8 +91,12 @@ test.describe('as a director', () => {
 
     await page.getByRole('button', { name: 'Add volunteers' }).click();
     const picker = page.getByRole('dialog');
-    await picker.getByLabel('Search by name or email').fill(`Roster ${run}`);
-    for (const person of people) await picker.getByLabel(new RegExp(person.name)).check();
+    // One search per person: a tick has to survive the next search hiding it.
+    for (const person of people) {
+      await picker.getByLabel('Search by name or email').fill(person.name);
+      await picker.getByLabel(new RegExp(person.name)).check();
+    }
+    await expect(picker.getByText('Also selected:')).toBeVisible();
     await picker.getByRole('button', { name: /^Add 2/ }).click();
     await expect(picker).toBeHidden();
 
