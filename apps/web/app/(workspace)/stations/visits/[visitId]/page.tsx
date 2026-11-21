@@ -426,6 +426,7 @@ export default function StationVisitPage() {
                     }))
                   )
                     return;
+                  let handedTo = '';
                   void run(
                     async () => {
                       // The next station reads what this one recorded, so it must reach the
@@ -436,7 +437,7 @@ export default function StationVisitPage() {
                           'Some readings have not reached the server yet. Check the sync status, then hand the patient on.',
                         );
                       }
-                      return completeStationVisit(
+                      const result = await completeStationVisit(
                         clinicId,
                         visit.id,
                         // Sent, not inferred, so the stamp is what the banner showed (#227).
@@ -445,8 +446,14 @@ export default function StationVisitPage() {
                           : body,
                         getToken!,
                       );
+                      handedTo = result.sessionCompleted
+                        ? 'done'
+                        : (stations.find((station) => station.id === result.nextStationId)?.name ??
+                          '');
                     },
-                    () => router.push('/stations'),
+                    // The queue says where the patient went, with the next patient one tap away.
+                    // Only the station name rides in the URL; never the patient's.
+                    () => router.push(`/stations?sent=${encodeURIComponent(handedTo)}`),
                   );
                 }}
                 onRelease={(reason) =>

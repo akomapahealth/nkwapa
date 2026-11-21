@@ -129,7 +129,7 @@ export interface CompleteVisitResult {
 }
 
 /** How often an open station screen re-reads the line. Polling, not push, in v1. */
-export const STATION_POLL_MS = 12_000;
+export const STATION_POLL_MS = 6_000;
 
 /** A failed station request, with the server's code so the screen can say what happened. */
 export class StationRequestError extends Error {
@@ -493,6 +493,15 @@ export const moveCheckIn = (
     `/checkins/${encodeURIComponent(checkInId)}/move`,
     getToken,
     { method: 'POST', body: { stationId, reason } },
+  );
+
+/** "End clinic day": closes everyone still in the line as clinic closed (not left). */
+export const closeClinicDay = (clinicId: string, date: string, getToken: GetToken) =>
+  request<{ date: string; closed: number }>(
+    clinicId,
+    `/stations/day/close?date=${encodeURIComponent(date)}`,
+    getToken,
+    { method: 'POST' },
   );
 
 export const cancelCheckIn = (

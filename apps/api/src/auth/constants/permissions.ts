@@ -262,8 +262,22 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.CLINICAL_NOTE_STATUS_READ,
     PERMISSIONS.CHAT_SEND,
     PERMISSIONS.CHAT_READ,
-    // Managers arrange onward care; signed notes stay out, as they need a clinical seat.
+    // Managers arrange onward care; co-signing and addenda stay with doctors.
     PERMISSIONS.REFERRAL_REPORT_EXPORT,
+    // Managers work patients at stations like volunteers and review like doctors (pilot feedback,
+    // 2026-11-21): a short-staffed clinic day needs every clinician on the line.
+    PERMISSIONS.OPS_ASSIGNMENT_READ_SELF,
+    PERMISSIONS.SCREENING_WRITE,
+    PERMISSIONS.CONSENT_RECORD,
+    PERMISSIONS.CLINICAL_NOTE_READ,
+    PERMISSIONS.CLINICAL_NOTE_WRITE,
+    PERMISSIONS.COUNSELLING_READ,
+    PERMISSIONS.COUNSELLING_WRITE,
+    PERMISSIONS.MEDICAL_HISTORY_WRITE,
+    PERMISSIONS.MEDICATION_RECONCILIATION_WRITE,
+    PERMISSIONS.REMINDER_CREATE,
+    PERMISSIONS.ENCOUNTER_REVIEW,
+    PERMISSIONS.DOCTOR_FINALIZE,
   ],
   [UserRole.DOCTOR]: [
     PERMISSIONS.PATIENT_READ,

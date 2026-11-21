@@ -21,6 +21,7 @@ import { lockForTransaction } from '../prisma/transaction-lock';
 import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { createDraftEncounter } from './draft-encounter';
+import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 import { computeStationMetrics } from './station-metrics';
 import type {
   CompleteStationVisitDto,
@@ -39,6 +40,12 @@ export type ShiftScreener = {
   screenerName: string | null;
   screenerVolunteerContactId: string | null;
 };
+
+/** The visit end reason for a patient still in the line when the clinic day was closed. */
+export const CLINIC_CLOSED_REASON = 'CLINIC_CLOSED';
+
+/** A check-in whose patient has not yet finished or left. */
+const OPEN_CHECK_IN_STATUSES = ['WAITING', 'ASSIGNED', 'IN_PROGRESS'] as const;
 
 /** A visit a patient is still waiting at or being seen in. At most one per check-in (SQL). */
 const OPEN_VISIT_STATUSES: StationVisitStatus[] = ['QUEUED', 'IN_PROGRESS'];
@@ -655,6 +662,25 @@ export class StationService {
   }
 
   /**
+   * "Register and start": the person who just checked a patient in takes them at once, when their
+   * shift is at the station the patient was queued at. Otherwise the patient waits in the line.
+   */
+  async claimIfAtStation(
+    tx: TxClient,
+    clinicId: string,
+    visit: { id: string; stationId: string },
+    userId: string,
+    context: StationWriteContext = {},
+  ) {
+    const shift = await tx.staffShift.findFirst({
+      where: { clinicId, userId, status: 'ACTIVE' },
+      select: { stationId: true },
+    });
+    if (!shift || shift.stationId !== visit.stationId) return null;
+    return this.claimInTx(tx, clinicId, visit.id, userId, userId, context);
+  }
+
+  /**
    * Take the patient at this station.
    *
    * The update only applies while the visit is still QUEUED, which is the whole race: the second
@@ -1003,6 +1029,80 @@ export class StationService {
   }
 
   /**
+   * The clinic day is over: everyone still in the line is closed out, so nobody sits in the
+   * review queue overnight. The check-in ends COMPLETED (they were not "Left"), the open visit
+   * ends CANCELLED with `CLINIC_CLOSED`, and the encounter is untouched so a doctor can still
+   * review it.
+   */
+  async closeClinicDay(
+    clinicId: string,
+    actor: StationActor,
+    date?: string,
+    context: StationWriteContext = {},
+  ) {
+    if (!actor.canManage) {
+      throw new ForbiddenException('Only a manager can close the clinic day');
+    }
+    const day = await this.dayWindow(clinicId, date);
+    const closed = await this.prisma.$transaction((tx) =>
+      this.closeOpenCheckIns(tx, clinicId, { gte: day.start, lte: day.end }, actor.userId, context),
+    );
+    return { date: day.date, closed };
+  }
+
+  /**
+   * The overnight sweep's half of `closeClinicDay`: every clinic's check-ins and shifts from
+   * before its own today, in its own time zone, for a day nobody closed by hand.
+   */
+  async closeStaleClinicDays(tx: TxClient) {
+    const clinics = await tx.clinic.findMany({ select: { id: true, timezone: true } });
+    let checkIns = 0;
+    let shifts = 0;
+    for (const clinic of clinics) {
+      const today = clinicDayWindow(null, clinic.timezone ?? CLINIC_DEFAULT_TIMEZONE);
+      checkIns += await this.closeOpenCheckIns(
+        tx,
+        clinic.id,
+        { lt: today.start },
+        SYSTEM_ACTOR_USER_ID,
+        {},
+      );
+      const stale = await tx.staffShift.findMany({
+        where: { clinicId: clinic.id, status: 'ACTIVE', checkedInAt: { lt: today.start } },
+        select: { id: true },
+      });
+      for (const shift of stale) {
+        // Nobody is held any more: the check-ins above closed every open visit of those days.
+        await tx.staffShift.update({
+          where: { id: shift.id },
+          data: {
+            status: 'CLOSED',
+            checkedOutAt: new Date(),
+            stationId: null,
+            screenerIsAccountHolder: true,
+            screenerName: null,
+            screenerVolunteerContactId: null,
+          },
+        });
+        await this.audit(
+          tx,
+          clinic.id,
+          SYSTEM_ACTOR_USER_ID,
+          {},
+          {
+            action: 'SHIFT.CHECKOUT',
+            entityType: 'StaffShift',
+            entityId: shift.id,
+            afterJson: JSON.stringify({ status: 'CLOSED', reason: CLINIC_CLOSED_REASON }),
+          },
+        );
+      }
+      shifts += stale.length;
+    }
+    return { checkIns, shifts };
+  }
+
+  /**
    * A volunteer ending their shift hands back anyone they were holding, so a patient is never
    * left claimed by someone who has gone home. Called inside the check-out transaction.
    */
@@ -1184,6 +1284,38 @@ export class StationService {
       beforeJson: JSON.stringify({ status: visit.patientCheckIn.status }),
       afterJson: JSON.stringify({ status: 'COMPLETED' }),
     });
+  }
+
+  private async closeOpenCheckIns(
+    tx: TxClient,
+    clinicId: string,
+    checkedInAt: Prisma.DateTimeFilter,
+    actorUserId: string,
+    context: StationWriteContext,
+  ) {
+    const open = await tx.patientCheckIn.findMany({
+      where: { clinicId, checkedInAt, status: { in: [...OPEN_CHECK_IN_STATUSES] } },
+      select: { id: true, status: true },
+    });
+    for (const checkIn of open) {
+      await this.cancelOpenVisit(
+        tx,
+        clinicId,
+        checkIn.id,
+        actorUserId,
+        CLINIC_CLOSED_REASON,
+        context,
+      );
+      await tx.patientCheckIn.update({ where: { id: checkIn.id }, data: { status: 'COMPLETED' } });
+      await this.audit(tx, clinicId, actorUserId, context, {
+        action: 'CHECKIN.CLINIC_CLOSE',
+        entityType: 'PatientCheckIn',
+        entityId: checkIn.id,
+        beforeJson: JSON.stringify({ status: checkIn.status }),
+        afterJson: JSON.stringify({ status: 'COMPLETED', reason: CLINIC_CLOSED_REASON }),
+      });
+    }
+    return open.length;
   }
 
   private async cancelOpenVisit(

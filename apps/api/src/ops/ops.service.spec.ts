@@ -237,7 +237,11 @@ describe('OpsService', () => {
   let service: OpsService;
   let prisma: ReturnType<typeof createPrismaMock>;
   let auditService: { logWrite: jest.Mock };
-  let stationService: { queueAtFirstStation: jest.Mock; releaseForShiftEnd: jest.Mock };
+  let stationService: {
+    queueAtFirstStation: jest.Mock;
+    releaseForShiftEnd: jest.Mock;
+    claimIfAtStation: jest.Mock;
+  };
   const originalStationFlag = process.env.FEATURE_STATION_WORKFLOW_ENABLED;
 
   beforeEach(async () => {
@@ -247,6 +251,7 @@ describe('OpsService', () => {
     stationService = {
       queueAtFirstStation: jest.fn().mockResolvedValue({ id: 'visit-1' }),
       releaseForShiftEnd: jest.fn().mockResolvedValue(0),
+      claimIfAtStation: jest.fn().mockResolvedValue({ id: 'visit-1' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -280,6 +285,25 @@ describe('OpsService', () => {
         expect.objectContaining({ clinicId: 'clinic-1', checkInId: 'checkin-1' }),
         expect.anything(),
       );
+    });
+
+    it('hands the registering volunteer the patient when they ask to start now', async () => {
+      const plain = await service.createCheckIn('clinic-1', 'user-1', { patientId: 'patient-1' });
+      expect(stationService.claimIfAtStation).not.toHaveBeenCalled();
+      expect(plain).toMatchObject({ startedVisitId: null });
+
+      const started = await service.createCheckIn('clinic-1', 'user-1', {
+        patientId: 'patient-2',
+        startNow: true,
+      });
+      expect(stationService.claimIfAtStation).toHaveBeenCalledWith(
+        prisma,
+        'clinic-1',
+        { id: 'visit-1' },
+        'user-1',
+        expect.anything(),
+      );
+      expect(started).toMatchObject({ startedVisitId: 'visit-1' });
     });
 
     it('refuses manager assignment and assigned intake', async () => {

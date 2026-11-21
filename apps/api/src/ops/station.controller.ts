@@ -348,6 +348,24 @@ export class StationController {
     );
   }
 
+  /** "End clinic day": everyone still in the line is closed out as CLINIC_CLOSED. */
+  @Post('stations/day/close')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  closeDay(
+    @Param('clinicId') clinicId: string,
+    @Query() query: StationDayQueryDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.stationService.closeClinicDay(
+      clinicId,
+      this.actor(req, clinicId),
+      query.date,
+      this.ctx(req),
+    );
+  }
+
   private actor(req: StationRequest, clinicId: string): StationActor {
     return {
       userId: req.user.user.id,

@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { readApiError } from '@/lib/ops';
+import { hasPermission, readApiError } from '@/lib/ops';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { generateClientId } from '@/lib/outbox';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { apiFetch, type GetToken } from '@/lib/api';
@@ -111,6 +114,12 @@ export function RegisterPatientScreen({
   }, []);
   const router = useRouter();
   const { isOnline } = useSync();
+  const permissions = useBootstrap()?.bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  // Registration is the first station: whoever registers can take the patient straight in.
+  const canStart =
+    isWebFeatureEnabled('stationWorkflow') &&
+    hasPermission(permissions, 'OPS.CHECKIN.CREATE') &&
+    hasPermission(permissions, 'OPS.STATION.WORK');
   const validation = usePatientFormErrors();
   const registryHref = `/clinics/${clinicId}/patients`;
   const [form, setForm] = useState<CreatePatientBody>({
@@ -136,6 +145,8 @@ export function RegisterPatientScreen({
     if (!clinicId || !getToken || submitting.current) {
       return;
     }
+    const startNow =
+      canStart && (event.nativeEvent as SubmitEvent).submitter?.getAttribute('name') === 'start';
     const locationError = residentialLocationError(location);
     if (locationError) {
       setError(locationError);
@@ -188,6 +199,23 @@ export function RegisterPatientScreen({
       }
 
       const patient = (await response.json()) as { id: string };
+      if (startNow) {
+        // The chart exists either way; if this fails, the chart's own check-in button still works.
+        const checkIn = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/checkins`, {
+          method: 'POST',
+          body: JSON.stringify({ id: generateClientId(), patientId: patient.id, startNow: true }),
+          getToken,
+          activeClinicId: clinicId,
+        }).catch(() => null);
+        const started = checkIn?.ok
+          ? ((await checkIn.json()) as { startedVisitId?: string | null }).startedVisitId
+          : null;
+        if (started) {
+          router.push(`/stations/visits/${started}`);
+          leaving = true;
+          return;
+        }
+      }
       router.push(`/clinics/${clinicId}/patients/${patient.id}`);
       leaving = true;
     } catch (requestError) {
@@ -492,9 +520,19 @@ export function RegisterPatientScreen({
             <Button variant="outline" asChild>
               <Link href={registryHref}>Cancel</Link>
             </Button>
-            <Button type="submit" disabled={loading} aria-busy={loading || undefined}>
+            <Button
+              type="submit"
+              variant={canStart ? 'outline' : undefined}
+              disabled={loading}
+              aria-busy={loading || undefined}
+            >
               {loading ? 'Creating...' : 'Create patient'}
             </Button>
+            {canStart ? (
+              <Button type="submit" name="start" disabled={loading}>
+                Register and start
+              </Button>
+            ) : null}
           </div>
         </form>
       </div>

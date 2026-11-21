@@ -1,5 +1,13 @@
 import { AssignmentStatus, CheckInSource, CheckInStatus, ShiftRole } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { ToSanitizedString } from '../../common/validation';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -50,6 +58,14 @@ export class CreatePatientCheckInDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  /**
+   * "Register and start": when the caller's shift is at the first station, they take the patient
+   * at once instead of finding them in the queue. Ignored otherwise.
+   */
+  @IsOptional()
+  @IsBoolean()
+  startNow?: boolean;
 }
 
 export class ListCheckInsQueryDto {

@@ -32,6 +32,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'MEDICATION_RECONCILIATION.READ',
     'PATIENT.SELF_REPORT.READ',
     'CLINICAL_NOTE.STATUS.READ',
+    'CLINICAL_NOTE.READ',
+    'CONSENT.RECORD',
   ],
   DOCTOR: [
     'PATIENT.READ',
@@ -108,11 +110,11 @@ describe('patient chart tab registry', () => {
       ]);
     });
 
-    it.each(['DOCTOR', 'VOLUNTEER'])('shows the notes tab to a %s', (role) => {
+    it.each(['DOCTOR', 'VOLUNTEER', 'MANAGER'])('shows the notes tab to a %s', (role) => {
       expect(sectionIdsFor(role)).toContain('notes');
     });
 
-    it.each(['DIRECTOR', 'MANAGER'])('hides the notes tab from a %s', (role) => {
+    it.each(['DIRECTOR'])('hides the notes tab from a %s', (role) => {
       expect(sectionIdsFor(role)).not.toContain('notes');
     });
 
@@ -156,7 +158,7 @@ describe('patient chart tab registry', () => {
     });
 
     it('never adds a section the client did not already allow', () => {
-      const local = getAccessibleChartSections(ROLE_PERMISSIONS.MANAGER);
+      const local = getAccessibleChartSections(ROLE_PERMISSIONS.DIRECTOR);
       const reconciled = reconcileChartSections(local, [
         'notes' as PatientChartSectionId,
         'overview',
@@ -178,8 +180,8 @@ describe('patient chart tab registry', () => {
     });
 
     it('falls back to overview for a tab the role cannot open', () => {
-      const managerSections = getAccessibleChartSections(ROLE_PERMISSIONS.MANAGER);
-      expect(resolveChartTab('notes', managerSections)).toBe('overview');
+      const directorSections = getAccessibleChartSections(ROLE_PERMISSIONS.DIRECTOR);
+      expect(resolveChartTab('notes', directorSections)).toBe('overview');
     });
 
     it('falls back for unknown and legacy tab names', () => {
