@@ -578,11 +578,13 @@ export function InterviewSection({
             {description}
           </p>
         ) : null}
-        {/* Read-only: two-up rows go single column so answers line up, and wrappers left empty by a hidden control take no space. */}
+        {/* Read-only, the answers read as one even list: two-up rows go single column, the
+            forms' own question gaps shrink to the list's, and wrappers left empty by a hidden
+            control take no space. */}
         <div
           className={
             showAll
-              ? 'mt-3 space-y-3 [&_div.grid]:!grid-cols-1 [&_div.grid]:gap-3 [&_div:empty]:hidden'
+              ? 'mt-3 space-y-3 [&_div.grid]:!grid-cols-1 [&_div.grid]:gap-3 [&_div:empty]:hidden [&_.space-y-6>*+*]:!mt-3 [&_.space-y-4>*+*]:!mt-3'
               : 'mt-5 space-y-6'
           }
         >
