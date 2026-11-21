@@ -457,12 +457,16 @@ export default function EncounterDetailPage() {
               </div>
             </div>
             <div className="flex w-full flex-wrap gap-2 compact:w-auto">
-              <Button variant="outline" className="flex-1 compact:flex-none" asChild>
+              <Button
+                variant="outline"
+                className="h-auto min-w-0 flex-1 whitespace-normal compact:flex-none"
+                asChild
+              >
                 <Link href={`/clinics/${encounter.clinicId}/patients/${encounter.patientId}`}>
                   Back to patient
                 </Link>
               </Button>
-              <Button className="flex-1 compact:flex-none" asChild>
+              <Button className="h-auto min-w-0 flex-1 whitespace-normal compact:flex-none" asChild>
                 <Link href="/queues">Back to queues</Link>
               </Button>
             </div>
