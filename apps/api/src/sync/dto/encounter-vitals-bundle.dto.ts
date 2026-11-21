@@ -64,6 +64,15 @@ export class VitalsInputDto {
   @Max(200, { each: true })
   bpDiastolicReadings?: number[] | null;
 
+  /** One pulse per BP reading, or none; `pulseBpm` must be their average. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(BP_MAX_READINGS)
+  @IsInt({ each: true })
+  @Min(20, { each: true })
+  @Max(300, { each: true })
+  pulseReadings?: number[] | null;
+
   @IsOptional()
   @IsEnum(BloodPressureSite)
   bpSite?: BloodPressureSite | null;

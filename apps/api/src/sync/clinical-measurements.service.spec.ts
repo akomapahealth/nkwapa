@@ -135,6 +135,34 @@ describe('ClinicalMeasurementsService', () => {
       },
     ],
     [
+      'a pulse that is not the average of the pulse readings',
+      {
+        vitals: {
+          systolicBp: 139,
+          diastolicBp: 89,
+          bpSystolicReadings: [150, 140, 138],
+          bpDiastolicReadings: [95, 90, 88],
+          pulseReadings: [90, 80, 78],
+          pulseBpm: 83,
+          bpSite: BloodPressureSite.LEFT_ARM,
+        },
+      },
+    ],
+    [
+      'pulse for only some readings',
+      {
+        vitals: {
+          systolicBp: 139,
+          diastolicBp: 89,
+          bpSystolicReadings: [150, 140, 138],
+          bpDiastolicReadings: [95, 90, 88],
+          pulseReadings: [80, 78],
+          pulseBpm: 79,
+          bpSite: BloodPressureSite.LEFT_ARM,
+        },
+      },
+    ],
+    [
       'readings without a partner',
       {
         vitals: {
@@ -162,6 +190,8 @@ describe('ClinicalMeasurementsService', () => {
           diastolicBp: 89,
           bpSystolicReadings: [150, 140, 138],
           bpDiastolicReadings: [95, 90, 88],
+          pulseReadings: [90, 80, 78],
+          pulseBpm: 79,
           bpSite: BloodPressureSite.LEFT_ARM,
         },
       }),
@@ -171,6 +201,8 @@ describe('ClinicalMeasurementsService', () => {
       diastolicBp: 89,
       bpSystolicReadings: [150, 140, 138],
       bpDiastolicReadings: [95, 90, 88],
+      pulseReadings: [90, 80, 78],
+      pulseBpm: 79,
     });
   });
 
@@ -484,6 +516,9 @@ describe('ClinicalMeasurementsService', () => {
         // A single reading clears any earlier sitting's readings.
         bpSystolicReadings: [],
         bpDiastolicReadings: [],
+        // Pulse is taken with the BP since 2026-11-21.
+        pulseBpm: null,
+        pulseReadings: [],
         bpSite: BloodPressureSite.LEFT_ARM,
         bpSiteOther: null,
         patientPosition: null,

@@ -50,7 +50,7 @@ export type VitalsFormValues = {
   systolicBp: string;
   diastolicBp: string;
   /** Several readings at one sitting; systolicBp/diastolicBp are then their average. */
-  bpReadings?: Array<{ systolic: number; diastolic: number }>;
+  bpReadings?: Array<{ systolic: number; diastolic: number; pulse?: number }>;
   bpSite: string;
   bpSiteOther: string;
   patientPosition: string;
@@ -252,6 +252,10 @@ export async function saveClinicalMeasurementsOffline(params: {
   const baseUpdatedAt = baseVersion(params.existingVitals);
   // One reading is sent as the BP fields alone; the server refuses a single-item list.
   const readings = (params.vitals.bpReadings?.length ?? 0) >= 2 ? params.vitals.bpReadings! : [];
+  // The server takes a pulse for every reading or none, so a partial set is not sent.
+  const pulseReadings = readings.every((reading) => reading.pulse != null)
+    ? readings.map((reading) => reading.pulse!)
+    : [];
   const fullVitalsRecord: VitalsRecord = {
     id: params.vitalsId,
     clinicId: params.clinicId,
@@ -260,6 +264,7 @@ export async function saveClinicalMeasurementsOffline(params: {
     diastolicBp: optionalNumber(params.vitals.diastolicBp) ?? undefined,
     bpSystolicReadings: readings.map((reading) => reading.systolic),
     bpDiastolicReadings: readings.map((reading) => reading.diastolic),
+    pulseReadings,
     bpSite: params.vitals.bpSite || undefined,
     bpSiteOther: params.vitals.bpSiteOther.trim() || undefined,
     patientPosition: params.vitals.patientPosition || undefined,
@@ -302,6 +307,7 @@ export async function saveClinicalMeasurementsOffline(params: {
     diastolicBp: optionalNumber(params.vitals.diastolicBp),
     bpSystolicReadings: readings.map((reading) => reading.systolic),
     bpDiastolicReadings: readings.map((reading) => reading.diastolic),
+    pulseReadings,
     bpSite: params.vitals.bpSite || null,
     bpSiteOther: params.vitals.bpSiteOther.trim() || null,
     patientPosition: params.vitals.patientPosition || null,

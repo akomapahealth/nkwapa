@@ -14,21 +14,29 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export type BpReading = { systolic: number; diastolic: number };
+export type BpReading = { systolic: number; diastolic: number; pulse?: number };
+type BpAverage = { systolic: number; diastolic: number; pulse: number | null };
 
-type Row = { systolic: string; diastolic: string };
+type Row = { systolic: string; diastolic: string; pulse: string };
 
 const blankRows = (): Row[] =>
-  Array.from({ length: BP_MAX_READINGS }, () => ({ systolic: '', diastolic: '' }));
+  Array.from({ length: BP_MAX_READINGS }, () => ({ systolic: '', diastolic: '', pulse: '' }));
 
-/** A row counts once both numbers are plausible and systolic is above diastolic. */
+/**
+ * A row counts once both BP numbers are plausible and systolic is above diastolic. Pulse is
+ * optional, but a pulse typed out of range holds the row back rather than being dropped.
+ */
 function toReading(row: Row): BpReading | null {
   const systolic = Number(row.systolic);
   const diastolic = Number(row.diastolic);
   if (!row.systolic || !row.diastolic) return null;
   if (!Number.isInteger(systolic) || !Number.isInteger(diastolic)) return null;
   if (systolic < 40 || systolic > 300 || diastolic < 20 || diastolic > 200) return null;
-  return systolic > diastolic ? { systolic, diastolic } : null;
+  if (systolic <= diastolic) return null;
+  if (!row.pulse) return { systolic, diastolic };
+  const pulse = Number(row.pulse);
+  if (!Number.isInteger(pulse) || pulse < 20 || pulse > 300) return null;
+  return { systolic, diastolic, pulse };
 }
 
 /**
@@ -46,7 +54,7 @@ export function BpReadingsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: BpReading[];
-  onUse: (readings: BpReading[], average: BpReading) => void;
+  onUse: (readings: BpReading[], average: BpAverage) => void;
 }) {
   const [rows, setRows] = useState<Row[]>(blankRows);
   const [seeded, setSeeded] = useState(false);
@@ -59,6 +67,7 @@ export function BpReadingsDialog({
           ? {
               systolic: String(initial[index].systolic),
               diastolic: String(initial[index].diastolic),
+              pulse: initial[index].pulse != null ? String(initial[index].pulse) : '',
             }
           : blank,
       ),
@@ -85,12 +94,13 @@ export function BpReadingsDialog({
           <DialogTitle>Take several readings</DialogTitle>
           <DialogDescription>
             Seat the patient, then take two or three readings about a minute apart. With three, the
-            first is left out because it usually runs high.
+            first is left out because it usually runs high. Add the pulse the cuff shows, if it
+            shows one.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {rows.map((row, index) => (
-            <fieldset key={index} className="grid grid-cols-2 gap-3">
+            <fieldset key={index} className="grid grid-cols-3 gap-3">
               <legend className="mb-1 text-sm font-medium">
                 Reading {index + 1}
                 {index === BP_MAX_READINGS - 1 ? ' (optional)' : ''}
@@ -115,13 +125,23 @@ export function BpReadingsDialog({
                   onChange={(event) => update(index, 'diastolic', event.target.value)}
                 />
               </div>
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label htmlFor={`bp-reading-${index}-pulse`}>Pulse (bpm)</Label>
+                <Input
+                  id={`bp-reading-${index}-pulse`}
+                  type="number"
+                  inputMode="numeric"
+                  value={row.pulse}
+                  onChange={(event) => update(index, 'pulse', event.target.value)}
+                />
+              </div>
             </fieldset>
           ))}
           <p className="text-sm" aria-live="polite" data-testid="bp-readings-average">
             {average
               ? `Average used: ${average.systolic}/${average.diastolic} mmHg${
-                  readings.length >= 3 ? ' (readings 2 and 3)' : ''
-                }`
+                  average.pulse != null ? `, pulse ${average.pulse} bpm` : ''
+                }${readings.length >= 3 ? ' (readings 2 and 3)' : ''}`
               : 'Enter at least two complete readings to see the average.'}
           </p>
         </div>

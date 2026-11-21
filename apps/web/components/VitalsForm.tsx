@@ -111,6 +111,7 @@ function initialVitals(
     bpReadings: (data?.bpSystolicReadings ?? []).map((systolic, index) => ({
       systolic,
       diastolic: data?.bpDiastolicReadings?.[index] ?? 0,
+      ...(data?.pulseReadings?.[index] != null ? { pulse: data.pulseReadings[index] } : {}),
     })),
     bpSite: data?.bpSite ?? '',
     bpSiteOther: data?.bpSiteOther ?? '',
@@ -260,13 +261,13 @@ function ReadOnlyMeasurements({
         ['Site', displayValue(vitals?.bpSiteOther || vitals?.bpSite)],
         ['Position', displayValue(vitals?.patientPositionOther || vitals?.patientPosition)],
         ['Cuff size', displayValue(vitals?.cuffSizeOther || vitals?.cuffSize)],
+        ['Pulse', displayValue(vitals?.pulseBpm ?? vitals?.heartRate, ' bpm')],
       ],
     },
     {
       title: 'Other measurements',
       icon: Thermometer,
       rows: [
-        ['Pulse', displayValue(vitals?.pulseBpm ?? vitals?.heartRate, ' bpm')],
         ['Temperature', displayValue(vitals?.temperatureCelsius, ' °C')],
         [
           'Temperature source',
@@ -354,8 +355,8 @@ function ReadOnlyMeasurements({
 const MEASUREMENT_FIELD_ORDER = [
   'systolicBp',
   'diastolicBp',
-  'bloodPressureContext',
   'pulseBpm',
+  'bloodPressureContext',
   'respiratoryRate',
   'spo2',
   'temperature',
@@ -470,6 +471,15 @@ export function VitalsForm({
       [field]: value,
       // A BP typed over the average is a single reading again, so the readings no longer apply.
       ...(field === 'systolicBp' || field === 'diastolicBp' ? { bpReadings: [] } : {}),
+      // A pulse typed over the average drops the per-reading pulses, which no longer match it.
+      ...(field === 'pulseBpm'
+        ? {
+            bpReadings: current.bpReadings?.map(({ systolic, diastolic }) => ({
+              systolic,
+              diastolic,
+            })),
+          }
+        : {}),
     }));
     setErrors((current) => {
       const next = { ...current };
@@ -682,6 +692,7 @@ export function VitalsForm({
               <div className={styles.pressure}>
                 {numberField('systolicBp', 'Systolic BP (mmHg)')}
                 {numberField('diastolicBp', 'Diastolic BP (mmHg)')}
+                {numberField('pulseBpm', 'Pulse (bpm)')}
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Button type="button" variant="outline" onClick={() => setReadingsOpen(true)}>
@@ -691,7 +702,10 @@ export function VitalsForm({
                   <p className="text-sm text-muted-foreground" data-testid="bp-readings-summary">
                     Average of{' '}
                     {vitals.bpReadings
-                      .map((reading) => `${reading.systolic}/${reading.diastolic}`)
+                      .map(
+                        (reading) =>
+                          `${reading.systolic}/${reading.diastolic}${reading.pulse != null ? ` (pulse ${reading.pulse})` : ''}`,
+                      )
                       .join(', ')}
                   </p>
                 ) : null}
@@ -705,12 +719,15 @@ export function VitalsForm({
                     ...current,
                     systolicBp: String(average.systolic),
                     diastolicBp: String(average.diastolic),
+                    // Without a pulse on each reading used, a pulse already typed is kept.
+                    pulseBpm: average.pulse != null ? String(average.pulse) : current.pulseBpm,
                     bpReadings: readings,
                   }));
                   setErrors((current) => {
                     const next = { ...current };
                     delete next.systolicBp;
                     delete next.diastolicBp;
+                    if (average.pulse != null) delete next.pulseBpm;
                     return next;
                   });
                   setStatus(null);
@@ -807,10 +824,9 @@ export function VitalsForm({
               <SectionHeading
                 icon={Thermometer}
                 title="Other measurements"
-                description="Capture pulse, breathing, oxygen saturation, and temperature."
+                description="Capture breathing, oxygen saturation, and temperature."
               />
               <div className={styles.fields}>
-                {numberField('pulseBpm', 'Pulse (bpm)')}
                 {numberField('respiratoryRate', 'Respiratory rate (/min)')}
                 {numberField('spo2Percent', 'SpO₂ (%)')}
                 <div className="flex min-w-0 flex-col gap-2">

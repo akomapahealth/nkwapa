@@ -1655,6 +1655,8 @@ model Vitals {
   /// The 2-3 readings of one sitting, in the order taken; empty when a single reading was taken.
   bpSystolicReadings  Int[]              @default([])
   bpDiastolicReadings Int[]              @default([])
+  /// The pulse of each of those readings; empty, or one per BP reading. pulseBpm holds their average.
+  pulseReadings       Int[]              @default([])
   bpSite              BloodPressureSite?
   bpSiteOther         String?            @db.VarChar(120)
 

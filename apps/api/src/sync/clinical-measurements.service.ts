@@ -48,6 +48,7 @@ type NormalizedVitals = {
   diastolicBp: number | null;
   bpSystolicReadings: number[];
   bpDiastolicReadings: number[];
+  pulseReadings: number[];
   bpSite: BloodPressureSite | null;
   bpSiteOther: string | null;
   patientPosition: PatientPosition | null;
@@ -438,6 +439,25 @@ export class ClinicalMeasurementsService {
     if (input.pulseBpm != null && input.heartRate != null && input.pulseBpm !== input.heartRate) {
       this.throwFieldError('vitals.pulseBpm', 'pulseBpm and legacy heartRate cannot conflict');
     }
+    const pulseReadings = input.pulseReadings ?? [];
+    if (pulseReadings.length && pulseReadings.length !== bpSystolicReadings.length) {
+      this.throwFieldError('vitals.pulseReadings', 'Give a pulse for every reading, or none');
+    }
+    if (pulseReadings.length) {
+      const average = averageBpReadings(
+        bpSystolicReadings.map((systolic, index) => ({
+          systolic,
+          diastolic: bpDiastolicReadings[index],
+          pulse: pulseReadings[index],
+        })),
+      )!;
+      if (average.pulse !== pulseBpm) {
+        this.throwFieldError(
+          'vitals.pulseBpm',
+          `Pulse must be the average of the readings (${average.pulse})`,
+        );
+      }
+    }
 
     const hasTemperature = input.temperatureValue != null;
     if (
@@ -461,6 +481,7 @@ export class ClinicalMeasurementsService {
       diastolicBp,
       bpSystolicReadings,
       bpDiastolicReadings,
+      pulseReadings,
       bpSite,
       bpSiteOther: this.normalizeOther('vitals.bpSiteOther', bpSite, input.bpSiteOther),
       patientPosition,

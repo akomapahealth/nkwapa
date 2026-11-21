@@ -223,6 +223,10 @@ export const RESEARCH_FIELD_DECISIONS: Record<
       disposition: 'EXCLUDED_OPERATIONAL',
       reason: 'The readings behind the exported average, which is the measure analyses use.',
     },
+    pulseReadings: {
+      disposition: 'EXCLUDED_OPERATIONAL',
+      reason: 'The readings behind the exported average pulse, which is the measure analyses use.',
+    },
     bpSite: EXPORTED('Measurement context needed to interpret the reading.'),
     bpSiteOther: FREE_TEXT,
     patientPosition: EXPORTED('Measurement context needed to interpret the reading.'),

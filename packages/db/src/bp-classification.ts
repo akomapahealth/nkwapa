@@ -49,15 +49,18 @@ export const BP_MAX_READINGS = 3;
  * mmHg, as a cuff reads. A single reading is returned as it is; none returns null.
  */
 export function averageBpReadings(
-  readings: ReadonlyArray<{ systolic: number; diastolic: number }>,
-): { systolic: number; diastolic: number } | null {
+  readings: ReadonlyArray<{ systolic: number; diastolic: number; pulse?: number | null }>,
+): { systolic: number; diastolic: number; pulse: number | null } | null {
   if (readings.length === 0) return null;
   const used = readings.length >= 3 ? readings.slice(-2) : readings;
   const mean = (values: number[]) =>
     Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+  const pulses = used.map((reading) => reading.pulse);
   return {
     systolic: mean(used.map((reading) => reading.systolic)),
     diastolic: mean(used.map((reading) => reading.diastolic)),
+    // Pulse follows the same readings as the BP, and only when every one of them has it.
+    pulse: pulses.every((pulse) => pulse != null) ? mean(pulses as number[]) : null,
   };
 }
 
