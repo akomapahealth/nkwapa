@@ -36,10 +36,15 @@ export interface ConfirmOptions {
    * closes only when the person says it was done. Resolves `true`.
    */
   acknowledgeOnly?: boolean;
+  /** A second, softer way forward, shown between the safe choice and the primary one. */
+  alternativeLabel?: string;
 }
 
+/** Which button was pressed. Escape and a click outside answer 'cancel'. */
+export type Choice = 'confirm' | 'alternative' | 'cancel';
+
 type Pending = ConfirmOptions & {
-  resolve: (confirmed: boolean) => void;
+  resolve: (choice: Choice) => void;
   returnFocusTo: HTMLElement | null;
 };
 
@@ -52,7 +57,17 @@ function publish(next: Pending | null) {
 }
 
 export function confirmAction(options: ConfirmOptions): Promise<boolean> {
-  current?.resolve(false);
+  return chooseAction(options).then((choice) => choice === 'confirm');
+}
+
+/**
+ * Like confirmAction, for a question with two ways forward and a way back:
+ *
+ *   const choice = await chooseAction({ ..., confirmLabel: 'End shift and sign out',
+ *     alternativeLabel: 'Sign out only', cancelLabel: 'Cancel' });
+ */
+export function chooseAction(options: ConfirmOptions): Promise<Choice> {
+  current?.resolve('cancel');
   // Capture before the safe button's autoFocus can move focus into the dialog.
   const returnFocusTo = document.activeElement as HTMLElement | null;
   return new Promise((resolve) => publish({ ...options, resolve, returnFocusTo }));
@@ -75,15 +90,15 @@ export function ConfirmHost() {
     };
   }, []);
 
-  const answer = (confirmed: boolean) => {
-    current?.resolve(confirmed);
+  const answer = (choice: Choice) => {
+    current?.resolve(choice);
     publish(null);
   };
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => (next || shown?.acknowledgeOnly ? undefined : answer(false))}
+      onOpenChange={(next) => (next || shown?.acknowledgeOnly ? undefined : answer('cancel'))}
     >
       <DialogContent
         className="max-w-md"
@@ -112,13 +127,18 @@ export function ConfirmHost() {
             <DialogFooter>
               {/* Focus starts on the safe choice, so Enter on a misread dialog does no harm. */}
               {shown.acknowledgeOnly ? null : (
-                <Button variant="outline" onClick={() => answer(false)} autoFocus>
+                <Button variant="outline" onClick={() => answer('cancel')} autoFocus>
                   {shown.cancelLabel ?? 'Keep it'}
                 </Button>
               )}
+              {shown.alternativeLabel && !shown.acknowledgeOnly ? (
+                <Button variant="outline" onClick={() => answer('alternative')}>
+                  {shown.alternativeLabel}
+                </Button>
+              ) : null}
               <Button
                 variant={shown.destructive === false ? 'default' : 'destructive'}
-                onClick={() => answer(true)}
+                onClick={() => answer('confirm')}
                 autoFocus={shown.acknowledgeOnly}
               >
                 {shown.confirmLabel}
