@@ -213,11 +213,21 @@ export function RegisterPatientScreen({
           getToken,
           activeClinicId: clinicId,
         }).catch(() => null);
-        const started = checkIn?.ok
-          ? ((await checkIn.json()) as { startedVisitId?: string | null }).startedVisitId
+        const result = checkIn?.ok
+          ? ((await checkIn.json()) as {
+              startedVisitId?: string | null;
+              dayNumber?: number | null;
+            })
           : null;
-        if (started) {
-          router.push(`/stations/visits/${started}`);
+        if (result?.startedVisitId) {
+          router.push(`/stations/visits/${result.startedVisitId}?registered=1`);
+          leaving = true;
+          return;
+        }
+        // Checked in but not started (not at the first station yet): the number still goes on
+        // the card first (#413), and the patient waits in the first station's queue.
+        if (result?.dayNumber) {
+          router.push(`/stations?registered=1&no=${result.dayNumber}`);
           leaving = true;
           return;
         }

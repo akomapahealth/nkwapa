@@ -88,6 +88,7 @@ function createPrismaMock() {
       }),
     },
     patientCheckIn: {
+      aggregate: jest.fn().mockResolvedValue({ _max: { dayNumber: 13 } }),
       create: jest.fn().mockResolvedValue({
         id: 'checkin-1',
         clinicId: 'clinic-1',
@@ -1049,13 +1050,37 @@ describe('OpsService', () => {
       it('serializes the check and the insert per patient', async () => {
         await service.createCheckIn('clinic-1', 'user-1', { patientId: 'patient-1' });
 
-        expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+        // Per patient (one open check-in a day), then per clinic day (the day number, #413).
+        expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
         const order = [
           prisma.$executeRaw.mock.invocationCallOrder[0],
           prisma.patientCheckIn.findFirst.mock.invocationCallOrder[0],
+          prisma.$executeRaw.mock.invocationCallOrder[1],
+          prisma.patientCheckIn.aggregate.mock.invocationCallOrder[0],
           prisma.patientCheckIn.create.mock.invocationCallOrder[0],
         ];
         expect([...order].sort((a, b) => a - b)).toEqual(order);
+      });
+
+      it('numbers the check-in after the last one of its clinic day (#413)', async () => {
+        await service.createCheckIn('clinic-1', 'user-1', { patientId: 'patient-1' });
+
+        const where = prisma.patientCheckIn.aggregate.mock.calls[0][0].where;
+        expect(where.clinicId).toBe('clinic-1');
+        expect(prisma.patientCheckIn.create.mock.calls[0][0].data).toMatchObject({
+          dayDate: where.dayDate,
+          dayNumber: 14,
+        });
+        // The lock key names the clinic and the clinic-local date, so numbers restart each day.
+        expect(prisma.$executeRaw.mock.calls[1].slice(1)).toEqual([
+          `check-in-day-number:clinic-1:${where.dayDate.toISOString().slice(0, 10)}`,
+        ]);
+      });
+
+      it('makes the first check-in of a clinic day No. 1 (#413)', async () => {
+        prisma.patientCheckIn.aggregate.mockResolvedValueOnce({ _max: { dayNumber: null } });
+        await service.createCheckIn('clinic-1', 'user-1', { patientId: 'patient-1' });
+        expect(prisma.patientCheckIn.create.mock.calls[0][0].data.dayNumber).toBe(1);
       });
 
       it('returns the existing check-in when the same id is replayed', async () => {

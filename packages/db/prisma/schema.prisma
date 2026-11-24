@@ -1360,6 +1360,11 @@ model PatientCheckIn {
   status      CheckInStatus @default(WAITING)
   encounterId String?       @unique @db.Uuid
   notes       String?       @db.Text
+  /// Called out instead of a name on the day (#413): 1, 2, 3 per clinic per clinic-local day.
+  /// Null only on check-ins written by the screening import, which are past and closed.
+  dayNumber   Int?
+  /// The clinic-local date dayNumber counts within.
+  dayDate     DateTime?     @db.Date
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -1369,6 +1374,7 @@ model PatientCheckIn {
   assignments   PatientAssignment[]
   stationVisits PatientStationVisit[]
 
+  @@unique([clinicId, dayDate, dayNumber])
   @@index([clinicId, status, checkedInAt])
   @@index([patientId, checkedInAt])
 }

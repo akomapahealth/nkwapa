@@ -71,8 +71,15 @@ export interface CheckInSummary {
   status: CheckInStatus;
   encounterId: string | null;
   notes: string | null;
+  /** Today's number at this clinic (#413). Absent on a pending offline check-in, or an old copy. */
+  dayNumber?: number | null;
   patient: PatientSummary;
   assignmentSummary: CheckInAssignmentSummary | null;
+}
+
+/** A day number as staff call it out (#413). The server numbers a check-in, so one queued offline has none yet. */
+export function dayNumberLabel(dayNumber?: number | null): string {
+  return dayNumber ? `No. ${dayNumber}` : 'Number on sync';
 }
 
 export interface CheckInsResponse {

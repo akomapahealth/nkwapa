@@ -35,7 +35,8 @@ export type OpsWrite =
     };
 
 export type OpsWriteResult =
-  | { outcome: 'applied' }
+  /** `body` is the server's answer, when it sent JSON. */
+  | { outcome: 'applied'; body?: unknown }
   | { outcome: 'queued' }
   | { outcome: 'refused'; error: ApiError };
 
@@ -120,7 +121,8 @@ export async function submitOpsWrite(write: OpsWrite, deps: OpsWriteDeps): Promi
         getToken: deps.getToken,
         activeClinicId: deps.clinicId,
       });
-      if (response.ok) return { outcome: 'applied' };
+      if (response.ok)
+        return { outcome: 'applied', body: await response.json().catch(() => undefined) };
       return { outcome: 'refused', error: await readApiError(response) };
     } catch (error) {
       if (!isUnanswered(error)) throw error;

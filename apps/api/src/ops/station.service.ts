@@ -66,6 +66,7 @@ const VISIT_INCLUDE = {
       status: true,
       checkedInAt: true,
       encounterId: true,
+      dayNumber: true,
       patient: {
         select: {
           id: true,
@@ -1672,6 +1673,7 @@ export class StationService {
       checkInId: visit.patientCheckInId,
       checkInStatus: visit.patientCheckIn.status,
       checkedInAt: visit.patientCheckIn.checkedInAt.toISOString(),
+      dayNumber: visit.patientCheckIn.dayNumber,
       encounterId: visit.encounterId,
       station: visit.station,
       patient: {
