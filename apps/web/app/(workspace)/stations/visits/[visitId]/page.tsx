@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, History } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, History, MessageSquareWarning } from 'lucide-react';
+import { openReportProblem } from '@/components/report-problem/ReportProblemDialog';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { lineFlagsFor, type LineFlagSource } from '@nkwapa/db/station-line-flags';
@@ -432,6 +433,18 @@ export default function StationVisitPage() {
                       ? ` · ${mine ? 'with you' : visit.claimedBy.displayName}`
                       : ''}
                   </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() =>
+                      openReportProblem({ kind: visit.station.kind, name: visit.station.name })
+                    }
+                  >
+                    <MessageSquareWarning aria-hidden="true" />
+                    Report a problem
+                  </Button>
                 </div>
               }
             />

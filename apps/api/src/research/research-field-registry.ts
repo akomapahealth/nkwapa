@@ -177,6 +177,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
     "A staff member's signature on the confidentiality agreement (#330): about staff, never a patient.",
   DoctorRequest:
     'A station asking for a doctor on the day (#418): line logistics, not research data; the clinical picture is in the encounter.',
+  StaffFeedback:
+    'Problems staff report about the app (#422): operational triage, not research data, and its free text may hold patient detail, so it never leaves the clinic.',
   OfflineGrant:
     'A device a staff member may resume an offline session on (#207): access plumbing, about staff, never a patient.',
   PatientRiskAssessment:

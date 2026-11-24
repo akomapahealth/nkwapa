@@ -2,6 +2,7 @@
 
 import type { ChatMessage } from '@/lib/chat-context';
 import { formatOpsTime } from '@/lib/ops';
+import { cn } from '@/lib/utils';
 
 export type ChatMessageView = ChatMessage & {
   optimisticId?: string;
@@ -14,6 +15,7 @@ export function ChatMessageBubble({
   onRetry,
   showSender = !isMine,
   showTime = true,
+  startsRun = true,
 }: {
   message: ChatMessageView;
   isMine: boolean;
@@ -22,26 +24,41 @@ export function ChatMessageBubble({
   showSender?: boolean;
   /** A run of quick messages shares one time, under its last bubble. */
   showTime?: boolean;
+  /** First message of a run, so its top corner stays round. */
+  startsRun?: boolean;
 }) {
   const isPending = isMine && message.deliveryState === 'pending';
   const isFailed = isMine && message.deliveryState === 'failed';
+  // Bubbles in one run sit close; the corner on the sender's side tightens where they join.
+  const joined = isMine
+    ? cn(!startsRun && 'rounded-tr-md', !showTime && 'rounded-br-md')
+    : cn(!startsRun && 'rounded-tl-md', !showTime && 'rounded-bl-md');
   const bubbleClassName = isFailed
-    ? 'border border-destructive/40 bg-destructive/10 text-foreground rounded-br-md'
+    ? 'border border-destructive/40 bg-destructive/10 text-foreground'
     : isMine
-      ? 'bg-primary text-primary-foreground rounded-br-md'
-      : 'border border-border bg-card text-foreground rounded-bl-md';
+      ? 'bg-primary text-primary-foreground'
+      : 'bg-muted text-foreground';
 
   return (
     <div
-      className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${showTime ? 'mb-2' : 'mb-0.5'}`}
+      className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${showTime ? 'mb-2.5' : 'mb-0.5'}`}
     >
       <div
-        className={`max-w-[80%] rounded-lg px-3.5 py-2 ${bubbleClassName} ${isPending ? 'opacity-80' : ''}`}
+        className={cn(
+          'max-w-[78%] rounded-[1.125rem] px-3.5 py-2',
+          bubbleClassName,
+          joined,
+          isPending && 'opacity-80',
+        )}
       >
         {showSender && !isMine && (
-          <p className="mb-0.5 text-[11px] font-medium opacity-70">{message.sender.displayName}</p>
+          <p className="mb-0.5 text-xs font-medium text-muted-foreground">
+            {message.sender.displayName}
+          </p>
         )}
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words text-[0.9375rem] leading-snug">
+          {message.content}
+        </p>
         {isFailed ? (
           <button
             type="button"
@@ -52,9 +69,10 @@ export function ChatMessageBubble({
           </button>
         ) : isPending || showTime ? (
           <p
-            className={`mt-0.5 text-right text-[10px] ${
-              isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'
-            }`}
+            className={cn(
+              'mt-0.5 text-right text-[11px] tabular-nums',
+              isMine ? 'text-primary-foreground/70' : 'text-muted-foreground',
+            )}
           >
             {isPending ? 'Sending…' : formatOpsTime(message.createdAt)}
           </p>

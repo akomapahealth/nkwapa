@@ -959,6 +959,7 @@ model Clinic {
   patientPortalInvites      PatientPortalInvite[]
   staffInvites              StaffInvite[]
   telemetryEvents           TelemetryEvent[]
+  staffFeedback             StaffFeedback[]
   conversations             Conversation[]
   chatMessages              Message[]
   medicalHistoryRecords     MedicalHistoryRecord[]
@@ -1076,6 +1077,7 @@ model User {
   pushSubscriptions               PushSubscription[]
   inboxNotifications              InboxNotification[]
   riskFlagAcknowledgements        RiskFlagAcknowledgement[]
+  staffFeedback                   StaffFeedback[]
   followUpContactsOwned           FollowUpContact[]               @relation("FollowUpContactOwner")
   followUpAttempts                FollowUpAttempt[]
   staffAgreementAcceptances       StaffAgreementAcceptance[]
@@ -3154,6 +3156,39 @@ model TelemetryEvent {
   @@index([event, occurredAt])
   @@index([clinicId, occurredAt])
   @@index([occurredAt])
+}
+
+/// What a staff member says went wrong (#422). The same list the "Report a problem" dialog shows.
+enum StaffFeedbackCategory {
+  NOT_SAVED
+  ERROR_MESSAGE
+  SLOW
+  CONFUSING
+  WRONG_INFO
+  OTHER
+}
+
+/// A problem a staff member reported from inside the app (#422), with where they were.
+/// The text may still hold patient detail despite the warning, so it is clinic-scoped clinical
+/// data: row level security, never sent to Sentry or logs, swept after a retention period.
+model StaffFeedback {
+  /// Made on the device, so a report replayed from the outbox is stored once.
+  id          String                @id @db.Uuid
+  clinicId    String                @db.Uuid
+  userId      String                @db.Uuid
+  category    StaffFeedbackCategory
+  text        String?               @db.VarChar(500)
+  /// The station the reporter was working, copied from the context so the list can filter on it.
+  stationKind StationKind?
+  /// Route with ids masked, role, app version, online state, outbox size, device time.
+  context     Json                  @default("{}")
+  createdAt   DateTime              @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, createdAt])
+  @@index([createdAt])
 }
 
 /// What a patient asked the clinic to do with their information.

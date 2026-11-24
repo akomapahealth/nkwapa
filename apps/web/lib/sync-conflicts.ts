@@ -243,6 +243,7 @@ const ENTITY_LABELS: Record<string, string> = {
   station_visit_complete: 'Station hand-off',
   eye_screening: 'Eye examination',
   follow_up_attempt: 'Follow-up call',
+  staff_feedback: 'Problem report',
 };
 
 export function syncEntityLabel(entityType: string): string {

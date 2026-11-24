@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { MessageSquarePlus, Users } from 'lucide-react';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useChatContext, type ChatConversation } from '@/lib/chat-context';
 import { conversationTitle, isGroup, otherMembers, typingSummary } from '@/lib/chat-display';
 import { ChatAvatar, ChatGroupAvatar } from './ChatAvatar';
-import { ChatUnreadBadge } from './ChatUnreadBadge';
+import { ChatSearchField } from './ChatSearchField';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 function formatRelativeTime(dateStr: string) {
   const now = Date.now();
@@ -33,35 +36,61 @@ export function ChatConversationList({
   const bootstrapCtx = useBootstrap();
   const currentUserId = bootstrapCtx?.bootstrap?.userId;
   const chat = useChatContext();
+  const [filter, setFilter] = useState('');
 
   if (!chat) return null;
 
   const { conversations, onlineUserIds, typingUsers } = chat;
+  const needle = filter.trim().toLowerCase();
+  const shown = needle
+    ? conversations.filter((conv) =>
+        conversationTitle(conv, currentUserId).toLowerCase().includes(needle),
+      )
+    : conversations;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-3 py-2.5">
-        <h3 className="text-sm font-semibold">Messages</h3>
-        <div className="flex items-center gap-1">
-          <button
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between px-4 pb-1 pt-2">
+        <h3 className="text-lg font-semibold tracking-tight">Messages</h3>
+        <div className="-mr-2 flex items-center">
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onNewGroup}
-            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-full"
             title="New group"
             aria-label="New group"
           >
-            <Users className="h-4 w-4" />
-          </button>
-          <button
+            <Users aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onNewMessage}
-            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-full"
             title="New message"
             aria-label="New message"
           >
-            <MessageSquarePlus className="h-4 w-4" />
-          </button>
+            <MessageSquarePlus aria-hidden="true" />
+          </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      {conversations.length > 0 ? (
+        <div className="border-b px-4 pb-2.5">
+          <ChatSearchField
+            value={filter}
+            onChange={setFilter}
+            placeholder="Search messages"
+            label="Search conversations"
+          />
+        </div>
+      ) : (
+        <div className="border-b" />
+      )}
+      <div
+        className="flex-1 overflow-y-auto overscroll-contain"
+        data-testid="chat-conversation-list"
+      >
         {!chat.isConnected || chat.conversationLoadError ? (
           <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
             {chat.conversationLoadError ??
@@ -84,12 +113,17 @@ export function ChatConversationList({
               Start a new conversation
             </button>
           </div>
+        ) : shown.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            No conversations match \u201c{filter.trim()}\u201d
+          </p>
         ) : (
-          conversations.map((conv) => {
+          shown.map((conv) => {
             const name = conversationTitle(conv, currentUserId);
             const others = otherMembers(conv, currentUserId);
             const group = isGroup(conv);
             const onlineCount = others.filter((p) => onlineUserIds.has(p.userId)).length;
+            const unread = conv.unreadCount > 0;
             const typing = typingSummary(
               (typingUsers[conv.id] ?? []).map((t) => t.displayName.split(' ')[0]),
             );
@@ -99,50 +133,78 @@ export function ChatConversationList({
                 key={conv.id}
                 onClick={() => onSelect(conv)}
                 data-testid="chat-conversation-row"
-                className="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-fast ease-out-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors duration-fast ease-out-strong hover:bg-muted active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 {group ? (
-                  <ChatGroupAvatar onlineCount={onlineCount} />
+                  <ChatGroupAvatar onlineCount={onlineCount} size="lg" />
                 ) : (
                   <ChatAvatar
                     name={others[0]?.user.displayName ?? name}
                     online={others[0] ? onlineUserIds.has(others[0].userId) : false}
+                    size="lg"
                   />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="truncate text-sm font-medium">{name}</p>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p
+                      className={cn(
+                        'truncate text-[0.9375rem]',
+                        unread ? 'font-semibold' : 'font-medium',
+                      )}
+                    >
+                      {name}
+                    </p>
                     {conv.lastMessage && (
-                      <span className="ml-2 shrink-0 text-[10px] text-muted-foreground">
+                      <span
+                        className={cn(
+                          'shrink-0 text-xs tabular-nums',
+                          unread ? 'font-medium text-primary' : 'text-muted-foreground',
+                        )}
+                      >
                         {formatRelativeTime(conv.lastMessage.createdAt)}
                       </span>
                     )}
                   </div>
-                  {typing ? (
-                    <p className="truncate text-xs italic text-primary" aria-live="polite">
-                      {typing}…
-                    </p>
-                  ) : conv.lastMessage ? (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {conv.lastMessage.senderUserId === currentUserId
-                        ? 'You: '
-                        : group
-                          ? `${
-                              others.find((p) => p.userId === conv.lastMessage?.senderUserId)?.user
-                                .firstName ?? 'Someone'
-                            }: `
-                          : ''}
-                      {conv.lastMessage.content}
-                    </p>
-                  ) : group ? (
-                    <p className="truncate text-xs text-muted-foreground">No messages yet</p>
-                  ) : null}
-                </div>
-                {conv.unreadCount > 0 && (
-                  <div className="relative shrink-0">
-                    <ChatUnreadBadge count={conv.unreadCount} />
+                  <div className="mt-0.5 flex items-center gap-2">
+                    {typing ? (
+                      <p
+                        className="min-w-0 flex-1 truncate text-sm italic text-primary"
+                        aria-live="polite"
+                      >
+                        {typing}…
+                      </p>
+                    ) : conv.lastMessage ? (
+                      <p
+                        className={cn(
+                          'min-w-0 flex-1 truncate text-sm',
+                          unread ? 'text-foreground' : 'text-muted-foreground',
+                        )}
+                      >
+                        {conv.lastMessage.senderUserId === currentUserId
+                          ? 'You: '
+                          : group
+                            ? `${
+                                others.find((p) => p.userId === conv.lastMessage?.senderUserId)
+                                  ?.user.firstName ?? 'Someone'
+                              }: `
+                            : ''}
+                        {conv.lastMessage.content}
+                      </p>
+                    ) : group ? (
+                      <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                        No messages yet
+                      </p>
+                    ) : (
+                      <span className="flex-1" />
+                    )}
+                    {unread ? (
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground">
+                        {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                        <span className="sr-only"> unread</span>
+                      </span>
+                    ) : null}
                   </div>
-                )}
+                </div>
               </button>
             );
           })
