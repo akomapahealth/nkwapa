@@ -13,6 +13,7 @@ import { HypertensionAssessmentModule } from '../hypertension-assessment/hyperte
 import { MedicationAdherenceModule } from '../medication-adherence/medication-adherence.module';
 import { PrescriptionModule } from '../prescriptions/prescription.module';
 import { OpsModule } from '../ops/ops.module';
+import { EyeScreeningModule } from '../eye-screening/eye-screening.module';
 import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
     MedicationAdherenceModule,
     PrescriptionModule,
     OpsModule,
+    EyeScreeningModule,
     OfflineGrantModule,
   ],
   controllers: [SyncController],

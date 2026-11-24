@@ -73,11 +73,11 @@ describe('station forms keep typing through a connection flicker (#426)', () => 
     await setOnline(false);
     expect(history().value).toBe('Blurred right eye since June');
     expect(history().closest('fieldset')?.disabled).toBe(false);
-    // Saving waits for the connection; typing does not.
+    // Since #423 saving works offline too: it keeps the examination on the device.
     const save = [...host.querySelectorAll('button')].find((b) =>
       b.textContent?.includes('Save eye examination'),
     );
-    expect(save?.disabled).toBe(true);
+    expect(save?.disabled).toBe(false);
 
     await setOnline(true);
     expect(history().value).toBe('Blurred right eye since June');

@@ -20,7 +20,9 @@ import {
 } from '@nkwapa/db/eye-screening';
 import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
-import { apiFetch } from '@/lib/api';
+import { ApiError, apiFetch } from '@/lib/api';
+import { db } from '@/lib/db';
+import { queueEyeScreening, queuedEyeScreening } from '@/lib/eye-screening-offline';
 import { readApiError } from '@/lib/ops';
 import {
   emptyEyeForm,
@@ -111,11 +113,29 @@ export function EyeScreeningForm({
 
   useEffect(() => {
     if (loaded) return;
-    if (!getToken || !isOnline) {
+    if (!getToken) {
       setLoading(false);
       return;
     }
     let cancelled = false;
+    // Offline (#423): open on this device's queued save, or blank, so the exam can go on.
+    const openOffline = async () => {
+      const queued = await queuedEyeScreening(db, clinicId, encounterId);
+      if (cancelled) return;
+      setRecord(queued);
+      setForm(eyeFormFromRecord(queued));
+      setLoadedPath(path);
+      setStatus(null);
+      onLoadedRef.current?.(queued);
+    };
+    if (!isOnline) {
+      void openOffline().finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     void (async () => {
       try {
         const response = await apiFetch(path, { getToken, activeClinicId: clinicId });
@@ -128,6 +148,13 @@ export function EyeScreeningForm({
         setStatus(null);
         onLoadedRef.current?.(body.record);
       } catch (error) {
+        if (
+          error instanceof ApiError &&
+          (error.code === 'NETWORK_ERROR' || error.code === 'REQUEST_TIMEOUT')
+        ) {
+          await openOffline();
+          return;
+        }
         if (!cancelled)
           setStatus({
             tone: 'error',
@@ -140,17 +167,35 @@ export function EyeScreeningForm({
     return () => {
       cancelled = true;
     };
-  }, [loaded, getToken, isOnline, path, clinicId]);
+  }, [loaded, getToken, isOnline, path, clinicId, encounterId]);
 
   // Typing does not need the connection, only saving does; nothing is editable before the
   // record has loaded, so a late load can never overwrite what was typed.
   const editable = canEdit && loaded;
+
+  async function saveOnDevice() {
+    const local = await queueEyeScreening(db, {
+      clinicId,
+      encounterId,
+      payload: eyePayloadFromForm(form, record?.version),
+    });
+    setRecord(local);
+    setStatus({
+      tone: 'success',
+      text: 'Eye examination saved on this device. It is sent when the connection returns.',
+    });
+    onSaved?.(local);
+  }
 
   async function save() {
     if (!getToken) return;
     setSaving(true);
     setStatus(null);
     try {
+      if (!isOnline) {
+        await saveOnDevice();
+        return;
+      }
       const response = await apiFetch(path, {
         method: 'PUT',
         getToken,
@@ -164,6 +209,14 @@ export function EyeScreeningForm({
       setStatus({ tone: 'success', text: 'Eye examination saved.' });
       onSaved?.(body.record);
     } catch (error) {
+      // A request that never got an answer is kept on the device rather than lost (#423).
+      if (
+        error instanceof ApiError &&
+        (error.code === 'NETWORK_ERROR' || error.code === 'REQUEST_TIMEOUT')
+      ) {
+        await saveOnDevice().catch(() => undefined);
+        return;
+      }
       setStatus({ tone: 'error', text: error instanceof Error ? error.message : String(error) });
     } finally {
       setSaving(false);
@@ -320,9 +373,8 @@ export function EyeScreeningForm({
       <CardContent className={(ruled ? 'px-0 pb-5 ' : '') + 'space-y-6'}>
         {!isOnline ? (
           <InlineNotice tone="warning" live={false}>
-            {loaded
-              ? 'Saving needs a connection. What you type stays on this page.'
-              : 'The eye examination needs a connection to load.'}
+            Offline. Saving keeps the examination on this device and sends it when the connection
+            returns.
           </InlineNotice>
         ) : null}
         {loading ? (
@@ -527,7 +579,7 @@ export function EyeScreeningForm({
         {status ? <InlineNotice tone={status.tone}>{status.text}</InlineNotice> : null}
         {editable && !loading ? (
           <div data-sticky-actions className={cn('flex justify-end', STICKY_ACTIONS)}>
-            <Button type="button" onClick={() => void save()} disabled={saving || !isOnline}>
+            <Button type="button" onClick={() => void save()} disabled={saving}>
               {saving ? 'Saving…' : 'Save eye examination'}
             </Button>
           </div>

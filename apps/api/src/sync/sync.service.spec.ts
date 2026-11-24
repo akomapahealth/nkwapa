@@ -22,6 +22,8 @@ import { HypertensionAssessmentService } from '../hypertension-assessment/hypert
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { PrescriptionService } from '../prescriptions/prescription.service';
 import { OpsService } from '../ops/ops.service';
+import { StationService } from '../ops/station.service';
+import { EyeScreeningService } from '../eye-screening/eye-screening.service';
 import { createSyncMutationStore } from '../testing/sync-mutation-store';
 import { ClinicianPlanSealService } from './clinician-plan-seal.service';
 import { sealClinicianPlan } from '@nkwapa/db';
@@ -192,6 +194,14 @@ describe('SyncService', () => {
             checkOut: jest.fn().mockResolvedValue({ id: 'shift-1' }),
             createCheckIn: jest.fn().mockResolvedValue({ id: 'checkin-1' }),
           },
+        },
+        {
+          provide: EyeScreeningService,
+          useValue: { upsert: jest.fn().mockResolvedValue({ record: { id: 'eye-1' } }) },
+        },
+        {
+          provide: StationService,
+          useValue: { replayComplete: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -437,6 +447,101 @@ describe('SyncService', () => {
 
       expect(result).toMatchObject({ status: 'CONFLICT', conflictType: 'PATIENT_MERGED' });
       expect(opsService.createCheckIn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a station hand-off queued offline (#423)', () => {
+    const VISIT_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c09';
+    const NEXT_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c0a';
+    const original = process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+    beforeEach(() => {
+      process.env.FEATURE_STATION_WORKFLOW_ENABLED = 'true';
+    });
+    afterAll(() => {
+      if (original === undefined) delete process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+      else process.env.FEATURE_STATION_WORKFLOW_ENABLED = original;
+    });
+    const handOff = (): SyncMutationDto =>
+      ({
+        id: 'mut-handoff',
+        entityType: 'station_visit_complete',
+        entityId: VISIT_ID,
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: {
+          schemaVersion: 1,
+          occurredAt: '2026-03-21T09:00:00.000Z',
+          nextStationId: NEXT_ID,
+          handoffNote: 'Recheck BP',
+        },
+        idempotencyKey: `ops:station_visit_complete:${VISIT_ID}`,
+      }) as SyncMutationDto;
+
+    it('replays the hand-off at the device time and records it as applied', async () => {
+      const stations = moduleRef.get(StationService) as unknown as { replayComplete: jest.Mock };
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [handOff()]);
+
+      expect(result.status).toBe('APPLIED');
+      expect(stations.replayComplete).toHaveBeenCalledWith(
+        'clinic-1',
+        VISIT_ID,
+        expect.objectContaining({ userId: 'user-1' }),
+        expect.objectContaining({ nextStationId: NEXT_ID, handoffNote: 'Recheck BP' }),
+        {
+          requestId: `ops:station_visit_complete:${VISIT_ID}`,
+          occurredAt: new Date('2026-03-21T09:00:00.000Z'),
+        },
+      );
+      expect(prisma.syncMutation.create).toHaveBeenCalled();
+    });
+
+    it('replays an eye examination saved offline against the encounter it names', async () => {
+      const eye = moduleRef.get(EyeScreeningService) as unknown as { upsert: jest.Mock };
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-eye',
+          entityType: 'eye_screening',
+          entityId: 'enc-1',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          payloadJson: {
+            encounterId: 'enc-1',
+            hasEyeComplaint: false,
+            wearsCorrection: false,
+            findings: [],
+            diabeticSignsSeen: false,
+            hypertensiveSignsSeen: false,
+            referralRecommended: false,
+          },
+          idempotencyKey: 'eye-key-1',
+        } as SyncMutationDto,
+      ]);
+
+      expect(result.status).toBe('APPLIED');
+      expect(eye.upsert).toHaveBeenCalledWith(
+        'clinic-1',
+        'enc-1',
+        'user-1',
+        expect.objectContaining({ hasEyeComplaint: false, findings: [] }),
+        'eye-key-1',
+      );
+    });
+
+    it('reports a hand-off overtaken by a release as a conflict that never retries', async () => {
+      const stations = moduleRef.get(StationService) as unknown as { replayComplete: jest.Mock };
+      stations.replayComplete.mockRejectedValueOnce(
+        new ConflictException({
+          code: 'STATION_HANDOFF_REFUSED',
+          message: 'The hand-off from BP was not sent.',
+        }),
+      );
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [handOff()]);
+
+      expect(result).toMatchObject({
+        status: 'CONFLICT',
+        conflictType: 'STATION_HANDOFF_REFUSED',
+        retryable: false,
+      });
     });
   });
 

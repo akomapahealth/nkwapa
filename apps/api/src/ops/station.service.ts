@@ -29,6 +29,7 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import { createDraftEncounter } from './draft-encounter';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 import { computeStationMetrics } from './station-metrics';
+import { resolveReplayTime } from './ops-replay';
 import type {
   CompleteStationVisitDto,
   CreateStationDto,
@@ -117,6 +118,8 @@ export interface StationActor {
 
 export interface StationWriteContext {
   requestId?: string;
+  /** A hand-off queued offline (#423): when it happened on the device. */
+  occurredAt?: Date;
 }
 
 /** Who did a stop, as stored on the visit (#227). */
@@ -822,7 +825,9 @@ export class StationService {
       if (visit.status !== 'IN_PROGRESS' || visit.claimedByUserId !== actor.userId) {
         throw this.notYourVisit(visit);
       }
-      const now = new Date();
+      const now = context.occurredAt
+        ? await this.replayTime(tx, clinicId, context.occurredAt, visit.claimedAt)
+        : new Date();
       const stations = await tx.clinicStation.findMany({ where: { clinicId } });
       const isReview = visit.station.kind === StationKind.REVIEW;
       const lineFlags = await this.raiseLineFlags(tx, visit, now);
@@ -1012,6 +1017,55 @@ export class StationService {
       before,
       raised.map((flag) => ({ ...flag, stationName: visit.station.name, at: now.toISOString() })),
     );
+  }
+
+  /**
+   * A hand-off queued while the device was offline (#423), replayed by sync after the readings
+   * queued before it. One that already landed (sent online before the signal dropped) is applied;
+   * one overtaken by a release, a move or the patient leaving is refused for good, naming the
+   * station. The readings are separate changes and are kept either way.
+   */
+  async replayComplete(
+    clinicId: string,
+    visitId: string,
+    actor: StationActor,
+    dto: CompleteStationVisitDto,
+    context: StationWriteContext & { occurredAt: Date },
+  ): Promise<void> {
+    const visit = await this.loadVisitInClinic(this.prisma, clinicId, visitId);
+    if (
+      (visit.status === 'COMPLETED' || visit.status === 'SKIPPED') &&
+      visit.completedByUserId === actor.userId
+    ) {
+      return;
+    }
+    if (visit.status !== 'IN_PROGRESS' || visit.claimedByUserId !== actor.userId) {
+      throw new ConflictException({
+        code: 'STATION_HANDOFF_REFUSED',
+        message: `The hand-off from ${visit.station.name} was not sent: the patient was released, moved or finished by someone else first. The readings recorded there were kept.`,
+        stationName: visit.station.name,
+      });
+    }
+    await this.complete(clinicId, visitId, actor, dto, context);
+  }
+
+  /** When a replayed hand-off happened: the device's time, never before the patient was taken. */
+  private async replayTime(
+    tx: TxClient,
+    clinicId: string,
+    occurredAt: Date,
+    claimedAt: Date | null,
+  ) {
+    const clinic = await tx.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    const at = resolveReplayTime(
+      occurredAt,
+      new Date(),
+      clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE,
+    );
+    return claimedAt && at < claimedAt ? claimedAt : at;
   }
 
   /** Manager override: send a patient to any station, with a reason. */

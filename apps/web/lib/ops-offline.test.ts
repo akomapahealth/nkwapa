@@ -6,6 +6,8 @@ import {
   buildPatientCheckInMutation,
   buildShiftCheckInMutation,
   buildShiftCheckOutMutation,
+  buildStationHandOffMutation,
+  handedOnOffline,
   isOpsEntityType,
   opsIdempotencyKey,
   overlayPendingCheckIns,
@@ -111,6 +113,28 @@ describe('ops offline payloads', () => {
       entityId: 'shift-1',
       idempotencyKey: opsIdempotencyKey(OPS_ENTITY.SHIFT_CHECK_OUT, 'shift-1'),
     });
+  });
+
+  it('queues a hand-off once per visit, and draws it as handed on until it is sent (#423)', () => {
+    const params = buildStationHandOffMutation({
+      ...actor,
+      visitId: 'visit-1',
+      occurredAt: '2026-03-21T09:00:00.000Z',
+      body: { nextStationId: 'st-glucose', handoffNote: 'Recheck BP' },
+      patient: { patientCode: 'NKP-1', displayName: 'Ama Mensah' },
+    });
+
+    expect(params.idempotencyKey).toBe('ops:station_visit_complete:visit-1');
+    expect(params.payloadJson).toEqual({
+      schemaVersion: 1,
+      occurredAt: '2026-03-21T09:00:00.000Z',
+      nextStationId: 'st-glucose',
+      handoffNote: 'Recheck BP',
+    });
+    const row = { ...buildOutboxMutation(params) };
+    expect([...handedOnOffline(pendingOpsWrites([row]))]).toEqual(['visit-1']);
+    // A refused hand-off is the sync center's to resolve; the patient is still held here.
+    expect(handedOnOffline(pendingOpsWrites([{ ...row, syncState: 'blocked' }])).size).toBe(0);
   });
 
   it('recognises only the clinic-operations entity types', () => {
