@@ -561,6 +561,95 @@ test('handing on a station with nothing recorded asks first, and Skip keeps a re
   });
 });
 
+test('a refer-today reading travels with the patient to review (#415)', async ({ page }) => {
+  test.setTimeout(180_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+
+  let next = await claimNext('staff', clinicId, checkInId);
+  const encounterId = next.claimed.encounterId;
+  while (next.at.station.kind !== 'BLOOD_PRESSURE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  // A crisis reading at Blood pressure suggests its own hand-off note.
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await page.getByLabel('Systolic BP (mmHg)').fill('184');
+  await page.getByLabel('Diastolic BP (mmHg)').fill('112');
+  await page.getByLabel('Measurement site').click();
+  await page.getByRole('option', { name: /left arm/i }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save measurements' }).click();
+  // The station's own crisis alert stays as it was; the flag is in addition to it.
+  await page.getByRole('button', { name: "I've told a clinician" }).click({ timeout: 20_000 });
+  await expect(page.getByText('Measurements saved and synced.')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByLabel('Note for the next station')).toHaveValue('BP 184/112, refer today');
+  await page.getByRole('button', { name: /^Send to / }).click();
+  await page.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+
+  // The next station sees the flag and the reading, with no note needed.
+  next = await claimNext('staff', clinicId, checkInId);
+  expect(next.at.visit.lineFlags).toEqual([
+    expect.objectContaining({ kind: 'REFER_TODAY', source: 'BP', systolic: 184, diastolic: 112 }),
+  ]);
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await expect(page.getByTestId('line-flag-chip').first()).toHaveText('Refer today', {
+    timeout: 20_000,
+  });
+  await expect(page.getByTestId('line-flags-notice')).toContainText(
+    /BP 184\/112 at Blood pressure, /,
+  );
+
+  while (next.at.station.kind !== 'REVIEW') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+  const counselling = await apiRequestAs(
+    'staff',
+    'put',
+    `/clinics/${clinicId}/encounters/${encounterId}/counselling`,
+    {
+      clinicId,
+      data: {
+        topics: ['BLOOD_PRESSURE'],
+        adviceGiven: 'Recheck BP today.',
+        followUpRecommended: true,
+        followUpWindow: 'WITHIN_1_MONTH',
+        referralRecommended: false,
+      },
+    },
+  );
+  expect(counselling.ok(), counselling.text()).toBeTruthy();
+
+  // Review lists the flag; completing without a referral asks, and Go back stays.
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await expect(page.getByTestId('line-flags-notice')).toContainText(
+    'Red flags raised along the line',
+    {
+      timeout: 20_000,
+    },
+  );
+  await page.getByRole('button', { name: 'Complete session' }).click();
+  const ask = page.getByRole('alertdialog').or(page.getByRole('dialog'));
+  await expect(
+    ask.getByText('No referral recorded for a refer-today reading. Complete anyway?'),
+  ).toBeVisible();
+  await ask.getByRole('button', { name: 'Go back and record it' }).click();
+  await expect(page).toHaveURL(/\/stations\/visits\//);
+  await page.getByRole('button', { name: 'Complete session' }).click();
+  await ask.getByRole('button', { name: 'Complete anyway' }).click();
+  await page.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+  expect(await boardVisit('staff', clinicId, checkInId)).toBeNull();
+});
+
 test('manager assignment is refused while the station line runs', async ({ page }) => {
   const patient = await createPatient(page);
   const { clinicId } = patient;

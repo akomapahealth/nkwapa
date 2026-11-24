@@ -3,6 +3,7 @@
 import { formatPersonName } from './person-name';
 import { useEffect } from 'react';
 import { nextStationId, type StationKindValue } from '@nkwapa/db/clinic-stations';
+import type { LineFlag } from '@nkwapa/db/station-line-flags';
 import { apiFetch, type GetToken } from './api';
 import { readApiError } from './ops';
 
@@ -40,6 +41,8 @@ export interface StationVisit {
   checkedInAt: string;
   /** Today's number at this clinic (#413). Absent on copies saved before it existed. */
   dayNumber?: number | null;
+  /** Red flags raised along the line so far (#415). Absent on copies saved before it existed. */
+  lineFlags?: LineFlag[];
   encounterId: string | null;
   station: Pick<ClinicStation, 'id' | 'kind' | 'name' | 'sortOrder'>;
   patient: {
@@ -348,6 +351,8 @@ export const completeStationVisit = (
     nextStationId?: string;
     skips?: Array<{ stationId: string; reason: string }>;
     screener?: Screener;
+    /** Complete review although a refer-today flag has no referral (#415). */
+    acknowledgeNoReferral?: boolean;
   },
   getToken: GetToken,
 ) =>

@@ -1365,6 +1365,9 @@ model PatientCheckIn {
   dayNumber   Int?
   /// The clinic-local date dayNumber counts within.
   dayDate     DateTime?     @db.Date
+  /// Red flags raised at the stations so far (#415), worst per source, never taken back while
+  /// the patient is on the line. Shape: LineFlag[] in station-line-flags.ts.
+  lineFlags   Json          @default("[]")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 

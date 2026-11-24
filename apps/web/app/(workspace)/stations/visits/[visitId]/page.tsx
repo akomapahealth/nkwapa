@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, History } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { useBootstrap } from '@/lib/bootstrap-context';
+import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
+import { lineFlagsFor, type LineFlagSource } from '@nkwapa/db/station-line-flags';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -33,6 +34,7 @@ import {
   type PerformerCorrection as PerformerCorrectionRecord,
   releaseStationVisit,
   screenerFromName,
+  StationRequestError,
   stationsPassedOver,
   suggestedNextStation,
   type ClinicStation,
@@ -60,6 +62,11 @@ import {
   type SummaryRowKind,
 } from '@/components/stations/StationResultsSummary';
 import { IntakeInterviews } from '@/components/stations/IntakeInterviews';
+import {
+  LineFlagChip,
+  LineFlagsNotice,
+  suggestedHandoffNote,
+} from '@/components/stations/LineFlags';
 import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
@@ -92,6 +99,12 @@ interface EncounterReadings {
   eye: EyeScreeningRecord | null;
 }
 
+/** The flag a station's own reading can raise, for its hand-off note (#415). */
+const FLAG_SOURCE_AT: Partial<Record<StationVisit['station']['kind'], LineFlagSource>> = {
+  BLOOD_PRESSURE: 'BP',
+  GLUCOSE: 'GLUCOSE',
+};
+
 const STATUS_LABELS: Record<StationVisit['status'], string> = {
   QUEUED: 'Waiting',
   IN_PROGRESS: 'Being seen',
@@ -115,6 +128,7 @@ export default function StationVisitPage() {
   const canManage = perms.includes('*') || perms.includes('OPS.STATION.MANAGE');
   const { isOnline, syncNow } = useSync();
   const enabled = isWebFeatureEnabled('stationWorkflow');
+  const { glucoseUnit } = useClinicUnits();
 
   const [visit, setVisit] = useState<StationVisitDetail | null>(null);
   const [stations, setStations] = useState<ClinicStation[]>([]);
@@ -342,6 +356,7 @@ export default function StationVisitPage() {
                     {dayNumberLabel(visit.dayNumber)}
                   </span>
                   <DemoBadge isDemo={visit.patient.isDemo} />
+                  <LineFlagChip flags={visit.lineFlags} />
                   <Badge variant={mine ? 'default' : 'secondary'}>
                     {STATUS_LABELS[visit.status]}
                     {visit.claimedBy && visit.status === 'IN_PROGRESS'
@@ -379,6 +394,15 @@ export default function StationVisitPage() {
                 </span>
               </InlineNotice>
             ) : null}
+            <LineFlagsNotice
+              flags={visit.lineFlags}
+              timezone={timezone}
+              title={
+                visit.station.kind === 'REVIEW'
+                  ? 'Red flags raised along the line'
+                  : 'Red flags from earlier stations'
+              }
+            />
             {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
             {!isOnline ? (
               <InlineNotice tone="warning" live={false}>
@@ -498,6 +522,15 @@ export default function StationVisitPage() {
                 stations={stations}
                 busy={busy}
                 isOnline={isOnline}
+                suggestedNote={suggestedHandoffNote(
+                  lineFlagsFor({
+                    systolic: readings.vitals?.systolicBp,
+                    diastolic: readings.vitals?.diastolicBp,
+                    glucoseMgDl: readings.diabetes?.glucoseMgDl,
+                    glucoseType: readings.diabetes?.glucoseType,
+                  }).filter((flag) => flag.source === FLAG_SOURCE_AT[visit.station.kind]),
+                  glucoseUnit,
+                )}
                 nothingRecorded={nothingRecordedAt(visit.station.kind, readings)}
                 // Typed but unsaved answers are asked about first: saving them is the usual fix.
                 confirmUnsaved={async () =>
@@ -514,6 +547,7 @@ export default function StationVisitPage() {
                 }
                 onComplete={(body) => {
                   let handedTo = '';
+                  let stayed = false;
                   void run(
                     async () => {
                       // The next station reads what this one recorded, so it must reach the
@@ -524,15 +558,39 @@ export default function StationVisitPage() {
                           'Some readings have not reached the server yet. Check the sync status, then hand the patient on.',
                         );
                       }
-                      const result = await completeStationVisit(
-                        clinicId,
-                        visit.id,
-                        // Sent, not inferred, so the stamp is what the banner showed (#227).
-                        myShift
-                          ? { ...body, screener: screenerFromName(myShift.screenerName) }
-                          : body,
-                        getToken!,
-                      );
+                      // Sent, not inferred, so the stamp is what the banner showed (#227).
+                      const sent = myShift
+                        ? { ...body, screener: screenerFromName(myShift.screenerName) }
+                        : body;
+                      let result;
+                      try {
+                        result = await completeStationVisit(clinicId, visit.id, sent, getToken!);
+                      } catch (error) {
+                        // Review warns about a refer-today patient with no referral (#415).
+                        if (
+                          !(error instanceof StationRequestError) ||
+                          error.code !== 'REFERRAL_NOT_RECORDED'
+                        )
+                          throw error;
+                        const anyway = await confirmAction({
+                          title: 'No referral recorded',
+                          description:
+                            'No referral recorded for a refer-today reading. Complete anyway?',
+                          confirmLabel: 'Complete anyway',
+                          cancelLabel: 'Go back and record it',
+                          destructive: true,
+                        });
+                        if (!anyway) {
+                          stayed = true;
+                          return;
+                        }
+                        result = await completeStationVisit(
+                          clinicId,
+                          visit.id,
+                          { ...sent, acknowledgeNoReferral: true },
+                          getToken!,
+                        );
+                      }
                       handedTo = result.sessionCompleted
                         ? 'done'
                         : (stations.find((station) => station.id === result.nextStationId)?.name ??
@@ -541,9 +599,11 @@ export default function StationVisitPage() {
                     // The queue says where the patient went, with the next patient one tap away.
                     // Only the station name and the day number ride in the URL; never the patient's.
                     () =>
-                      router.push(
-                        `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}`,
-                      ),
+                      stayed
+                        ? void load()
+                        : router.push(
+                            `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}`,
+                          ),
                   );
                 }}
                 onRelease={(reason) =>
@@ -776,6 +836,7 @@ function HandOff({
   isOnline,
   nothingRecorded,
   confirmUnsaved,
+  suggestedNote,
   onComplete,
   onRelease,
   onPatientLeft,
@@ -788,6 +849,8 @@ function HandOff({
   nothingRecorded: boolean;
   /** Resolves false when the volunteer goes back to save typed answers. */
   confirmUnsaved: () => Promise<boolean>;
+  /** A flag this station's reading raised, as a note line the volunteer can edit (#415). */
+  suggestedNote: string;
   onComplete: (body: {
     handoffNote?: string;
     nextStationId?: string;
@@ -802,6 +865,11 @@ function HandOff({
   const suggested = suggestedNextStation(active, visit.station.id);
   const [nextId, setNextId] = useState<string>(suggested?.id ?? '');
   const [note, setNote] = useState('');
+  const [noteEdited, setNoteEdited] = useState(false);
+  // Follows the reading until the volunteer types their own note.
+  useEffect(() => {
+    if (!noteEdited) setNote(suggestedNote);
+  }, [suggestedNote, noteEdited]);
   const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
   // Asked on Send when nothing was recorded here; a reading saved meanwhile ends the question.
   const [askingWhy, setAskingWhy] = useState(false);
@@ -857,7 +925,10 @@ function HandOff({
                 rows={3}
                 maxLength={2000}
                 value={note}
-                onChange={(event) => setNote(event.target.value)}
+                onChange={(event) => {
+                  setNoteEdited(true);
+                  setNote(event.target.value);
+                }}
                 placeholder="Anything they should know, e.g. a reading to recheck."
               />
             </div>

@@ -109,6 +109,11 @@ export class CompleteStationVisitDto {
   @MaxLength(500)
   skipReason?: string;
 
+  /** Complete review although a refer-today flag has no referral recorded (#415). */
+  @IsOptional()
+  @IsBoolean()
+  acknowledgeNoReferral?: boolean;
+
   /** Who did this stop. Omitted by older clients: the shift's screener is used. */
   @IsOptional()
   @ValidateNested()

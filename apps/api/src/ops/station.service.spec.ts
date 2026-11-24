@@ -69,6 +69,7 @@ function visitRow(overrides: Row = {}): Row {
       status: 'IN_PROGRESS',
       checkedInAt: new Date('2026-10-07T08:55:00Z'),
       encounterId: 'enc-1',
+      lineFlags: overrides.lineFlags ?? [],
       patient: {
         id: 'patient-1',
         patientCode: 'NKP-2026-000001',
@@ -154,8 +155,16 @@ function setup(initial: Row = {}) {
           STATIONS.find((s) => s.id === where.id) ?? null,
       ),
     },
+    vitals: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
+    diabetesScreening: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
+    hypertensionAssessment: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
     counsellingRecord: {
-      findUnique: jest.fn(async () => ({ id: 'counselling-1' })),
+      findUnique: jest.fn(
+        async (): Promise<Row | null> => ({
+          id: 'counselling-1',
+          referralRecommended: false,
+        }),
+      ),
       update: jest.fn(async () => ({})),
     },
     encounter: {
@@ -507,6 +516,65 @@ describe('StationService', () => {
       await expect(
         service.complete(CLINIC, 'visit-1', volunteer, { skipReason: 'x' }),
       ).rejects.toMatchObject({ response: { code: 'REVIEW_COMPLETES_SESSION' } });
+    });
+
+    describe('red flags along the line (#415)', () => {
+      const crisis = {
+        kind: 'REFER_TODAY',
+        source: 'BP',
+        systolic: 184,
+        diastolic: 112,
+        stationName: 'Blood pressure',
+        at: '2026-10-07T09:10:00.000Z',
+      };
+
+      it("stores what this station's readings raise, named by station", async () => {
+        const { service, tx } = setup(held);
+        tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 184, diastolicBp: 112 });
+        await service.complete(CLINIC, 'visit-1', volunteer, {});
+        expect(tx.patientCheckIn.update).toHaveBeenCalledWith({
+          where: { id: 'checkin-1' },
+          data: {
+            lineFlags: [
+              expect.objectContaining({
+                kind: 'REFER_TODAY',
+                source: 'BP',
+                systolic: 184,
+                diastolic: 112,
+                stationName: 'BP',
+              }),
+            ],
+          },
+        });
+      });
+
+      it('keeps an earlier flag when a later reading is normal, and writes nothing', async () => {
+        const { service, tx } = setup({ ...held, lineFlags: [crisis] });
+        tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 124, diastolicBp: 78 });
+        const result = await service.complete(CLINIC, 'visit-1', volunteer, {});
+        expect(tx.patientCheckIn.update).not.toHaveBeenCalled();
+        expect(result.visit.lineFlags).toEqual([crisis]);
+      });
+
+      it('asks before review completes a refer-today patient with no referral', async () => {
+        const { service, tx } = setup({ ...held, stationId: 'st-review', lineFlags: [crisis] });
+        await expect(service.complete(CLINIC, 'visit-1', volunteer, {})).rejects.toMatchObject({
+          response: { code: 'REFERRAL_NOT_RECORDED' },
+        });
+        await expect(
+          service.complete(CLINIC, 'visit-1', volunteer, { acknowledgeNoReferral: true }),
+        ).resolves.toMatchObject({ sessionCompleted: true });
+
+        const referred = setup({ ...held, stationId: 'st-review', lineFlags: [crisis] });
+        referred.tx.counsellingRecord.findUnique.mockResolvedValueOnce({
+          id: 'counselling-1',
+          referralRecommended: true,
+        });
+        await expect(
+          referred.service.complete(CLINIC, 'visit-1', volunteer, {}),
+        ).resolves.toMatchObject({ sessionCompleted: true });
+        expect(tx.counsellingRecord.findUnique).toHaveBeenCalled();
+      });
     });
 
     it('only lets the holder complete', async () => {
