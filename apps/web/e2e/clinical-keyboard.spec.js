@@ -18,6 +18,15 @@ test('R8.7 clinical forms and note confirmation work by keyboard', async ({ page
   const suffix = randomUUID().slice(0, 8);
   await tabTo(page, page.getByLabel('Last name', { exact: true }));
   await page.keyboard.type(`R87-${suffix}`);
+  // #428: the document type has no default; choose it by keyboard too.
+  const idType = page.getByRole('combobox', { name: 'National ID type', exact: true });
+  await tabTo(page, idType);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('option', { name: 'National ID', exact: true })).toBeVisible();
+  await page.keyboard.type('Nat');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(idType).toHaveText('National ID');
   await tabTo(page, page.getByLabel('National ID', { exact: true }));
   await page.keyboard.type(`R87-${suffix}`);
   await tabTo(page, page.getByRole('button', { name: 'Create patient', exact: true }));
