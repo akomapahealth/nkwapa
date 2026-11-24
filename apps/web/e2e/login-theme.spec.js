@@ -195,10 +195,12 @@ test('keyboard focus is visible and follows the reading order', async ({ page })
   }
 
   // Reading order is top to bottom on this single-column form, so focus must never travel back up.
-  const tops = stops.map((stop) => stop.top);
-  expect(tops, `focus order jumped backwards: ${stops.map((s) => s.name).join(' -> ')}`).toEqual(
-    [...tops].sort((a, b) => a - b),
-  );
+  // Controls sharing a row ("Keep me signed in" and "Forgot password?") differ by a pixel or two.
+  const backwards = stops.filter((stop, i) => i > 0 && stop.top < stops[i - 1].top - 4);
+  expect(
+    backwards,
+    `focus order jumped backwards: ${stops.map((s) => s.name).join(' -> ')}`,
+  ).toEqual([]);
 });
 
 test('the sign-in page says where the person is in the journey', async ({ page }) => {
@@ -220,4 +222,25 @@ test('a broken account link says what happened and what to do next', async ({ pa
   await expect(page.getByRole('heading', { name: 'When a link stops working' })).toBeVisible();
   await expect(page.getByText(/ask whoever sent it for a new one/i).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /back to sign in/i }).first()).toBeVisible();
+});
+
+test('"Keep me signed in" survives the app being closed, and starts unticked', async ({ page }) => {
+  /*
+    A phone PWA drops session-only cookies whenever it is closed or swapped out, so every reopen
+    asked for a password again. Ticked, Keycloak's sign-in cookie outlives the app; unticked, it
+    stays session-only for shared clinic laptops.
+  */
+  const { ROLES } = require('../playwright/roles');
+  await gotoKeycloakLogin(page);
+  const keep = page.getByRole('checkbox', { name: 'Keep me signed in on this device' });
+  await expect(keep).not.toBeChecked();
+  await page.locator('input[name="username"]').fill(ROLES.staff.username);
+  await page.locator('input[name="password"]').fill(ROLES.staff.password);
+  await keep.check();
+  await page.locator('#kc-login, button[type="submit"]').click();
+  await page.waitForURL((url) => url.pathname.startsWith('/dashboard'), { timeout: 60_000 });
+  const identity = (await page.context().cookies()).find((c) => c.name === 'KEYCLOAK_IDENTITY');
+  expect(identity, 'no Keycloak sign-in cookie').toBeTruthy();
+  // -1 is a session cookie: the one a closed PWA throws away.
+  expect(identity.expires).toBeGreaterThan(Date.now() / 1000 + 6 * 24 * 3600);
 });

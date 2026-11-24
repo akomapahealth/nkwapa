@@ -191,6 +191,18 @@ reconcile_events() {
   fi
 }
 
+# A phone PWA loses Keycloak's session cookie whenever it is closed, so the realm offers "Keep me
+# signed in on this device": a persistent cookie, 7 days idle and 30 days at most. --import-realm
+# never updates a live realm, so the setting is applied here.
+reconcile_remember_me() {
+  if kcadm update "realms/$RECONCILE_REALM" -r "$RECONCILE_REALM" -s rememberMe=true \
+    -s ssoSessionIdleTimeoutRememberMe=604800 -s ssoSessionMaxLifespanRememberMe=2592000 >/dev/null 2>&1; then
+    log "remember me: on, 7 days idle, 30 days max"
+  else
+    log "WARNING: enabling remember me in realm ${RECONCILE_REALM} failed"
+  fi
+}
+
 # The API stores each invitation's clinic, role and expiry on the user so the setup email can
 # show them (#383). Keycloak 26 drops attributes the user profile does not declare; ADMIN_EDIT
 # keeps them, writable and visible only through the admin API, never to the user.
@@ -370,6 +382,7 @@ reconcile() {
   reconcile_audience_mapper
   reconcile_web_client
   reconcile_events
+  reconcile_remember_me
   reconcile_user_profile
   reconcile_required_actions
   reconcile_admin_mfa_flow
