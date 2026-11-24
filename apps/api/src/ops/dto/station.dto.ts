@@ -20,7 +20,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { StationKind } from '@prisma/client';
+import { DoctorRequestReason, DoctorRequestUrgency, StationKind } from '@prisma/client';
 import { ToSanitizedString } from '../../common/validation';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -199,4 +199,14 @@ export class StationVisitCompleteReplayPayload extends CompleteStationVisitDto {
   /** When the volunteer handed on, on the device. */
   @IsISO8601({ strict: true })
   occurredAt!: string;
+}
+
+/** "Ask a doctor" from a station (#418). The reason is a list, so no free text reaches a push. */
+export class CreateDoctorRequestDto {
+  @IsEnum(DoctorRequestUrgency)
+  urgency!: DoctorRequestUrgency;
+
+  @IsOptional()
+  @IsEnum(DoctorRequestReason)
+  reason?: DoctorRequestReason;
 }

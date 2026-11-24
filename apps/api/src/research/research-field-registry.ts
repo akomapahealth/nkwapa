@@ -175,6 +175,8 @@ export const RESEARCH_OUT_OF_SCOPE_MODELS: Record<string, string> = {
     "A person's in-app notifications: short operational text addressed to one staff member.",
   StaffAgreementAcceptance:
     "A staff member's signature on the confidentiality agreement (#330): about staff, never a patient.",
+  DoctorRequest:
+    'A station asking for a doctor on the day (#418): line logistics, not research data; the clinical picture is in the encounter.',
   OfflineGrant:
     'A device a staff member may resume an offline session on (#207): access plumbing, about staff, never a patient.',
   PatientRiskAssessment:

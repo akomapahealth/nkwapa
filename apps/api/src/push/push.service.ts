@@ -1,7 +1,7 @@
 import { formatPersonName } from '@nkwapa/db';
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { InboxNotificationKind } from '@prisma/client';
+import { InboxNotificationKind, Prisma } from '@prisma/client';
 import { sendNotification, WebPushError } from 'web-push';
 import { PrismaService } from '../prisma/prisma.service';
 import { isApiFeatureEnabled } from '../common/feature-flags';
@@ -28,6 +28,8 @@ export interface PushMessage {
   inbox?: { title?: string; body?: string | null };
   /** The follow-up flag this is about (#337): the bell offers "I'm on it" and shows who took it. */
   riskFlagId?: string | null;
+  /** The doctor request this is about (#418): the bell offers "I'm on it" and shows who took it. */
+  doctorRequestId?: string | null;
   /**
    * Join an unread tile with the same tag without raising its count: the same event arriving a
    * second way, like a danger sign the screening form already reported.
@@ -257,28 +259,29 @@ export class PushService {
     return this.prisma.withSystemContext(
       { systemReason: 'Route an urgent screening finding' },
       async (client) => {
-        const [encounter, onShift] = await Promise.all([
+        const [encounter, doctors] = await Promise.all([
           client.encounter.findUnique({
             where: { id: params.encounterId },
             select: { patient: { select: { firstName: true, lastName: true } } },
           }),
-          client.staffShift.findMany({
-            where: { clinicId: params.clinicId, status: 'ACTIVE', roleAtShift: 'DOCTOR' },
-            select: { userId: true },
-          }),
+          doctorsFor(client, params.clinicId),
         ]);
-        const doctors = onShift.length
-          ? onShift
-          : await client.userClinicRole.findMany({
-              where: { clinicId: params.clinicId, role: 'DOCTOR' },
-              select: { userId: true },
-            });
         const name = encounter ? formatPersonName(encounter.patient, 'short') : '';
         return {
-          recipients: doctors.map((d) => d.userId).filter((id) => id !== params.actorUserId),
+          recipients: doctors.filter((id) => id !== params.actorUserId),
           patientName: name || 'A patient',
         };
       },
+    );
+  }
+
+  /** Doctors on shift at the clinic, or every doctor there when none is on shift (#418). */
+  doctorsOnShift(clinicId: string): Promise<string[]> {
+    // Detached: callers run inside the requester's own RLS transaction.
+    return this.prisma.detachFromRlsContext(() =>
+      this.prisma.withSystemContext({ systemReason: 'Find the doctors to notify' }, (client) =>
+        doctorsFor(client, clinicId),
+      ),
     );
   }
 
@@ -293,6 +296,7 @@ export class PushService {
     const clipped = body ? body.slice(0, 500) : null;
     const clinicId = message.clinicId ?? null;
     const riskFlagId = message.riskFlagId ?? null;
+    const doctorRequestId = message.doctorRequestId ?? null;
     const bump = message.silentMerge ? 0 : 1;
     await this.prisma.withSystemContext(
       { systemReason: 'Record in-app notifications' },
@@ -300,11 +304,12 @@ export class PushService {
         for (const userId of userIds) {
           await client.$executeRaw`
           INSERT INTO "InboxNotification"
-            ("id", "userId", "clinicId", "kind", "title", "body", "url", "tag", "riskFlagId")
+            ("id", "userId", "clinicId", "kind", "title", "body", "url", "tag", "riskFlagId",
+             "doctorRequestId")
           VALUES (
             ${randomUUID()}::uuid, ${userId}::uuid, ${clinicId}::uuid,
             ${message.kind}::"InboxNotificationKind", ${title}, ${clipped}, ${message.url},
-            ${message.tag ?? null}, ${riskFlagId}::uuid
+            ${message.tag ?? null}, ${riskFlagId}::uuid, ${doctorRequestId}::uuid
           )
           ON CONFLICT ("userId", "tag") WHERE "readAt" IS NULL AND "tag" IS NOT NULL
           DO UPDATE SET
@@ -314,6 +319,9 @@ export class PushService {
             "clinicId" = EXCLUDED."clinicId",
             "kind" = EXCLUDED."kind",
             "riskFlagId" = COALESCE(EXCLUDED."riskFlagId", "InboxNotification"."riskFlagId"),
+            "doctorRequestId" = COALESCE(
+              EXCLUDED."doctorRequestId", "InboxNotification"."doctorRequestId"
+            ),
             "count" = "InboxNotification"."count" + ${bump},
             "updatedAt" = CURRENT_TIMESTAMP`;
         }
@@ -382,4 +390,22 @@ export class PushService {
 function errorText(error: unknown): string {
   if (error instanceof WebPushError) return `${error.statusCode} ${error.message}`;
   return error instanceof Error ? error.message : String(error);
+}
+
+/** On-shift doctors first; with none on shift, every doctor at the clinic. */
+async function doctorsFor(
+  client: Pick<Prisma.TransactionClient, 'staffShift' | 'userClinicRole'>,
+  clinicId: string,
+): Promise<string[]> {
+  const onShift = await client.staffShift.findMany({
+    where: { clinicId, status: 'ACTIVE', roleAtShift: 'DOCTOR' },
+    select: { userId: true },
+  });
+  const doctors = onShift.length
+    ? onShift
+    : await client.userClinicRole.findMany({
+        where: { clinicId, role: 'DOCTOR' },
+        select: { userId: true },
+      });
+  return [...new Set(doctors.map((d) => d.userId))];
 }

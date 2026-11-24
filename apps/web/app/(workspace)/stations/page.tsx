@@ -45,6 +45,7 @@ import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppStat
 import { RouteGuard } from '@/components/RouteGuard';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { LineFlagChip } from '@/components/stations/LineFlags';
+import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
 import {
   EmptyStateCard,
   InlineNotice,
@@ -123,7 +124,8 @@ export default function StationsPage() {
     no: string | null;
     registered: boolean;
     queued: boolean;
-  }>({ to: null, no: null, registered: false, queued: false });
+    doctor: boolean;
+  }>({ to: null, no: null, registered: false, queued: false, doctor: false });
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setSent({
@@ -131,6 +133,7 @@ export default function StationsPage() {
       no: params.get('no'),
       registered: params.has('registered'),
       queued: params.has('queued'),
+      doctor: params.has('doctor'),
     });
   }, []);
   // The number is read out to the patient with the station (#413): "No. 14, go to Blood pressure".
@@ -147,7 +150,7 @@ export default function StationsPage() {
               sent.queued
                 ? ` It is sent when the connection returns. Tell the patient their number and send them on.`
                 : ''
-            }`;
+            }${sent.doctor ? ' Doctor notified: the reading refers today.' : ''}`;
 
   const pendingWrites = usePendingOpsWrites(clinicId);
   const pendingIds = useMemo(() => pendingWrites.map((write) => write.entityId), [pendingWrites]);
@@ -775,6 +778,7 @@ function NextPatientTicket({
           <h3 className="break-words text-2xl font-semibold">{patientName(visit.patient)}</h3>
           <DemoBadge isDemo={visit.patient.isDemo} />
           <LineFlagChip flags={visit.lineFlags} className="mt-1" />
+          <DoctorRequestChip request={visit.doctorRequest} className="mt-1" />
           <p className="mt-1 break-words text-sm text-muted-foreground">
             <span className="font-mono">{visit.patient.patientCode}</span>
             {age !== null ? ` · ${age} yrs` : ''}
@@ -861,6 +865,7 @@ function QueueRow({
         </p>
         <DemoBadge isDemo={visit.patient.isDemo} />
         <LineFlagChip flags={visit.lineFlags} />
+        <DoctorRequestChip request={visit.doctorRequest} />
         {visit.previous?.handoffNote ? (
           <p className="break-words pt-1 text-sm">
             <span className="text-muted-foreground">Note: </span>

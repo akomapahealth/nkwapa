@@ -3,6 +3,7 @@
 import { formatPersonName } from './person-name';
 import { useEffect } from 'react';
 import { nextStationId, type StationKindValue } from '@nkwapa/db/clinic-stations';
+import type { DoctorRequest, DoctorRequestReason, DoctorRequestUrgency } from './doctor-requests';
 import type { LineFlag } from '@nkwapa/db/station-line-flags';
 import { apiFetch, type GetToken } from './api';
 import { readApiError } from './ops';
@@ -43,6 +44,8 @@ export interface StationVisit {
   dayNumber?: number | null;
   /** Red flags raised along the line so far (#415). Absent on copies saved before it existed. */
   lineFlags?: LineFlag[];
+  /** The open "Ask a doctor" on this check-in (#418), with who took it. */
+  doctorRequest?: DoctorRequest | null;
   encounterId: string | null;
   station: Pick<ClinicStation, 'id' | 'kind' | 'name' | 'sortOrder'>;
   patient: {
@@ -135,6 +138,8 @@ export interface CompleteVisitResult {
   nextVisitId: string | null;
   nextStationId: string | null;
   sessionCompleted: boolean;
+  /** A refer-today reading asked for a doctor with no tap (#418). */
+  doctorRequested?: boolean;
 }
 
 /** How often an open station screen re-reads the line. Polling, not push, in v1. */
@@ -645,3 +650,35 @@ export function usePolling(refresh: () => void, enabled: boolean, intervalMs = S
     };
   }, [refresh, enabled, intervalMs]);
 }
+
+/** "Ask a doctor" (#418). Asking again on the same patient raises the one request already open. */
+export const requestDoctor = (
+  clinicId: string,
+  visitId: string,
+  body: { urgency: DoctorRequestUrgency; reason?: DoctorRequestReason },
+  getToken: GetToken,
+) =>
+  request<DoctorRequest>(
+    clinicId,
+    `/station-visits/${encodeURIComponent(visitId)}/doctor-request`,
+    getToken,
+    { method: 'POST', body },
+  );
+
+/** "I'm on it". A 409 with code DOCTOR_REQUEST_TAKEN names who took it first. */
+export const claimDoctorRequest = (clinicId: string, requestId: string, getToken: GetToken) =>
+  request<DoctorRequest>(
+    clinicId,
+    `/doctor-requests/${encodeURIComponent(requestId)}/claim`,
+    getToken,
+    { method: 'POST' },
+  );
+
+/** "Seen", by the doctor who took it. */
+export const resolveDoctorRequest = (clinicId: string, requestId: string, getToken: GetToken) =>
+  request<DoctorRequest>(
+    clinicId,
+    `/doctor-requests/${encodeURIComponent(requestId)}/resolve`,
+    getToken,
+    { method: 'POST' },
+  );

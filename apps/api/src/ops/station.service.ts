@@ -3,10 +3,16 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { PushService } from '../push/push.service';
+import {
+  DOCTOR_REQUEST_VIEW_SELECT,
+  DoctorRequestService,
+  toDoctorRequestView,
+} from './doctor-request.service';
 import { Prisma, StationKind, StationVisitStatus } from '@prisma/client';
 import {
   CLINIC_DEFAULT_TIMEZONE,
@@ -19,6 +25,7 @@ import {
   type ClinicDayWindow,
   type HypertensionSymptomValue,
   type LineFlag,
+  type LineFlagSource,
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService, type LogWriteParams } from '../audit/audit.service';
@@ -75,6 +82,8 @@ const VISIT_INCLUDE = {
       encounterId: true,
       dayNumber: true,
       lineFlags: true,
+      // The open "Ask a doctor" (#418), at most one by a partial unique index.
+      doctorRequests: { where: { resolvedAt: null }, take: 1, select: DOCTOR_REQUEST_VIEW_SELECT },
       patient: {
         select: {
           id: true,
@@ -90,6 +99,12 @@ const VISIT_INCLUDE = {
 } satisfies Prisma.PatientStationVisitInclude;
 
 type VisitWithContext = Prisma.PatientStationVisitGetPayload<{ include: typeof VISIT_INCLUDE }>;
+
+function openDoctorRequest(visit: VisitWithContext) {
+  // Optional: visits built without the relation (older fixtures, hand-made rows) have none.
+  const row = visit.patientCheckIn.doctorRequests?.[0];
+  return row ? toDoctorRequestView(row) : null;
+}
 
 /** Who did a stop before its latest correction, and who corrected it when (#307). */
 export type PerformerCorrection = {
@@ -143,10 +158,13 @@ type Performer = {
  */
 @Injectable()
 export class StationService {
+  private readonly logger = new Logger(StationService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     @Optional() private readonly push?: PushService,
+    @Optional() private readonly doctorRequests?: DoctorRequestService,
   ) {}
 
   // ── Stations ────────────────────────────────────────────────────────────────────────────
@@ -963,6 +981,8 @@ export class StationService {
       }
 
       const updated = await this.loadVisit(tx, visitId);
+      const referNow =
+        worstLineFlag(lineFlags) === 'REFER_TODAY' && worstLineFlag(before) !== 'REFER_TODAY';
       await this.audit(tx, clinicId, actor.userId, context, {
         action: 'STATION.COMPLETE',
         entityType: 'PatientStationVisit',
@@ -970,14 +990,43 @@ export class StationService {
         beforeJson: JSON.stringify(this.auditShape(visit)),
         afterJson: JSON.stringify({ ...this.auditShape(updated), nextVisitId: next?.id ?? null }),
       });
-      return { updated, next };
+      const refer = referNow ? lineFlags.find((flag) => flag.kind === 'REFER_TODAY') : undefined;
+      return { updated, next, refer };
     });
+    // A refer-today reading asks for a doctor with no tap (#418), once the hand-off has landed.
+    const doctorRequested = Boolean(
+      result.refer &&
+      result.next &&
+      (await this.autoRequestDoctor(clinicId, result.next.id, actor.userId, result.refer.source)),
+    );
     return {
       visit: this.toVisit(result.updated),
       nextVisitId: result.next?.id ?? null,
       nextStationId: result.next?.stationId ?? null,
       sessionCompleted: result.next === null,
+      doctorRequested,
     };
+  }
+
+  /** Never fails the hand-off: the flag still travels, and a doctor can still be asked by hand. */
+  private async autoRequestDoctor(
+    clinicId: string,
+    nextVisitId: string,
+    actorUserId: string,
+    source: LineFlagSource,
+  ): Promise<boolean> {
+    if (!this.doctorRequests) return false;
+    try {
+      await this.doctorRequests.request(clinicId, nextVisitId, actorUserId, {
+        urgency: 'NOW',
+        reason: source === 'BP' ? 'HIGH_BP' : 'HIGH_GLUCOSE',
+        auto: true,
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(`Automatic doctor request failed: ${(error as Error).message}`);
+      return false;
+    }
   }
 
   /**
@@ -1801,6 +1850,7 @@ export class StationService {
       checkedInAt: visit.patientCheckIn.checkedInAt.toISOString(),
       dayNumber: visit.patientCheckIn.dayNumber,
       lineFlags: parseLineFlags(visit.patientCheckIn.lineFlags),
+      doctorRequest: openDoctorRequest(visit),
       encounterId: visit.encounterId,
       station: visit.station,
       patient: {
