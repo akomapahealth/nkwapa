@@ -9,6 +9,7 @@ const {
   mailpitFetch,
   messageContent,
 } = require('../playwright/mailpit');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -71,7 +72,7 @@ async function registerSignupChart(page) {
   await page.getByLabel('First name', { exact: true }).fill('E2E');
   await page.getByLabel('Last name', { exact: true }).fill(SIGNUP_LAST_NAME);
   await page.getByLabel('Date of birth').fill(SIGNUP_DOB);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-SIGNUP-${RUN_ID}`);
+  await fillNationalId(page, `E2E-SIGNUP-${RUN_ID}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 30_000 });
   chartPath = new URL(page.url()).pathname;

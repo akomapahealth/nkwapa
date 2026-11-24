@@ -5,6 +5,7 @@ const { outboxCount, queueOfflineChange, waitForPush } = require('../playwright/
 const { apiRequestAs } = require('../playwright/api-client');
 const { readOutboxRows, waitForOutboxDrain } = require('../playwright/outbox');
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -13,7 +14,7 @@ async function createPatient(page, nationalId) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Sync');
   await page.getByLabel('Last name', { exact: true }).fill(`Recovery-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(nationalId);
+  await fillNationalId(page, nationalId);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');

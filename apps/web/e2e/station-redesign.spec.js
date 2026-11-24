@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.skip(
   process.env.FEATURE_STATION_WORKFLOW_ENABLED !== 'true' ||
@@ -170,7 +171,7 @@ async function openBloodPressureVisit(page, lastName) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Synthetic');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-${lastName}-${Date.now()}`);
+  await fillNationalId(page, `E2E-${lastName}-${Date.now()}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');

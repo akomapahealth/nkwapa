@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /*
   Issue #336: the live follow-up tier. A very high reading warns on the form as it is typed, the
@@ -22,7 +23,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Follow');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-TIER-${suffix}`);
+  await fillNationalId(page, `E2E-TIER-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   return { chartUrl: new URL(page.url()).pathname, id: page.url().split('/').at(-1), lastName };

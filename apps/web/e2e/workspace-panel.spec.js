@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /*
   The chart's forms open in a side panel beside the chart from 1200px (O3 workspace pattern), and
@@ -15,7 +16,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Panel');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-PANEL-${suffix}`);
+  await fillNationalId(page, `E2E-PANEL-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   return page.url().split('/').at(-1);

@@ -8,6 +8,7 @@ const {
   waitForOutboxDrain,
 } = require('../playwright/outbox');
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /*
   CLN-05, issue #162: on a shared clinic laptop, a change is only ever sent by the account that
@@ -23,7 +24,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Held');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-OWN-${suffix}`);
+  await fillNationalId(page, `E2E-OWN-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');

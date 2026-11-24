@@ -7,6 +7,7 @@ const { apiRequestAs } = require('../playwright/api-client');
 const { requireAuditDatabase } = require('../playwright/device-matrix.cjs');
 const { chooseAnswer, question, openSection, answer } = require('../playwright/interview');
 const { waitForOutboxDrain, queueOfflineChange, readOutboxRows } = require('../playwright/outbox');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 test.skip(
@@ -61,7 +62,7 @@ test('screening corrections sync on current and old APIs after metadata compatib
   const suffix = randomUUID().slice(0, 10);
   await page.getByLabel('First name', { exact: true }).fill('Synthetic');
   await page.getByLabel('Last name', { exact: true }).fill(`Compatibility-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`R82-COMPAT-${suffix}`);
+  await fillNationalId(page, `R82-COMPAT-${suffix}`);
   await page.getByRole('button', { name: 'Create patient', exact: true }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
   const patientId = page.url().split('/').at(-1);

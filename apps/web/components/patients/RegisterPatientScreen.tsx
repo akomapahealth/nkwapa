@@ -43,22 +43,14 @@ import {
 } from '@/lib/residential-location';
 import { FieldError, FieldLabel, RequiredLegend } from '@/components/ui/field';
 
-import { formatPersonName, normalizeMiddleName } from '@/lib/person-name';
+import { formatPersonName } from '@/lib/person-name';
+import { registrationBody, type RegistrationForm } from '@/lib/patient-registration';
+import { Checkbox } from '@/components/ui/checkbox';
 import { MiddleNameField } from './MiddleNameField';
 import { PatientFormErrors, usePatientFormErrors } from './PatientFormErrors';
 import styles from './registration-workspace.module.css';
 
-interface CreatePatientBody {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  dob?: string;
-  sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
-  phoneE164?: string;
-  email?: string;
-  nationalIdType: 'VOTER_ID' | 'NATIONAL_ID' | 'PASSPORT' | 'OTHER' | 'NONE';
-  nationalId: string;
-}
+type CreatePatientBody = RegistrationForm;
 
 interface ExistingPatient {
   id: string;
@@ -134,7 +126,8 @@ export function RegisterPatientScreen({
     sex: undefined,
     phoneE164: '',
     email: '',
-    nationalIdType: 'OTHER',
+    // No default: a volunteer chooses the document the patient showed, or no ID (#428).
+    nationalIdType: '',
     nationalId: '',
   });
   const [location, setLocation] = useState<ResidentialLocationValue>(emptyResidentialLocation());
@@ -142,6 +135,17 @@ export function RegisterPatientScreen({
   const submitting = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictPatient, setConflictPatient] = useState<ExistingPatient | null>(null);
+  // Unticking No ID gives back the document chosen before it, with the number still typed.
+  const typeBeforeNoId = useRef<CreatePatientBody['nationalIdType']>('');
+  const setNoId = (noId: boolean) => {
+    validation.clear('nationalId');
+    setError(null);
+    setForm((current) => {
+      if (noId && current.nationalIdType !== 'NONE')
+        typeBeforeNoId.current = current.nationalIdType;
+      return { ...current, nationalIdType: noId ? 'NONE' : typeBeforeNoId.current };
+    });
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -155,6 +159,12 @@ export function RegisterPatientScreen({
       setError(locationError);
       return;
     }
+    const prepared = registrationBody(form);
+    if ('error' in prepared) {
+      setError(prepared.error);
+      document.getElementById('nationalIdType')?.focus();
+      return;
+    }
 
     submitting.current = true;
     setLoading(true);
@@ -163,16 +173,8 @@ export function RegisterPatientScreen({
 
     let leaving = false;
     try {
-      const noId = form.nationalIdType === 'NONE';
       const body = {
-        ...form,
-        // A patient with no ID document has no number to send (#214).
-        nationalId: noId ? undefined : form.nationalId,
-        middleName: normalizeMiddleName(form.middleName) ?? undefined,
-        dob: form.dob || undefined,
-        sex: form.sex ?? 'UNKNOWN',
-        phoneE164: form.phoneE164 || undefined,
-        email: form.email || undefined,
+        ...prepared.body,
         ...toResidentialLocationPayload(location),
         ...(canMarkDemo && isDemo ? { isDemo: true } : {}),
       };
@@ -263,9 +265,13 @@ export function RegisterPatientScreen({
       >
         <DialogContent className={styles.conflict}>
           <DialogHeader>
-            <DialogTitle>Patient already exists</DialogTitle>
-            <DialogDescription>
-              A patient with this national ID is already in the system.
+            <DialogTitle>This ID number is already on a chart</DialogTitle>
+            {/* A long name is one unbroken word; it must wrap, not widen the dialog. */}
+            <DialogDescription className="[overflow-wrap:anywhere]">
+              {conflictPatient
+                ? `This ID number is already on ${formatPersonName(conflictPatient)}’s chart. `
+                : ''}
+              If this is a different person, check the number, or choose No ID with them today.
             </DialogDescription>
           </DialogHeader>
           {conflictPatient ? (
@@ -283,7 +289,16 @@ export function RegisterPatientScreen({
           ) : null}
           <DialogFooter className={styles.conflictActions}>
             <Button variant="outline" onClick={() => setConflictPatient(null)}>
-              Review details
+              Check the number
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConflictPatient(null);
+                setNoId(true);
+              }}
+            >
+              Register with no ID
             </Button>
             {conflictPatient ? (
               <Button asChild>
@@ -301,10 +316,11 @@ export function RegisterPatientScreen({
           title="Before you save"
           className="rounded-none border-x-0 border-t-0 bg-transparent shadow-none"
         >
-          Capture the most reliable identity details available today. If the patient has no ID
-          document at all, choose &ldquo;No ID document&rdquo;: the chart is identified by its
-          patient code, and the ID can be added from the chart when they bring one. Without an ID,
-          Nkwapa relies on name, date of birth and phone to spot duplicates, so fill those in.
+          Capture the most reliable identity details available today. If the patient has no ID with
+          them, tick &ldquo;No ID with them today&rdquo;: the chart is identified by its patient
+          code, and the ID can be added from the chart when they bring one. Never make up a number.
+          Without an ID, Nkwapa relies on name, date of birth and phone to spot duplicates, so fill
+          those in.
         </ProgressiveHelp>
 
         <form
@@ -422,38 +438,35 @@ export function RegisterPatientScreen({
             <FormSectionCard
               title="National ID"
               description="The ID check runs when you save this form."
-              hint="Choose the document the patient showed. If they have none, choose “No ID document” and add the ID later from the chart."
+              hint="Choose the document the patient showed. If they have none with them, tick “No ID with them today” and add the ID later from the chart."
             >
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,220px),minmax(0,1fr)]">
-                <div className="space-y-2">
-                  <Label htmlFor="nationalIdType">National ID type</Label>
-                  <Select
-                    value={form.nationalIdType}
-                    onValueChange={(value) => {
-                      validation.clear('nationalId');
-                      setForm((current) => ({
-                        ...current,
-                        nationalIdType: value as CreatePatientBody['nationalIdType'],
-                      }));
-                    }}
-                  >
-                    <SelectTrigger id="nationalIdType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                      <SelectItem value="VOTER_ID">Voter ID</SelectItem>
-                      <SelectItem value="NATIONAL_ID">National ID</SelectItem>
-                      <SelectItem value="PASSPORT">Passport</SelectItem>
-                      <SelectItem value="NONE">No ID document</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {form.nationalIdType === 'NONE' ? (
-                  <p className="self-end text-sm text-muted-foreground">
-                    No ID number. The patient code identifies this chart until an ID is added.
-                  </p>
-                ) : (
+              {form.nationalIdType !== 'NONE' ? (
+                <div className="grid gap-4 sm:grid-cols-[minmax(0,220px),minmax(0,1fr)]">
+                  <div className="space-y-2">
+                    <FieldLabel htmlFor="nationalIdType" required>
+                      National ID type
+                    </FieldLabel>
+                    <Select
+                      value={form.nationalIdType}
+                      onValueChange={(value) => {
+                        validation.clear('nationalId');
+                        setForm((current) => ({
+                          ...current,
+                          nationalIdType: value as CreatePatientBody['nationalIdType'],
+                        }));
+                      }}
+                    >
+                      <SelectTrigger id="nationalIdType">
+                        <SelectValue placeholder="Choose the document they showed" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                        <SelectItem value="VOTER_ID">Voter ID</SelectItem>
+                        <SelectItem value="PASSPORT">Passport</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <FieldLabel htmlFor="nationalId" required>
                       National ID
@@ -474,7 +487,24 @@ export function RegisterPatientScreen({
                       message={validation.fieldMessage('nationalId')}
                     />
                   </div>
-                )}
+                </div>
+              ) : null}
+              {/* Beside the field it replaces, so it is found without opening the select. */}
+              <div className="mt-4 flex items-start gap-3">
+                <Checkbox
+                  id="noIdToday"
+                  checked={form.nationalIdType === 'NONE'}
+                  onCheckedChange={(checked) => setNoId(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Label htmlFor="noIdToday">No ID with them today</Label>
+                  {form.nationalIdType === 'NONE' ? (
+                    <p className="text-sm text-muted-foreground">
+                      The patient code identifies this chart. Add the ID later from the chart.
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </FormSectionCard>
 

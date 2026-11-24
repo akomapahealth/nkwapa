@@ -5,6 +5,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
 const { overflow } = require('../playwright/responsive-routes');
 const { minButtonHeight } = require('../playwright/hit-target');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
@@ -26,7 +27,7 @@ async function choose(page, label, option) {
 async function fill(page) {
   await page.getByLabel('First name', { exact: true }).fill('Synthetic');
   await page.getByLabel('Last name', { exact: true }).fill('Registration');
-  await page.getByLabel('National ID', { exact: true }).fill('SYN-R35-ID');
+  await fillNationalId(page, 'SYN-R35-ID');
 }
 async function noOverflow(page) {
   expect(
@@ -168,7 +169,7 @@ test('both registration routes keep their own clinic payload and registry links'
       firstName: 'Synthetic',
       lastName: 'Registration',
       sex: 'UNKNOWN',
-      nationalIdType: 'OTHER',
+      nationalIdType: 'NATIONAL_ID',
       nationalId: 'SYN-R35-ID',
       residentialLocationStatus: 'NOT_RECORDED',
     });
@@ -258,26 +259,43 @@ test('no-ID payload omits the retained number; duplicate dialog keeps values and
         : { message: 'Synthetic duplicate without details' },
     });
   });
-  await choose(page, 'National ID type', 'No ID document');
+  // #428: no ID is one tick beside the number, not the last item in the type select.
+  await page.getByLabel('No ID with them today', { exact: true }).click();
+  await expect(page.getByLabel('National ID', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Create patient', exact: true }).click();
   await expect(page.getByRole('alert', { name: 'Unable to save' })).toContainText(
     'Synthetic duplicate without details',
   );
   expect(body.nationalIdType).toBe('NONE');
   expect(body.nationalId).toBeUndefined();
-  await choose(page, 'National ID type', 'National ID');
+  // Unticking gives back the document and number typed before.
+  await page.getByLabel('No ID with them today', { exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'National ID type' })).toHaveText('National ID');
   await expect(page.getByLabel('National ID', { exact: true })).toHaveValue('SYN-R35-ID');
   conflict = true;
   await page.getByRole('button', { name: 'Create patient', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Patient already exists', exact: true });
+  const dialog = page.getByRole('dialog', {
+    name: 'This ID number is already on a chart',
+    exact: true,
+  });
   await expect(dialog.getByText('Synthetic Existing', { exact: true })).toBeVisible();
+  // The refusal says what to do next, naming the chart (#428).
+  await expect(dialog).toContainText(
+    'This ID number is already on Synthetic Existing’s chart. If this is a different person, check the number, or choose No ID with them today.',
+  );
   await expect(
     dialog.getByRole('link', { name: 'Open existing patient', exact: true }),
   ).toHaveAttribute('href', /\/patients\/synthetic-existing$/);
-  await dialog.getByRole('button', { name: 'Review details', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Check the number', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByLabel('First name', { exact: true })).toHaveValue('Synthetic');
   await expect(page.getByLabel('National ID', { exact: true })).toHaveValue('SYN-R35-ID');
+  // A different person with the same made-up number: one tap to register them with no ID.
+  await page.getByRole('button', { name: 'Create patient', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Register with no ID', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel('No ID with them today', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('National ID', { exact: true })).toHaveCount(0);
 });
 test('offline registration retains entered fields, reports the connection and can retry', async ({
   page,
@@ -331,16 +349,20 @@ test('duplicate recovery actions fit enlarged phone text and return to entered d
     }),
   );
   await page.getByRole('button', { name: 'Create patient', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Patient already exists', exact: true });
+  const dialog = page.getByRole('dialog', {
+    name: 'This ID number is already on a chart',
+    exact: true,
+  });
   for (const action of [
     dialog.getByRole('link', { name: 'Open existing patient', exact: true }),
-    dialog.getByRole('button', { name: 'Review details', exact: true }),
+    dialog.getByRole('button', { name: 'Register with no ID', exact: true }),
+    dialog.getByRole('button', { name: 'Check the number', exact: true }),
   ]) {
     await action.scrollIntoViewIfNeeded();
     await expect(action).toBeInViewport({ ratio: 1 });
   }
   expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
   await shot(page, 'registration-duplicate-enlarged');
-  await dialog.getByRole('button', { name: 'Review details', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Check the number', exact: true }).click();
   await expect(page.getByLabel('First name', { exact: true })).toHaveValue('Synthetic');
 });

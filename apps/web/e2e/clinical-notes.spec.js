@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { chooseAnswer, question } = require('../playwright/interview');
 
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 test.use({ storageState: storageStateFor('staff') });
 const encounterPatients = new Map();
 
@@ -11,7 +12,7 @@ async function createEncounter(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Clinical');
   await page.getByLabel('Last name', { exact: true }).fill(`Note-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-NOTE-${suffix}`);
+  await fillNationalId(page, `E2E-NOTE-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const patientId = page.url().split('/').at(-1);
