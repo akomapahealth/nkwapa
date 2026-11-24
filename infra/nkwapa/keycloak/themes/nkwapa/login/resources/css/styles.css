@@ -222,6 +222,29 @@ body.nkwapa-auth-body {
   margin-inline: auto;
 }
 
+.nkwapa-auth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Not everyone knows the logo leads home, so the way back is said in words. */
+.nkwapa-auth-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--nkwapa-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nkwapa-auth-home:hover {
+  color: var(--nkwapa-text);
+}
+
 .nkwapa-auth-logo {
   height: 30px;
   width: auto;

@@ -38,5 +38,6 @@ test('sign-in is one title, one line and one button, with no audience choice', a
   await expect(page.getByRole('button', { name: 'Continue to secure sign in' })).toBeVisible();
   await expect(page.getByText(/invitation only/i)).toBeVisible();
   await expect(page.getByRole('radio')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Back to home' })).toHaveAttribute('href', '/');
   await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
 });

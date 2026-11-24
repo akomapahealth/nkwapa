@@ -214,6 +214,10 @@ test('the sign-in page is one title, one line and the form, beside a clinic phot
   await expect(page.locator('[aria-current="step"]')).toHaveCount(0);
   await expect(page.getByText('One record for every visit, even offline.')).toBeVisible();
   await expect(page.getByText('Invitation only. Ask your clinic for access.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to home' })).toHaveAttribute(
+    'href',
+    /^https?:\/\/[^/]+\/$/,
+  );
   const panel = page.locator('.nkwapa-auth-photo img');
   await expect.poll(() => panel.evaluate((img) => img.currentSrc)).toMatch(/auth-clinic\.jpg$/);
 

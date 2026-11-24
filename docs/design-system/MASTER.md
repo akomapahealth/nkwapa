@@ -2102,7 +2102,8 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   "Invite only" from `md` up and named that way to screen readers below it. Under 360px it moves
   into the menu, with the line "For people invited by their clinic. There is no sign-up."
   Nothing public offers sign-up: Keycloak keeps `registrationAllowed: false`.
-- **`/login` and every Keycloak page share one split frame (2026-11-24).** The form column (logo,
+- **`/login` and every Keycloak page share one split frame (2026-11-24).** The form column (logo
+  with a muted "Back to home" link beside it,
   serif title, at most one line, the form, then the footer line "Invitation only. Ask your
   clinic for access." with Privacy and Terms) sits left; from 768px a clinic photograph is inset
   8px on the right with a 12px radius, a bottom scrim and `HERO_HEADLINE` in white serif. Below
@@ -2124,7 +2125,7 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   shell sit on it (R5.2). The landing page and the legal pages stay full bleed: the landing hero
   is a photograph to the window edges and its sections are coloured bands, which an inset frame
   would cut into, and the legal pages share the landing header and footer. The hand-off is the
-  header's "Log in", and the logo on `/login` links back home.
+  header's "Log in", and "Back to home" on `/login` and the Keycloak pages leads back.
 - **Legal pages layer the same way the workspace does:** the page switcher, title and metadata
   sit on the canvas (`bg-background`), and the notice reads on the white sheet (`bg-card`). Below
   `lg` the contents list starts folded behind "Show all N sections" (`aria-expanded`,

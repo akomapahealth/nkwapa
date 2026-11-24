@@ -10,7 +10,7 @@ import { useKeycloak } from '@/app/KeycloakProvider';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { HERO_HEADLINE } from '@/components/landing/hero-content';
 
 // Each block rises in a beat after the one above it; the global reduced-motion rule flattens it.
@@ -106,7 +106,7 @@ export default function LoginPage() {
           Skip to main content
         </a>
         <div className="flex min-w-0 flex-col px-5 pb-5 pt-6 compact:px-10 compact:pb-6 compact:pt-8 xl:px-16 xl:pb-7 xl:pt-10">
-          <header className="mx-auto w-full max-w-[380px] md:mx-0">
+          <header className="mx-auto flex w-full max-w-[380px] items-center justify-between gap-4 md:mx-0">
             <Link href="/" aria-label="Nkwapa home" className="inline-block rounded-sm">
               <Image
                 src="/images/nkwapa-logo.png"
@@ -116,6 +116,13 @@ export default function LoginPage() {
                 priority
                 className="h-[30px] w-auto"
               />
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-sm text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to home
             </Link>
           </header>
 
