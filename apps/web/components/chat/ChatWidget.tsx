@@ -148,8 +148,9 @@ function ChatPanel() {
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen]);
 
+  // min-h-0 lets the column shrink to the panel, so each view's list scrolls inside it.
   const content = (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Connection indicator */}
       {chat && !chat.isConnected && (
         <div className="bg-warning/12 px-3 py-1 text-center text-[11px] text-warning-ink">
@@ -174,7 +175,7 @@ function ChatPanel() {
       {view === 'new-group' && (
         <ChatUserPicker mode="group" onSubmit={handleCreateGroup} onBack={handleBack} />
       )}
-    </>
+    </div>
   );
 
   return (
@@ -207,8 +208,9 @@ function ChatPanel() {
             id="chat-panel"
             data-testid="chat-panel"
             side="bottom"
-            className="inset-x-0 top-0 flex h-[calc(100dvh-var(--keyboard-inset,0px))] max-h-none flex-col gap-0 rounded-none p-0 pb-safe"
+            className="inset-x-0 top-0 flex h-[calc(100dvh-var(--keyboard-inset,0px))] max-h-none flex-col gap-0 overflow-hidden rounded-none p-0 pb-[env(safe-area-inset-bottom)]"
           >
+            {/* Clears the sheet's close button, which sits over the header's right edge. */}
             <div className="h-5 shrink-0">
               <SheetTitle className="sr-only">Chat</SheetTitle>
               <SheetDescription className="sr-only">

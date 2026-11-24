@@ -247,10 +247,34 @@ test('phone chat fills the screen and returns focus after Escape', async ({ page
   expect(box.width).toBe(390);
   expect(box.height).toBe(844);
   await page.screenshot({ path: test.info().outputPath('phone-chat.png') });
+  // Each list ends inside the screen, so its last row can be scrolled into view.
+  const fitsScreen = async (locator) => {
+    const listBox = await locator.boundingBox();
+    expect(listBox.y + listBox.height).toBeLessThanOrEqual(844);
+  };
+  await fitsScreen(panel.getByTestId('chat-conversation-list'));
   await panel.getByRole('button', { name: 'New message', exact: true }).click();
+  await fitsScreen(panel.getByTestId('chat-picker-list'));
   await page.getByPlaceholder('Search staff...').click();
   await expect(page.getByPlaceholder('Search staff...')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(panel).toBeHidden();
   await expect(page.getByRole('button', { name: 'Open chat', exact: true })).toBeFocused();
+});
+
+test('phone composer stays on screen with its send icon centred', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openChatWidget(page);
+  const panel = page.getByTestId('chat-panel');
+  await panel.getByRole('button', { name: 'New message', exact: true }).click();
+  await panel.getByTestId('chat-picker-list').getByRole('button').first().click();
+  const send = panel.getByRole('button', { name: 'Send message' });
+  await expect(send).toBeVisible();
+  const button = await send.boundingBox();
+  expect(button.y + button.height).toBeLessThanOrEqual(844);
+  const icon = await send.locator('svg').boundingBox();
+  expect(Math.abs(icon.x + icon.width / 2 - (button.x + button.width / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs(icon.y + icon.height / 2 - (button.y + button.height / 2))).toBeLessThanOrEqual(
+    1,
+  );
 });
