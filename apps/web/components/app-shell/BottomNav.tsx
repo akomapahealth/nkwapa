@@ -102,13 +102,18 @@ export function BottomNav({
             const badge = portal ? undefined : badges[item.href];
             const content = (
               <>
-                <span className="relative shrink-0">
-                  <Icon aria-hidden="true" className="size-5" />
-                  <NavBadgeCount
-                    badge={badge}
-                    className="absolute -right-3 -top-1.5 ring-2 ring-card"
-                  />
-                </span>
+                {/* Wrapped only when counted, so an unbadged tab keeps its markup unchanged. */}
+                {badge ? (
+                  <span className="relative shrink-0">
+                    <Icon aria-hidden="true" className="size-5" />
+                    <NavBadgeCount
+                      badge={badge}
+                      className="absolute -right-3 -top-1.5 ring-2 ring-card"
+                    />
+                  </span>
+                ) : (
+                  <Icon aria-hidden="true" className="size-5 shrink-0" />
+                )}
                 <span className="w-full [overflow-wrap:anywhere] compact:hidden">
                   {item.shortLabel ?? item.label}
                 </span>

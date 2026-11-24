@@ -79,25 +79,29 @@ export function AppNavList({
                   : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
               );
 
+              const icon = (
+                <Icon
+                  aria-hidden="true"
+                  className={cn(
+                    'h-[18px] w-[18px] shrink-0',
+                    active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+                  )}
+                />
+              );
               const itemContent = (
                 <>
-                  <span className="relative shrink-0">
-                    <Icon
-                      aria-hidden="true"
-                      className={cn(
-                        'h-[18px] w-[18px]',
-                        active
-                          ? 'text-primary'
-                          : 'text-muted-foreground group-hover:text-foreground',
-                      )}
-                    />
-                    {showLabels ? null : (
+                  {/* Wrapped only when the rail shows a count, so other links keep their markup. */}
+                  {badge && !showLabels ? (
+                    <span className="relative shrink-0">
+                      {icon}
                       <NavBadgeCount
                         badge={badge}
                         className="absolute -right-3 -top-2 ring-2 ring-background"
                       />
-                    )}
-                  </span>
+                    </span>
+                  ) : (
+                    icon
+                  )}
                   <span
                     className={cn(
                       showLabels ? 'min-w-0 flex-1' : 'sr-only',
