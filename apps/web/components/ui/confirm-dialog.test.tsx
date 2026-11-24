@@ -35,7 +35,7 @@ jest.mock('./dialog', () => {
   };
 });
 
-import { confirmAction, ConfirmHost } from './confirm-dialog';
+import { chooseAction, confirmAction, ConfirmHost, type Choice } from './confirm-dialog';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -79,6 +79,80 @@ describe('acknowledge-only confirmation', () => {
       (dialog!.querySelector('button') as HTMLButtonElement).click();
     });
     expect(answer).toBe(true);
+    unmount();
+  });
+});
+
+describe('a choice with two ways forward (#425)', () => {
+  const ask = () =>
+    chooseAction({
+      title: 'You are still on shift',
+      description: 'End your shift and sign out?',
+      confirmLabel: 'End shift and sign out',
+      alternativeLabel: 'Sign out only',
+      cancelLabel: 'Cancel',
+      destructive: false,
+    });
+
+  it('shows the safe choice first and names which button was pressed', async () => {
+    for (const [label, expected] of [
+      ['End shift and sign out', 'confirm'],
+      ['Sign out only', 'alternative'],
+      ['Cancel', 'cancel'],
+    ] as const) {
+      const unmount = mount();
+      let choice: Choice | undefined;
+      act(() => {
+        void ask().then((value) => {
+          choice = value;
+        });
+      });
+      const buttons = Array.from(document.querySelectorAll('button'));
+      expect(buttons.map((b) => b.textContent)).toEqual([
+        'Cancel',
+        'Sign out only',
+        'End shift and sign out',
+      ]);
+      await act(async () => {
+        buttons.find((b) => b.textContent === label)!.click();
+      });
+      expect(choice).toBe(expected);
+      unmount();
+    }
+  });
+
+  it('answers cancel to Escape, and confirmAction still answers yes or no', async () => {
+    const unmount = mount();
+    let choice: Choice | undefined;
+    act(() => {
+      void ask().then((value) => {
+        choice = value;
+      });
+    });
+    act(() => {
+      document
+        .querySelector('[role="dialog"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await act(async () => undefined);
+    expect(choice).toBe('cancel');
+
+    let confirmed: boolean | undefined;
+    act(() => {
+      void confirmAction({
+        title: 'Delete?',
+        description: 'Gone for good.',
+        confirmLabel: 'Delete',
+      }).then((value) => {
+        confirmed = value;
+      });
+    });
+    await act(async () => {
+      Array.from(document.querySelectorAll('button'))
+        .find((b) => b.textContent === 'Delete')!
+        .click();
+    });
+    expect(confirmed).toBe(true);
     unmount();
   });
 });

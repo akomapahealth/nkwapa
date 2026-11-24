@@ -102,6 +102,12 @@ export function StationShiftStrip({
           </Button>
         ) : null}
       </div>
+      {shift && !shift.pendingCheckOut ? (
+        // Volunteers could not tell the two apart on screening day (#425).
+        <p className="order-last w-full text-xs text-muted-foreground">
+          End shift when you leave your station. Sign out when you leave the app.
+        </p>
+      ) : null}
       {!shift ? (
         roles.length ? (
           <div className="flex w-full flex-col gap-3 compact:flex-row compact:items-end">
