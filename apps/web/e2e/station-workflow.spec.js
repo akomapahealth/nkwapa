@@ -8,6 +8,9 @@ const { answer, question } = require('../playwright/interview');
 const { keyboardDialog } = require('../playwright/clinical-keyboard.cjs');
 const { readLocalTable } = require('../playwright/local-db');
 const { fillNationalId } = require('../playwright/register-patient');
+const { readOutboxRows } = require('../playwright/outbox');
+
+const API_ORIGIN = new URL(process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000').origin;
 
 /*
   Issue #167: the station line, end to end.
@@ -681,7 +684,7 @@ test('manager assignment is refused while the station line runs', async ({ page 
 
 /*
   #426: on a phone with a flaky signal the eye history kept resetting. Going offline disabled the
-  form (focus lost) and coming back reloaded it over the typing. Now only Save waits.
+  form (focus lost) and coming back reloaded it over the typing.
 */
 test('eye history keeps its typing through a connection flicker on a phone (#426)', async ({
   page,
@@ -714,10 +717,11 @@ test('eye history keeps its typing through a connection flicker on a phone (#426
     field.setSelectionRange(0, 0);
   });
   await context.setOffline(true);
+  // Since #423 Save keeps working offline, on the device.
   await expect(
-    page.getByText('Saving needs a connection. What you type stays on this page.'),
+    page.getByText(/Offline\. Saving keeps the examination on this device/),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save eye examination' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save eye examination' })).toBeEnabled();
   await expect(history).toBeEnabled();
   await expect(history).toBeFocused();
   await history.pressSequentially('Right eye. ');
@@ -729,6 +733,100 @@ test('eye history keeps its typing through a connection flicker on a phone (#426
   await page.getByRole('button', { name: 'Save eye examination' }).click();
   await expect(page.getByText('Eye examination saved.')).toBeVisible({ timeout: 20_000 });
   await expect(history).toHaveValue('Right eye. Itchy. Blurred since June');
+});
+
+/*
+  #423: the signal drops mid-patient. The visit this device holds reopens from its copy, the
+  reading saves on the device, and the hand-off queues behind it. Once the server is back the
+  patient reaches the next station with the reading. The phone still says it is online, as on
+  screening day: only the API is unreachable.
+*/
+test('a hand-off made without a connection reaches the next station with the reading (#423)', async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  let next = await claimNext('staff', clinicId, checkInId);
+  while (next.at.station.kind !== 'BLOOD_PRESSURE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+  const visitId = next.at.visit.id;
+  // From the station line, as a volunteer comes: the device keeps a copy of both.
+  await page.goto('/stations');
+  await expect(page.getByRole('heading', { name: 'With you now' })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.goto(`/stations/visits/${visitId}`);
+  await expect(page.getByLabel('Systolic BP (mmHg)')).toBeVisible({ timeout: 20_000 });
+
+  // The visit itself cannot be fetched: it opens from this device's copy.
+  const visitRoute = `${API_ORIGIN}/clinics/${clinicId}/station-visits/${visitId}`;
+  await page.route(visitRoute, (route) => route.abort('internetdisconnected'));
+  await page.reload();
+  await expect(page.getByText(/this visit opened from this device/)).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.unroute(visitRoute);
+
+  // Now nothing reaches the API.
+  const unreachable = (route) => route.abort('internetdisconnected');
+  await page.route(`${API_ORIGIN}/**`, unreachable);
+  await page.getByLabel('Systolic BP (mmHg)').fill('150');
+  await page.getByLabel('Diastolic BP (mmHg)').fill('95');
+  await page.getByLabel('Measurement site').click();
+  await page.getByRole('option', { name: /left arm/i }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save measurements' }).click();
+  await expect(page.getByText('Measurements saved on this device and pending sync.')).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByLabel('Note for the next station').fill('Taken offline (#423).');
+  await page.getByRole('button', { name: /^Send to / }).click();
+  await page.waitForURL(/\/stations\?.*queued=1/, { timeout: 30_000 });
+  await expect(page.getByText(/It is sent when the connection returns/)).toBeVisible();
+
+  // The board loads again but nothing has synced: the patient shows as handed on, not held.
+  await page.unroute(`${API_ORIGIN}/**`, unreachable);
+  await page.route(`${API_ORIGIN}/sync/**`, unreachable);
+  await page.reload();
+  await expect(page.getByTestId('handed-on-offline').first()).toBeVisible({ timeout: 20_000 });
+
+  // The reading is queued ahead of the hand-off, so the server applies it first.
+  const queued = (await readOutboxRows(page, clinicId)).sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  );
+  const handOff = queued.findIndex(
+    (row) => row.entityType === 'station_visit_complete' && row.entityId === visitId,
+  );
+  const reading = queued.findIndex((row) => /vitals/.test(row.entityType));
+  expect(handOff).toBeGreaterThan(-1);
+  expect(reading).toBeGreaterThan(-1);
+  expect(reading).toBeLessThan(handOff);
+
+  // Back online: the patient is waiting at the next station, with the reading and the note.
+  await page.unroute(`${API_ORIGIN}/sync/**`, unreachable);
+  await page.reload();
+  await expect
+    .poll(async () => (await boardVisit('staff', clinicId, checkInId))?.visit.status, {
+      timeout: 60_000,
+    })
+    .toBe('QUEUED');
+  const at = await boardVisit('staff', clinicId, checkInId);
+  expect(at.station.kind).not.toBe('BLOOD_PRESSURE');
+  expect(at.visit.previous?.handoffNote).toBe('Taken offline (#423).');
+  const encounter = await apiRequestAs('staff', 'get', `/encounters/${at.visit.encounterId}`, {
+    clinicId,
+  });
+  expect(encounter.json().vitals).toMatchObject({ systolicBp: 150, diastolicBp: 95 });
 });
 
 test.describe('station flow metrics on the dashboard (#24)', () => {

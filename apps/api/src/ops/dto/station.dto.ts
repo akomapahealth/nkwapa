@@ -3,7 +3,9 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
+  Equals,
   IsArray,
+  IsISO8601,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -187,4 +189,14 @@ export class ReorderStationsDto {
   @ArrayUnique()
   @IsUUID('all', { each: true })
   stationIds!: string[];
+}
+
+/** A hand-off queued offline (#423). The visit is the mutation's `entityId`. */
+export class StationVisitCompleteReplayPayload extends CompleteStationVisitDto {
+  @Equals(1)
+  schemaVersion!: 1;
+
+  /** When the volunteer handed on, on the device. */
+  @IsISO8601({ strict: true })
+  occurredAt!: string;
 }

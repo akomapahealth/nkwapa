@@ -167,6 +167,12 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
       'Someone checked the patient in before this device synced, so a second check-in was not created.',
     nextStep: 'Find the patient where it says below, then discard this copy.',
   },
+  STATION_HANDOFF_REFUSED: {
+    title: 'This hand-off was not sent',
+    explanation:
+      'The patient was released, moved or finished by someone else before this device reconnected. The readings recorded at the station were kept.',
+    nextStep: 'Check the station line for where the patient is now, then discard this copy.',
+  },
   OPS_REPLAY_EXPIRED: {
     title: 'This was saved on an earlier clinic day',
     explanation:
@@ -234,6 +240,8 @@ const ENTITY_LABELS: Record<string, string> = {
   shift_check_in: 'Shift start',
   shift_check_out: 'Shift end',
   patient_check_in: 'Patient check-in',
+  station_visit_complete: 'Station hand-off',
+  eye_screening: 'Eye examination',
   follow_up_attempt: 'Follow-up call',
 };
 
@@ -368,8 +376,11 @@ export function describeSyncFailure(
     code,
     category,
     serverDetail:
-      category === 'validation' || code === 'PATIENT_ALREADY_CHECKED_IN'
-        ? // A duplicate check-in names where the patient already is (#414).
+      category === 'validation' ||
+      code === 'PATIENT_ALREADY_CHECKED_IN' ||
+      code === 'STATION_HANDOFF_REFUSED'
+        ? // A duplicate check-in names where the patient already is (#414); a refused hand-off
+          // names the station (#423).
           serverDetailFor(failure)
         : undefined,
     actions: [],

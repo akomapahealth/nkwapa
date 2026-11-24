@@ -32,5 +32,9 @@ export type EntityType =
   | 'shift_check_in'
   | 'shift_check_out'
   | 'patient_check_in'
+  // A station hand-off made offline (#423), replayed after the readings queued before it.
+  | 'station_visit_complete'
+  // The eye examination saved offline at the eye station (#423); entityId is the encounter.
+  | 'eye_screening'
   // A follow-up call recorded offline (#338). Taking and cancelling a contact stay online.
   | 'follow_up_attempt';

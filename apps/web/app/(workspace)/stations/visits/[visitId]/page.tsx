@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
 import { lineFlagsFor, type LineFlagSource } from '@nkwapa/db/station-line-flags';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
-import { apiFetch, type GetToken } from '@/lib/api';
+import { ApiError, apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
@@ -20,6 +20,10 @@ import {
   formatOpsDay,
 } from '@/lib/ops';
 import { isFullySynced } from '@/lib/sync';
+import { opsCacheKey, readOpsCache, writeOpsCache } from '@/lib/ops-cache';
+import { buildStationHandOffMutation } from '@/lib/ops-offline';
+import { enqueueOutboxMutation } from '@/lib/outbox';
+import { queuedEyeScreening } from '@/lib/eye-screening-offline';
 import {
   cancelCheckIn,
   claimStationVisit,
@@ -95,7 +99,7 @@ interface EncounterReadings {
   diabetes: DiabetesScreeningRecord | null;
   /** The intake interview's record, for the hypertension interview to build on. */
   hypertension: Record<string, unknown> | null;
-  /** Online only: null offline, and before the eye station records. */
+  /** The server's, or this device's queued save (#423); null before the eye station records. */
   eye: EyeScreeningRecord | null;
 }
 
@@ -104,6 +108,25 @@ const FLAG_SOURCE_AT: Partial<Record<StationVisit['station']['kind'], LineFlagSo
   BLOOD_PRESSURE: 'BP',
   GLUCOSE: 'GLUCOSE',
 };
+
+/** What a held visit needs to reopen offline (#423). */
+interface VisitCopy {
+  visit: StationVisitDetail;
+  stations: ClinicStation[];
+}
+
+function isVisitCopy(data: unknown): data is VisitCopy {
+  const copy = data as Partial<VisitCopy> | null;
+  return Boolean(copy?.visit?.id && copy.visit.station && Array.isArray(copy.stations));
+}
+
+/** A request that never got an answer, as opposed to one the server refused. */
+function isUnanswered(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.code === 'NETWORK_ERROR' || error.code === 'REQUEST_TIMEOUT')
+  );
+}
 
 const STATUS_LABELS: Record<StationVisit['status'], string> = {
   QUEUED: 'Waiting',
@@ -152,6 +175,8 @@ export default function StationVisitPage() {
   const [addedAt, setAddedAt] = useState<Partial<Record<SummaryRowKind, string>>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** The visit on screen is this device's copy, opened without a connection (#423). */
+  const [savedCopy, setSavedCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Edits typed into this station's form since its last save; hand-off asks before dropping them.
@@ -212,28 +237,34 @@ export default function StationVisitPage() {
   const loadReadings = useCallback(
     async (encounterId: string) => {
       if (!getToken) return;
+      // An eye examination saved on this device and not sent yet still counts (#423).
+      const queuedEye = () =>
+        clinicId ? queuedEyeScreening(db, clinicId, encounterId) : Promise.resolve(null);
       try {
-        setReadings(await fetchServerReadings(encounterId, null));
+        const server = await fetchServerReadings(encounterId, null);
+        setReadings(server.eye ? server : { ...server, eye: await queuedEye() });
       } catch {
         // Offline or unreachable: this device's copy is what the forms build on.
-        const [vitals, diabetes, hypertension] = await Promise.all([
+        const [vitals, diabetes, hypertension, eye] = await Promise.all([
           db.vitals.where('encounterId').equals(encounterId).first(),
           db.diabetes_screenings.where('encounterId').equals(encounterId).first(),
           db.hypertension_assessments.where('encounterId').equals(encounterId).first(),
+          queuedEye(),
         ]);
         setReadings({
           vitals: vitals ?? null,
           diabetes: diabetes ?? null,
           hypertension: (hypertension as unknown as Record<string, unknown>) ?? null,
-          eye: null,
+          eye,
         });
       }
     },
-    [getToken, fetchServerReadings],
+    [getToken, fetchServerReadings, clinicId],
   );
 
   const load = useCallback(async () => {
     if (!getToken || !clinicId || !enabled) return;
+    const copyKey = { clinicId, kind: 'station-visit' as const, date: getTodayInTimeZone() };
     try {
       const [detail, stationList, board] = await Promise.all([
         fetchStationVisit(clinicId, visitId, getToken),
@@ -243,10 +274,28 @@ export default function StationVisitPage() {
       ]);
       setVisit(detail);
       setStations(stationList.items);
+      setSavedCopy(false);
       if (board) setMyShift(board.onShift?.find((shift) => shift.user.id === userId) ?? null);
       setLoadError(null);
+      // shortcut: one held visit per clinic on a device; keep several if volunteers hold more.
+      if (detail.status === 'IN_PROGRESS' && detail.claimedBy?.id === userId) {
+        void writeOpsCache(db, {
+          ...copyKey,
+          data: { visit: detail, stations: stationList.items },
+        });
+      }
       if (detail.encounterId) await loadReadings(detail.encounterId);
     } catch (error) {
+      // Offline, a visit this device holds opens from its copy (#423).
+      const copy = await readOpsCache<VisitCopy>(db, { ...copyKey, isValid: isVisitCopy });
+      if (copy?.data.visit.id === visitId) {
+        setVisit(copy.data.visit);
+        setStations(copy.data.stations);
+        setSavedCopy(true);
+        setLoadError(null);
+        if (copy.data.visit.encounterId) await loadReadings(copy.data.visit.encounterId);
+        return;
+      }
       setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
@@ -258,6 +307,10 @@ export default function StationVisitPage() {
   }, [load]);
 
   const mine = visit?.status === 'IN_PROGRESS' && visit.claimedBy?.id === userId;
+  /** The visit is no longer this device's to reopen offline. */
+  const forgetVisitCopy = () => {
+    if (clinicId) void db.ops_cache.delete(opsCacheKey(clinicId, 'station-visit')).catch(() => {});
+  };
 
   // The review summary keeps up with readings that reach the server after it opened (#427):
   // a glucose entered late from paper, or held in another device's outbox. Only the visit and
@@ -374,7 +427,7 @@ export default function StationVisitPage() {
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 {mine
-                  ? `Record ${visit.station.name.toLowerCase()} findings, then hand the patient on. Readings pending sync must reach the server before hand-off.`
+                  ? `Record ${visit.station.name.toLowerCase()} findings, then hand the patient on.`
                   : visit.status === 'QUEUED'
                     ? 'Take this patient before recording findings.'
                     : visit.status === 'IN_PROGRESS'
@@ -404,10 +457,14 @@ export default function StationVisitPage() {
               }
             />
             {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
-            {!isOnline ? (
+            {!isOnline || savedCopy ? (
               <InlineNotice tone="warning" live={false}>
-                You are offline. Readings still save on this device; handing the patient on waits
-                for a connection.
+                {savedCopy
+                  ? 'The server cannot be reached, so this visit opened from this device. '
+                  : 'You are offline. '}
+                {visit.station.kind === 'REVIEW'
+                  ? 'Readings still save on this device; completing the session waits for a connection.'
+                  : 'Readings save on this device, and handing on is sent when the connection returns. Until then the next station cannot see the patient: say their number and send them on.'}
               </InlineNotice>
             ) : null}
 
@@ -548,24 +605,64 @@ export default function StationVisitPage() {
                 onComplete={(body) => {
                   let handedTo = '';
                   let stayed = false;
+                  let queued = false;
+                  // Sent, not inferred, so the stamp is what the banner showed (#227).
+                  const sent = myShift
+                    ? { ...body, screener: screenerFromName(myShift.screenerName) }
+                    : body;
+                  // Offline (#423): queued behind this station's readings, so the server applies
+                  // them first, and sent when the connection returns.
+                  const queueHandOff = async () => {
+                    await enqueueOutboxMutation(
+                      db,
+                      buildStationHandOffMutation({
+                        clinicId,
+                        occurredAt: new Date().toISOString(),
+                        actorUserId: userId,
+                        actorName: bootstrap?.displayName ?? undefined,
+                        visitId: visit.id,
+                        body: sent,
+                        patient: {
+                          patientCode: visit.patient.patientCode,
+                          displayName: patientName(visit.patient),
+                        },
+                      }),
+                    );
+                    const nextId =
+                      body.nextStationId ??
+                      suggestedNextStation(
+                        stations.filter((station) => station.active),
+                        visit.station.id,
+                      )?.id;
+                    handedTo = stations.find((station) => station.id === nextId)?.name ?? '';
+                    queued = true;
+                  };
                   void run(
                     async () => {
+                      const isReview = visit.station.kind === 'REVIEW';
+                      if (!isOnline && !isReview) return queueHandOff();
                       // The next station reads what this one recorded, so it must reach the
                       // server first. A reading still queued would arrive after the hand-off.
                       const synced = await syncNow(clinicId);
+                      // No server to reach (a phone that still says online): the hand-off waits
+                      // behind the readings instead. A refused reading still stops it.
+                      if (synced && !synced.success && !synced.blockedCount && !isReview) {
+                        return queueHandOff();
+                      }
                       if (!isFullySynced(synced)) {
                         throw new Error(
                           'Some readings have not reached the server yet. Check the sync status, then hand the patient on.',
                         );
                       }
-                      // Sent, not inferred, so the stamp is what the banner showed (#227).
-                      const sent = myShift
-                        ? { ...body, screener: screenerFromName(myShift.screenerName) }
-                        : body;
                       let result;
                       try {
                         result = await completeStationVisit(clinicId, visit.id, sent, getToken!);
                       } catch (error) {
+                        // No answer: the same hand-off is queued, and the server applies it once.
+                        if (isUnanswered(error) && !isReview) {
+                          await queueHandOff();
+                          return;
+                        }
                         // Review warns about a refer-today patient with no referral (#415).
                         if (
                           !(error instanceof StationRequestError) ||
@@ -598,24 +695,31 @@ export default function StationVisitPage() {
                     },
                     // The queue says where the patient went, with the next patient one tap away.
                     // Only the station name and the day number ride in the URL; never the patient's.
-                    () =>
-                      stayed
-                        ? void load()
-                        : router.push(
-                            `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}`,
-                          ),
+                    () => {
+                      if (stayed) return void load();
+                      forgetVisitCopy();
+                      router.push(
+                        `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}${queued ? '&queued=1' : ''}`,
+                      );
+                    },
                   );
                 }}
                 onRelease={(reason) =>
                   void run(
                     () => releaseStationVisit(clinicId, visit.id, reason, getToken!),
-                    () => router.push('/stations'),
+                    () => {
+                      forgetVisitCopy();
+                      router.push('/stations');
+                    },
                   )
                 }
                 onPatientLeft={(reason) =>
                   void run(
                     () => cancelCheckIn(clinicId, visit.checkInId, reason, getToken!),
-                    () => router.push('/stations'),
+                    () => {
+                      forgetVisitCopy();
+                      router.push('/stations');
+                    },
                   )
                 }
               />
@@ -1006,7 +1110,7 @@ function HandOff({
               </Button>
               <Button
                 type="button"
-                disabled={!isOnline || busy || !nothingReason.trim()}
+                disabled={busy || !nothingReason.trim()}
                 onClick={() => onComplete({ ...body(), skipReason: nothingReason.trim() })}
               >
                 {busy ? 'Working…' : 'Skip this station'}
@@ -1029,7 +1133,7 @@ function HandOff({
             />
             <Button
               type="button"
-              disabled={!isOnline || busy || (!isReview && (!nextId || missingReason))}
+              disabled={busy || (isReview ? !isOnline : !nextId || missingReason)}
               onClick={async () => {
                 if (!(await confirmUnsaved())) return;
                 if (nothingRecorded) setAskingWhy(true);

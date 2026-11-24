@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ChevronDown, CloudUpload, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -16,7 +16,7 @@ import {
   hasPermission,
 } from '@/lib/ops';
 import { fetchActiveShifts } from '@/lib/ops-api';
-import { overlayPendingShifts } from '@/lib/ops-offline';
+import { handedOnOffline, overlayPendingShifts } from '@/lib/ops-offline';
 import { useOpsView } from '@/lib/use-ops-view';
 import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
@@ -118,14 +118,20 @@ export default function StationsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   // Set by the visit page after a hand-off (`?sent=<station name>` or `done`, and `no=<day number>`).
   // Read once on arrival, not through useSearchParams, which would need a Suspense boundary.
-  const [sent, setSent] = useState<{ to: string | null; no: string | null; registered: boolean }>({
-    to: null,
-    no: null,
-    registered: false,
-  });
+  const [sent, setSent] = useState<{
+    to: string | null;
+    no: string | null;
+    registered: boolean;
+    queued: boolean;
+  }>({ to: null, no: null, registered: false, queued: false });
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setSent({ to: params.get('sent'), no: params.get('no'), registered: params.has('registered') });
+    setSent({
+      to: params.get('sent'),
+      no: params.get('no'),
+      registered: params.has('registered'),
+      queued: params.has('queued'),
+    });
   }, []);
   // The number is read out to the patient with the station (#413): "No. 14, go to Blood pressure".
   const who = sent.no ? `Patient No. ${sent.no}` : 'Patient';
@@ -136,12 +142,16 @@ export default function StationsPage() {
         ? null
         : sent.to === 'done'
           ? `${who} finished. Their session is closed.`
-          : sent.to
-            ? `${who} handed on to ${sent.to}.`
-            : `${who} handed on to the next station.`;
+          : `${who} handed on to ${sent.to || 'the next station'}.${
+              // Queued offline (#423): the next station sees them after this device syncs.
+              sent.queued
+                ? ` It is sent when the connection returns. Tell the patient their number and send them on.`
+                : ''
+            }`;
 
   const pendingWrites = usePendingOpsWrites(clinicId);
   const pendingIds = useMemo(() => pendingWrites.map((write) => write.entityId), [pendingWrites]);
+  const handedOn = useMemo(() => handedOnOffline(pendingWrites), [pendingWrites]);
   const view = useOpsView<StationsView>({
     clinicId: enabled ? clinicId : null,
     kind: 'station-workspace',
@@ -493,12 +503,16 @@ export default function StationsPage() {
                     {visit.station.name}
                   </p>
                 </div>
-                <Button asChild>
-                  <Link href={`/stations/visits/${visit.id}`}>
-                    Continue
-                    <ArrowRight aria-hidden="true" />
-                  </Link>
-                </Button>
+                {handedOn.has(visit.id) ? (
+                  <HandedOnLabel />
+                ) : (
+                  <Button asChild>
+                    <Link href={`/stations/visits/${visit.id}`}>
+                      Continue
+                      <ArrowRight aria-hidden="true" />
+                    </Link>
+                  </Button>
+                )}
               </div>
             ))}
           </section>
@@ -569,6 +583,7 @@ export default function StationsPage() {
                           visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
                         }
                         canClaim={canClaim}
+                        handedOn={handedOn.has(visit.id)}
                         busy={busyId === visit.id}
                         onClaim={() => void claim(visit)}
                       />
@@ -801,6 +816,7 @@ function QueueRow({
   userId,
   holderScreener,
   canClaim,
+  handedOn,
   busy,
   onClaim,
 }: {
@@ -809,13 +825,15 @@ function QueueRow({
   /** Who is really screening on the holder's account, if not them (#227). */
   holderScreener: string | null;
   canClaim: boolean;
+  /** Handed on offline from this device and not sent yet (#423): handed on, not held. */
+  handedOn: boolean;
   busy: boolean;
   onClaim: () => void;
 }) {
   const taken = visit.status === 'IN_PROGRESS';
   const mine = taken && visit.claimedBy?.id === userId;
   const minutes = minutesSince(visit.queuedAt);
-  const held = heldTooLongMinutes(visit);
+  const held = handedOn ? null : heldTooLongMinutes(visit);
   const long = (!taken && minutes > LONG_WAIT_MINUTES) || held !== null;
   const holder = visit.claimedBy
     ? withScreener(visit.claimedBy.displayName, holderScreener)
@@ -872,7 +890,9 @@ function QueueRow({
           </span>
         ) : null}
         {taken ? (
-          mine ? (
+          handedOn ? (
+            <HandedOnLabel />
+          ) : mine ? (
             <Button asChild size="sm">
               <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
             </Button>
@@ -887,5 +907,18 @@ function QueueRow({
         )}
       </div>
     </li>
+  );
+}
+
+/** A hand-off queued on this device (#423), said in words beside the patient it moved. */
+function HandedOnLabel() {
+  return (
+    <span
+      data-testid="handed-on-offline"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-info-ink"
+    >
+      <CloudUpload className="h-4 w-4 shrink-0" aria-hidden="true" />
+      Handed on, sending when online
+    </span>
   );
 }

@@ -28,7 +28,12 @@ import {
   nationalIdLast4,
   normalizePhoneToE164,
 } from '@nkwapa/db';
-import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
+import {
+  assertPermissionAtClinic,
+  hasPermissionAtClinic,
+  type ScopedRole,
+} from '../auth/clinic-roles';
+import { PERMISSIONS } from '../auth/constants/permissions';
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { recordAppliedSyncMutation } from './applied-sync-mutation';
@@ -80,6 +85,10 @@ import { HypertensionAssessmentService } from '../hypertension-assessment/hypert
 import { PrescriptionService } from '../prescriptions/prescription.service';
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { OpsService, type OpsWriteContext } from '../ops/ops.service';
+import { StationService } from '../ops/station.service';
+import { StationVisitCompleteReplayPayload } from '../ops/dto/station.dto';
+import { EyeScreeningService } from '../eye-screening/eye-screening.service';
+import { UpsertEyeScreeningDto } from '../eye-screening/dto/eye-screening.dto';
 import {
   PatientCheckInReplayPayload,
   ShiftCheckInReplayPayload,
@@ -125,6 +134,8 @@ export class SyncService {
     private readonly medicationAdherenceService: MedicationAdherenceService,
     private readonly prescriptionService: PrescriptionService,
     private readonly opsService: OpsService,
+    private readonly stationService: StationService,
+    private readonly eyeScreeningService: EyeScreeningService,
     private readonly clinicianPlanSeal: ClinicianPlanSealService,
     @Optional() private readonly telemetry?: TelemetryService,
     @Optional() private readonly risk?: FollowUpRiskService,
@@ -544,6 +555,10 @@ export class SyncService {
       case 'shift_check_out':
       case 'patient_check_in':
         return this.applyOpsReplay(clinicId, actorUserId, mut, payload, metadata);
+      case 'station_visit_complete':
+        return this.applyStationHandOff(clinicId, user, mut, payload);
+      case 'eye_screening':
+        return this.applyEyeScreening(clinicId, actorUserId, mut, payload);
       case 'follow_up_attempt':
         return this.applyFollowUpAttempt(clinicId, actorUserId, mut, payload);
       default:
@@ -612,6 +627,66 @@ export class SyncService {
       }
     }
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * A station hand-off made offline (#423), through the station service. The outbox sends it after
+   * the readings queued before it, so the next station sees them when the patient appears.
+   */
+  private async applyStationHandOff(
+    clinicId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    if (!isApiFeatureEnabled('stationWorkflow')) throw new NotFoundException();
+    // A complete DTO with two more fields; the station service reads only the DTO's own.
+    const replay = await validatePayload(
+      StationVisitCompleteReplayPayload,
+      payload,
+      'Queued hand-off failed validation',
+    );
+    await this.stationService.replayComplete(
+      clinicId,
+      mut.entityId,
+      {
+        userId: user.user.id,
+        canManage: hasPermissionAtClinic(user.roles, clinicId, PERMISSIONS.OPS_STATION_MANAGE),
+      },
+      replay,
+      { requestId: mut.idempotencyKey, occurredAt: new Date(replay.occurredAt) },
+    );
+    return this.recordAppliedMutation(clinicId, mut, mut.idempotencyKey);
+  }
+
+  /**
+   * The eye examination saved offline (#423), through the same service as the REST route. It
+   * carries the version the form opened at, so a newer save made elsewhere comes back as a
+   * conflict instead of being overwritten.
+   */
+  private async applyEyeScreening(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    if (!isApiFeatureEnabled('stationWorkflow')) throw new NotFoundException();
+    // The encounter is the mutation's entityId; the payload's copy is only for the device.
+    const fields = { ...payload };
+    delete fields.encounterId;
+    const dto = await validatePayload(
+      UpsertEyeScreeningDto,
+      fields,
+      'Queued eye examination failed validation',
+    );
+    await this.eyeScreeningService.upsert(
+      clinicId,
+      mut.entityId,
+      actorUserId,
+      dto,
+      mut.idempotencyKey,
+    );
+    return this.recordAppliedMutation(clinicId, mut, mut.idempotencyKey);
   }
 
   /**

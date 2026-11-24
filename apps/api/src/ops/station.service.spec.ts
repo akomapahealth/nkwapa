@@ -172,7 +172,10 @@ function setup(initial: Row = {}) {
       update: jest.fn(async ({ data }: { data: Row }) => ({ id: 'enc-1', ...data })),
       create: jest.fn(async () => ({ id: 'enc-new', clinicId: CLINIC, status: 'DRAFT' })),
     },
-    clinic: { findFirst: jest.fn(async () => ({ id: CLINIC })) },
+    clinic: {
+      findFirst: jest.fn(async () => ({ id: CLINIC })),
+      findUnique: jest.fn(async () => ({ id: CLINIC, timezone: 'Africa/Accra' })),
+    },
     patient: { findUnique: jest.fn(async () => ({ id: 'patient-1', primaryClinicId: CLINIC })) },
     user: {
       findFirst: jest.fn(async () => ({ id: 'vol-1' })),
@@ -574,6 +577,46 @@ describe('StationService', () => {
           referred.service.complete(CLINIC, 'visit-1', volunteer, {}),
         ).resolves.toMatchObject({ sessionCompleted: true });
         expect(tx.counsellingRecord.findUnique).toHaveBeenCalled();
+      });
+    });
+
+    describe('a hand-off queued offline (#423)', () => {
+      const tappedAt = new Date(Date.now() - 2 * 60_000);
+      const replay = { requestId: 'ops:station_visit_complete:visit-1', occurredAt: tappedAt };
+
+      it('hands on at the time it was tapped on the device', async () => {
+        const { service, tx } = setup({ ...held, claimedAt: new Date(Date.now() - 10 * 60_000) });
+        await service.replayComplete(CLINIC, 'visit-1', volunteer, {}, replay);
+
+        expect(tx.patientStationVisit.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ status: 'COMPLETED', completedAt: tappedAt }),
+          }),
+        );
+      });
+
+      it('treats a hand-off that already landed online as applied', async () => {
+        const { service, tx } = setup({
+          status: 'COMPLETED',
+          claimedByUserId: 'vol-1',
+          completedByUserId: 'vol-1',
+        });
+        await expect(
+          service.replayComplete(CLINIC, 'visit-1', volunteer, {}, replay),
+        ).resolves.toBeUndefined();
+        expect(tx.patientStationVisit.updateMany).not.toHaveBeenCalled();
+      });
+
+      it('refuses one overtaken by a release, naming the station', async () => {
+        const { service } = setup({ status: 'QUEUED', releaseCount: 1 });
+        await expect(
+          service.replayComplete(CLINIC, 'visit-1', volunteer, {}, replay),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'STATION_HANDOFF_REFUSED',
+            message: expect.stringContaining('from BP'),
+          },
+        });
       });
     });
 

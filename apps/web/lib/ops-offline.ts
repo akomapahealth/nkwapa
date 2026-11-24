@@ -19,6 +19,7 @@ export const OPS_ENTITY = {
   SHIFT_CHECK_IN: 'shift_check_in',
   SHIFT_CHECK_OUT: 'shift_check_out',
   PATIENT_CHECK_IN: 'patient_check_in',
+  STATION_VISIT_COMPLETE: 'station_visit_complete',
 } as const;
 
 export type OpsEntityType = (typeof OPS_ENTITY)[keyof typeof OPS_ENTITY];
@@ -112,6 +113,49 @@ export function buildPatientCheckInMutation(
       patientCode: input.patient?.patientCode,
       patientName: input.patient?.displayName,
     },
+  );
+}
+
+/**
+ * A station hand-off made offline (#423). Queued after the readings recorded at the station, so
+ * the server applies them first. One per visit: a second tap is the same hand-off.
+ */
+export function buildStationHandOffMutation(
+  input: QueuedActor & {
+    visitId: string;
+    body: {
+      handoffNote?: string;
+      nextStationId?: string;
+      skips?: Array<{ stationId: string; reason: string }>;
+      skipReason?: string;
+      screener?: unknown;
+    };
+    patient?: { patientCode?: string; displayName?: string };
+  },
+): OutboxMutationParams {
+  return opsMutation(
+    input.clinicId,
+    OPS_ENTITY.STATION_VISIT_COMPLETE,
+    input.visitId,
+    { occurredAt: input.occurredAt, ...input.body },
+    {
+      actorUserId: input.actorUserId,
+      actorName: input.actorName,
+      patientCode: input.patient?.patientCode,
+      patientName: input.patient?.displayName,
+    },
+  );
+}
+
+/** Visits this device has handed on offline, not yet sent: they are handed on, not held. */
+export function handedOnOffline(pending: readonly PendingOpsWrite[]): ReadonlySet<string> {
+  return new Set(
+    pending
+      .filter(
+        (write) =>
+          write.entityType === OPS_ENTITY.STATION_VISIT_COMPLETE && write.state !== 'blocked',
+      )
+      .map((write) => write.entityId),
   );
 }
 

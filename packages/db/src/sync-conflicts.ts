@@ -95,6 +95,8 @@ export const SYNC_CONFLICT_CODES = {
   // Only reachable online: manager assignment is refused while the station workflow is on (#167),
   // and assignment is never queued. Catalogued because the ops service is a sync handler module.
   STATION_WORKFLOW_ACTIVE: code('stale', { retryable: false }),
+  // A hand-off queued offline (#423) after the visit was released, moved or ended elsewhere.
+  STATION_HANDOFF_REFUSED: code('stale', terminal),
 
   // Content the server will not accept
   VALIDATION_ERROR: code('validation'),
