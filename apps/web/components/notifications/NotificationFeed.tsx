@@ -11,6 +11,7 @@ import {
   ListChecks,
   MailWarning,
   MessageSquare,
+  Stethoscope,
   TrendingUp,
   UserCheck,
   UserPlus,
@@ -30,12 +31,20 @@ import {
   type InboxItem,
   type InboxKind,
 } from '@/lib/inbox';
+import { claimDoctorRequest, resolveDoctorRequest, StationRequestError } from '@/lib/stations';
+import { doctorRequestLabel, type DoctorRequest } from '@/lib/doctor-requests';
 import { cn } from '@/lib/utils';
 
 const KIND: Record<
   InboxKind,
   { icon: LucideIcon; label: string; many: string; group: (n: number) => string }
 > = {
+  DOCTOR_REQUEST: {
+    icon: Stethoscope,
+    label: 'Ask a doctor',
+    many: 'requests',
+    group: (n) => `${n} doctor requests`,
+  },
   HEALTH_ALERT: {
     icon: AlertTriangle,
     label: 'Urgent review',
@@ -143,7 +152,8 @@ export function groupFeed(items: InboxItem[], now = new Date()): FeedSection[] {
     byDay.set(key, [...(byDay.get(key) ?? []), item]);
   }
   for (const [key, dayItems] of byDay) {
-    const foldable = (item: InboxItem) => Boolean(item.readAt) && !item.riskFlag;
+    const foldable = (item: InboxItem) =>
+      Boolean(item.readAt) && !item.riskFlag && !item.doctorRequest;
     const counts = new Map<InboxKind, number>();
     for (const item of dayItems)
       if (foldable(item)) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
@@ -260,6 +270,38 @@ export function useInboxFeed(enabled = true) {
     }
   };
 
+  /** A doctor request's "I'm on it" and "Seen" (#418). The first doctor wins; the rest see who. */
+  const answerDoctor = async (item: InboxItem, action: 'claim' | 'resolve') => {
+    const request = item.doctorRequest;
+    if (!request || !item.clinicId || !getToken) return;
+    setTaking(item.id);
+    try {
+      const next = await (action === 'claim' ? claimDoctorRequest : resolveDoctorRequest)(
+        item.clinicId,
+        request.id,
+        getToken,
+      );
+      const now = new Date().toISOString();
+      const update = (other: InboxItem): InboxItem =>
+        other.doctorRequest?.id === request.id
+          ? { ...other, readAt: other.readAt ?? now, doctorRequest: next }
+          : other;
+      setItems((current) => (current ?? []).map(update));
+      if (!item.readAt) setUnread((count) => Math.max(0, count - 1));
+      window.dispatchEvent(new Event(INBOX_CHANGED_EVENT));
+    } catch (cause) {
+      // Taken first, or the patient left the line: the feed re-reads to show who and what.
+      if (cause instanceof StationRequestError && cause.status === 409) void load();
+      showToast({
+        tone: 'error',
+        title: action === 'claim' ? 'Could not take this request' : 'Could not mark it seen',
+        description: cause instanceof Error ? cause.message : undefined,
+      });
+    } finally {
+      setTaking(null);
+    }
+  };
+
   return {
     items,
     unread,
@@ -273,6 +315,7 @@ export function useInboxFeed(enabled = true) {
     markRead,
     open,
     take,
+    answerDoctor,
   };
 }
 
@@ -432,6 +475,7 @@ function NotificationRow({
   const urgent = item.kind === 'HEALTH_ALERT';
   const flag = item.riskFlag;
   const owner = flag?.acknowledgedBy;
+  const doctor = item.doctorRequest;
   return (
     <div
       className={cn(
@@ -523,6 +567,62 @@ function NotificationRow({
             </Button>
           )}
         </div>
+      ) : null}
+      {doctor && (doctor.claimedBy || doctor.open) ? (
+        <DoctorRequestActions request={doctor} item={item} feed={feed} dense={dense} />
+      ) : null}
+    </div>
+  );
+}
+
+function DoctorRequestActions({
+  request,
+  item,
+  feed,
+  dense,
+}: {
+  request: DoctorRequest;
+  item: InboxItem;
+  feed: InboxFeed;
+  dense: boolean;
+}) {
+  const mine = request.claimedBy?.id === feed.userId;
+  return (
+    <div
+      key={request.claimedBy ? 'taken' : 'open'}
+      className={cn(
+        'flex flex-wrap items-center gap-2 pb-3 motion-safe:animate-in motion-safe:fade-in-0 duration-200 ease-out',
+        dense ? 'pl-[3.25rem] pr-3' : 'pl-[3.75rem] pr-4',
+      )}
+    >
+      {request.claimedBy ? (
+        <p
+          role="status"
+          data-testid="notification-owner"
+          className="inline-flex items-center gap-2 text-sm font-medium text-foreground"
+        >
+          <UserCheck className="h-4 w-4 text-success-ink" aria-hidden="true" />
+          {request.open ? doctorRequestLabel(request, feed.userId) : 'Seen'}
+        </p>
+      ) : (
+        <Button
+          variant={request.urgency === 'NOW' ? 'destructive' : 'default'}
+          size="sm"
+          onClick={() => void feed.answerDoctor(item, 'claim')}
+          loading={feed.taking === item.id}
+        >
+          I&apos;m on it
+        </Button>
+      )}
+      {mine && request.open ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void feed.answerDoctor(item, 'resolve')}
+          loading={feed.taking === item.id}
+        >
+          Seen
+        </Button>
       ) : null}
     </div>
   );

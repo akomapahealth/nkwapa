@@ -38,6 +38,8 @@ import { Button } from '@/components/ui/button';
 import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
 import { AppActionRow } from '@/components/app-shell/AppActionRow';
 import { LineFlagChip, LINE_FLAG_LABELS } from '@/components/stations/LineFlags';
+import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
+import { doctorRequestLabel } from '@/lib/doctor-requests';
 import { worstLineFlag } from '@nkwapa/db/station-line-flags';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -171,10 +173,12 @@ function PatientBar({
             )}
             {/* aria-hidden: the bar's name below says it once, in words. */}
             <LineFlagChip flags={visit.lineFlags} aria-hidden="true" />
+            <DoctorRequestChip request={visit.doctorRequest} aria-hidden="true" />
             <span className="sr-only">
               {visit.dayNumber ? `No. ${visit.dayNumber}, ` : ''}
               {patientName(visit.patient)}, {visitStatus(visit, claimedByName)}, {minutes} min
               {flag ? `, ${LINE_FLAG_LABELS[flag]}` : ''}
+              {visit.doctorRequest?.open ? `, ${doctorRequestLabel(visit.doctorRequest)}` : ''}
             </span>
           </button>
         </DropdownMenuTrigger>

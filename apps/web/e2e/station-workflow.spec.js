@@ -1563,3 +1563,63 @@ test('a returning patient: check in and start, already on the line, and where th
     await place(previous);
   }
 });
+
+test('a station asks a doctor, the doctor on shift takes it, and the station sees who (#418)', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const doctorShift = await apiRequestAs('doctor', 'post', `/clinics/${clinicId}/shifts/check-in`, {
+    clinicId,
+    data: { roleAtShift: 'DOCTOR' },
+  });
+  if (!doctorShift.ok()) expect(doctorShift.json().code).toBe('SHIFT_ALREADY_ACTIVE');
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const { at } = await claimNext('staff', clinicId, checkIn.json().id);
+
+  // The station asks: urgency is required, the reason a list, no free text to reach a push.
+  await page.goto(`/stations/visits/${at.visit.id}`);
+  await page.getByRole('button', { name: 'Ask a doctor' }).click();
+  const dialog = page.getByRole('dialog');
+  const send = dialog.getByRole('button', { name: 'Send to doctors' });
+  await expect(send).toBeDisabled();
+  await dialog.getByText('Now', { exact: true }).click();
+  await dialog.getByText('High BP', { exact: true }).click();
+  await send.click();
+  await expect(page.getByTestId('doctor-request-chip')).toHaveText('Doctor needed now');
+
+  // The doctor's bell says where and which number, never who.
+  const tiles = await apiRequestAs('doctor', 'get', '/me/notifications');
+  const tile = tiles
+    .json()
+    .items.find(
+      (item) =>
+        item.kind === 'DOCTOR_REQUEST' && item.doctorRequest?.stationVisitId === at.visit.id,
+    );
+  expect(tile).toMatchObject({
+    title: 'Doctor needed now',
+    url: `/stations/visits/${at.visit.id}`,
+  });
+  expect(tile.body).toContain(`No. ${at.visit.dayNumber}, high BP`);
+  expect(JSON.stringify(tile)).not.toContain(patient.name.split(' ')[1]);
+
+  const doctor = await browser.newContext({ storageState: storageStateFor('doctor') });
+  const doctorPage = await doctor.newPage();
+  await doctorPage.goto('/notifications');
+  const row = doctorPage.getByRole('listitem').filter({ hasText: tile.body }).first();
+  await row.getByRole('button', { name: "I'm on it" }).click({ timeout: 20_000 });
+  await expect(row.getByTestId('notification-owner')).toHaveText("You're on it");
+  await doctor.close();
+
+  // The station sees who took it, and the button gives way to the chip.
+  await page.reload();
+  await expect(page.getByTestId('doctor-request-chip')).toHaveText(/ on it$/, { timeout: 20_000 });
+  await expect(page.getByRole('button', { name: 'Ask a doctor' })).toHaveCount(0);
+});

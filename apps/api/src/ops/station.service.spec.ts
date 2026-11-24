@@ -551,6 +551,55 @@ describe('StationService', () => {
         });
       });
 
+      describe('asks a doctor with no tap (#418)', () => {
+        const withDoctors = (initial: Row, request = jest.fn(async () => ({ id: 'req-1' }))) => {
+          const parts = setup(initial);
+          const service = new StationService(
+            parts.prisma as never,
+            parts.audit as never,
+            undefined,
+            { request } as never,
+          );
+          return { ...parts, service, request };
+        };
+
+        it('raises a Now request at the next station when a reading first refers today', async () => {
+          const { service, tx, request } = withDoctors(held);
+          tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 184, diastolicBp: 112 });
+          const result = await service.complete(CLINIC, 'visit-1', volunteer, {});
+
+          expect(request).toHaveBeenCalledWith(CLINIC, result.nextVisitId, volunteer.userId, {
+            urgency: 'NOW',
+            reason: 'HIGH_BP',
+            auto: true,
+          });
+          expect(result.doctorRequested).toBe(true);
+        });
+
+        it('does not ask again for a flag an earlier station raised', async () => {
+          const { service, tx, request } = withDoctors({ ...held, lineFlags: [crisis] });
+          tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 186, diastolicBp: 114 });
+          const result = await service.complete(CLINIC, 'visit-1', volunteer, {});
+
+          expect(request).not.toHaveBeenCalled();
+          expect(result.doctorRequested).toBe(false);
+        });
+
+        it('still hands on when the request cannot be made', async () => {
+          const { service, tx } = withDoctors(
+            held,
+            jest.fn(async () => {
+              throw new Error('push down');
+            }),
+          );
+          tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 184, diastolicBp: 112 });
+          await expect(service.complete(CLINIC, 'visit-1', volunteer, {})).resolves.toMatchObject({
+            doctorRequested: false,
+            sessionCompleted: false,
+          });
+        });
+      });
+
       it('keeps an earlier flag when a later reading is normal, and writes nothing', async () => {
         const { service, tx } = setup({ ...held, lineFlags: [crisis] });
         tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 124, diastolicBp: 78 });

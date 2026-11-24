@@ -73,6 +73,8 @@ import {
   suggestedHandoffNote,
 } from '@/components/stations/LineFlags';
 import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
+import { AskDoctorButton } from '@/components/stations/AskDoctorDialog';
+import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { Badge } from '@/components/ui/badge';
 import { DemoBadge } from '@/components/patients/DemoPatientField';
@@ -411,6 +413,20 @@ export default function StationVisitPage() {
                   </span>
                   <DemoBadge isDemo={visit.patient.isDemo} />
                   <LineFlagChip flags={visit.lineFlags} />
+                  <DoctorRequestChip request={visit.doctorRequest} me={userId} />
+                  {visit.station.kind !== 'REVIEW' &&
+                  !visit.doctorRequest?.claimedBy &&
+                  ['QUEUED', 'IN_PROGRESS'].includes(visit.status) ? (
+                    <AskDoctorButton
+                      clinicId={clinicId}
+                      visitId={visit.id}
+                      isOnline={isOnline}
+                      getToken={getToken!}
+                      onSent={(doctorRequest) =>
+                        setVisit((current) => (current ? { ...current, doctorRequest } : current))
+                      }
+                    />
+                  ) : null}
                   <Badge variant={mine ? 'default' : 'secondary'}>
                     {STATUS_LABELS[visit.status]}
                     {visit.claimedBy && visit.status === 'IN_PROGRESS'
@@ -619,6 +635,7 @@ export default function StationVisitPage() {
                   let handedTo = '';
                   let stayed = false;
                   let queued = false;
+                  let doctorNotified = false;
                   // Sent, not inferred, so the stamp is what the banner showed (#227).
                   const sent = myShift
                     ? { ...body, screener: screenerFromName(myShift.screenerName) }
@@ -701,6 +718,7 @@ export default function StationVisitPage() {
                           getToken!,
                         );
                       }
+                      doctorNotified = Boolean(result.doctorRequested);
                       handedTo = result.sessionCompleted
                         ? 'done'
                         : (stations.find((station) => station.id === result.nextStationId)?.name ??
@@ -712,7 +730,7 @@ export default function StationVisitPage() {
                       if (stayed) return void load();
                       forgetVisitCopy();
                       router.push(
-                        `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}${queued ? '&queued=1' : ''}`,
+                        `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}${queued ? '&queued=1' : ''}${doctorNotified ? '&doctor=1' : ''}`,
                       );
                     },
                   );

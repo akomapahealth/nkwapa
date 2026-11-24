@@ -22,6 +22,7 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { StationService, type StationActor } from './station.service';
+import { DoctorRequestService } from './doctor-request.service';
 import {
   AssignStationVisitDto,
   CompleteStationVisitDto,
@@ -34,6 +35,7 @@ import {
   StationDayQueryDto,
   StationReasonDto,
   UpdateStationDto,
+  CreateDoctorRequestDto,
 } from './dto/station.dto';
 
 type StationRequest = {
@@ -48,7 +50,10 @@ type StationRequest = {
 @Controller('clinics/:clinicId')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
 export class StationController {
-  constructor(private readonly stationService: StationService) {}
+  constructor(
+    private readonly stationService: StationService,
+    private readonly doctorRequests: DoctorRequestService,
+  ) {}
 
   @Get('stations')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
@@ -363,6 +368,62 @@ export class StationController {
       this.actor(req, clinicId),
       query.date,
       this.ctx(req),
+    );
+  }
+
+  /** "Ask a doctor" (#418): the doctors on shift are told, with no patient name. */
+  @Post('station-visits/:visitId/doctor-request')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_WORK)
+  requestDoctor(
+    @Param('clinicId') clinicId: string,
+    @Param('visitId', ParseUUIDPipe) visitId: string,
+    @Body() body: CreateDoctorRequestDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.doctorRequests.request(
+      clinicId,
+      visitId,
+      req.user.user.id,
+      body,
+      this.ctx(req).requestId,
+    );
+  }
+
+  /** "I'm on it": doctors, and managers who review (#418). */
+  @Post('doctor-requests/:requestId/claim')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  claimDoctorRequest(
+    @Param('clinicId') clinicId: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.doctorRequests.claim(
+      clinicId,
+      requestId,
+      req.user.user.id,
+      this.ctx(req).requestId,
+    );
+  }
+
+  /** "Seen", by the doctor who took it. */
+  @Post('doctor-requests/:requestId/resolve')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  resolveDoctorRequest(
+    @Param('clinicId') clinicId: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.doctorRequests.resolve(
+      clinicId,
+      requestId,
+      req.user.user.id,
+      this.ctx(req).requestId,
     );
   }
 
