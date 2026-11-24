@@ -26,6 +26,7 @@ import { StationService } from '../ops/station.service';
 import { EyeScreeningService } from '../eye-screening/eye-screening.service';
 import { createSyncMutationStore } from '../testing/sync-mutation-store';
 import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { StaffFeedbackService } from '../staff-feedback/staff-feedback.service';
 import { sealClinicianPlan } from '@nkwapa/db';
 import { OfflineGrantService } from '../offline-grants/offline-grant.service';
 import { getOfflineSession } from '../common/request-context.store';
@@ -168,6 +169,7 @@ describe('SyncService', () => {
         },
         // The real one: replay tests seal with the browser's own function and must open here.
         ClinicianPlanSealService,
+        { provide: StaffFeedbackService, useValue: { submit: jest.fn() } },
         { provide: OfflineGrantService, useValue: offlineGrants },
         {
           provide: MedicationAdherenceService,
@@ -525,6 +527,83 @@ describe('SyncService', () => {
         expect.objectContaining({ hasEyeComplaint: false, findings: [] }),
         'eye-key-1',
       );
+    });
+
+    const report = (payload: Record<string, unknown> = {}) =>
+      ({
+        id: 'mut-report',
+        entityType: 'staff_feedback',
+        entityId: '7d0d7a1c-5d5c-4d7f-9a43-0f3e2b6c1a11',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: {
+          schemaVersion: 1,
+          category: 'NOT_SAVED',
+          text: 'The reading would not save',
+          stationKind: 'GLUCOSE',
+          context: {
+            route: '/stations/visits/:id',
+            role: 'Volunteer',
+            version: 'abc1234',
+            online: false,
+            outboxSize: 3,
+            occurredAt: '2026-11-21T09:00:00.000Z',
+          },
+          ...payload,
+        },
+        idempotencyKey: 'ops:staff_feedback:7d0d7a1c',
+      }) as SyncMutationDto;
+
+    it('stores a problem report under the id the device gave it', async () => {
+      const feedback = moduleRef.get(StaffFeedbackService) as unknown as { submit: jest.Mock };
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [report()]);
+
+      expect(result.status).toBe('APPLIED');
+      expect(feedback.submit).toHaveBeenCalledWith(
+        'clinic-1',
+        'user-1',
+        '7d0d7a1c-5d5c-4d7f-9a43-0f3e2b6c1a11',
+        expect.objectContaining({
+          category: 'NOT_SAVED',
+          stationKind: 'GLUCOSE',
+          context: expect.objectContaining({ route: '/stations/visits/:id', online: false }),
+        }),
+      );
+    });
+
+    it('clips a problem report longer than 500 characters', async () => {
+      const feedback = moduleRef.get(StaffFeedbackService) as unknown as { submit: jest.Mock };
+      feedback.submit.mockClear();
+      await service.applyMutations('clinic-1', mockUser as never, [
+        report({ text: 'x'.repeat(900) }),
+      ]);
+
+      expect(feedback.submit.mock.calls[0][3].text).toHaveLength(500);
+    });
+
+    it.each([
+      ['an unknown category', { category: 'BROKEN' }],
+      [
+        'a route that is not a path',
+        {
+          context: {
+            route: 'https://evil',
+            role: 'x',
+            online: true,
+            outboxSize: 0,
+            occurredAt: '2026-11-21T09:00:00.000Z',
+          },
+        },
+      ],
+    ])('refuses a problem report with %s', async (_label, payload) => {
+      const feedback = moduleRef.get(StaffFeedbackService) as unknown as { submit: jest.Mock };
+      feedback.submit.mockClear();
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [
+        report(payload),
+      ]);
+
+      expect(result.status).not.toBe('APPLIED');
+      expect(feedback.submit).not.toHaveBeenCalled();
     });
 
     it('reports a hand-off overtaken by a release as a conflict that never retries', async () => {

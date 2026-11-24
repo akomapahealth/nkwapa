@@ -38,6 +38,8 @@ import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { recordAppliedSyncMutation } from './applied-sync-mutation';
 import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { StaffFeedbackService } from '../staff-feedback/staff-feedback.service';
+import { StaffFeedbackReplayPayload } from '../staff-feedback/dto/staff-feedback.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { UpsertHypertensionClinicianPlanDto } from '../hypertension-assessment/dto/hypertension-assessment.dto';
@@ -137,6 +139,7 @@ export class SyncService {
     private readonly stationService: StationService,
     private readonly eyeScreeningService: EyeScreeningService,
     private readonly clinicianPlanSeal: ClinicianPlanSealService,
+    private readonly staffFeedback: StaffFeedbackService,
     @Optional() private readonly telemetry?: TelemetryService,
     @Optional() private readonly risk?: FollowUpRiskService,
     @Optional() private readonly followUpContacts?: FollowUpContactService,
@@ -557,6 +560,8 @@ export class SyncService {
         return this.applyOpsReplay(clinicId, actorUserId, mut, payload, metadata);
       case 'station_visit_complete':
         return this.applyStationHandOff(clinicId, user, mut, payload);
+      case 'staff_feedback':
+        return this.applyStaffFeedback(clinicId, actorUserId, mut, payload);
       case 'eye_screening':
         return this.applyEyeScreening(clinicId, actorUserId, mut, payload);
       case 'follow_up_attempt':
@@ -656,6 +661,25 @@ export class SyncService {
       replay,
       { requestId: mut.idempotencyKey, occurredAt: new Date(replay.occurredAt) },
     );
+    return this.recordAppliedMutation(clinicId, mut, mut.idempotencyKey);
+  }
+
+  /**
+   * A "Report a problem" (#422). Every report comes this way, online or not, so the device's id
+   * makes a replay land once. The payload is never logged: its text may hold patient detail.
+   */
+  private async applyStaffFeedback(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    const report = await validatePayload(
+      StaffFeedbackReplayPayload,
+      payload,
+      'Queued problem report failed validation',
+    );
+    await this.staffFeedback.submit(clinicId, actorUserId, mut.entityId, report);
     return this.recordAppliedMutation(clinicId, mut, mut.idempotencyKey);
   }
 

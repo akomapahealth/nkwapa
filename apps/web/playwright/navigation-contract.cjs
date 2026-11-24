@@ -18,6 +18,7 @@ const FLAG_OFF = {
     ['Organization report', '/reports/organization'],
     ['Duplicate review', '/admin/duplicates'],
     ['Data requests', '/admin/data-requests'],
+    ['Problem reports', '/admin/feedback'],
     ['Cross-clinic duplicates', '/admin/duplicates/cross-clinic'],
   ],
   doctor: [
@@ -68,6 +69,7 @@ const FLAG_OFF = {
     ['Staff', '/admin/users'],
     ['Duplicate review', '/admin/duplicates'],
     ['Data requests', '/admin/data-requests'],
+    ['Problem reports', '/admin/feedback'],
   ],
 };
 
@@ -93,6 +95,7 @@ const FLAG_ON = {
     ['Organization report', '/reports/organization'],
     ['Duplicate review', '/admin/duplicates'],
     ['Data requests', '/admin/data-requests'],
+    ['Problem reports', '/admin/feedback'],
     ['Cross-clinic duplicates', '/admin/duplicates/cross-clinic'],
   ],
   doctor: [
@@ -142,6 +145,7 @@ const FLAG_ON = {
     ['Staff', '/admin/users'],
     ['Duplicate review', '/admin/duplicates'],
     ['Data requests', '/admin/data-requests'],
+    ['Problem reports', '/admin/feedback'],
   ],
 };
 const STATION_SETS =

@@ -15,6 +15,7 @@ import { PrescriptionModule } from '../prescriptions/prescription.module';
 import { OpsModule } from '../ops/ops.module';
 import { EyeScreeningModule } from '../eye-screening/eye-screening.module';
 import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
+import { StaffFeedbackModule } from '../staff-feedback/staff-feedback.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
     OpsModule,
     EyeScreeningModule,
     OfflineGrantModule,
+    StaffFeedbackModule,
   ],
   controllers: [SyncController],
   providers: [SyncService, ClinicalMeasurementsService, ClinicianPlanSealService],
