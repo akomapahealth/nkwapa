@@ -106,7 +106,10 @@ test('a patient checked in offline reaches the board once, and is not checked in
   await page.goto(`/clinics/${patient.clinicId}/patients/${patient.patientId}`);
   await page.getByRole('button', { name: 'Check in patient' }).click();
   const feedback = page.getByTestId('ops-feedback');
-  await expect(feedback).toContainText('is already checked in today');
+  // It says where they are (#414): with the station line off, on today's board under their number.
+  await expect(feedback).toContainText(
+    /was not added again\. Already checked in today: No\. \d+\./,
+  );
   await expect(feedback).toHaveAttribute('data-tone', 'warning');
   await expect(page.getByRole('link', { name: 'Open Today board' })).toHaveAttribute(
     'href',

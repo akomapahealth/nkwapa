@@ -284,6 +284,15 @@ describe('clinic operations in the sync center', () => {
     expect(description.actions).toEqual(['open-ops-board', 'open-patient', 'retry', 'discard']);
   });
 
+  it('says where the patient already is, from the refusal (#414)', () => {
+    const message = 'Already on the line: No. 14 at Glucose, with Ama since 9:42 AM.';
+    const description = describeSyncFailure(
+      checkIn('PATIENT_ALREADY_CHECKED_IN', { message }),
+      context,
+    );
+    expect(description.serverDetail).toBe(message);
+  });
+
   it('sends someone without the Today board to their own assignments instead', () => {
     const description = describeSyncFailure(checkIn('PATIENT_ALREADY_CHECKED_IN'), {
       ...context,

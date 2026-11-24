@@ -32,6 +32,8 @@ export type OpsWrite =
       checkInId: string;
       patientId: string;
       patient?: { patientCode?: string; displayName?: string };
+      /** Take the patient at the first station too, if the caller is there (#414). Online only. */
+      startNow?: boolean;
     };
 
 export type OpsWriteResult =
@@ -72,7 +74,11 @@ function restRequest(write: OpsWrite, clinicId: string): { path: string; body?: 
     case 'patientCheckIn':
       return {
         path: `${clinic}/checkins`,
-        body: { id: write.checkInId, patientId: write.patientId },
+        body: {
+          id: write.checkInId,
+          patientId: write.patientId,
+          ...(write.startNow ? { startNow: true } : {}),
+        },
       };
   }
 }

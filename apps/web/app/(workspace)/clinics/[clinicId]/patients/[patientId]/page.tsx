@@ -698,6 +698,8 @@ function PatientChartWorkspace() {
             ) : null}
             {canCreateOpsCheckIn ? (
               <Button
+                // Quiet beside Check in and start when the station line is on (#414).
+                variant={patientCheckIn.canStart ? 'outline' : undefined}
                 onClick={() =>
                   void patientCheckIn.checkIn({
                     id: patient.id,
@@ -710,6 +712,24 @@ function PatientChartWorkspace() {
               >
                 <Stethoscope className="h-4 w-4" />
                 {patientCheckIn.isBusy ? 'Checking in...' : 'Check in patient'}
+              </Button>
+            ) : null}
+            {canCreateOpsCheckIn && patientCheckIn.canStart ? (
+              <Button
+                onClick={() =>
+                  void patientCheckIn.checkIn(
+                    {
+                      id: patient.id,
+                      patientCode: patient.patientCode,
+                      firstName: patient.firstName,
+                      lastName: patient.lastName,
+                    },
+                    { startNow: true },
+                  )
+                }
+                disabled={loading || patientCheckIn.isBusy || !patientCheckIn.canSubmit}
+              >
+                Check in and start
               </Button>
             ) : null}
           </>

@@ -85,6 +85,34 @@ interface PatientSummary {
   matchingScreenings?: MatchingScreening[];
   /** Only for a reader allowed to see tiers (#336); null until computed. */
   followUpTier?: FollowUpTier | null;
+  /** Checked in today at this clinic, and where they are now (#414). Null when not. */
+  todayCheckIn?: TodayCheckIn | null;
+}
+
+interface TodayCheckIn {
+  status: string;
+  dayNumber: number | null;
+  stationName: string | null;
+  holderName: string | null;
+}
+
+/** In place of Check in for someone already on today's line (#414): "No. 9 · At Glucose". */
+function TodayCheckInChip({ today }: { today: TodayCheckIn }) {
+  const where =
+    today.status === 'COMPLETED'
+      ? 'Done today'
+      : today.stationName
+        ? `At ${today.stationName}`
+        : 'Checked in today';
+  return (
+    <span
+      className="inline-flex min-h-8 items-center rounded-full border border-border bg-muted px-3 text-xs font-medium tabular-nums text-foreground"
+      title={today.holderName ? `With ${today.holderName}` : undefined}
+    >
+      {today.dayNumber && today.status !== 'COMPLETED' ? `No. ${today.dayNumber} · ` : ''}
+      {where}
+    </span>
+  );
 }
 
 interface PatientRegistryResponse {
@@ -253,11 +281,17 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
   */
   const checkIn = usePatientCheckIn(clinicId);
   const checkInFlight = useRef(false);
-  const submitCheckIn = async (patient: PatientSummary) => {
+  const submitCheckIn = async (patient: PatientSummary, startNow = false) => {
     if (checkInFlight.current || !canCreateOpsCheckIn || !checkIn.canSubmit) return;
     checkInFlight.current = true;
     try {
-      await checkIn.checkIn(patient);
+      const outcome = await checkIn.checkIn(patient, { startNow });
+      // The front desk moves straight on to the next patient (#414). Not after a check-in saved
+      // offline: the row stays in view, showing it waits to sync.
+      if (outcome === 'applied') {
+        updateView({ q: '' });
+        document.getElementById('patient-search')?.focus();
+      }
     } finally {
       checkInFlight.current = false;
     }
@@ -337,7 +371,7 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       id: 'actions',
       header: () => <span className="sr-only">Actions</span>,
       enableSorting: false,
-      meta: { align: 'right', className: 'w-[11.5rem]' },
+      meta: { align: 'right', className: checkIn.canStart ? 'w-[20rem]' : 'w-[11.5rem]' },
       /*
         One quiet View and one outlined Check in (pilot). A filled button on every row made the
         list a wall of teal; the row's action still reads as the action, in the brand colour.
@@ -348,17 +382,32 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
           <Button asChild variant="ghost" size="sm" className="w-16">
             <Link href={patientHref(row.original.id)}>View</Link>
           </Button>
-          {canCreateOpsCheckIn ? (
-            <Button
-              variant="primaryOutline"
-              size="sm"
-              className="w-24"
-              loading={checkIn.busyPatientId === row.original.id}
-              disabled={checkIn.isBusy || !checkIn.canSubmit}
-              onClick={() => void submitCheckIn(row.original)}
-            >
-              Check in
-            </Button>
+          {row.original.todayCheckIn ? (
+            <TodayCheckInChip today={row.original.todayCheckIn} />
+          ) : canCreateOpsCheckIn ? (
+            <>
+              <Button
+                // Quiet beside Check in and start, which is the desk's usual move (#414).
+                variant={checkIn.canStart ? 'ghost' : 'primaryOutline'}
+                size="sm"
+                className="w-24"
+                loading={checkIn.busyPatientId === row.original.id}
+                disabled={checkIn.isBusy || !checkIn.canSubmit}
+                onClick={() => void submitCheckIn(row.original)}
+              >
+                Check in
+              </Button>
+              {checkIn.canStart ? (
+                <Button
+                  variant="primaryOutline"
+                  size="sm"
+                  disabled={checkIn.isBusy || !checkIn.canSubmit}
+                  onClick={() => void submitCheckIn(row.original, true)}
+                >
+                  Check in and start
+                </Button>
+              ) : null}
+            </>
           ) : null}
         </DataTableActions>
       ),
@@ -657,11 +706,19 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
                 <PatientRegistryCard
                   patient={row}
                   href={patientHref(row.id)}
-                  canCheckIn={canCreateOpsCheckIn}
+                  canCheckIn={canCreateOpsCheckIn && !row.todayCheckIn}
                   disabled={checkIn.isBusy || !checkIn.canSubmit}
                   busy={checkIn.busyPatientId === row.id}
                   onCheckIn={() => void submitCheckIn(row)}
+                  onCheckInAndStart={
+                    checkIn.canStart ? () => void submitCheckIn(row, true) : undefined
+                  }
                 >
+                  {row.todayCheckIn ? (
+                    <div className="mt-2">
+                      <TodayCheckInChip today={row.todayCheckIn} />
+                    </div>
+                  ) : null}
                   {canSeeTier ? (
                     <FollowUpTierBadge tier={row.followUpTier} className="mt-2" />
                   ) : null}

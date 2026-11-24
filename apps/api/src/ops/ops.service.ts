@@ -14,6 +14,7 @@ import {
   todayInTimeZone,
   type ClinicDayWindow,
 } from '@nkwapa/db';
+import { alreadyCheckedInMessage, linePositions } from './line-position';
 import { lockForTransaction } from '../prisma/transaction-lock';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService, type LogWriteParams } from '../audit/audit.service';
@@ -343,14 +344,20 @@ export class OpsService {
             status: { in: OPEN_CHECK_IN_STATUSES },
             checkedInAt: { gte: day.start, lte: day.end },
           },
-          select: { id: true, status: true },
+          select: { id: true, status: true, dayNumber: true },
         });
         if (open) {
+          // Say where they are, so the volunteer goes to find them rather than trying again (#414).
+          const position = (await linePositions(tx, [open])).get(open.id)!;
           throw new ConflictException({
             code: 'PATIENT_ALREADY_CHECKED_IN',
-            message: 'This patient is already checked in today.',
+            message: alreadyCheckedInMessage(position, day.timezone),
             existingCheckInId: open.id,
             existingStatus: open.status,
+            dayNumber: position.dayNumber,
+            stationName: position.stationName,
+            holderName: position.holderName,
+            since: position.since,
           });
         }
 
@@ -376,12 +383,14 @@ export class OpsService {
         // In the station workflow an arrival joins the first station's queue in the same
         // transaction, offline replays included, so no checked-in patient is outside the line.
         let startedVisitId: string | null = null;
+        let queuedAtStation: string | null = null;
         if (isApiFeatureEnabled('stationWorkflow')) {
           const visit = await this.stationService.queueAtFirstStation(
             tx,
             { clinicId, checkInId: checkIn.id, actorUserId, at: checkedInAt },
             { requestId: context.requestId },
           );
+          queuedAtStation = visit?.stationName ?? null;
           if (visit && dto.startNow && !context.replay) {
             const claimed = await this.stationService.claimIfAtStation(
               tx,
@@ -393,12 +402,14 @@ export class OpsService {
             startedVisitId = claimed?.id ?? null;
           }
         }
-        return { checkIn, startedVisitId };
+        return { checkIn, startedVisitId, queuedAtStation };
       });
       return {
         ...this.toCheckInSummary(created.checkIn),
         // The visit the caller now holds, when "start now" applied; the web opens it directly.
         startedVisitId: created.startedVisitId,
+        // Where the patient waits otherwise: "Checked in. Waiting at Registration" (#414).
+        queuedAtStation: created.queuedAtStation,
       };
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;

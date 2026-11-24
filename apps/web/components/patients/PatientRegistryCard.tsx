@@ -18,6 +18,7 @@ export function PatientRegistryCard({
   disabled,
   busy,
   onCheckIn,
+  onCheckInAndStart,
   children,
 }: {
   patient: {
@@ -34,6 +35,8 @@ export function PatientRegistryCard({
   disabled: boolean;
   busy: boolean;
   onCheckIn: () => void;
+  /** With the station line on: the button takes the patient at the first station too (#414). */
+  onCheckInAndStart?: () => void;
   children?: ReactNode;
 }) {
   const front = useRef<HTMLDivElement>(null);
@@ -201,9 +204,9 @@ export function PatientRegistryCard({
             className="shrink-0"
             loading={busy}
             disabled={disabled}
-            onClick={onCheckIn}
+            onClick={onCheckInAndStart ?? onCheckIn}
           >
-            Check in
+            {onCheckInAndStart ? 'Check in and start' : 'Check in'}
           </Button>
         ) : null}
       </div>

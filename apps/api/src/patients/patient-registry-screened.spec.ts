@@ -51,7 +51,10 @@ describe('PatientService.listRegistry - completed screening filter', () => {
       findLastVisits: jest.fn().mockResolvedValue(new Map()),
     };
     clinicFindUnique = jest.fn().mockResolvedValue({ timezone: 'America/New_York' });
-    const prisma = { clinic: { findUnique: clinicFindUnique } } as unknown as PrismaService;
+    const prisma = {
+      clinic: { findUnique: clinicFindUnique },
+      patientCheckIn: { findMany: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
     service = new PatientService(
       repo as unknown as PatientRepository,
       prisma,
@@ -70,7 +73,8 @@ describe('PatientService.listRegistry - completed screening filter', () => {
 
     expect(repo.findMany.mock.calls[0][0].screened).toBeUndefined();
     expect(repo.findMatchingScreenings).not.toHaveBeenCalled();
-    expect(clinicFindUnique).not.toHaveBeenCalled();
+    // Once, for today's check-ins (#414); the screened filter would need it too.
+    expect(clinicFindUnique).toHaveBeenCalledTimes(1);
     expect(page).not.toHaveProperty('timezone');
     expect(page.items[0]).not.toHaveProperty('matchingScreenings');
   });
@@ -233,6 +237,7 @@ describe('PatientService.listRegistry - last visit and location', () => {
     };
     const prisma = {
       clinic: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Africa/Accra' }) },
+      patientCheckIn: { findMany: jest.fn().mockResolvedValue([]) },
     } as unknown as PrismaService;
     service = new PatientService(
       repo as unknown as PatientRepository,
@@ -335,5 +340,59 @@ describe('rankByLastVisit', () => {
     const pages = [ranked.slice(0, 2), ranked.slice(2, 4), ranked.slice(4)];
     expect(pages.flat()).toEqual(ranked);
     expect(new Set(pages.flat()).size).toBe(ids.length);
+  });
+});
+
+describe('PatientService.listRegistry - checked in today (#414)', () => {
+  const repo = {
+    findMany: jest.fn(),
+    count: jest.fn().mockResolvedValue(2),
+    findLastVisits: jest.fn().mockResolvedValue(new Map()),
+  };
+  const checkInFindMany = jest.fn();
+  const visitFindMany = jest.fn();
+  const service = new PatientService(
+    repo as unknown as PatientRepository,
+    {
+      clinic: { findUnique: jest.fn().mockResolvedValue({ timezone: 'America/New_York' }) },
+      patientCheckIn: { findMany: checkInFindMany },
+      patientStationVisit: { findMany: visitFindMany },
+    } as unknown as PrismaService,
+    undefined as never,
+    undefined as never,
+    undefined as never,
+    undefined as never,
+  );
+
+  afterEach(() => jest.useRealTimers());
+
+  it('shows where a checked-in patient is, and that an open check-in outranks a finished one', async () => {
+    // 01:30 UTC is still the previous evening in New York: "today" is the clinic's day.
+    jest.useFakeTimers({ now: new Date('2026-11-24T01:30:00Z'), doNotFake: ['nextTick'] });
+    repo.findMany.mockResolvedValue([patient('p1'), patient('p2')]);
+    checkInFindMany.mockResolvedValue([
+      { id: 'c-done', patientId: 'p1', status: 'COMPLETED', dayNumber: 2 },
+      { id: 'c-open', patientId: 'p1', status: 'IN_PROGRESS', dayNumber: 9 },
+    ]);
+    visitFindMany.mockResolvedValue([
+      {
+        patientCheckInId: 'c-open',
+        status: 'IN_PROGRESS',
+        queuedAt: new Date('2026-11-24T01:00:00Z'),
+        claimedAt: new Date('2026-11-24T01:10:00Z'),
+        station: { name: 'Glucose' },
+        claimedBy: { displayName: 'Ama' },
+      },
+    ]);
+
+    const page = await service.listRegistry('clinic-1', '', 1, 25);
+
+    const where = checkInFindMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ clinicId: 'clinic-1', status: { not: 'CANCELLED' } });
+    expect(where.checkedInAt.gte).toEqual(new Date('2026-11-23T05:00:00.000Z'));
+    expect(page.items.map((item) => item.todayCheckIn)).toEqual([
+      { status: 'IN_PROGRESS', dayNumber: 9, stationName: 'Glucose', holderName: 'Ama' },
+      null,
+    ]);
   });
 });

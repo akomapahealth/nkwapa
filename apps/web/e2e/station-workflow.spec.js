@@ -1236,3 +1236,88 @@ test('each check-in gets the next day number, called out instead of the name (#4
   await page.waitForURL(/\/stations\?registered=1&no=\d+$/, { timeout: 20_000 });
   await expect(page.getByText(/^Patient number \d+\. Write it on their card\.$/)).toBeVisible();
 });
+
+test('a returning patient: check in and start, already on the line, and where they are (#414)', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const away = await createPatient(page);
+  const returning = await createPatient(page);
+  const { clinicId } = away;
+  const board = (
+    await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  const first = board.stations
+    .filter((station) => station.active)
+    .sort((a, b) => a.sortOrder - b.sortOrder)[0];
+
+  // Staff is at no station: Check in and start checks the patient in and says where they wait.
+  await page.goto('/patients');
+  const search = page.getByLabel('Name, patient code, phone or ID last 4');
+  await search.fill(away.name);
+  const row = page.getByRole('row', { name: new RegExp(away.name) });
+  await row.getByRole('button', { name: 'Check in and start' }).click();
+  await expect(
+    page.getByText(
+      new RegExp(`is checked in\\. Waiting at ${first.name}\\. .* is No\\. \\d+ today`),
+    ),
+  ).toBeVisible({ timeout: 20_000 });
+  // Straight on to the next patient.
+  await expect(search).toHaveValue('');
+  await expect(search).toBeFocused();
+
+  // Already on the line: the row says where, in place of a second check-in.
+  await search.fill(away.name);
+  await expect(row.getByText(new RegExp(`^No\\. \\d+ · At ${first.name}$`))).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(row.getByRole('button', { name: /^Check in/ })).toHaveCount(0);
+
+  // A second check-in from elsewhere is refused with where they are.
+  const again = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: away.patientId },
+  });
+  expect(again.status()).toBe(409);
+  expect(again.json().message).toMatch(
+    new RegExp(`^Already on the line: No\\. \\d+, waiting at ${first.name} since `),
+  );
+
+  // A volunteer at the first station takes a returning patient straight to their visit.
+  await ensureShift('volunteer', clinicId);
+  const volunteerId = (await apiRequestAs('volunteer', 'get', '/auth/whoami')).json().userId;
+  const shift = (
+    await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  )
+    .json()
+    .onShift.find((member) => member.user.id === volunteerId);
+  const place = (stationId) =>
+    apiRequestAs('volunteer', 'patch', `/clinics/${clinicId}/shifts/${shift.shiftId}/station`, {
+      clinicId,
+      data: { stationId },
+    });
+  const previous = shift.stationId ?? null;
+  expect((await place(first.id)).ok()).toBeTruthy();
+  const volunteerContext = await browser.newContext({
+    storageState: storageStateFor('volunteer'),
+  });
+  try {
+    const volunteerPage = await volunteerContext.newPage();
+    await volunteerPage.goto('/patients');
+    await volunteerPage.getByLabel('Name, patient code, phone or ID last 4').fill(returning.name);
+    await volunteerPage
+      .getByRole('row', { name: new RegExp(returning.name) })
+      .getByRole('button', { name: 'Check in and start' })
+      .click();
+    await volunteerPage.waitForURL(/\/stations\/visits\/[^/?]+\?registered=1$/, {
+      timeout: 20_000,
+    });
+    await expect(
+      volunteerPage.getByText(/^Patient number \d+\. Write it on their card\.$/),
+    ).toBeVisible();
+  } finally {
+    await volunteerContext.close();
+    await place(previous);
+  }
+});

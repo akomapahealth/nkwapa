@@ -87,6 +87,7 @@ function createPrismaMock() {
         primaryClinicId: 'clinic-1',
       }),
     },
+    patientStationVisit: { findMany: jest.fn().mockResolvedValue([]) },
     patientCheckIn: {
       aggregate: jest.fn().mockResolvedValue({ _max: { dayNumber: 13 } }),
       create: jest.fn().mockResolvedValue({
@@ -1015,17 +1016,32 @@ describe('OpsService', () => {
       it('refuses a second open check-in for the patient on the same clinic day', async () => {
         prisma.patientCheckIn.findFirst.mockResolvedValueOnce({
           id: 'checkin-open',
-          status: 'ASSIGNED',
+          status: 'IN_PROGRESS',
+          dayNumber: 14,
         });
+        prisma.patientStationVisit.findMany.mockResolvedValueOnce([
+          {
+            patientCheckInId: 'checkin-open',
+            status: 'IN_PROGRESS',
+            queuedAt: new Date('2026-03-21T09:30:00Z'),
+            claimedAt: new Date('2026-03-21T09:42:00Z'),
+            station: { name: 'Glucose' },
+            claimedBy: { displayName: 'Ama' },
+          },
+        ]);
 
         const body = await errorBody(
           service.createCheckIn('clinic-1', 'user-1', { patientId: 'patient-1' }),
         );
 
+        // Where the patient is, so the volunteer goes to find them (#414).
         expect(body).toMatchObject({
           code: 'PATIENT_ALREADY_CHECKED_IN',
           existingCheckInId: 'checkin-open',
-          existingStatus: 'ASSIGNED',
+          existingStatus: 'IN_PROGRESS',
+          message: 'Already on the line: No. 14 at Glucose, with Ama since 9:42 AM.',
+          stationName: 'Glucose',
+          holderName: 'Ama',
         });
         expect(prisma.patientCheckIn.create).not.toHaveBeenCalled();
       });

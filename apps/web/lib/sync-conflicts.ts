@@ -165,7 +165,7 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
     title: 'This patient is already checked in today',
     explanation:
       'Someone checked the patient in before this device synced, so a second check-in was not created.',
-    nextStep: 'Find the patient on the Today board. If they are in the queue, discard this copy.',
+    nextStep: 'Find the patient where it says below, then discard this copy.',
   },
   OPS_REPLAY_EXPIRED: {
     title: 'This was saved on an earlier clinic day',
@@ -367,7 +367,11 @@ export function describeSyncFailure(
     ...copy,
     code,
     category,
-    serverDetail: category === 'validation' ? serverDetailFor(failure) : undefined,
+    serverDetail:
+      category === 'validation' || code === 'PATIENT_ALREADY_CHECKED_IN'
+        ? // A duplicate check-in names where the patient already is (#414).
+          serverDetailFor(failure)
+        : undefined,
     actions: [],
     // After a merge the surviving chart is the patient's only chart, not an "existing" one.
     actionLabels: targetIsRetired ? { 'open-canonical-patient': 'Open current chart' } : {},
