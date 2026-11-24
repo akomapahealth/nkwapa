@@ -3,6 +3,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 const { queueOfflineChange } = require('../playwright/outbox');
 const { ROLES, storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /*
   Issue #206: the installable app. The manifest, the service worker's caching rules, the update
@@ -132,7 +133,7 @@ test.describe('signed in as staff', () => {
     await waitForControlledPage(page);
     await page.getByLabel('First name', { exact: true }).fill('Shellonly');
     await page.getByLabel('Last name', { exact: true }).fill(lastName);
-    await page.getByLabel('National ID', { exact: true }).fill(nationalId);
+    await fillNationalId(page, nationalId);
     await page.getByRole('button', { name: 'Create patient' }).click();
     await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
     await expect(page.getByRole('heading', { name: `Shellonly ${lastName}` })).toBeVisible({

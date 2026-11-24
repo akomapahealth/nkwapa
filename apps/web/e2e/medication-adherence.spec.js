@@ -5,6 +5,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
 const { answer, question, openSection } = require('../playwright/interview');
 const { readLocalTable } = require('../playwright/local-db');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -32,7 +33,7 @@ async function createPatient(page, suffix) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Adherence');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-ADH-${suffix}`);
+  await fillNationalId(page, `E2E-ADH-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   return page.url().split('/').at(-1);

@@ -8,6 +8,7 @@ const {
   question,
   openSection: openInterviewSection,
 } = require('../playwright/interview');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -60,7 +61,7 @@ test('a corrected blood pressure classification is what the encounter shows next
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Hypertension');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-HTN-${suffix}`);
+  await fillNationalId(page, `E2E-HTN-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const patientId = page.url().split('/').at(-1);
@@ -116,7 +117,7 @@ test("today's reading, its classification and the repeat prompt all come from th
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Repeat');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-REP-${suffix}`);
+  await fillNationalId(page, `E2E-REP-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const patientId = page.url().split('/').at(-1);
@@ -168,7 +169,7 @@ test('an urgent symptom raises the escalation notice and offers the review reaso
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Escalation');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-ESC-${suffix}`);
+  await fillNationalId(page, `E2E-ESC-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const patientId = page.url().split('/').at(-1);
@@ -213,7 +214,7 @@ test('an unsaved interview is kept when switching tabs fails to save it', async 
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Draft');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-DRAFT-${suffix}`);
+  await fillNationalId(page, `E2E-DRAFT-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const patientId = page.url().split('/').at(-1);
@@ -269,7 +270,7 @@ test.describe('as a volunteer', () => {
     await page.goto('/patients/new');
     await page.getByLabel('First name', { exact: true }).fill('Chart');
     await page.getByLabel('Last name', { exact: true }).fill(`HTN-${suffix}`);
-    await page.getByLabel('National ID', { exact: true }).fill(`E2E-HTNCHART-${suffix}`);
+    await fillNationalId(page, `E2E-HTNCHART-${suffix}`);
     await page.getByRole('button', { name: 'Create patient' }).click();
     await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
     const chartUrl = new URL(page.url()).pathname;

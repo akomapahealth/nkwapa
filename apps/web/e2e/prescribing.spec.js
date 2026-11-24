@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const { storageStateFor } = require('../playwright/roles');
 const { waitForOutboxDrain } = require('../playwright/outbox');
 const { apiRequestAs } = require('../playwright/api-client');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /**
  * Prescribing, end to end, for the first time.
@@ -23,9 +24,7 @@ async function createPatient(page, prefix) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill(prefix);
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page
-    .getByLabel('National ID', { exact: true })
-    .fill(`E2E-${prefix.toUpperCase()}-${suffix}`);
+  await fillNationalId(page, `E2E-${prefix.toUpperCase()}-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const segments = page.url().split('/');

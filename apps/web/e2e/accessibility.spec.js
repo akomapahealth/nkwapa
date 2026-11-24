@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -19,7 +20,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Access');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-A11Y-${suffix}`);
+  await fillNationalId(page, `E2E-A11Y-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+/, { timeout: 20_000 });
   const url = new URL(page.url());

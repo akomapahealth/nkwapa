@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { expect } = require('@playwright/test');
 const { storageStateFor } = require('./roles');
 const { findMessageTo } = require('./mailpit');
+const { fillNationalId } = require('./register-patient');
 
 /** A real invitation and account owned by this run. Never unlink or reseed a claimed chart. */
 async function createClaimantStorageState(browser) {
@@ -16,7 +17,7 @@ async function createClaimantStorageState(browser) {
     await page.getByLabel('First name', { exact: true }).fill('E2E');
     await page.getByLabel('Last name', { exact: true }).fill(`Claimable ${suffix}`);
     await page.getByLabel('Date of birth').fill('1993-08-19');
-    await page.getByLabel('National ID', { exact: true }).fill(`E2E-CLAIM-${suffix}`);
+    await fillNationalId(page, `E2E-CLAIM-${suffix}`);
     await page.getByRole('button', { name: 'Create patient' }).click();
     await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 30_000 });
     await page

@@ -4,6 +4,7 @@ const { answer, question, openSection } = require('../playwright/interview');
 const { waitForOutboxDrain } = require('../playwright/outbox');
 
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -12,7 +13,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Diabetes');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-DIABETES-${suffix}`);
+  await fillNationalId(page, `E2E-DIABETES-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   return page.url().split('/').at(-1);

@@ -7,6 +7,7 @@ const { storageStateFor } = require('../playwright/roles');
 const { answer, question } = require('../playwright/interview');
 const { keyboardDialog } = require('../playwright/clinical-keyboard.cjs');
 const { readLocalTable } = require('../playwright/local-db');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /*
   Issue #167: the station line, end to end.
@@ -33,7 +34,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Line');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-STN-${suffix}`);
+  await fillNationalId(page, `E2E-STN-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');

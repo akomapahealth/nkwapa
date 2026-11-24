@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 
@@ -21,7 +22,7 @@ test('records a residential location, distinguishes it from the clinic, and filt
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Location');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-LOC-${suffix}`);
+  await fillNationalId(page, `E2E-LOC-${suffix}`);
 
   // Region/district are disabled until the location is deliberately recorded.
   await expect(page.getByLabel('Region', { exact: true })).toBeDisabled();
@@ -70,7 +71,7 @@ test('represents an unknown residential location deliberately', async ({ page })
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Unknown');
   await page.getByLabel('Last name', { exact: true }).fill(`Location-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-UNK-${suffix}`);
+  await fillNationalId(page, `E2E-UNK-${suffix}`);
   await chooseSelect(page, 'Location status', 'Unknown');
 
   await page.getByRole('button', { name: 'Create patient' }).click();
@@ -86,9 +87,7 @@ async function startRecordedPatient(page, prefix) {
   await page.getByLabel('First name', { exact: true }).fill(prefix);
   const lastName = `Home-${suffix}`;
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page
-    .getByLabel('National ID', { exact: true })
-    .fill(`E2E-${prefix.toUpperCase()}-${suffix}`);
+  await fillNationalId(page, `E2E-${prefix.toUpperCase()}-${suffix}`);
   await chooseSelect(page, 'Location status', 'Recorded');
   await chooseSelect(page, 'Region', 'Greater Accra');
   return lastName;

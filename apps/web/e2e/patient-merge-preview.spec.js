@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /**
  * The merge preview, and the confirmation in front of it.
@@ -30,7 +31,7 @@ async function createDuplicatePair(page) {
     await page.getByLabel('First name', { exact: true }).fill('Merge');
     await page.getByLabel('Last name', { exact: true }).fill(`E2E-${run}`);
     await page.getByLabel('Date of birth').fill(DOB);
-    await page.getByLabel('National ID', { exact: true }).fill(`E2E-MERGE-${run}-${suffix}`);
+    await fillNationalId(page, `E2E-MERGE-${run}-${suffix}`);
     await page.getByRole('button', { name: 'Create patient' }).click();
     await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+/, { timeout: 20_000 });
 

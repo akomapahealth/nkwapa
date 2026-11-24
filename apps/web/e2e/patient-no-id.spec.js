@@ -25,12 +25,15 @@ test('registers a patient with no ID, then records their card when they bring it
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('NoId');
   await page.getByLabel('Last name', { exact: true }).fill(`Patient-${suffix}`);
-  await chooseSelect(page, 'National ID type', 'No ID document');
+  // #428: one tick beside the number, without opening the type select.
+  await page.getByLabel('No ID with them today', { exact: true }).click();
   // No number to give, so no field to fill.
   await expect(page.getByRole('textbox', { name: 'National ID', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   await expect(page.getByText('No ID document')).toBeVisible();
+  // With no ID, the patient code is what identifies the chart.
+  await expect(page.getByText(/^NKP-\d{4}-\d{6}$/).first()).toBeVisible();
 
   await page.goto(`${new URL(page.url()).pathname}/edit`);
   await page.getByRole('button', { name: 'Add ID' }).click();
@@ -48,8 +51,12 @@ test('registers a patient with no ID, then records their card when they bring it
   await chooseSelect(page, 'National ID type', 'National ID');
   await page.getByRole('textbox', { name: 'National ID', exact: true }).fill(card);
   await page.getByRole('button', { name: 'Create patient' }).click();
-  await expect(page.getByRole('heading', { name: 'Patient already exists' })).toBeVisible({
+  await expect(
+    page.getByRole('heading', { name: 'This ID number is already on a chart' }),
+  ).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByRole('dialog').getByText(`NoId Patient-${suffix}`)).toBeVisible();
+  await expect(
+    page.getByRole('dialog').getByText(`NoId Patient-${suffix}`, { exact: true }),
+  ).toBeVisible();
 });
