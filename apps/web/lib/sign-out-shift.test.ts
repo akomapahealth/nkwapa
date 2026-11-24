@@ -1,4 +1,5 @@
 import { chooseAction } from '@/components/ui/confirm-dialog';
+import { apiFetch } from './api';
 import { getStoredActiveClinicId } from './bootstrap-storage';
 import { getSignedInUserId } from './offline-session/bootstrap';
 import { fetchActiveShifts } from './ops-api';
@@ -10,6 +11,7 @@ jest.mock('./bootstrap-storage', () => ({ getStoredActiveClinicId: jest.fn() }))
 jest.mock('./offline-session/bootstrap', () => ({ getSignedInUserId: jest.fn() }));
 jest.mock('./ops-api', () => ({ fetchActiveShifts: jest.fn() }));
 jest.mock('./ops-writes', () => ({ submitOpsWrite: jest.fn() }));
+jest.mock('./api', () => ({ apiFetch: jest.fn() }));
 
 const choose = chooseAction as jest.Mock;
 const fetchShifts = fetchActiveShifts as jest.Mock;
@@ -73,5 +75,21 @@ describe('settleShiftBeforeSignOut (#425)', () => {
     choose.mockResolvedValue('confirm');
     submit.mockRejectedValue(new Error('500'));
     await expect(settleShiftBeforeSignOut(getToken)).resolves.toBe(true);
+  });
+
+  it('still asks when Log out is pressed before the workspace has loaded', async () => {
+    (getStoredActiveClinicId as jest.Mock).mockReturnValue(null);
+    (getSignedInUserId as jest.Mock).mockReturnValue(null);
+    (apiFetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ userId: 'u1', activeClinicId: 'k1' }),
+    });
+    choose.mockResolvedValue('confirm');
+    await expect(settleShiftBeforeSignOut(getToken)).resolves.toBe(true);
+    expect(fetchShifts).toHaveBeenCalledWith(expect.objectContaining({ clinicId: 'k1' }));
+    expect(submit).toHaveBeenCalledWith(
+      { kind: 'shiftCheckOut', shiftId: 's1' },
+      expect.objectContaining({ clinicId: 'k1', actor: { userId: 'u1' } }),
+    );
   });
 });

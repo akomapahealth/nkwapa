@@ -54,6 +54,12 @@ test('on shift: sign-out offers to end it, and Cancel or End shift does what it 
   await page.route(KEYCLOAK_LOGOUT, (route) =>
     route.fulfill({ status: 200, contentType: 'text/html', body: '<p>Signed out</p>' }),
   );
+  // A slow line: Log out can be pressed before the workspace knows who is signed in. That race
+  // skipped the question in CI; sign-out must still ask.
+  await page.route('**/auth/whoami', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    await route.continue();
+  });
 
   // Cancel keeps both the session and the shift.
   await signOutFromSettings(page);

@@ -1,5 +1,5 @@
 import { chooseAction } from '@/components/ui/confirm-dialog';
-import type { GetToken } from './api';
+import { apiFetch, type GetToken } from './api';
 import { getStoredActiveClinicId } from './bootstrap-storage';
 import { getSignedInUserId } from './offline-session/bootstrap';
 import { formatOpsTime, formatRoleLabel, getTodayInTimeZone } from './ops';
@@ -21,15 +21,16 @@ const SHIFT_LOOKUP_BUDGET_MS = 4_000;
  * device's roster copy here if shifts started offline turn out to be left open.
  */
 export async function settleShiftBeforeSignOut(getToken: GetToken): Promise<boolean> {
-  const clinicId = getStoredActiveClinicId();
-  const userId = getSignedInUserId();
-  if (!clinicId || !userId) return true;
+  const signal = AbortSignal.timeout(SHIFT_LOOKUP_BUDGET_MS);
+  const me = await whoIsSigningOut(getToken, signal).catch(() => null);
+  if (!me) return true;
+  const { clinicId, userId } = me;
 
   const shift = await fetchActiveShifts({
     clinicId,
     date: getTodayInTimeZone(),
     getToken,
-    signal: AbortSignal.timeout(SHIFT_LOOKUP_BUDGET_MS),
+    signal,
   })
     .then((active) =>
       active.items.find((item) => item.userId === userId && item.status === 'ACTIVE'),
@@ -57,4 +58,21 @@ export async function settleShiftBeforeSignOut(getToken: GetToken): Promise<bool
     ).catch(() => undefined);
   }
   return true;
+}
+
+/**
+ * Who is signing out, and at which clinic. Known once the workspace has loaded; a Log out pressed
+ * before that (a slow line, a quick tap) asks the server rather than skipping the question.
+ */
+async function whoIsSigningOut(
+  getToken: GetToken,
+  signal: AbortSignal,
+): Promise<{ clinicId: string; userId: string } | null> {
+  const clinicId = getStoredActiveClinicId();
+  const userId = getSignedInUserId();
+  if (clinicId && userId) return { clinicId, userId };
+  const response = await apiFetch('/auth/whoami', { getToken, skipClinicHeader: true, signal });
+  if (!response.ok) return null;
+  const whoami = (await response.json()) as { userId: string; activeClinicId: string | null };
+  return whoami.activeClinicId ? { clinicId: whoami.activeClinicId, userId: whoami.userId } : null;
 }
