@@ -24,7 +24,7 @@ import { requestDoctor } from '@/lib/stations';
 import { cn } from '@/lib/utils';
 
 const OPTION =
-  'flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors duration-fast has-[:checked]:border-primary has-[:checked]:bg-selected has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring';
+  'flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors duration-fast has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring';
 
 /**
  * "Ask a doctor" from a station (#418). Needs a connection: a request that waits in an outbox
@@ -108,7 +108,11 @@ export function AskDoctorButton({
             {DOCTOR_REQUEST_URGENCIES.map((option) => (
               <label
                 key={option.value}
-                className={cn(OPTION, 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-0')}
+                className={cn(
+                  OPTION,
+                  'grid grid-cols-[auto_1fr] gap-x-3 gap-y-0',
+                  urgency === option.value && 'border-primary bg-selected',
+                )}
               >
                 <input
                   type="radio"
@@ -130,7 +134,11 @@ export function AskDoctorButton({
               {DOCTOR_REQUEST_REASONS.map((option) => (
                 <label
                   key={option.value}
-                  className={cn(OPTION, 'items-center rounded-full px-3 py-1.5')}
+                  className={cn(
+                    OPTION,
+                    'items-center rounded-full px-3 py-1.5',
+                    reason === option.value && 'border-primary bg-selected font-medium',
+                  )}
                 >
                   <input
                     type="radio"
