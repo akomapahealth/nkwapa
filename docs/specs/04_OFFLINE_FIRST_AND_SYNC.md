@@ -362,7 +362,10 @@ name and national ID never reach Cache Storage.
 A new worker installs and waits; it never takes over an open tab by itself. The page shows "A new
 version of Nkwapa is ready" with a Reload action (`lib/pwa/update.ts`). Reload posts
 `SKIP_WAITING`; when the new worker takes control the page reloads once, after any sync pass in
-flight. Another tab accepting the update shows the same prompt rather than reloading this one. An
+flight. Another tab accepting the update shows the same prompt rather than reloading this one.
+A page that finds a worker already waiting as it loads takes it without asking and reloads once:
+nothing has been typed yet, and a browser reload on its own never activates a waiting worker, so
+prompting there brought the prompt back on every load. An
 open installed app checks for a new version when it regains focus, at most hourly.
 
 Version skew: the old tab's chunks stay in `nkwapa-static-<old>` until the new worker activates,
