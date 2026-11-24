@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, History } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, History } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
@@ -56,6 +56,7 @@ import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
 import {
   StationResultsSummary,
   newlyRecorded,
+  nothingRecordedAt,
   type SummaryRowKind,
 } from '@/components/stations/StationResultsSummary';
 import { IntakeInterviews } from '@/components/stations/IntakeInterviews';
@@ -458,6 +459,7 @@ export default function StationVisitPage() {
                 Give each form a dirty flag if those need guarding too.
               */
               <div
+                data-station-form
                 onInput={(event) => markUnsaved(event.target)}
                 onChange={(event) => markUnsaved(event.target)}
                 onClick={(event) => {
@@ -496,20 +498,21 @@ export default function StationVisitPage() {
                 stations={stations}
                 busy={busy}
                 isOnline={isOnline}
-                onComplete={async (body) => {
-                  if (
-                    unsavedForm &&
-                    GUARDED_STATION_KINDS.has(visit.station.kind) &&
-                    !(await confirmAction({
-                      title: `${visit.station.name} is not saved`,
-                      description:
-                        'This station has answers that were typed but not saved. Handing the patient on now leaves them out of the record.',
-                      confirmLabel: 'Hand on without saving',
-                      cancelLabel: 'Go back and save',
-                      destructive: true,
-                    }))
-                  )
-                    return;
+                nothingRecorded={nothingRecordedAt(visit.station.kind, readings)}
+                // Typed but unsaved answers are asked about first: saving them is the usual fix.
+                confirmUnsaved={async () =>
+                  !unsavedForm ||
+                  !GUARDED_STATION_KINDS.has(visit.station.kind) ||
+                  confirmAction({
+                    title: `${visit.station.name} is not saved`,
+                    description:
+                      'This station has answers that were typed but not saved. Handing the patient on now leaves them out of the record.',
+                    confirmLabel: 'Hand on without saving',
+                    cancelLabel: 'Go back and save',
+                    destructive: true,
+                  })
+                }
+                onComplete={(body) => {
                   let handedTo = '';
                   void run(
                     async () => {
@@ -771,6 +774,8 @@ function HandOff({
   stations,
   busy,
   isOnline,
+  nothingRecorded,
+  confirmUnsaved,
   onComplete,
   onRelease,
   onPatientLeft,
@@ -779,10 +784,15 @@ function HandOff({
   stations: ClinicStation[];
   busy: boolean;
   isOnline: boolean;
+  /** This station's own reading is missing, so handing on asks first (#424). */
+  nothingRecorded: boolean;
+  /** Resolves false when the volunteer goes back to save typed answers. */
+  confirmUnsaved: () => Promise<boolean>;
   onComplete: (body: {
     handoffNote?: string;
     nextStationId?: string;
     skips?: Array<{ stationId: string; reason: string }>;
+    skipReason?: string;
   }) => void;
   onRelease: (reason: string) => void;
   onPatientLeft: (reason: string) => void;
@@ -793,6 +803,10 @@ function HandOff({
   const [nextId, setNextId] = useState<string>(suggested?.id ?? '');
   const [note, setNote] = useState('');
   const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
+  // Asked on Send when nothing was recorded here; a reading saved meanwhile ends the question.
+  const [askingWhy, setAskingWhy] = useState(false);
+  const [nothingReason, setNothingReason] = useState('');
+  const asking = askingWhy && nothingRecorded;
   useEffect(() => {
     if (!nextId && suggested) setNextId(suggested.id);
   }, [nextId, suggested]);
@@ -800,6 +814,26 @@ function HandOff({
   const passedOver = nextId ? stationsPassedOver(active, visit.station.id, nextId) : [];
   const missingReason = passedOver.some((station) => !skipReasons[station.id]?.trim());
   const nextName = active.find((station) => station.id === nextId)?.name;
+  const body = () =>
+    isReview
+      ? {}
+      : {
+          handoffNote: note.trim() || undefined,
+          nextStationId: nextId && nextId !== suggested?.id ? nextId : undefined,
+          skips: passedOver.map((station) => ({
+            stationId: station.id,
+            reason: skipReasons[station.id]!.trim(),
+          })),
+        };
+  const goBack = () => {
+    setAskingWhy(false);
+    // Back to the station's own form, where the reading goes.
+    const field = document.querySelector<HTMLElement>(
+      '[data-station-form] input:not([disabled]), [data-station-form] button:not([disabled])',
+    );
+    field?.scrollIntoView({ block: 'center' });
+    field?.focus({ preventScroll: true });
+  };
 
   return (
     <Card>
@@ -867,44 +901,78 @@ function HandOff({
           </>
         ) : null}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <ReasonButton
-            label="Patient left"
-            prompt="Why did the patient leave?"
-            disabled={!isOnline || busy}
-            onSubmit={onPatientLeft}
-          />
-          <ReasonButton
-            label="Put back in queue"
-            prompt="Why are you handing this patient back?"
-            disabled={!isOnline || busy}
-            onSubmit={onRelease}
-          />
-          <Button
-            type="button"
-            disabled={!isOnline || busy || (!isReview && (!nextId || missingReason))}
-            onClick={() =>
-              onComplete(
-                isReview
-                  ? {}
-                  : {
-                      handoffNote: note.trim() || undefined,
-                      nextStationId: nextId && nextId !== suggested?.id ? nextId : undefined,
-                      skips: passedOver.map((station) => ({
-                        stationId: station.id,
-                        reason: skipReasons[station.id]!.trim(),
-                      })),
-                    },
-              )
-            }
+        {asking ? (
+          <div
+            role="group"
+            aria-labelledby="nothing-recorded-title"
+            className="space-y-3 rounded-md border border-warning/25 bg-warning/10 p-4"
           >
-            {busy
-              ? 'Working…'
-              : isReview
-                ? 'Complete session'
-                : `Send to ${nextName ?? 'next station'}`}
-          </Button>
-        </div>
+            <p
+              id="nothing-recorded-title"
+              className="flex items-start gap-2 font-semibold text-warning-ink"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              Nothing was recorded at {visit.station.name}. Hand on anyway?
+            </p>
+            <p className="text-sm text-warning-ink">
+              Skipping keeps this stop in the record as skipped, with your reason, so review knows
+              why there is no reading.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="nothingRecordedReason">Why was nothing recorded?</Label>
+              <Input
+                id="nothingRecordedReason"
+                autoFocus
+                maxLength={500}
+                value={nothingReason}
+                placeholder="e.g. patient declined, machine not working"
+                onChange={(event) => setNothingReason(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={goBack}>
+                Go back
+              </Button>
+              <Button
+                type="button"
+                disabled={!isOnline || busy || !nothingReason.trim()}
+                onClick={() => onComplete({ ...body(), skipReason: nothingReason.trim() })}
+              >
+                {busy ? 'Working…' : 'Skip this station'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <ReasonButton
+              label="Patient left"
+              prompt="Why did the patient leave?"
+              disabled={!isOnline || busy}
+              onSubmit={onPatientLeft}
+            />
+            <ReasonButton
+              label="Put back in queue"
+              prompt="Why are you handing this patient back?"
+              disabled={!isOnline || busy}
+              onSubmit={onRelease}
+            />
+            <Button
+              type="button"
+              disabled={!isOnline || busy || (!isReview && (!nextId || missingReason))}
+              onClick={async () => {
+                if (!(await confirmUnsaved())) return;
+                if (nothingRecorded) setAskingWhy(true);
+                else onComplete(body());
+              }}
+            >
+              {busy
+                ? 'Working…'
+                : isReview
+                  ? 'Complete session'
+                  : `Send to ${nextName ?? 'next station'}`}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

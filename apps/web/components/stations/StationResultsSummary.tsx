@@ -31,6 +31,17 @@ function recordedRows({ vitals, diabetes, eye = null }: SummaryReadings): Set<Su
   return rows;
 }
 
+/**
+ * Whether a measurement station is being handed on with none of its own reading (#424). Stations
+ * with no reading of their own (intake, review, custom) never are.
+ */
+export function nothingRecordedAt(kind: StationKind, readings: SummaryReadings): boolean {
+  // Any saved eye record counts: an exam can be findings without an acuity.
+  if (kind === 'EYE') return !readings.eye;
+  if (kind !== 'BLOOD_PRESSURE' && kind !== 'GLUCOSE' && kind !== 'ANTHROPOMETRY') return false;
+  return !recordedRows(readings).has(kind);
+}
+
 /** Rows empty in `before` that hold a reading in `after`: readings that arrived late (#427). */
 export function newlyRecorded(before: SummaryReadings, after: SummaryReadings): SummaryRowKind[] {
   const had = recordedRows(before);

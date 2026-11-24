@@ -3,7 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import type { StationVisit } from '@/lib/stations';
-import { StationResultsSummary, newlyRecorded } from './StationResultsSummary';
+import { StationResultsSummary, newlyRecorded, nothingRecordedAt } from './StationResultsSummary';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -83,4 +83,27 @@ describe('StationResultsSummary', () => {
     expect(cell('Blood pressure')).toContain('Not recorded');
     expect(cell('Blood pressure')).toContain('Recorded by Abena');
   });
+});
+
+describe('nothingRecordedAt (#424)', () => {
+  const empty = { vitals: null, diabetes: null, eye: null };
+
+  it.each(['BLOOD_PRESSURE', 'GLUCOSE', 'ANTHROPOMETRY', 'EYE'] as const)(
+    'asks at %s with no reading of its own',
+    (kind) => expect(nothingRecordedAt(kind, empty)).toBe(true),
+  );
+
+  it("is satisfied by the station's own reading, not another's", () => {
+    expect(nothingRecordedAt('GLUCOSE', { ...empty, diabetes: glucose })).toBe(false);
+    expect(nothingRecordedAt('BLOOD_PRESSURE', { ...empty, vitals: bp })).toBe(false);
+    expect(nothingRecordedAt('ANTHROPOMETRY', { ...empty, vitals: bp })).toBe(true);
+    expect(
+      nothingRecordedAt('ANTHROPOMETRY', { ...empty, vitals: { weightKg: 70 } as VitalsRecord }),
+    ).toBe(false);
+    expect(nothingRecordedAt('EYE', { ...empty, eye: { id: 'e1' } as never })).toBe(false);
+  });
+
+  it.each(['INTAKE', 'REVIEW', 'CUSTOM'] as const)('never asks at %s', (kind) =>
+    expect(nothingRecordedAt(kind, empty)).toBe(false),
+  );
 });

@@ -70,6 +70,8 @@ export interface StationVisit {
   performerCorrection?: PerformerCorrection | null;
   previous: {
     station: StationVisit['station'];
+    /** SKIPPED when the stop ended with nothing recorded (#424). Absent from copies saved before. */
+    status?: StationVisitStatus;
     completedBy: StaffSummary | null;
     completedAt: string | null;
     performedByName?: string | null;
@@ -574,6 +576,36 @@ export function stationsPassedOver(
 export function minutesSince(iso: string, now: Date = new Date()): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000));
 }
+
+/**
+ * How long a patient can be with someone at each kind of station before the line flags it (#424):
+ * a measurement takes minutes, review with counselling takes longer.
+ */
+export const HELD_TOO_LONG_MINUTES: Record<StationKind, number> = {
+  INTAKE: 15,
+  BLOOD_PRESSURE: 15,
+  GLUCOSE: 15,
+  ANTHROPOMETRY: 15,
+  EYE: 15,
+  CUSTOM: 15,
+  REVIEW: 30,
+};
+
+/**
+ * Minutes a taken patient has been held past their station's limit, or null when they are not
+ * held too long. Counts from when they were taken, not from when they joined the queue.
+ */
+export function heldTooLongMinutes(
+  visit: Pick<StationVisit, 'status' | 'claimedAt' | 'station'>,
+  now: Date = new Date(),
+): number | null {
+  if (visit.status !== 'IN_PROGRESS' || !visit.claimedAt) return null;
+  const minutes = minutesSince(visit.claimedAt, now);
+  return minutes > HELD_TOO_LONG_MINUTES[visit.station.kind] ? minutes : null;
+}
+
+/** "With Kofi Boateng for 25 min": one wording for a held patient on the board and the queue (#424). */
+export const heldLabel = (holder: string, minutes: number) => `With ${holder} for ${minutes} min`;
 
 /** Whole years from a date of birth (YYYY-MM-DD or ISO), or null without one. */
 export function ageInYears(dob: string | null, now: Date = new Date()): number | null {

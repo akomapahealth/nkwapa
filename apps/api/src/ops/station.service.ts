@@ -857,7 +857,7 @@ export class StationService {
           });
         }
       } else {
-        if (skips.length || dto.nextStationId) {
+        if (skips.length || dto.nextStationId || dto.skipReason) {
           throw new BadRequestException({
             code: 'REVIEW_COMPLETES_SESSION',
             message: 'Completing the review station ends the session; there is no next station.',
@@ -879,10 +879,11 @@ export class StationService {
         where: { id: visitId, status: 'IN_PROGRESS', claimedByUserId: actor.userId },
         data: {
           ...performer,
-          status: 'COMPLETED',
+          status: dto.skipReason ? 'SKIPPED' : 'COMPLETED',
           completedByUserId: actor.userId,
           completedAt: now,
           handoffNote: dto.handoffNote?.trim() || null,
+          ...(dto.skipReason ? { endReason: dto.skipReason.trim() } : {}),
         },
       });
       if (completed.count === 0) throw this.notYourVisit(visit);
@@ -1401,7 +1402,11 @@ export class StationService {
   private async previousVisits(checkInIds: string[]) {
     if (!checkInIds.length) return new Map<string, VisitWithContext>();
     const finished = await this.prisma.patientStationVisit.findMany({
-      where: { patientCheckInId: { in: checkInIds }, status: 'COMPLETED' },
+      where: {
+        patientCheckInId: { in: checkInIds },
+        // A stop someone held and then skipped (#424) carries a note too; one passed over was never held.
+        OR: [{ status: 'COMPLETED' }, { status: 'SKIPPED', claimedByUserId: { not: null } }],
+      },
       include: VISIT_INCLUDE,
       orderBy: { completedAt: 'desc' },
     });
@@ -1699,6 +1704,7 @@ export class StationService {
       previous: previous
         ? {
             station: previous.station,
+            status: previous.status,
             completedBy: previous.completedBy,
             completedAt: previous.completedAt?.toISOString() ?? null,
             performedByName: this.performedByNameOf(previous),
