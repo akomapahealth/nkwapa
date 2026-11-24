@@ -132,6 +132,11 @@ export const SYNC_ENTITY_PERMISSIONS: Record<EntityType, SyncEntityPermission> =
     update: PERMISSIONS.FOLLOW_UP_MANAGE,
     delete: null,
   },
+  staff_feedback: {
+    create: PERMISSIONS.FEEDBACK_SUBMIT,
+    update: PERMISSIONS.FEEDBACK_SUBMIT,
+    delete: null,
+  },
 };
 
 /** Runtime list of replayable entity types, so the DTO can reject anything unrecognised. */

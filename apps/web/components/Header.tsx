@@ -51,6 +51,7 @@ import {
   Compass,
   LogOut,
   Menu,
+  MessageSquareWarning,
   PanelLeft,
   PanelLeftClose,
   Settings,
@@ -62,6 +63,10 @@ import { WelcomeTour } from '@/components/onboarding/WelcomeTour';
 import { AccessChangeNotice } from '@/components/account/AccessChangeNotice';
 import { NotificationPrompt } from '@/components/account/NotificationPrompt';
 import { WELCOME_TOUR_OPEN_EVENT } from '@/lib/welcome-tour';
+import {
+  ReportProblemDialog,
+  openReportProblem,
+} from '@/components/report-problem/ReportProblemDialog';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
 
 export function Header({
@@ -95,6 +100,7 @@ export function Header({
   const perms = bootstrap?.effectivePermissionsForActiveClinic ?? [];
   const hasPermission = (permission: string) => perms.includes('*') || perms.includes(permission);
   const canSync = hasPermission('SYNC.PUSH') && hasPermission('SYNC.PULL');
+  const canReportProblem = hasPermission('FEEDBACK.SUBMIT') && canSync;
   const recoveryAccess = {
     canReviewDuplicates: hasPermission('PATIENT.DUPLICATE.REVIEW'),
     opsBoardHref: getOpsDestination(perms, isWebFeatureEnabled('stationWorkflow')),
@@ -511,6 +517,12 @@ export function Header({
                 );
               })}
               <InstallAppMenuItem />
+              {canReportProblem ? (
+                <DropdownMenuItem onSelect={() => openReportProblem()}>
+                  <MessageSquareWarning className="mr-2 h-4 w-4" />
+                  Report a problem
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                 Appearance
@@ -542,6 +554,7 @@ export function Header({
       <AccessChangeNotice />
       <NotificationPrompt />
       <InstallInstructionsDialog />
+      {canReportProblem ? <ReportProblemDialog /> : null}
     </header>
   );
 }

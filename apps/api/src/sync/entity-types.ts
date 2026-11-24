@@ -37,4 +37,6 @@ export type EntityType =
   // The eye examination saved offline at the eye station (#423); entityId is the encounter.
   | 'eye_screening'
   // A follow-up call recorded offline (#338). Taking and cancelling a contact stay online.
-  | 'follow_up_attempt';
+  | 'follow_up_attempt'
+  // A "Report a problem" from any staff page (#422); entityId is the report's id.
+  | 'staff_feedback';

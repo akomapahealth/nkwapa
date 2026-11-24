@@ -290,6 +290,9 @@ export function PatientRegistryScreen({ clinicId }: { clinicId: string }) {
       // offline: the row stays in view, showing it waits to sync.
       if (outcome === 'applied') {
         updateView({ q: '' });
+        // Committed now, not after the debounce: retyping the same name in that window would
+        // otherwise leave the read unchanged and the row still offering Check in.
+        setCommitted((current) => ({ ...current, q: '' }));
         document.getElementById('patient-search')?.focus();
       }
     } finally {
