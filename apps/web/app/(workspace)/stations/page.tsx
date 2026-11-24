@@ -505,6 +505,8 @@ export default function StationsPage() {
                     <span className="font-mono">{visit.patient.patientCode}</span> ·{' '}
                     {visit.station.name}
                   </p>
+                  {/* The volunteer waiting with the patient sees who is coming (#418). */}
+                  <DoctorRequestChip request={visit.doctorRequest} me={userId} className="mt-1" />
                 </div>
                 {handedOn.has(visit.id) ? (
                   <HandedOnLabel />
