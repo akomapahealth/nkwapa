@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -32,6 +32,8 @@ import {
   screenersByUser,
   setShiftStation,
   usePolling,
+  heldLabel,
+  heldTooLongMinutes,
   withScreener,
   type StationBoard,
   type StationVisit,
@@ -749,7 +751,7 @@ function NextPatientTicket({
         {previous ? (
           <p>
             <span className="inline-block break-words rounded bg-info-surface px-2 py-1 text-xs font-semibold text-info-ink">
-              {previous.station.name} done
+              {previous.station.name} {previous.status === 'SKIPPED' ? 'skipped' : 'done'}
             </span>
           </p>
         ) : null}
@@ -811,13 +813,17 @@ function QueueRow({
   const taken = visit.status === 'IN_PROGRESS';
   const mine = taken && visit.claimedBy?.id === userId;
   const minutes = minutesSince(visit.queuedAt);
-  const long = !taken && minutes > LONG_WAIT_MINUTES;
+  const held = heldTooLongMinutes(visit);
+  const long = (!taken && minutes > LONG_WAIT_MINUTES) || held !== null;
+  const holder = visit.claimedBy
+    ? withScreener(visit.claimedBy.displayName, holderScreener)
+    : 'someone';
   return (
     <li
       className={cn(
         'grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 border-b border-border px-2 py-3',
         long && 'bg-warning-surface',
-        taken && !mine && 'bg-muted/40',
+        taken && !mine && !long && 'bg-muted/40',
       )}
     >
       {/* The day number replaces the place in line: the list is already in order (#413). */}
@@ -843,25 +849,34 @@ function QueueRow({
         {visit.endReason && visit.status === 'QUEUED' ? (
           <p className="text-xs text-muted-foreground">Returned to the queue: {visit.endReason}</p>
         ) : null}
+        {held !== null ? (
+          <p
+            data-testid="queue-held-notice"
+            className="flex items-start gap-1.5 pt-1 text-sm font-medium text-warning-ink"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {mine
+              ? `You still have ${patientName(visit.patient)}. Hand them on or release them.`
+              : heldLabel(holder, held)}
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-col items-end gap-2">
-        <span className={cn('text-sm tabular-nums', long && 'font-semibold text-warning-ink')}>
-          {long ? 'Waiting over 20 min · ' : ''}
-          {minutes} min
-        </span>
+        {held === null ? (
+          <span className={cn('text-sm tabular-nums', long && 'font-semibold text-warning-ink')}>
+            {long ? 'Waiting over 20 min · ' : ''}
+            {minutes} min
+          </span>
+        ) : null}
         {taken ? (
           mine ? (
             <Button asChild size="sm">
               <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
             </Button>
-          ) : (
-            <Badge variant="secondary">
-              With{' '}
-              {visit.claimedBy
-                ? withScreener(visit.claimedBy.displayName, holderScreener)
-                : 'someone'}
-            </Badge>
-          )
+          ) : // A held patient's notice already says who has them.
+          held === null ? (
+            <Badge variant="secondary">With {holder}</Badge>
+          ) : null
         ) : (
           <Button size="sm" variant="outline" onClick={onClaim} disabled={!canClaim}>
             {busy ? 'Taking…' : 'Take patient'}

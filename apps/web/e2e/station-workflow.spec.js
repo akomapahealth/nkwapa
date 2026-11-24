@@ -506,6 +506,61 @@ test('the review summary picks up a reading saved after it opened (#427)', async
   await expect(page.getByLabel('Advice given')).toHaveValue('Recheck fasting glucose.');
 });
 
+test('handing on a station with nothing recorded asks first, and Skip keeps a reason (#424)', async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+
+  let next = await claimNext('staff', clinicId, checkInId);
+  while (next.at.station.kind !== 'GLUCOSE') {
+    const done = await complete('staff', clinicId, next.at.visit.id);
+    expect(done.ok(), done.text()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  const send = page.getByRole('button', { name: /^Send to / });
+  await send.click({ timeout: 20_000 });
+  const ask = page.getByRole('group', { name: /^Nothing was recorded at .+\. Hand on anyway\?$/ });
+  await expect(ask).toBeVisible();
+  const skip = ask.getByRole('button', { name: 'Skip this station' });
+  await expect(skip).toBeDisabled();
+  // Go back stays on the visit, at the station's own form.
+  await ask.getByRole('button', { name: 'Go back' }).click();
+  await expect(ask).toHaveCount(0);
+  await expect(page).toHaveURL(/\/stations\/visits\//);
+
+  await page.getByLabel('Note for the next station').fill('No strips left.');
+  await send.click();
+  await ask.getByLabel('Why was nothing recorded?').fill('Out of glucose strips');
+  await skip.click();
+  await page.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+
+  const timeline = await apiRequestAs(
+    'staff',
+    'get',
+    `/clinics/${clinicId}/checkins/${checkInId}/station-visits`,
+    { clinicId },
+  );
+  const glucose = timeline.json().items.find((stop) => stop.station.kind === 'GLUCOSE');
+  expect(glucose).toMatchObject({ status: 'SKIPPED', endReason: 'Out of glucose strips' });
+  // The next station still reads the note, from a stop marked skipped.
+  const after = await boardVisit('staff', clinicId, checkInId);
+  expect(after.visit.previous).toMatchObject({
+    status: 'SKIPPED',
+    handoffNote: 'No strips left.',
+  });
+});
+
 test('manager assignment is refused while the station line runs', async ({ page }) => {
   const patient = await createPatient(page);
   const { clinicId } = patient;

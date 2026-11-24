@@ -470,6 +470,20 @@ describe('StationService', () => {
       expect(actions(audit)).toContain('STATION.SKIP');
     });
 
+    it('keeps a stop handed on with nothing recorded as skipped, with its reason (#424)', async () => {
+      const { service, created } = setup(held);
+      const result = await service.complete(CLINIC, 'visit-1', volunteer, {
+        skipReason: 'Patient refused the cuff',
+      });
+
+      expect(result.nextStationId).toBe('st-glucose');
+      expect(result.visit).toMatchObject({
+        status: 'SKIPPED',
+        endReason: 'Patient refused the cuff',
+      });
+      expect(created[0]).toMatchObject({ stationId: 'st-glucose', status: 'QUEUED' });
+    });
+
     it('sends the patient to a station the volunteer chose', async () => {
       const { service } = setup(held);
       const result = await service.complete(CLINIC, 'visit-1', volunteer, {
@@ -486,6 +500,13 @@ describe('StationService', () => {
       await expect(service.complete(CLINIC, 'visit-1', volunteer, dto)).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    it('refuses to skip the review station, which completes the session', async () => {
+      const { service } = setup({ ...held, stationId: 'st-review' });
+      await expect(
+        service.complete(CLINIC, 'visit-1', volunteer, { skipReason: 'x' }),
+      ).rejects.toMatchObject({ response: { code: 'REVIEW_COMPLETES_SESSION' } });
     });
 
     it('only lets the holder complete', async () => {

@@ -98,6 +98,17 @@ export class CompleteStationVisitDto {
   @Type(() => StationSkipDto)
   skips?: StationSkipDto[];
 
+  /**
+   * This station is ending with nothing recorded (#424): its stop is kept as skipped, with this
+   * reason, instead of done. Not for the review station, which completes the session.
+   */
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 500 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  skipReason?: string;
+
   /** Who did this stop. Omitted by older clients: the shift's screener is used. */
   @IsOptional()
   @ValidateNested()

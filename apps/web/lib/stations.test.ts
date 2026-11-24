@@ -4,6 +4,7 @@ import {
   canCorrectPerformer,
   describeRouteStop,
   formatMinutes,
+  heldTooLongMinutes,
   isStationBoard,
   moveStation,
   minutesSince,
@@ -253,5 +254,26 @@ describe('ageInYears', () => {
   it('is null without a usable date', () => {
     expect(ageInYears(null, now)).toBeNull();
     expect(ageInYears('unknown', now)).toBeNull();
+  });
+});
+
+describe('heldTooLongMinutes (#424)', () => {
+  const now = new Date('2026-11-24T10:30:00Z');
+  const held = (kind: ClinicStation['kind'], minutesAgo: number) => ({
+    status: 'IN_PROGRESS' as const,
+    claimedAt: new Date(now.getTime() - minutesAgo * 60_000).toISOString(),
+    station: { id: kind, kind, name: kind, sortOrder: 1 },
+  });
+
+  it('flags a measurement station past 15 minutes and review past 30', () => {
+    expect(heldTooLongMinutes(held('BLOOD_PRESSURE', 16), now)).toBe(16);
+    expect(heldTooLongMinutes(held('BLOOD_PRESSURE', 15), now)).toBeNull();
+    expect(heldTooLongMinutes(held('REVIEW', 25), now)).toBeNull();
+    expect(heldTooLongMinutes(held('REVIEW', 31), now)).toBe(31);
+  });
+
+  it('counts from when the patient was taken, and never flags a waiting patient', () => {
+    expect(heldTooLongMinutes({ ...held('GLUCOSE', 40), status: 'QUEUED' }, now)).toBeNull();
+    expect(heldTooLongMinutes({ ...held('GLUCOSE', 40), claimedAt: null }, now)).toBeNull();
   });
 });
