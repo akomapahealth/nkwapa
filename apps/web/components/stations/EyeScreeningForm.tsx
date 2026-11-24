@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye as EyeIcon } from 'lucide-react';
 import {
   EXTERNAL_EYE_STRUCTURES,
@@ -100,30 +100,51 @@ export function EyeScreeningForm({
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const path = eyeScreeningPath(clinicId, encounterId);
 
-  const load = useCallback(async () => {
+  // Loaded once per encounter, never on a connection change: a reload replaced whatever had
+  // been typed since the last save, and a flaky signal flips online many times a minute (#426).
+  const [loadedPath, setLoadedPath] = useState<string | null>(null);
+  const loaded = loadedPath === path;
+  const onLoadedRef = useRef(onLoaded);
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  }, [onLoaded]);
+
+  useEffect(() => {
+    if (loaded) return;
     if (!getToken || !isOnline) {
       setLoading(false);
       return;
     }
-    try {
-      const response = await apiFetch(path, { getToken, activeClinicId: clinicId });
-      if (!response.ok) throw new Error(await readApiError(response));
-      const body = (await response.json()) as { record: EyeScreeningRecord | null };
-      setRecord(body.record);
-      setForm(eyeFormFromRecord(body.record));
-      onLoaded?.(body.record);
-    } catch (error) {
-      setStatus({ tone: 'error', text: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setLoading(false);
-    }
-  }, [getToken, isOnline, path, clinicId, onLoaded]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await apiFetch(path, { getToken, activeClinicId: clinicId });
+        if (!response.ok) throw new Error(await readApiError(response));
+        const body = (await response.json()) as { record: EyeScreeningRecord | null };
+        if (cancelled) return;
+        setRecord(body.record);
+        setForm(eyeFormFromRecord(body.record));
+        setLoadedPath(path);
+        setStatus(null);
+        onLoadedRef.current?.(body.record);
+      } catch (error) {
+        if (!cancelled)
+          setStatus({
+            tone: 'error',
+            text: error instanceof Error ? error.message : String(error),
+          });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loaded, getToken, isOnline, path, clinicId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const editable = canEdit && isOnline;
+  // Typing does not need the connection, only saving does; nothing is editable before the
+  // record has loaded, so a late load can never overwrite what was typed.
+  const editable = canEdit && loaded;
 
   async function save() {
     if (!getToken) return;
@@ -299,7 +320,9 @@ export function EyeScreeningForm({
       <CardContent className={(ruled ? 'px-0 pb-5 ' : '') + 'space-y-6'}>
         {!isOnline ? (
           <InlineNotice tone="warning" live={false}>
-            The eye examination needs a connection to load and save.
+            {loaded
+              ? 'Saving needs a connection. What you type stays on this page.'
+              : 'The eye examination needs a connection to load.'}
           </InlineNotice>
         ) : null}
         {loading ? (
@@ -333,6 +356,11 @@ export function EyeScreeningForm({
                 />
                 <Label htmlFor="wearsCorrection">Wears glasses or contact lenses</Label>
               </div>
+              {form.wearsCorrection ? (
+                <p className="text-sm text-muted-foreground">
+                  Record the reading with their glasses under With correction.
+                </p>
+              ) : null}
             </section>
 
             <section className="space-y-3" aria-label="Visual acuity">
@@ -340,6 +368,10 @@ export function EyeScreeningForm({
                 <h3 className="text-base font-semibold">Visual acuity</h3>
                 <p className="text-sm text-muted-foreground">
                   Snellen chart at 6 m. Test the right eye, then the left, then both.
+                  <span className="compact:hidden">
+                    {' '}
+                    Scroll the table sideways for every column.
+                  </span>
                 </p>
               </div>
               <div
@@ -351,7 +383,8 @@ export function EyeScreeningForm({
                 <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="text-left text-muted-foreground">
-                      <th className="pb-2 font-normal">Eye</th>
+                      {/* The eye stays in view while a phone scrolls to With correction (#426). */}
+                      <th className="sticky left-0 z-[1] bg-card pb-2 pr-3 font-normal">Eye</th>
                       <th className="pb-2 font-normal">Unaided</th>
                       <th className="pb-2 font-normal">With correction</th>
                       <th className="pb-2 font-normal">Pinhole</th>
@@ -360,7 +393,10 @@ export function EyeScreeningForm({
                   <tbody>
                     {ACUITY_ROWS.map((row) => (
                       <tr key={row.label}>
-                        <th scope="row" className="py-1 pr-3 text-left font-medium">
+                        <th
+                          scope="row"
+                          className="sticky left-0 z-[1] bg-card py-1 pr-3 text-left font-medium"
+                        >
                           {row.label}
                         </th>
                         <td className="py-1 pr-2">
@@ -491,7 +527,7 @@ export function EyeScreeningForm({
         {status ? <InlineNotice tone={status.tone}>{status.text}</InlineNotice> : null}
         {editable && !loading ? (
           <div data-sticky-actions className={cn('flex justify-end', STICKY_ACTIONS)}>
-            <Button type="button" onClick={() => void save()} disabled={saving}>
+            <Button type="button" onClick={() => void save()} disabled={saving || !isOnline}>
               {saving ? 'Saving…' : 'Save eye examination'}
             </Button>
           </div>

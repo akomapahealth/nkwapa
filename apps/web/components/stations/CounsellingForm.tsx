@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MessageSquareHeart } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
@@ -135,31 +135,52 @@ export function CounsellingForm({
 
   const path = `/clinics/${encodeURIComponent(clinicId)}/encounters/${encodeURIComponent(encounterId)}/counselling`;
 
-  const load = useCallback(async () => {
+  // Loaded once per encounter, never on a connection change: a reload replaced whatever had
+  // been typed since the last save, and a flaky signal flips online many times a minute (#426).
+  const [loadedPath, setLoadedPath] = useState<string | null>(null);
+  const loaded = loadedPath === path;
+  const onLoadedRef = useRef(onLoaded);
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  }, [onLoaded]);
+
+  useEffect(() => {
+    if (loaded) return;
     if (!getToken || !isOnline) {
       setLoading(false);
       return;
     }
-    try {
-      const response = await apiFetch(path, { getToken, activeClinicId: clinicId });
-      if (!response.ok) throw new Error(await readApiError(response));
-      const body = (await response.json()) as { record: CounsellingRecord | null };
-      setRecord(body.record);
-      setForm(fromRecord(body.record));
-      onLoaded?.(body.record);
-    } catch (error) {
-      setStatus({ tone: 'error', text: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setLoading(false);
-    }
-  }, [getToken, isOnline, path, clinicId, onLoaded]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await apiFetch(path, { getToken, activeClinicId: clinicId });
+        if (!response.ok) throw new Error(await readApiError(response));
+        const body = (await response.json()) as { record: CounsellingRecord | null };
+        if (cancelled) return;
+        setRecord(body.record);
+        setForm(fromRecord(body.record));
+        setLoadedPath(path);
+        setStatus(null);
+        onLoadedRef.current?.(body.record);
+      } catch (error) {
+        if (!cancelled)
+          setStatus({
+            tone: 'error',
+            text: error instanceof Error ? error.message : String(error),
+          });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loaded, getToken, isOnline, path, clinicId]);
 
   const locked = Boolean(record?.lockedAt);
-  const editable = canEdit && !locked && isOnline;
+  // Typing does not need the connection, only saving does; nothing is editable before the
+  // record has loaded, so a late load can never overwrite what was typed.
+  const editable = canEdit && !locked && loaded;
 
   async function save() {
     if (!getToken) return;
@@ -234,7 +255,9 @@ export function CounsellingForm({
       <CardContent className={(ruled ? 'px-0 pb-5 ' : '') + 'space-y-5'}>
         {!isOnline ? (
           <InlineNotice tone="warning" live={false}>
-            Counselling needs a connection to load and save.
+            {loaded
+              ? 'Saving needs a connection. What you type stays on this page.'
+              : 'Counselling needs a connection to load.'}
           </InlineNotice>
         ) : null}
         {loading ? (
@@ -372,7 +395,7 @@ export function CounsellingForm({
         {status ? <InlineNotice tone={status.tone}>{status.text}</InlineNotice> : null}
         {editable ? (
           <div className="flex justify-end">
-            <Button type="button" onClick={() => void save()} disabled={saving}>
+            <Button type="button" onClick={() => void save()} disabled={saving || !isOnline}>
               {saving ? 'Saving…' : 'Save counselling'}
             </Button>
           </div>
