@@ -32,29 +32,11 @@ test('protected routes redirect unauthenticated users to /login with next state'
   await expect(page.getByRole('heading', { name: /sign in to continue/i })).toBeVisible();
 });
 
-test('sign-in asks patient or clinic staff, tailors its help and remembers the choice', async ({
-  page,
-}) => {
+test('sign-in is one title, one line and one button, with no audience choice', async ({ page }) => {
   await page.goto('/login');
-  const choice = page.getByRole('group', { name: 'I am signing in as' });
-  const patient = choice.getByRole('radio', { name: 'Patient' });
-  const staff = choice.getByRole('radio', { name: 'Clinic staff' });
-
-  await expect(patient).toBeChecked();
+  await expect(page.getByRole('heading', { level: 1, name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to secure sign in' })).toBeVisible();
   await expect(page.getByText(/invitation only/i)).toBeVisible();
-  await expect(page.getByText('Keep your clinic card nearby')).toBeVisible();
-
-  // Arrow keys move between the two, like any radio group.
-  await patient.focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(staff).toBeChecked();
-  await expect(page).toHaveURL(/[?&]as=staff/);
-  await expect(page.getByText('Joining a clinic team')).toBeVisible();
-  await expect(page.getByText('Keep your clinic card nearby')).toHaveCount(0);
-
-  // Remembered on this device, and a link can still choose for the visitor.
-  await page.goto('/login');
-  await expect(staff).toBeChecked();
-  await page.goto('/login?as=patient');
-  await expect(patient).toBeChecked();
+  await expect(page.getByRole('radio')).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
 });

@@ -4,7 +4,6 @@
   retry form and its hidden fields are Keycloak's contract; keep them.
 -->
 <@layout.registrationLayout
-    journey="none"
     description="Nothing has changed. This usually means the device window was closed or took too long.";
     section>
     <#if section = "header">

@@ -2,72 +2,20 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useBootstrap } from '@/lib/bootstrap-context';
-import {
-  getPostAuthPath,
-  getSafeNextPath,
-  parseSignInAudience,
-  shouldAutoContinue,
-  SIGN_IN_AUDIENCE_PARAM,
-  type SignInAudience,
-} from '@/lib/auth-routing';
+import { getPostAuthPath, getSafeNextPath, shouldAutoContinue } from '@/lib/auth-routing';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { PageSkeleton } from '@/components/feedback/AppState';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LANDING_BLUR } from '@/lib/landing-blur';
-import { AlertTriangle, ArrowRight, HeartPulse, Lock, Stethoscope } from 'lucide-react';
-
-const AUDIENCE_STORAGE_KEY = 'nkwapa.signInAudience';
-
-const AUDIENCE_OPTIONS = [
-  { value: 'patient', label: 'Patient', icon: HeartPulse },
-  { value: 'staff', label: 'Clinic staff', icon: Stethoscope },
-] as const;
+import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { HERO_HEADLINE } from '@/components/landing/hero-content';
 
 // Each block rises in a beat after the one above it; the global reduced-motion rule flattens it.
 const RISE = 'motion-safe:animate-rise-in';
 const riseDelay = (step: number) => ({ animationDelay: `${step * 40}ms` });
-
-const GUIDANCE: Record<
-  SignInAudience,
-  { destination: string; landing: string; help: { title: string; detail: string }[] }
-> = {
-  patient: {
-    destination: 'Open your patient record after secure sign-in.',
-    landing: 'Your record opens. The first time, confirm the code on your clinic card.',
-    help: [
-      {
-        title: 'Getting access',
-        detail: 'Ask your clinic. They email you a link to set your password.',
-      },
-      {
-        title: 'Keep your clinic card nearby',
-        detail: 'You confirm its patient code once, at first sign-in.',
-      },
-      {
-        title: 'Link not working?',
-        detail: 'Links expire after a few days. Ask the front desk for a new one.',
-      },
-    ],
-  },
-  staff: {
-    destination: 'Open your clinic workspace after secure sign-in.',
-    landing: 'Your clinic workspace opens. Work at several? You pick one.',
-    help: [
-      {
-        title: 'Joining a clinic team',
-        detail: 'Your clinic admin invites you by email. Open the link, set a password, accept.',
-      },
-      {
-        title: 'Link not working?',
-        detail: 'Links expire after a few days. Ask your clinic admin for a new one.',
-      },
-    ],
-  },
-};
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
@@ -82,36 +30,6 @@ export default function LoginPage() {
   };
 
   const nextPath = getSafeNextPath(searchParams.get('next'));
-
-  /*
-    Patient or clinic staff. It tailors the guidance on this page only: where sign-in lands is
-    decided by the account's roles, so a staff member who picks "Patient" still reaches their
-    workspace. A `?as=` link wins, then the choice remembered on this device, then patient.
-  */
-  const linkedAudience = parseSignInAudience(searchParams.get(SIGN_IN_AUDIENCE_PARAM));
-  const [audience, setAudience] = useState<SignInAudience>(linkedAudience ?? 'patient');
-
-  useEffect(() => {
-    if (linkedAudience) return;
-    try {
-      const stored = parseSignInAudience(localStorage.getItem(AUDIENCE_STORAGE_KEY));
-      if (stored) setAudience(stored);
-    } catch {
-      // Storage blocked (private mode): the default stands.
-    }
-  }, [linkedAudience]);
-
-  const chooseAudience = (next: SignInAudience) => {
-    setAudience(next);
-    try {
-      localStorage.setItem(AUDIENCE_STORAGE_KEY, next);
-    } catch {
-      // Not remembered this time; the choice still applies.
-    }
-    const url = new URL(window.location.href);
-    url.searchParams.set(SIGN_IN_AUDIENCE_PARAM, next);
-    window.history.replaceState(null, '', url);
-  };
 
   /*
     A patient returning from Keycloak, having just chosen their password, arrives here
@@ -176,223 +94,119 @@ export default function LoginPage() {
     );
   }
 
-  const guidance = GUIDANCE[audience];
-  const destinationCopy = nextPath
-    ? 'Continue where you left off after secure sign-in.'
-    : guidance.destination;
-
-  const nextSteps = [
-    {
-      title: 'A secure sign-in page opens',
-      detail: 'Your password never passes through this page.',
-    },
-    {
-      title: 'Enter your email and password',
-      detail: 'The one you set from your invitation. Forgot it? Use “Forgot password”.',
-    },
-    {
-      title: nextPath ? 'You return to where you were' : 'Your work opens',
-      detail: nextPath ? 'Straight back to the page you were on.' : guidance.landing,
-    },
-  ];
-
   return (
-    // The canvas with one inset sheet, as in the portal and staff shells (R5.2).
+    // The same frame as the Keycloak page it hands over to: the form, and a clinic photograph
+    // inset beside it from 768px or as a short band above it on a phone.
     <div className="min-h-dvh bg-background">
-      <div className="flex min-h-dvh flex-col bg-card compact:m-2 compact:min-h-[calc(100dvh-1rem)] compact:rounded-xl compact:border compact:border-border">
+      <div className="grid min-h-dvh grid-rows-[auto_1fr] bg-card compact:m-2 compact:min-h-[calc(100dvh-1rem)] compact:overflow-hidden compact:rounded-xl compact:border compact:border-border md:grid-cols-[minmax(380px,5fr)_6fr] md:grid-rows-none">
         <a
           href="#main-content"
           className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm"
         >
           Skip to main content
         </a>
-        <header className="border-b border-rule">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 md:px-6">
-            <span className="flex items-center gap-2.5">
-              <span className="relative h-8 w-8">
-                <Image
-                  src="/images/nkwapa-mark.png"
-                  alt=""
-                  fill
-                  priority
-                  sizes="32px"
-                  className="object-contain"
-                />
-              </span>
-              <span className="font-heading text-xl font-semibold tracking-tight text-foreground">
-                Nkwapa
-              </span>
-            </span>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/">Back to home</Link>
-            </Button>
-          </div>
-        </header>
+        <div className="flex min-w-0 flex-col px-5 pb-5 pt-6 compact:px-10 compact:pb-6 compact:pt-8 xl:px-16 xl:pb-7 xl:pt-10">
+          <header className="mx-auto w-full max-w-[380px] md:mx-0">
+            <Link href="/" aria-label="Nkwapa home" className="inline-block rounded-sm">
+              <Image
+                src="/images/nkwapa-logo.png"
+                alt=""
+                width={140}
+                height={30}
+                priority
+                className="h-[30px] w-auto"
+              />
+            </Link>
+          </header>
 
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="mx-auto grid w-full max-w-5xl flex-1 content-start gap-10 px-4 pb-12 pt-8 md:px-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14 lg:pt-16 focus-visible:outline-none"
-        >
-          <div className="min-w-0 max-w-xl space-y-6">
-            <div className={RISE} style={riseDelay(0)}>
-              <div className="space-y-2">
-                <h1 className="type-page-title text-foreground">
-                  {error
-                    ? "We couldn't start secure sign-in"
-                    : nextPath
-                      ? 'Sign in to continue'
-                      : 'Sign in to Nkwapa'}
-                </h1>
-                <p className="text-sm leading-6 text-muted-foreground md:text-base">
-                  {error
-                    ? "The sign-in service didn't respond. Nothing is lost; try again."
-                    : destinationCopy}
-                </p>
-              </div>
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="mx-auto flex w-full max-w-[380px] flex-1 flex-col py-7 focus-visible:outline-none md:mx-0 md:justify-center md:py-10"
+          >
+            <div className={cn(RISE, 'space-y-2')} style={riseDelay(0)}>
+              <h1 className="font-heading text-[clamp(2rem,1.4rem+2vw,2.75rem)] font-semibold leading-[1.08] tracking-[-0.02em] text-foreground [text-wrap:balance]">
+                {error
+                  ? "We couldn't start secure sign-in"
+                  : nextPath
+                    ? 'Sign in to continue'
+                    : 'Welcome back'}
+              </h1>
+              <p className="max-w-[40ch] leading-relaxed text-muted-foreground">
+                {error
+                  ? "The sign-in service didn't respond. Nothing is lost; try again."
+                  : nextPath
+                    ? "Sign in on Nkwapa's secure page to carry on where you left off."
+                    : "Sign in on Nkwapa's secure page. Staff open their clinic, patients their record."}
+              </p>
             </div>
-
-            <fieldset className={RISE} style={riseDelay(1)}>
-              <legend className="type-label text-foreground">I am signing in as</legend>
-              <div className="relative mt-2 grid grid-cols-2 rounded-[10px] bg-surface-2 p-[3px] shadow-[inset_0_0_0_1px_hsl(var(--border))]">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'absolute inset-y-[3px] left-[3px] w-[calc(50%-3px)] rounded-[7px] bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.12),inset_0_0_0_1px_hsl(var(--border))] transition-transform duration-base ease-out-strong',
-                    audience === 'staff' && 'translate-x-full',
-                  )}
-                />
-                {AUDIENCE_OPTIONS.map(({ value, label, icon: Icon }) => (
-                  <label
-                    key={value}
-                    className={cn(
-                      'relative flex min-h-[42px] cursor-pointer touch-manipulation [@media(pointer:coarse)]:min-h-12 items-center justify-center gap-2 rounded-[7px] px-3 text-sm font-medium transition-colors duration-fast ease-out-strong has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
-                      audience === value
-                        ? 'font-semibold text-primary'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="sign-in-audience"
-                      value={value}
-                      checked={audience === value}
-                      onChange={() => chooseAudience(value)}
-                      className="sr-only"
-                    />
-                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
 
             {error ? (
               <div
                 role="alert"
-                className="flex gap-3 border-t-2 border-destructive pt-4 text-sm leading-6"
+                className="mt-6 flex gap-3 border-t-2 border-destructive pt-4 text-sm leading-6"
               >
                 <AlertTriangle
                   className="mt-0.5 h-5 w-5 shrink-0 text-destructive-ink"
                   aria-hidden="true"
                 />
-                <div className="space-y-1">
-                  <p className="font-semibold text-foreground">Secure sign-in is affected</p>
-                  <p className="text-muted-foreground">
-                    {error} Records stay locked until sign-in reconnects.
-                  </p>
-                </div>
+                <p className="text-muted-foreground">
+                  {error} Records stay locked until sign-in reconnects.
+                </p>
               </div>
             ) : null}
 
-            <div className={cn(RISE, 'space-y-3')} style={riseDelay(2)}>
-              <Button onClick={login} size="lg" className="w-full px-6 sm:w-auto">
+            <div className={cn(RISE, 'mt-7')} style={riseDelay(1)}>
+              <Button onClick={login} size="lg" className="h-12 w-full">
                 {error ? 'Try secure sign in again' : 'Continue to secure sign in'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Button>
-              <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-                <Lock className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>
-                  <span className="font-medium text-foreground">Invitation only.</span> Accounts
-                  start with an email from a clinic.
-                </span>
-              </p>
             </div>
+          </main>
 
-            <section
-              aria-labelledby="login-next-title"
-              className={cn(RISE, 'border-t-2 border-rule-strong')}
-              style={riseDelay(3)}
-            >
-              <h2 id="login-next-title" className="type-section-title pb-1 pt-4">
-                What happens next
-              </h2>
-              <ol>
-                {nextSteps.map((step, index) => (
-                  <li
-                    key={step.title}
-                    className="flex gap-3 border-t border-rule py-3 first:border-t-0"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-input text-xs font-semibold tabular-nums text-muted-foreground"
-                    >
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-foreground">
-                        {step.title}
-                      </span>
-                      {/* Keyed by audience so a changed choice cross-fades in rather than snapping. */}
-                      <span
-                        key={index === 2 ? audience : undefined}
-                        className="block text-sm leading-6 text-muted-foreground motion-safe:animate-page-in"
-                      >
-                        {step.detail}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          </div>
+          <footer className="mx-auto flex w-full max-w-[380px] flex-wrap items-center justify-between gap-x-5 gap-y-1.5 text-[0.8125rem] text-muted-foreground md:mx-0 md:max-w-none">
+            <p>Invitation only. Ask your clinic for access.</p>
+            <nav aria-label="Legal" className="flex gap-5">
+              <Link
+                href="/privacy"
+                className="underline underline-offset-[3px] hover:text-foreground"
+              >
+                Privacy
+              </Link>
+              <Link
+                href="/terms"
+                className="underline underline-offset-[3px] hover:text-foreground"
+              >
+                Terms
+              </Link>
+            </nav>
+          </footer>
+        </div>
 
-          <aside
-            aria-labelledby="login-first-time-title"
-            className={cn(RISE, 'min-w-0')}
-            style={riseDelay(4)}
-          >
-            <figure className="mb-8">
-              <div className="relative aspect-[16/9] overflow-hidden rounded-lg bg-muted motion-safe:animate-photo-reveal lg:aspect-[4/3]">
-                <Image
-                  src="/images/Akomapa-19.jpg"
-                  alt="A volunteer takes a woman's blood pressure at a folding table during an Akomapa screening."
-                  fill
-                  sizes="(min-width: 1024px) 20rem, 100vw"
-                  placeholder="blur"
-                  blurDataURL={LANDING_BLUR['/images/Akomapa-19.jpg']}
-                  className="object-cover object-[45%_center] motion-safe:animate-photo-settle"
-                />
-              </div>
-              <figcaption className="pt-2 text-xs leading-5 text-muted-foreground">
-                Patients and volunteers at an Akomapa community screening.
-              </figcaption>
-            </figure>
-            <section className="border-t-2 border-rule-strong">
-              <h2 id="login-first-time-title" className="type-section-title pb-1 pt-4">
-                First time here?
-              </h2>
-              <dl key={audience} className="text-sm leading-6 motion-safe:animate-page-in">
-                {guidance.help.map((item) => (
-                  <div key={item.title} className="border-t border-rule py-3">
-                    <dt className="font-medium text-foreground">{item.title}</dt>
-                    <dd className="text-muted-foreground">{item.detail}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          </aside>
-        </main>
+        <figure className="relative -order-1 m-0 h-[168px] overflow-hidden rounded-b-[20px] bg-[#0f3b43] compact:mx-2 compact:mt-2 compact:h-[200px] compact:rounded-lg md:order-none md:m-2 md:h-auto">
+          {/* Two crops of one photo; each is lazy and hidden at the other size, so only one loads. */}
+          <Image
+            src="/images/auth-band.jpg"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover md:hidden"
+          />
+          <Image
+            src="/images/auth-panel.jpg"
+            alt=""
+            fill
+            sizes="55vw"
+            className="hidden object-cover object-[15%_40%] md:block xl:object-[8%_40%] motion-safe:animate-photo-settle"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 hidden bg-[linear-gradient(180deg,rgb(10_30_34/0)_45%,rgb(10_30_34/0.72)_100%)] md:block"
+          />
+          <figcaption className="absolute inset-x-[clamp(20px,3vw,36px)] bottom-[clamp(20px,3vw,36px)] z-[1] hidden max-w-[16ch] font-heading text-[clamp(1.75rem,1rem+1.6vw,2.5rem)] font-semibold leading-[1.12] tracking-[-0.015em] text-white [text-wrap:balance] md:block">
+            {HERO_HEADLINE}
+          </figcaption>
+        </figure>
       </div>
     </div>
   );

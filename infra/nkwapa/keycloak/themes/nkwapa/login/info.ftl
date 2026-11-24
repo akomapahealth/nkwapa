@@ -1,7 +1,7 @@
 <#import "template.ftl" as layout>
 <#-- Shown after an invitation and after a password reset alike; Keycloak does not say which. -->
 <#assign appUrl = (properties.nkwapaWebOrigins!'')?split(",")[0]?trim?remove_ending("/") />
-<@layout.registrationLayout displayMessage=false journey="setup" step=(requiredActions??)?then(2, 3) eyebrow="Your password"; section>
+<@layout.registrationLayout displayMessage=false; section>
     <#if section = "header">
         <#-- messageHeader is a message KEY, not a sentence. Printing it directly put the
              literal text "accountUpdatedTitle" in front of every patient who finished

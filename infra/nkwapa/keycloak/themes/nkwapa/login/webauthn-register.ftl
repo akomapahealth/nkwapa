@@ -6,10 +6,7 @@
 -->
 <#assign fromSettings = isAppInitiatedAction??>
 <@layout.registrationLayout
-    journey="setup-passkey"
-    step=2
-    fromSettings=fromSettings
-    description=fromSettings?then("After your password, Nkwapa will ask you to confirm with your fingerprint, face or screen lock. Your fingerprint and face never leave this device.", "Your account needs a second step at sign-in. A passkey confirms it is you with your fingerprint, face or screen lock.");
+    description=fromSettings?then("After your password, confirm with your fingerprint, face or screen lock. They never leave this device.", "Your account needs a second sign-in step. A passkey uses your fingerprint, face or screen lock.");
     section>
     <#if section = "header">
         Add a passkey

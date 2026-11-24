@@ -382,7 +382,7 @@ Several of these are bound to raw palette values (`dark:bg-amber-900/30`, `dark:
 
 All five steps are real Tailwind classes, derived from `--radius` in `tailwind.config.js`. `rounded` (4px) is kept for checkbox-sized boxes and legend swatches, where 6px would read as a circle.
 
-**Nested corners are concentric.** An inner corner is its parent's radius minus the padding (and border) between them, so the curves run parallel: menu rows are 12px inside a 16px menu with 4px padding, and the segmented knob is 7px inside its 10px track with 3px padding. Those two segmented values (`rounded-[10px]` and `rounded-[7px]`, in `SegmentedControl` and the sign-in toggle) are the only arbitrary radii on contract.
+**Nested corners are concentric.** An inner corner is its parent's radius minus the padding (and border) between them, so the curves run parallel: menu rows are 12px inside a 16px menu with 4px padding, and the segmented knob is 7px inside its 10px track with 3px padding. Those two segmented values (`rounded-[10px]` and `rounded-[7px]`, in `SegmentedControl`) are the only arbitrary radii on contract.
 
 **Nothing rounder than 20px, and no squircles.** That rules out `rounded-3xl` and other arbitrary values. Circles stay for avatars, status dots and route stops only. The one exception is the landing page's phone mock-up bezel in `components/landing/ProductFrames.tsx`, which depicts hardware rather than interface.
 
@@ -1597,7 +1597,7 @@ The flows, redirects, required actions, API calls and validation are unchanged.
   the required `/account/name` step render in `OnboardingFrame`
   (`components/onboarding/`): a hairline header with the mark, who is signed in
   and Sign out, a "Step n of m" line, the serif title, ruled sections on the
-  canvas, and the journey beside them (below on phones). Journeys and their
+  canvas. (The journey list beside them was removed on 2026-11-24; the step line stays.) Journeys and their
   steps live in `lib/onboarding-journey.ts`: staff (choose a password, accept,
   add your name when needed, start work) and patient (choose a password,
   confirm your details, open your record). Each step says in words whether it
@@ -2102,19 +2102,21 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   "Invite only" from `md` up and named that way to screen readers below it. Under 360px it moves
   into the menu, with the line "For people invited by their clinic. There is no sign-up."
   Nothing public offers sign-up: Keycloak keeps `registrationAllowed: false`.
-- **`/login` asks "I am signing in as": Patient or Clinic staff.** A native radio group styled
-  as a segmented control; the filled indicator slides (200 ms, `ease-out-strong`). The choice
-  tailors the help and the last step only. **The account's roles still decide where sign-in
-  lands**, so a wrong pick costs nothing. `?as=patient|staff` selects it from a link; otherwise
-  the device remembers the last choice; otherwise Patient.
-- **Entrance:** blocks rise 8 px and fade in (`animate-rise-in`, 200 ms) 40 ms apart; changed
-  guidance cross-fades with `animate-page-in`. The global reduced-motion rule flattens both.
-- **Photograph:** Akomapa-19 (a volunteer taking a patient's blood pressure, no faces) heads the
-  help column, after the steps on phones so sign-in stays first. It opens from a smaller rounded
-  frame (`animate-photo-reveal`, clip-path, 700 ms) while the picture settles from 1.1 scale
-  (`animate-photo-settle`, 1.4 s). Plain CSS, so it plays on first paint with no script; it is
-  the one entrance on this page longer than section 7's 200 ms, allowed because it is a
-  public page, not a clinical view, and nothing waits on it.
+- **`/login` and every Keycloak page share one split frame (2026-11-24).** The form column (logo,
+  serif title, at most one line, the form, then the footer line "Invitation only. Ask your
+  clinic for access." with Privacy and Terms) sits left; from 768px a clinic photograph is inset
+  8px on the right with a 12px radius, a bottom scrim and `HERO_HEADLINE` in white serif. Below
+  768px the photograph is a 168px band above the logo (200px from 600px). The step lists,
+  eyebrows, "Secure sign-in" note and the Patient or Clinic staff choice are gone: none of them
+  changed where sign-in lands. Controls keep 8px corners and 48px height.
+- **Photograph:** Akomapa-17 (a volunteer in the Akomapa shirt recording a blood pressure
+  reading). Two crops, both cut above the photographer's watermark: a tall panel
+  (`auth-clinic.jpg` in the theme, `public/images/auth-panel.jpg` in the app) and a 780px band
+  (`auth-clinic-band.jpg`, `auth-band.jpg`). The theme picks one with `<picture>`; the app hides
+  one lazy image per size, so a phone never fetches the panel. `object-position` keeps the
+  volunteer's face in view on narrow panels (15%) and wide ones (8% from 1100px).
+- **Entrance:** the title and button rise 8 px (`animate-rise-in`) 40 ms apart and the photo
+  settles from 1.1 scale; the global reduced-motion rule flattens both.
 
 ### Public site frame and product screenshots (R6.1)
 
@@ -2122,7 +2124,7 @@ Shipped in [PR #305](https://github.com/akomapahealth/nkwapa/pull/305), which ho
   shell sit on it (R5.2). The landing page and the legal pages stay full bleed: the landing hero
   is a photograph to the window edges and its sections are coloured bands, which an inset frame
   would cut into, and the legal pages share the landing header and footer. The hand-off is the
-  header's "Log in", and `/login` keeps its "Back to home".
+  header's "Log in", and the logo on `/login` links back home.
 - **Legal pages layer the same way the workspace does:** the page switcher, title and metadata
   sit on the canvas (`bg-background`), and the notice reads on the white sheet (`bg-card`). Below
   `lg` the contents list starts folded behind "Show all N sections" (`aria-expanded`,

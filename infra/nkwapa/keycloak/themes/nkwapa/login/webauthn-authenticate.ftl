@@ -5,8 +5,6 @@
   webauthnAuthenticate.js; keep them.
 -->
 <@layout.registrationLayout
-    journey="verify-passkey"
-    step=3
     description="Your device will ask for your fingerprint, face or screen lock.";
     section>
     <#if section = "header">

@@ -3,8 +3,6 @@
      Keycloak's contract: otp, selectedCredentialId, login. -->
 <@layout.registrationLayout
     displayMessage=!messagesPerField.existsError('totp')
-    journey="verify-otp"
-    step=3
     description="Open your authenticator app and enter the code it shows for Nkwapa.";
     section>
     <#if section = "header">

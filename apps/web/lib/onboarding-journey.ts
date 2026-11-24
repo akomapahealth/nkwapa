@@ -16,11 +16,6 @@ export interface JourneyStep {
   detail: string;
 }
 
-export const JOURNEY_TITLES: Record<OnboardingJourney, string> = {
-  staff: 'Joining your clinic team',
-  patient: 'Opening your patient record',
-};
-
 const STAFF_STEPS: JourneyStep[] = [
   {
     id: 'password',
