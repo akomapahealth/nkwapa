@@ -457,6 +457,54 @@ test('intake runs the interviews the volunteer chooses, and reopens a saved one'
   ).toBeChecked();
 });
 
+/*
+  #427: a glucose reading that reaches the server after the review visit opened (entered late
+  from paper, or held in a device outbox) shows up without reopening the page, and says so.
+*/
+test('the review summary picks up a reading saved after it opened (#427)', async ({ page }) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+
+  // Every stop before review is handed on with nothing recorded.
+  let next = await claimNext('staff', clinicId, checkInId);
+  const encounterId = next.claimed.encounterId;
+  while (next.at.station.kind !== 'REVIEW') {
+    const done = await complete('staff', clinicId, next.at.visit.id);
+    expect(done.ok(), done.text()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  const glucoseCell = page.locator('dl > div').filter({ hasText: 'Blood glucose' });
+  await expect(glucoseCell.getByText('Not recorded')).toBeVisible({ timeout: 20_000 });
+  // Typing in counselling must survive the refresh.
+  await page.getByLabel('Advice given').fill('Recheck fasting glucose.');
+
+  const reading = await apiRequestAs(
+    'staff',
+    'put',
+    `/clinics/${clinicId}/encounters/${encounterId}/diabetes-screening/glucose`,
+    {
+      clinicId,
+      data: { glucoseMgDl: 210, glucoseType: 'RANDOM', collectedAt: new Date().toISOString() },
+    },
+  );
+  expect(reading.ok(), reading.text()).toBeTruthy();
+
+  // One poll is six seconds; allow two.
+  await expect(glucoseCell.getByText(/^Added at /)).toBeVisible({ timeout: 15_000 });
+  await expect(glucoseCell.getByText('Not recorded')).toHaveCount(0);
+  await expect(page.getByLabel('Advice given')).toHaveValue('Recheck fasting glucose.');
+});
+
 test('manager assignment is refused while the station line runs', async ({ page }) => {
   const patient = await createPatient(page);
   const { clinicId } = patient;
