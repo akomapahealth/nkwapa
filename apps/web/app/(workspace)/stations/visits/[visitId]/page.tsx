@@ -11,7 +11,13 @@ import { apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { displayTimeZone, formatOpsDateTime, getTodayInTimeZone, formatOpsDay } from '@/lib/ops';
+import {
+  dayNumberLabel,
+  displayTimeZone,
+  formatOpsDateTime,
+  getTodayInTimeZone,
+  formatOpsDay,
+} from '@/lib/ops';
 import { isFullySynced } from '@/lib/sync';
 import {
   cancelCheckIn,
@@ -119,6 +125,11 @@ export default function StationVisitPage() {
   });
   // What the summary shows now, for the poll to compare against without re-creating itself.
   const readingsRef = useRef(readings);
+  // Set by Register and start: the new patient's number goes on their card first (#413).
+  const [registered, setRegistered] = useState(false);
+  useEffect(() => {
+    setRegistered(new URLSearchParams(window.location.search).has('registered'));
+  }, []);
   useEffect(() => {
     readingsRef.current = readings;
   }, [readings]);
@@ -322,6 +333,13 @@ export default function StationVisitPage() {
               description={`${visit.patient.patientCode}${visit.patient.dob ? ` · born ${formatOpsDay(`${visit.patient.dob.slice(0, 10)}T12:00:00Z`)}` : ''} · checked in ${formatOpsDateTime(visit.checkedInAt, timezone)}`}
               actions={
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* Large enough to read out to the patient across a table (#413). */}
+                  <span
+                    className="mr-1 font-mono text-2xl font-semibold tabular-nums"
+                    translate="no"
+                  >
+                    {dayNumberLabel(visit.dayNumber)}
+                  </span>
                   <DemoBadge isDemo={visit.patient.isDemo} />
                   <Badge variant={mine ? 'default' : 'secondary'}>
                     {STATUS_LABELS[visit.status]}
@@ -349,6 +367,17 @@ export default function StationVisitPage() {
               </p>
             </section>
 
+            {registered && visit.dayNumber ? (
+              <InlineNotice tone="success" live={false}>
+                <span className="text-lg">
+                  Patient number{' '}
+                  <strong className="font-mono tabular-nums" translate="no">
+                    {visit.dayNumber}
+                  </strong>
+                  . Write it on their card.
+                </span>
+              </InlineNotice>
+            ) : null}
             {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
             {!isOnline ? (
               <InlineNotice tone="warning" live={false}>
@@ -507,8 +536,11 @@ export default function StationVisitPage() {
                           '');
                     },
                     // The queue says where the patient went, with the next patient one tap away.
-                    // Only the station name rides in the URL; never the patient's.
-                    () => router.push(`/stations?sent=${encodeURIComponent(handedTo)}`),
+                    // Only the station name and the day number ride in the URL; never the patient's.
+                    () =>
+                      router.push(
+                        `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}`,
+                      ),
                   );
                 }}
                 onRelease={(reason) =>

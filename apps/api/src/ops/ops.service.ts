@@ -363,6 +363,7 @@ export class OpsService {
             source: dto.source ?? 'STAFF',
             status: 'WAITING',
             notes: dto.notes ?? null,
+            ...(await nextDayNumber(tx, clinicId, day.date)),
           },
           include: { patient: { select: PATIENT_SUMMARY_SELECT } },
         });
@@ -1084,6 +1085,7 @@ export class OpsService {
     status: CheckInStatus;
     encounterId: string | null;
     notes: string | null;
+    dayNumber: number | null;
     patient: {
       id: string;
       patientCode: string;
@@ -1109,6 +1111,7 @@ export class OpsService {
       status: checkIn.status,
       encounterId: checkIn.encounterId,
       notes: checkIn.notes,
+      dayNumber: checkIn.dayNumber,
       patient: {
         id: checkIn.patient.id,
         patientCode: checkIn.patient.patientCode,
@@ -1176,4 +1179,23 @@ export class OpsService {
       assignedDoctor: assignment.assignedDoctor,
     };
   }
+}
+
+/**
+ * The next day number at a clinic (#413), for a check-in created in this transaction. The lock
+ * serializes check-ins at one clinic on one day, so two devices never take the same number; a
+ * replayed offline check-in takes its number here, on sync, never on the device.
+ */
+export async function nextDayNumber(
+  tx: Prisma.TransactionClient,
+  clinicId: string,
+  date: string,
+): Promise<{ dayDate: Date; dayNumber: number }> {
+  await lockForTransaction(tx, `check-in-day-number:${clinicId}:${date}`);
+  const dayDate = new Date(`${date}T00:00:00Z`);
+  const last = await tx.patientCheckIn.aggregate({
+    where: { clinicId, dayDate },
+    _max: { dayNumber: true },
+  });
+  return { dayDate, dayNumber: (last._max.dayNumber ?? 0) + 1 };
 }

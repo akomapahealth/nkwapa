@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { getErrorMessage } from './api';
 import { useBootstrap } from './bootstrap-context';
-import { getOpsDestination } from './ops';
+import { dayNumberLabel, getOpsDestination } from './ops';
 import { opsWriteFeedback, type OpsFeedback } from './ops-writes';
 import { generateClientId } from './outbox';
 import { useOpsWrite } from './use-ops-write';
@@ -58,16 +58,24 @@ export function usePatientCheckIn(clinicId: string | null) {
       });
       // The board is the likely next stop once the patient is in the queue.
       if (opsDestination && result.outcome !== 'refused') router.prefetch(opsDestination);
+      const dayNumber =
+        result.outcome === 'applied'
+          ? (result.body as { dayNumber?: number | null } | undefined)?.dayNumber
+          : null;
+      // Called out instead of the name on the line (#413), so it goes on the patient's card.
+      const number = dayNumber
+        ? ` ${name} is ${dayNumberLabel(dayNumber)} today. Write it on their card.`
+        : '';
       setFeedback(
         opsWriteFeedback(result, {
           applied: {
             tone: 'success',
             message: opsDestination
-              ? `${name} is now on the clinic board.`
-              : `${name} has been checked in.`,
+              ? `${name} is now on the clinic board.${number}`
+              : `${name} has been checked in.${number}`,
             link: boardLink,
           },
-          queued: `${name} is checked in on this device and will reach the clinic board when the connection returns.`,
+          queued: `${name} is checked in on this device and will reach the clinic board when the connection returns. Their number comes when it syncs.`,
           refused: (error) =>
             error.code === 'PATIENT_ALREADY_CHECKED_IN'
               ? {

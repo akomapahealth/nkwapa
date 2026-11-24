@@ -31,6 +31,9 @@ const CLIENT_ID = process.env.KEYCLOAK_E2E_CLIENT_ID || 'nkwapa-e2e';
  * than on a 401, so a long spec cannot fail on a token that aged out mid-test.
  */
 const tokens = new Map();
+// Keycloak refuses a second password grant for a user while the first is in flight ("Invalid user
+// credentials"), so parallel calls for one role share a single token request.
+const pending = new Map();
 const EXPIRY_MARGIN_MS = 30_000;
 
 async function accessTokenFor(role) {
@@ -47,7 +50,16 @@ async function accessTokenFor(role) {
 
   const cached = tokens.get(role);
   if (cached && cached.expiresAt - EXPIRY_MARGIN_MS > Date.now()) return cached.token;
+  if (!pending.has(role)) {
+    pending.set(
+      role,
+      requestToken(role, credentials).finally(() => pending.delete(role)),
+    );
+  }
+  return pending.get(role);
+}
 
+async function requestToken(role, credentials) {
   const context = await playwrightRequest.newContext();
   try {
     const response = await context.post(

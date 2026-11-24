@@ -114,7 +114,9 @@ function PatientBar({
   const long = isLongWait(visit);
   // Under 20 minutes the bar is at most half the lane, too short to hold the label on a phone.
   const labelInside = Math.min(minutes, SCALE_END) >= LONG_WAIT_MINUTES;
-  const label = `${shortName(visit.patient)} ${minutes} min`;
+  // The day number leads, as staff call it out (#413).
+  const number = visit.dayNumber ? `${visit.dayNumber} ` : '';
+  const label = `${number}${shortName(visit.patient)} ${minutes} min`;
   return (
     <li data-testid="patient-station-row" className="relative">
       <DropdownMenu>
@@ -146,13 +148,21 @@ function PatientBar({
               </span>
             )}
             <span className="sr-only">
+              {visit.dayNumber ? `No. ${visit.dayNumber}, ` : ''}
               {patientName(visit.patient)}, {visitStatus(visit)}, {minutes} min
             </span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuLabel className="font-normal">
-            <span className="block text-sm font-medium">{patientName(visit.patient)}</span>
+            <span className="block text-sm font-medium">
+              {visit.dayNumber ? (
+                <span className="mr-1.5 font-mono tabular-nums" translate="no">
+                  No. {visit.dayNumber}
+                </span>
+              ) : null}
+              {patientName(visit.patient)}
+            </span>
             <span className="block text-xs text-muted-foreground">{visit.patient.patientCode}</span>
             <span
               className={cn(

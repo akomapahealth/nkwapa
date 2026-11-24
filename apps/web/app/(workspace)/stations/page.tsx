@@ -36,7 +36,7 @@ import {
   type StationBoard,
   type StationVisit,
 } from '@/lib/stations';
-import type { ActiveShiftsResponse } from '@/lib/ops';
+import { dayNumberLabel, type ActiveShiftsResponse } from '@/lib/ops';
 import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -113,20 +113,29 @@ export default function StationsPage() {
   const canWriteShift = hasPermission(permissions, 'OPS.SHIFT.WRITE');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  // Set by the visit page after a hand-off (`?sent=<station name>` or `done`).
+  // Set by the visit page after a hand-off (`?sent=<station name>` or `done`, and `no=<day number>`).
   // Read once on arrival, not through useSearchParams, which would need a Suspense boundary.
-  const [sent, setSent] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ to: string | null; no: string | null; registered: boolean }>({
+    to: null,
+    no: null,
+    registered: false,
+  });
   useEffect(() => {
-    setSent(new URLSearchParams(window.location.search).get('sent'));
+    const params = new URLSearchParams(window.location.search);
+    setSent({ to: params.get('sent'), no: params.get('no'), registered: params.has('registered') });
   }, []);
+  // The number is read out to the patient with the station (#413): "No. 14, go to Blood pressure".
+  const who = sent.no ? `Patient No. ${sent.no}` : 'Patient';
   const handOffNotice =
-    sent === null
-      ? null
-      : sent === 'done'
-        ? 'Patient finished. Their session is closed.'
-        : sent
-          ? `Patient handed on to ${sent}.`
-          : 'Patient handed on to the next station.';
+    sent.registered && sent.no
+      ? `Patient number ${sent.no}. Write it on their card.`
+      : sent.to === null
+        ? null
+        : sent.to === 'done'
+          ? `${who} finished. Their session is closed.`
+          : sent.to
+            ? `${who} handed on to ${sent.to}.`
+            : `${who} handed on to the next station.`;
 
   const pendingWrites = usePendingOpsWrites(clinicId);
   const pendingIds = useMemo(() => pendingWrites.map((write) => write.entityId), [pendingWrites]);
@@ -379,9 +388,6 @@ export default function StationsPage() {
     </Button>
   );
 
-  // Queue positions count only the patients still waiting; someone being seen has no place in line.
-  let position = nextPatient ? 1 : 0;
-
   return (
     <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
       <div
@@ -473,7 +479,12 @@ export default function StationsPage() {
                 className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3"
               >
                 <div className="min-w-0">
-                  <p className="break-words font-semibold">{patientName(visit.patient)}</p>
+                  <p className="break-words font-semibold">
+                    <span className="mr-2 font-mono tabular-nums" translate="no">
+                      {dayNumberLabel(visit.dayNumber)}
+                    </span>
+                    {patientName(visit.patient)}
+                  </p>
                   <p className="break-words text-sm text-muted-foreground">
                     <span className="font-mono">{visit.patient.patientCode}</span> ·{' '}
                     {visit.station.name}
@@ -550,7 +561,6 @@ export default function StationsPage() {
                       <QueueRow
                         key={visit.id}
                         visit={visit}
-                        position={visit.status === 'QUEUED' ? ++position : null}
                         userId={userId}
                         holderScreener={
                           visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
@@ -725,8 +735,15 @@ function NextPatientTicket({
       className="flex min-w-0 overflow-hidden rounded-lg border border-border bg-card"
     >
       <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-1 border-r-2 border-dashed border-mint-line bg-deep py-5 text-white compact:w-24">
-        <span className="text-[0.6875rem] uppercase tracking-[0.12em] text-white/80">Queue</span>
-        <span className="font-mono text-3xl text-secondary">01</span>
+        {/* The patient's day number, called out instead of their name (#413). */}
+        <span className="text-[0.6875rem] uppercase tracking-[0.12em] text-white/80">No.</span>
+        <span
+          className="font-mono text-3xl tabular-nums text-secondary"
+          translate="no"
+          aria-label={dayNumberLabel(visit.dayNumber)}
+        >
+          {visit.dayNumber ?? '–'}
+        </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 compact:p-5">
         {previous ? (
@@ -777,7 +794,6 @@ function NextPatientTicket({
 
 function QueueRow({
   visit,
-  position,
   userId,
   holderScreener,
   canClaim,
@@ -785,8 +801,6 @@ function QueueRow({
   onClaim,
 }: {
   visit: StationVisit;
-  /** Place in line, counting the next patient as 1; null while someone is seeing them. */
-  position: number | null;
   userId: string;
   /** Who is really screening on the holder's account, if not them (#227). */
   holderScreener: string | null;
@@ -801,13 +815,18 @@ function QueueRow({
   return (
     <li
       className={cn(
-        'grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 border-b border-border px-2 py-3',
+        'grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 border-b border-border px-2 py-3',
         long && 'bg-warning-surface',
         taken && !mine && 'bg-muted/40',
       )}
     >
-      <span className="pt-0.5 font-mono text-sm text-muted-foreground">
-        {position !== null ? String(position).padStart(2, '0') : ''}
+      {/* The day number replaces the place in line: the list is already in order (#413). */}
+      <span className="font-mono text-base font-semibold tabular-nums" translate="no">
+        {visit.dayNumber ? (
+          `No. ${visit.dayNumber}`
+        ) : (
+          <span className="text-xs font-normal text-muted-foreground">Number on sync</span>
+        )}
       </span>
       <div className="min-w-0 space-y-0.5">
         <p className="break-words font-semibold">{patientName(visit.patient)}</p>

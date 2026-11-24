@@ -38,6 +38,8 @@ export interface StationVisit {
   checkInId: string;
   checkInStatus: string;
   checkedInAt: string;
+  /** Today's number at this clinic (#413). Absent on copies saved before it existed. */
+  dayNumber?: number | null;
   encounterId: string | null;
   station: Pick<ClinicStation, 'id' | 'kind' | 'name' | 'sortOrder'>;
   patient: {

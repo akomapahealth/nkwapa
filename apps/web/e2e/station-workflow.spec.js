@@ -167,7 +167,7 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
   // Back at the queue, told where the patient went (screening-day feedback, 2026-11-21).
   await volunteerPage.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
-  await expect(volunteerPage.getByText(/Patient handed on to Glucose/)).toBeVisible();
+  await expect(volunteerPage.getByText(/Patient No\. \d+ handed on to Glucose/)).toBeVisible();
   await volunteerContext.close();
 
   // Glucose: the reading alone.
@@ -802,11 +802,14 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   });
   // A busy station folds patients past the first eight; this one queued last.
   await expect(page.getByTestId('patient-wait-track').first()).toBeVisible({ timeout: 20_000 });
-  for (const more of await page.getByRole('button', { name: /^Show \d+ more$/ }).all()) {
-    await more.click();
-  }
+  // Each click renames its button "Show fewer", so take the first remaining one each time.
+  const more = page.getByRole('button', { name: /^Show \d+ more$/ });
+  while ((await more.count()) > 0) await more.first().click();
   // The bar opens the patient's menu, which says who handed them over.
-  await page.getByRole('button', { name: new RegExp(`^${patient.name}, With staff`) }).click();
+  // The day number leads the bar's name (#413).
+  await page
+    .getByRole('button', { name: new RegExp(`^No\\. \\d+, ${patient.name}, With staff`) })
+    .click();
   await expect(
     page.getByRole('menu').getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
   ).toBeVisible();
@@ -1180,4 +1183,56 @@ test('closing a station clears it from the volunteer working there, who is told 
     await close();
     await context.close();
   }
+});
+
+test('each check-in gets the next day number, called out instead of the name (#413)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const first = await createPatient(page);
+  const second = await createPatient(page);
+  const { clinicId } = first;
+  const checkIn = (patientId, id = randomUUID()) =>
+    apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+      clinicId,
+      data: { id, patientId },
+    });
+
+  // Two devices at the same moment: the numbers still differ, one after the other.
+  const ids = [randomUUID(), randomUUID()];
+  const [a, b] = await Promise.all([
+    checkIn(first.patientId, ids[0]),
+    checkIn(second.patientId, ids[1]),
+  ]);
+  expect(a.ok(), a.text()).toBeTruthy();
+  expect(b.ok(), b.text()).toBeTruthy();
+  const numbers = [a.json().dayNumber, b.json().dayNumber];
+  for (const n of numbers) expect(Number.isInteger(n) && n > 0).toBe(true);
+  expect(Math.abs(numbers[0] - numbers[1])).toBe(1);
+
+  // A replay of the same check-in keeps its number rather than taking a new one.
+  const replay = await checkIn(first.patientId, ids[0]);
+  expect(replay.ok(), replay.text()).toBeTruthy();
+  expect(replay.json().dayNumber).toBe(numbers[0]);
+
+  // The station visit carries it, and the visit header shows it large.
+  const at = await boardVisit('staff', clinicId, ids[1]);
+  expect(at.visit.dayNumber).toBe(numbers[1]);
+  await page.goto(`/stations/visits/${at.visit.id}`);
+  await expect(page.getByRole('heading', { level: 1, name: second.name })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText(`No. ${numbers[1]}`, { exact: true })).toBeVisible();
+
+  // Register and start: the new patient's number is the first thing to write down.
+  await ensureShift('staff', clinicId);
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+  await page.goto('/patients/new');
+  await page.getByLabel('First name', { exact: true }).fill('Line');
+  await page.getByLabel('Last name', { exact: true }).fill(`Numbered-${suffix}`);
+  await fillNationalId(page, `E2E-NUM-${suffix}`);
+  await page.getByRole('button', { name: 'Register and start' }).click();
+  // Staff is at no station, so the patient is checked in and waits at the first one.
+  await page.waitForURL(/\/stations\?registered=1&no=\d+$/, { timeout: 20_000 });
+  await expect(page.getByText(/^Patient number \d+\. Write it on their card\.$/)).toBeVisible();
 });
