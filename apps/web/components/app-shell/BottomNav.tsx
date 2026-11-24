@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { MoreHorizontal, RefreshCw, Search, Settings, UserPen } from 'lucide-react';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { AppNavList } from '@/components/app-shell/AppNavList';
+import { NavBadgeCount, navItemLabel, useNavBadges } from '@/components/app-shell/NavBadges';
 import {
   Sheet,
   SheetContent,
@@ -42,6 +43,7 @@ export function BottomNav({
     portal
       ? Boolean(portalNavItems.find((entry) => entry.href === item.href)?.matches(pathname))
       : isNavItemActive(pathname, item, clinicId);
+  const badges = useNavBadges();
   const [open, setOpen] = useState(false);
   const syncAfterClose = useRef(false);
   const searchAfterClose = useRef(false);
@@ -97,9 +99,16 @@ export function BottomNav({
           {primary.map((item) => {
             const Icon = item.icon;
             const active = isActive(item);
+            const badge = portal ? undefined : badges[item.href];
             const content = (
               <>
-                <Icon aria-hidden="true" className="size-5 shrink-0" />
+                <span className="relative shrink-0">
+                  <Icon aria-hidden="true" className="size-5" />
+                  <NavBadgeCount
+                    badge={badge}
+                    className="absolute -right-3 -top-1.5 ring-2 ring-card"
+                  />
+                </span>
                 <span className="w-full [overflow-wrap:anywhere] compact:hidden">
                   {item.shortLabel ?? item.label}
                 </span>
@@ -120,7 +129,7 @@ export function BottomNav({
               <Link
                 key={item.href}
                 href={getNavItemHref(item, clinicId)}
-                aria-label={item.label}
+                aria-label={navItemLabel(item.label, badge)}
                 aria-current={active ? 'page' : undefined}
                 className={cn(tabClass, active && 'font-semibold text-primary')}
               >

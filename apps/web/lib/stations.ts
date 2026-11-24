@@ -1,10 +1,10 @@
 'use client';
 
 import { formatPersonName } from './person-name';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { nextStationId, type StationKindValue } from '@nkwapa/db/clinic-stations';
 import type { DoctorRequest, DoctorRequestReason, DoctorRequestUrgency } from './doctor-requests';
-import type { LineFlag } from '@nkwapa/db/station-line-flags';
+import { worstLineFlag, type LineFlag } from '@nkwapa/db/station-line-flags';
 import { apiFetch, type GetToken } from './api';
 import { readApiError } from './ops';
 
@@ -46,6 +46,8 @@ export interface StationVisit {
   lineFlags?: LineFlag[];
   /** The open "Ask a doctor" on this check-in (#418), with who took it. */
   doctorRequest?: DoctorRequest | null;
+  /** BP, glucose and BMI so far, on visits at the review station only (#419). */
+  keyReadings?: KeyReadings;
   encounterId: string | null;
   station: Pick<ClinicStation, 'id' | 'kind' | 'name' | 'sortOrder'>;
   patient: {
@@ -83,6 +85,12 @@ export interface StationVisit {
     performedByName?: string | null;
     handoffNote: string | null;
   } | null;
+}
+
+export interface KeyReadings {
+  bp: { systolic: number; diastolic: number } | null;
+  glucose: { mgDl: number; type: string } | null;
+  bmi: number | null;
 }
 
 export interface PerformerCorrection {
@@ -682,3 +690,69 @@ export const resolveDoctorRequest = (clinicId: string, requestId: string, getTok
     getToken,
     { method: 'POST' },
   );
+
+/** How urgent a patient waiting at review is (#419): lower comes first. */
+function reviewRank(visit: StationVisit): number {
+  if (visit.doctorRequest?.open && visit.doctorRequest.urgency === 'NOW') return 0;
+  const worst = worstLineFlag(visit.lineFlags);
+  if (worst === 'REFER_TODAY') return 1;
+  if (worst === 'REPEAT_AT_REVIEW') return 2;
+  return 3;
+}
+
+/**
+ * The review station's waiting list (#419): a doctor asked for now, then refer today, then repeat
+ * at review, then everyone else oldest first. Without flags or requests it is simply oldest first.
+ */
+export function sortReviewQueue(visits: readonly StationVisit[]): StationVisit[] {
+  return [...visits].sort(
+    (a, b) => reviewRank(a) - reviewRank(b) || a.queuedAt.localeCompare(b.queuedAt),
+  );
+}
+
+const REVIEW_COUNT_POLL_MS = 60_000;
+
+/**
+ * Patients waiting at review, for the Stations nav badge (#419). Null unless this person is on
+ * shift at the review station. Polls once a minute and on focus, like the notification bell;
+ * a failed read keeps the last number.
+ */
+export function useReviewWaitingCount(
+  clinicId: string | null,
+  getToken: GetToken | undefined,
+  enabled: boolean,
+): number | null {
+  const [count, setCount] = useState<number | null>(null);
+  const active = enabled && Boolean(clinicId && getToken);
+
+  const refresh = useCallback(async () => {
+    if (!clinicId || !getToken || document.visibilityState === 'hidden' || !navigator.onLine)
+      return;
+    try {
+      const body = await request<{ count: number | null }>(
+        clinicId,
+        '/stations/review-waiting/count',
+        getToken,
+      );
+      setCount(body.count);
+    } catch {
+      // A courtesy number: keep the last one.
+    }
+  }, [clinicId, getToken]);
+
+  useEffect(() => {
+    if (!active) return;
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), REVIEW_COUNT_POLL_MS);
+    const onChange = () => void refresh();
+    window.addEventListener('focus', onChange);
+    document.addEventListener('visibilitychange', onChange);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onChange);
+      document.removeEventListener('visibilitychange', onChange);
+    };
+  }, [active, refresh]);
+
+  return active ? count : null;
+}

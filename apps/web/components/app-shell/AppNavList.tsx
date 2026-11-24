@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { NavBadgeCount, navItemLabel, useNavBadges } from '@/components/app-shell/NavBadges';
 import { cn } from '@/lib/utils';
 import {
   getAccessibleNavSections,
@@ -38,6 +39,7 @@ export function AppNavList({
   const sections = sectionsOverride ?? getAccessibleNavSections(bootstrap);
 
   const showLabels = mobile || (!collapsed && !rail);
+  const badges = useNavBadges();
 
   return (
     <nav aria-label={label} className="flex flex-col gap-4">
@@ -59,6 +61,8 @@ export function AppNavList({
               const active = isNavItemActive(pathname, item, clinicId);
               const enabled = !item.requiresClinic || Boolean(clinicId);
               const Icon = item.icon;
+              const badge = badges[item.href];
+              const name = navItemLabel(item.label, badge);
 
               /*
                 Teal marks only what is selected (MASTER.md section 12): a quiet tint and a bold
@@ -77,13 +81,23 @@ export function AppNavList({
 
               const itemContent = (
                 <>
-                  <Icon
-                    aria-hidden="true"
-                    className={cn(
-                      'h-[18px] w-[18px] shrink-0',
-                      active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+                  <span className="relative shrink-0">
+                    <Icon
+                      aria-hidden="true"
+                      className={cn(
+                        'h-[18px] w-[18px]',
+                        active
+                          ? 'text-primary'
+                          : 'text-muted-foreground group-hover:text-foreground',
+                      )}
+                    />
+                    {showLabels ? null : (
+                      <NavBadgeCount
+                        badge={badge}
+                        className="absolute -right-3 -top-2 ring-2 ring-background"
+                      />
                     )}
-                  />
+                  </span>
                   <span
                     className={cn(
                       showLabels ? 'min-w-0 flex-1' : 'sr-only',
@@ -92,6 +106,7 @@ export function AppNavList({
                   >
                     {item.label}
                   </span>
+                  {showLabels ? <NavBadgeCount badge={badge} /> : null}
                 </>
               );
 
@@ -107,7 +122,7 @@ export function AppNavList({
                 <Link
                   href={href}
                   data-tour={`nav:${item.href}`}
-                  aria-label={item.label}
+                  aria-label={name}
                   onClick={onNavigate}
                   aria-current={active ? 'page' : undefined}
                   className={itemClassName}
@@ -136,7 +151,7 @@ export function AppNavList({
               return (
                 <Tooltip key={item.href}>
                   <TooltipTrigger asChild>{control}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
+                  <TooltipContent side="right">{name}</TooltipContent>
                 </Tooltip>
               );
             })}
