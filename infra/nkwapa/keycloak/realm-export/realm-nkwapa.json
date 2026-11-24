@@ -22,6 +22,9 @@
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
+  "rememberMe": true,
+  "ssoSessionIdleTimeoutRememberMe": 604800,
+  "ssoSessionMaxLifespanRememberMe": 2592000,
   "actionTokenGeneratedByUserLifespan": 900,
   "actionTokenGeneratedByAdminLifespan": 43200,
   "attributes": {
