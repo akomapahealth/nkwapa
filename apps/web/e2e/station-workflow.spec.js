@@ -486,6 +486,58 @@ test('manager assignment is refused while the station line runs', async ({ page 
   expect(await boardVisit('staff', clinicId, checkIn.json().id)).toBeNull();
 });
 
+/*
+  #426: on a phone with a flaky signal the eye history kept resetting. Going offline disabled the
+  form (focus lost) and coming back reloaded it over the typing. Now only Save waits.
+*/
+test('eye history keeps its typing through a connection flicker on a phone (#426)', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  let next = await claimNext('staff', clinicId, checkIn.json().id);
+  while (next.at.station.kind !== 'EYE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkIn.json().id);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await page.getByLabel('The patient has an eye complaint').click();
+  const history = page.getByLabel('Brief eye history');
+  await history.fill('Blurred since June');
+
+  // The caret goes to the start, then the connection drops and returns: it must stay put.
+  await history.evaluate((field) => {
+    field.focus();
+    field.setSelectionRange(0, 0);
+  });
+  await context.setOffline(true);
+  await expect(
+    page.getByText('Saving needs a connection. What you type stays on this page.'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save eye examination' })).toBeDisabled();
+  await expect(history).toBeEnabled();
+  await expect(history).toBeFocused();
+  await history.pressSequentially('Right eye. ');
+  await context.setOffline(false);
+  await expect(page.getByRole('button', { name: 'Save eye examination' })).toBeEnabled();
+  await history.pressSequentially('Itchy. ');
+  await expect(history).toHaveValue('Right eye. Itchy. Blurred since June');
+
+  await page.getByRole('button', { name: 'Save eye examination' }).click();
+  await expect(page.getByText('Eye examination saved.')).toBeVisible({ timeout: 20_000 });
+  await expect(history).toHaveValue('Right eye. Itchy. Blurred since June');
+});
+
 test.describe('station flow metrics on the dashboard (#24)', () => {
   test('show wait and service time from real visits, to managers only', async ({ page }) => {
     const patient = await createPatient(page);
