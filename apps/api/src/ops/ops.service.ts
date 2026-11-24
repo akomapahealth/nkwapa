@@ -383,12 +383,14 @@ export class OpsService {
         // In the station workflow an arrival joins the first station's queue in the same
         // transaction, offline replays included, so no checked-in patient is outside the line.
         let startedVisitId: string | null = null;
+        let queuedAtStation: string | null = null;
         if (isApiFeatureEnabled('stationWorkflow')) {
           const visit = await this.stationService.queueAtFirstStation(
             tx,
             { clinicId, checkInId: checkIn.id, actorUserId, at: checkedInAt },
             { requestId: context.requestId },
           );
+          queuedAtStation = visit?.stationName ?? null;
           if (visit && dto.startNow && !context.replay) {
             const claimed = await this.stationService.claimIfAtStation(
               tx,
@@ -400,12 +402,14 @@ export class OpsService {
             startedVisitId = claimed?.id ?? null;
           }
         }
-        return { checkIn, startedVisitId };
+        return { checkIn, startedVisitId, queuedAtStation };
       });
       return {
         ...this.toCheckInSummary(created.checkIn),
         // The visit the caller now holds, when "start now" applied; the web opens it directly.
         startedVisitId: created.startedVisitId,
+        // Where the patient waits otherwise: "Checked in. Waiting at Registration" (#414).
+        queuedAtStation: created.queuedAtStation,
       };
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;

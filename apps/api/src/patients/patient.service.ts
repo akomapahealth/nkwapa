@@ -6,16 +6,25 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Encounter, type FollowUpTier, NationalIdType, Patient } from '@prisma/client';
+import {
+  type CheckInStatus,
+  Encounter,
+  type FollowUpTier,
+  NationalIdType,
+  Patient,
+} from '@prisma/client';
+import { linePositions } from '../ops/line-position';
 import { isUniqueViolation } from '../common/prisma-errors';
 import { EncounterService } from '../encounters/encounter.service';
 import { ConsentService } from '../consents/consent.service';
 import {
   CLINIC_DEFAULT_TIMEZONE,
+  clinicDayWindow,
   encryptNationalId,
   hashNationalId,
   nationalIdLast4,
   normalizePhoneToE164,
+  todayInTimeZone,
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -80,6 +89,18 @@ export interface PatientRegistryItem {
   matchingScreenings?: MatchingScreening[];
   /** Present only for a reader holding FOLLOW_UP.READ with the flag on; null until computed. */
   followUpTier?: FollowUpTier | null;
+  /**
+   * Today's check-in at the registry's clinic, in its time zone (#414): where the patient is on
+   * the line, or that they are done. Null when not checked in today (or the check-in was cancelled).
+   */
+  todayCheckIn?: TodayCheckIn | null;
+}
+
+export interface TodayCheckIn {
+  status: CheckInStatus;
+  dayNumber: number | null;
+  stationName: string | null;
+  holderName: string | null;
 }
 
 export interface PatientRegistryPage {
@@ -309,7 +330,51 @@ export class PatientService {
     return items.map((item) => this.toRegistryItem(item, lastVisits));
   }
 
-  async listRegistry(
+  async listRegistry(...args: Parameters<PatientService['listRegistryPage']>) {
+    const page = await this.listRegistryPage(...args);
+    const today = await this.todayCheckIns(
+      args[0],
+      page.items.map((item) => item.id),
+    );
+    for (const item of page.items) item.todayCheckIn = today.get(item.id) ?? null;
+    return page;
+  }
+
+  /**
+   * Each patient's check-in today at the clinic (#414), so the registry shows "At Glucose" or
+   * "Done today" in place of a second Check in. An open check-in wins over a finished one.
+   */
+  private async todayCheckIns(clinicId: string, patientIds: string[]) {
+    const result = new Map<string, TodayCheckIn>();
+    if (!patientIds.length) return result;
+    const timeZone = await this.clinicTimeZone(clinicId);
+    const day = clinicDayWindow(todayInTimeZone(timeZone), timeZone);
+    const checkIns = await this.prisma.patientCheckIn.findMany({
+      where: {
+        clinicId,
+        patientId: { in: patientIds },
+        status: { not: 'CANCELLED' },
+        checkedInAt: { gte: day.start, lte: day.end },
+      },
+      select: { id: true, patientId: true, status: true, dayNumber: true },
+      orderBy: { checkedInAt: 'asc' },
+    });
+    const positions = await linePositions(this.prisma, checkIns);
+    for (const checkIn of checkIns) {
+      const current = result.get(checkIn.patientId);
+      if (current && current.status !== 'COMPLETED') continue;
+      const position = positions.get(checkIn.id)!;
+      result.set(checkIn.patientId, {
+        status: checkIn.status,
+        dayNumber: checkIn.dayNumber,
+        stationName: position.stationName,
+        holderName: position.holderName,
+      });
+    }
+    return result;
+  }
+
+  private async listRegistryPage(
     primaryClinicId: string,
     q = '',
     page = 1,

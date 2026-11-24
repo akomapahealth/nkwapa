@@ -666,7 +666,7 @@ export class StationService {
       entityId: visit.id,
       afterJson: JSON.stringify(visit),
     });
-    return visit;
+    return { ...visit, stationName: first.name };
   }
 
   /**
