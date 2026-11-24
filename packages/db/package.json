@@ -77,6 +77,10 @@
       "types": "./dist/src/phq2.d.ts",
       "default": "./dist/src/phq2.js"
     },
+    "./station-line-flags": {
+      "types": "./dist/src/station-line-flags.d.ts",
+      "default": "./dist/src/station-line-flags.js"
+    },
     "./diabetes-thresholds": {
       "types": "./dist/src/diabetes-thresholds.d.ts",
       "default": "./dist/src/diabetes-thresholds.js"

@@ -11,8 +11,14 @@ import { Prisma, StationKind, StationVisitStatus } from '@prisma/client';
 import {
   CLINIC_DEFAULT_TIMEZONE,
   clinicDayWindow,
+  lineFlagsFor,
+  mergeLineFlags,
   nextStationId,
+  parseLineFlags,
+  worstLineFlag,
   type ClinicDayWindow,
+  type HypertensionSymptomValue,
+  type LineFlag,
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService, type LogWriteParams } from '../audit/audit.service';
@@ -67,6 +73,7 @@ const VISIT_INCLUDE = {
       checkedInAt: true,
       encounterId: true,
       dayNumber: true,
+      lineFlags: true,
       patient: {
         select: {
           id: true,
@@ -818,6 +825,7 @@ export class StationService {
       const now = new Date();
       const stations = await tx.clinicStation.findMany({ where: { clinicId } });
       const isReview = visit.station.kind === StationKind.REVIEW;
+      const lineFlags = await this.raiseLineFlags(tx, visit, now);
 
       let nextId: string | null = null;
       const skips = dto.skips ?? [];
@@ -872,6 +880,26 @@ export class StationService {
             message: 'Record the counselling given before completing the session.',
           });
         }
+        // Warns, never blocks: the client asks, then sends acknowledgeNoReferral (#415).
+        if (
+          worstLineFlag(lineFlags) === 'REFER_TODAY' &&
+          !counselling.referralRecommended &&
+          !dto.acknowledgeNoReferral
+        ) {
+          throw new ConflictException({
+            code: 'REFERRAL_NOT_RECORDED',
+            message:
+              'No referral recorded for a refer-today reading. Record it in counselling, or complete anyway.',
+          });
+        }
+      }
+
+      const before = parseLineFlags(visit.patientCheckIn.lineFlags);
+      if (JSON.stringify(lineFlags) !== JSON.stringify(before)) {
+        await tx.patientCheckIn.update({
+          where: { id: visit.patientCheckInId },
+          data: { lineFlags: lineFlags as unknown as Prisma.InputJsonValue },
+        });
       }
 
       const performer = await this.performerFor(tx, clinicId, actor.userId, dto.screener);
@@ -945,6 +973,45 @@ export class StationService {
       nextStationId: result.next?.stationId ?? null,
       sessionCompleted: result.next === null,
     };
+  }
+
+  /**
+   * The check-in's flags once this station's readings are counted (#415): the encounter's
+   * readings so far, through the shared rules, merged so a flag is never taken back.
+   */
+  private async raiseLineFlags(
+    tx: Prisma.TransactionClient,
+    visit: VisitWithContext,
+    now: Date,
+  ): Promise<LineFlag[]> {
+    const before = parseLineFlags(visit.patientCheckIn.lineFlags);
+    if (!visit.encounterId) return before;
+    const where = { encounterId: visit.encounterId };
+    const [vitals, diabetes, hypertension] = await Promise.all([
+      tx.vitals.findUnique({ where, select: { systolicBp: true, diastolicBp: true } }),
+      tx.diabetesScreening.findUnique({
+        where,
+        select: { glucoseMgDl: true, glucoseType: true, urgentSymptoms: true },
+      }),
+      tx.hypertensionAssessment.findUnique({ where, select: { currentSymptoms: true } }),
+    ]);
+    const raised = lineFlagsFor(
+      {
+        systolic: vitals?.systolicBp,
+        diastolic: vitals?.diastolicBp,
+        glucoseMgDl: diabetes?.glucoseMgDl,
+        glucoseType: diabetes?.glucoseType,
+        hypertensionSymptoms: hypertension?.currentSymptoms as
+          | HypertensionSymptomValue[]
+          | undefined,
+        diabetesUrgentSymptoms: diabetes?.urgentSymptoms,
+      },
+      now,
+    );
+    return mergeLineFlags(
+      before,
+      raised.map((flag) => ({ ...flag, stationName: visit.station.name, at: now.toISOString() })),
+    );
   }
 
   /** Manager override: send a patient to any station, with a reason. */
@@ -1679,6 +1746,7 @@ export class StationService {
       checkInStatus: visit.patientCheckIn.status,
       checkedInAt: visit.patientCheckIn.checkedInAt.toISOString(),
       dayNumber: visit.patientCheckIn.dayNumber,
+      lineFlags: parseLineFlags(visit.patientCheckIn.lineFlags),
       encounterId: visit.encounterId,
       station: visit.station,
       patient: {

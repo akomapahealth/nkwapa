@@ -44,6 +44,7 @@ import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
+import { LineFlagChip } from '@/components/stations/LineFlags';
 import {
   EmptyStateCard,
   InlineNotice,
@@ -758,6 +759,7 @@ function NextPatientTicket({
         <div className="min-w-0">
           <h3 className="break-words text-2xl font-semibold">{patientName(visit.patient)}</h3>
           <DemoBadge isDemo={visit.patient.isDemo} />
+          <LineFlagChip flags={visit.lineFlags} className="mt-1" />
           <p className="mt-1 break-words text-sm text-muted-foreground">
             <span className="font-mono">{visit.patient.patientCode}</span>
             {age !== null ? ` · ${age} yrs` : ''}
@@ -840,6 +842,7 @@ function QueueRow({
           {visit.patient.patientCode}
         </p>
         <DemoBadge isDemo={visit.patient.isDemo} />
+        <LineFlagChip flags={visit.lineFlags} />
         {visit.previous?.handoffNote ? (
           <p className="break-words pt-1 text-sm">
             <span className="text-muted-foreground">Note: </span>
