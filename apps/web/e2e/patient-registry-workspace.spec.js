@@ -292,9 +292,7 @@ for (const reducedMotion of ['reduce', 'no-preference']) {
     expect(writes).toBe(0);
     await swipe(page);
     await swipe(page);
-    await expect(
-      page.getByText(/already checked in today, so they were not added again/),
-    ).toBeVisible();
+    await expect(page.getByText(/was not added again\. Already checked in/)).toBeVisible();
     expect(writes).toBe(1);
     await expect(page.getByRole('article', { name: 'Synthetic Registry' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Check in', exact: true })).toBeEnabled();
@@ -343,9 +341,7 @@ test('real registry check-in queues offline and replays once without removing th
   await context.setOffline(false);
   await expect.poll(async () => (await readOutboxRows(page)).length, { timeout: 45000 }).toBe(0);
   await card.getByRole('button', { name: 'Check in', exact: true }).click();
-  await expect(
-    page.getByText(/already checked in today, so they were not added again/),
-  ).toBeVisible();
+  await expect(page.getByText(/was not added again\. Already checked in/)).toBeVisible();
   // The station board is the only place an arrival can be counted, and it needs the station
   // workflow, which the smoke build leaves off. The refusal message above covers that build.
   if (process.env.FEATURE_STATION_WORKFLOW_ENABLED !== 'true') return;

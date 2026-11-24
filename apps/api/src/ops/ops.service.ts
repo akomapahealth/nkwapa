@@ -14,6 +14,7 @@ import {
   todayInTimeZone,
   type ClinicDayWindow,
 } from '@nkwapa/db';
+import { alreadyCheckedInMessage, linePositions } from './line-position';
 import { lockForTransaction } from '../prisma/transaction-lock';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService, type LogWriteParams } from '../audit/audit.service';
@@ -343,14 +344,20 @@ export class OpsService {
             status: { in: OPEN_CHECK_IN_STATUSES },
             checkedInAt: { gte: day.start, lte: day.end },
           },
-          select: { id: true, status: true },
+          select: { id: true, status: true, dayNumber: true },
         });
         if (open) {
+          // Say where they are, so the volunteer goes to find them rather than trying again (#414).
+          const position = (await linePositions(tx, [open])).get(open.id)!;
           throw new ConflictException({
             code: 'PATIENT_ALREADY_CHECKED_IN',
-            message: 'This patient is already checked in today.',
+            message: alreadyCheckedInMessage(position, day.timezone),
             existingCheckInId: open.id,
             existingStatus: open.status,
+            dayNumber: position.dayNumber,
+            stationName: position.stationName,
+            holderName: position.holderName,
+            since: position.since,
           });
         }
 

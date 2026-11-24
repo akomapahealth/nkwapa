@@ -80,7 +80,10 @@ export function usePatientCheckIn(clinicId: string | null) {
             error.code === 'PATIENT_ALREADY_CHECKED_IN'
               ? {
                   tone: 'warning',
-                  message: `${name} is already checked in today, so they were not added again.`,
+                  // The server says where they are: "Already on the line: No. 14 at Glucose..." (#414).
+                  message: error.message.startsWith('Already')
+                    ? `${name} was not added again. ${error.message}`
+                    : `${name} is already checked in today, so they were not added again.`,
                   link: boardLink,
                 }
               : null,
