@@ -8,10 +8,34 @@ import { isHypoglycemic } from '@nkwapa/db/diabetes-thresholds';
 import type { DiabetesScreeningRecord, VitalsRecord } from '@/lib/db';
 import { summarizeEyeScreening, type EyeScreeningRecord } from '@/lib/eye-screening';
 import { StatusLabel } from '@/components/ui/status-label';
-import { formatOpsDateTime } from '@/lib/ops';
+import { formatOpsDateTime, formatOpsTime } from '@/lib/ops';
 import { performerLabel, type StationKind, type StationVisit } from '@/lib/stations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, CircleArrowDown } from 'lucide-react';
+
+/** The station rows that hold a reading, keyed by the station that records it. */
+export type SummaryRowKind = 'BLOOD_PRESSURE' | 'GLUCOSE' | 'ANTHROPOMETRY' | 'EYE';
+
+export interface SummaryReadings {
+  vitals: VitalsRecord | null;
+  diabetes: DiabetesScreeningRecord | null;
+  eye?: EyeScreeningRecord | null;
+}
+
+function recordedRows({ vitals, diabetes, eye = null }: SummaryReadings): Set<SummaryRowKind> {
+  const rows = new Set<SummaryRowKind>();
+  if (vitals?.systolicBp != null && vitals?.diastolicBp != null) rows.add('BLOOD_PRESSURE');
+  if (diabetes?.glucoseMgDl != null) rows.add('GLUCOSE');
+  if (vitals?.weightKg != null || vitals?.heightCm != null) rows.add('ANTHROPOMETRY');
+  if (summarizeEyeScreening(eye)) rows.add('EYE');
+  return rows;
+}
+
+/** Rows empty in `before` that hold a reading in `after`: readings that arrived late (#427). */
+export function newlyRecorded(before: SummaryReadings, after: SummaryReadings): SummaryRowKind[] {
+  const had = recordedRows(before);
+  return [...recordedRows(after)].filter((row) => !had.has(row));
+}
 
 const GLUCOSE_TIMING: Record<string, string> = {
   FASTING: 'fasting',
@@ -32,6 +56,7 @@ export function StationResultsSummary({
   diabetes,
   eye = null,
   timezone,
+  addedAt = {},
 }: {
   ruled?: boolean;
   timeline: StationVisit[];
@@ -39,6 +64,8 @@ export function StationResultsSummary({
   diabetes: DiabetesScreeningRecord | null;
   eye?: EyeScreeningRecord | null;
   timezone: string;
+  /** When a reading reached this screen after it opened, per row. */
+  addedAt?: Partial<Record<SummaryRowKind, string>>;
 }) {
   const units = useClinicUnits();
   const recordedAt = (kind: StationKind) => {
@@ -51,8 +78,11 @@ export function StationResultsSummary({
     const who = stop.completedBy
       ? performerLabel(stop.completedBy.displayName, stop.performedByName)
       : 'unknown';
-    return `${who}, ${stop.completedAt ? formatOpsDateTime(stop.completedAt, timezone) : ''}`;
+    return `Recorded by ${who}, ${stop.completedAt ? formatOpsDateTime(stop.completedAt, timezone) : ''}`;
   };
+  // A stop still under way has nothing to show yet; "Not recorded" means it finished empty.
+  const empty = (kind: StationKind) =>
+    recordedAt(kind) === 'In progress' ? 'In progress' : 'Not recorded';
 
   const bp = classifyBloodPressure(vitals?.systolicBp, vitals?.diastolicBp);
   const bpFlag = bp === 'STAGE1' || bp === 'STAGE2' || bp === 'CRISIS';
@@ -65,6 +95,7 @@ export function StationResultsSummary({
   const visitedEye = timeline.some((visit) => visit.station.kind === 'EYE');
 
   const rows: Array<{
+    kind: SummaryRowKind;
     label: string;
     value: string;
     detail?: React.ReactNode;
@@ -72,19 +103,21 @@ export function StationResultsSummary({
     by: string;
   }> = [
     {
+      kind: 'BLOOD_PRESSURE',
       label: 'Blood pressure',
       value:
         vitals?.systolicBp != null && vitals?.diastolicBp != null
           ? `${vitals.systolicBp}/${vitals.diastolicBp} mmHg`
-          : 'Not recorded',
+          : empty('BLOOD_PRESSURE'),
       // The stage as its severity tag, so Crisis does not read like Stage 1 in the shared amber box.
       detail: bp !== 'UNKNOWN' ? <StatusLabel value={bp} className="mt-1" /> : undefined,
       flag: bpFlag,
       by: recordedAt('BLOOD_PRESSURE'),
     },
     {
+      kind: 'GLUCOSE',
       label: 'Blood glucose',
-      value: formatGlucose(glucose, units.glucoseUnit) ?? 'Not recorded',
+      value: formatGlucose(glucose, units.glucoseUnit) ?? empty('GLUCOSE'),
       detail:
         glucose != null
           ? [
@@ -102,11 +135,12 @@ export function StationResultsSummary({
       by: recordedAt('GLUCOSE'),
     },
     {
+      kind: 'ANTHROPOMETRY',
       label: 'Weight and height',
       value:
         vitals?.weightKg != null || vitals?.heightCm != null
           ? `${formatWeight(vitals?.weightKg, units.bodyUnit) ?? '–'} · ${formatHeight(vitals?.heightCm, units.bodyUnit) ?? '–'}`
-          : 'Not recorded',
+          : empty('ANTHROPOMETRY'),
       detail: bmi != null ? `BMI ${bmi}` : undefined,
       flag: bmiFlag,
       by: recordedAt('ANTHROPOMETRY'),
@@ -115,10 +149,11 @@ export function StationResultsSummary({
     ...(eyeSummary || visitedEye
       ? [
           {
+            kind: 'EYE' as const,
             label: 'Vision (best per eye)',
             value: eyeSummary
               ? `OD ${eyeSummary.right ?? '–'} · OS ${eyeSummary.left ?? '–'}`
-              : 'Not recorded',
+              : empty('EYE'),
             detail: eyeSummary?.detail || undefined,
             flag: eyeSummary?.flag ?? false,
             by: recordedAt('EYE'),
@@ -143,8 +178,8 @@ export function StationResultsSummary({
           Results from today’s stations
         </CardTitle>
         <CardDescription>
-          Medical history recorded at intake: {recordedAt('INTAKE')}. Open the patient’s chart for
-          the full history and allergies.
+          Medical history at intake: {recordedAt('INTAKE')}. Open the patient’s chart for the full
+          history and allergies.
         </CardDescription>
       </CardHeader>
       <CardContent className={ruled ? 'px-0 pb-5' : undefined}>
@@ -153,7 +188,15 @@ export function StationResultsSummary({
           {rows.map((row) => (
             <div key={row.label} className="border-t border-rule py-3">
               <dt className="text-sm text-muted-foreground">{row.label}</dt>
-              <dd className="mt-1 text-lg font-semibold">{row.value}</dd>
+              <dd
+                className={
+                  row.value === 'In progress'
+                    ? 'mt-1 text-lg font-medium text-muted-foreground'
+                    : 'mt-1 text-lg font-semibold'
+                }
+              >
+                {row.value}
+              </dd>
               {row.detail ? <dd className="text-sm">{row.detail}</dd> : null}
               {row.flag ? (
                 <dd className="inline-flex items-center gap-1 text-sm font-medium text-warning-ink">
@@ -161,7 +204,14 @@ export function StationResultsSummary({
                   Out of range
                 </dd>
               ) : null}
-              <dd className="mt-2 text-xs text-muted-foreground">Recorded by {row.by}</dd>
+              {addedAt[row.kind] ? (
+                // Said in words, so a doctor who read the row before sees it changed (#427).
+                <dd className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-info-ink motion-safe:duration-200 motion-safe:ease-out motion-safe:animate-in motion-safe:fade-in-0">
+                  <CircleArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  Added at {formatOpsTime(addedAt[row.kind]!, timezone)}
+                </dd>
+              ) : null}
+              <dd className="mt-2 text-xs text-muted-foreground">{row.by}</dd>
             </div>
           ))}
         </dl>

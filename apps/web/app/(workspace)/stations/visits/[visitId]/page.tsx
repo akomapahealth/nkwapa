@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, History } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
@@ -33,6 +33,7 @@ import {
   type OnShiftStaff,
   type StationVisit,
   type StationVisitDetail,
+  usePolling,
 } from '@/lib/stations';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -46,7 +47,11 @@ import { GlucoseReadingForm } from '@/components/stations/GlucoseReadingForm';
 import { CounsellingForm } from '@/components/stations/CounsellingForm';
 import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
 import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
-import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
+import {
+  StationResultsSummary,
+  newlyRecorded,
+  type SummaryRowKind,
+} from '@/components/stations/StationResultsSummary';
 import { IntakeInterviews } from '@/components/stations/IntakeInterviews';
 import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
@@ -112,6 +117,13 @@ export default function StationVisitPage() {
     hypertension: null,
     eye: null,
   });
+  // What the summary shows now, for the poll to compare against without re-creating itself.
+  const readingsRef = useRef(readings);
+  useEffect(() => {
+    readingsRef.current = readings;
+  }, [readings]);
+  /** Readings that reached the review screen after it opened, and when (#427). */
+  const [addedAt, setAddedAt] = useState<Partial<Record<SummaryRowKind, string>>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -128,44 +140,54 @@ export default function StationVisitPage() {
   const [myShift, setMyShift] = useState<OnShiftStaff | null>(null);
   const [changingScreener, setChangingScreener] = useState(false);
 
-  /** The eye record has its own route; a failure leaves the summary showing it as not recorded. */
+  /** The eye record has its own route; undefined when it could not be read. */
   const loadEyeScreening = useCallback(
     async (encounterId: string) => {
-      if (!getToken || !clinicId) return null;
+      if (!getToken || !clinicId) return undefined;
       try {
         const response = await apiFetch(eyeScreeningPath(clinicId, encounterId), {
           getToken,
           activeClinicId: clinicId,
         });
-        if (!response.ok) return null;
+        if (!response.ok) return undefined;
         return ((await response.json()) as { record: EyeScreeningRecord | null }).record;
       } catch {
-        return null;
+        return undefined;
       }
     },
     [getToken, clinicId],
+  );
+
+  /** The server's readings for the encounter; throws when the server cannot be reached. */
+  const fetchServerReadings = useCallback(
+    async (encounterId: string, previousEye: EyeScreeningRecord | null) => {
+      const response = await apiFetch(`/encounters/${encodeURIComponent(encounterId)}`, {
+        getToken: getToken!,
+        activeClinicId: clinicId ?? undefined,
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      const encounter = (await response.json()) as {
+        vitals?: VitalsRecord | null;
+        diabetesScreening?: DiabetesScreeningRecord | null;
+        hypertensionAssessment?: Record<string, unknown> | null;
+      };
+      const eye = await loadEyeScreening(encounterId);
+      return {
+        vitals: encounter.vitals ?? null,
+        diabetes: encounter.diabetesScreening ?? null,
+        hypertension: encounter.hypertensionAssessment ?? null,
+        // An eye read that failed keeps what was there, so the row never blanks.
+        eye: eye === undefined ? previousEye : eye,
+      } satisfies EncounterReadings;
+    },
+    [getToken, clinicId, loadEyeScreening],
   );
 
   const loadReadings = useCallback(
     async (encounterId: string) => {
       if (!getToken) return;
       try {
-        const response = await apiFetch(`/encounters/${encodeURIComponent(encounterId)}`, {
-          getToken,
-          activeClinicId: clinicId ?? undefined,
-        });
-        if (!response.ok) throw new Error(String(response.status));
-        const encounter = (await response.json()) as {
-          vitals?: VitalsRecord | null;
-          diabetesScreening?: DiabetesScreeningRecord | null;
-          hypertensionAssessment?: Record<string, unknown> | null;
-        };
-        setReadings({
-          vitals: encounter.vitals ?? null,
-          diabetes: encounter.diabetesScreening ?? null,
-          hypertension: encounter.hypertensionAssessment ?? null,
-          eye: await loadEyeScreening(encounterId),
-        });
+        setReadings(await fetchServerReadings(encounterId, null));
       } catch {
         // Offline or unreachable: this device's copy is what the forms build on.
         const [vitals, diabetes, hypertension] = await Promise.all([
@@ -181,7 +203,7 @@ export default function StationVisitPage() {
         });
       }
     },
-    [getToken, clinicId, loadEyeScreening],
+    [getToken, fetchServerReadings],
   );
 
   const load = useCallback(async () => {
@@ -210,6 +232,34 @@ export default function StationVisitPage() {
   }, [load]);
 
   const mine = visit?.status === 'IN_PROGRESS' && visit.claimedBy?.id === userId;
+
+  // The review summary keeps up with readings that reach the server after it opened (#427):
+  // a glucose entered late from paper, or held in another device's outbox. Only the visit and
+  // its readings refresh; the counselling form and note keep their own state.
+  const reviewEncounterId =
+    mine && visit?.station.kind === 'REVIEW' ? (visit.encounterId ?? null) : null;
+  const refreshReview = useCallback(async () => {
+    if (!reviewEncounterId || !getToken || !clinicId) return;
+    try {
+      const [detail, next] = await Promise.all([
+        fetchStationVisit(clinicId, visitId, getToken),
+        fetchServerReadings(reviewEncounterId, readingsRef.current.eye),
+      ]);
+      const arrived = newlyRecorded(readingsRef.current, next);
+      if (arrived.length) {
+        const now = new Date().toISOString();
+        setAddedAt((current) => ({
+          ...current,
+          ...Object.fromEntries(arrived.map((row) => [row, now])),
+        }));
+      }
+      setVisit(detail);
+      setReadings(next);
+    } catch {
+      // A missed poll keeps what is on screen; the next one tries again.
+    }
+  }, [reviewEncounterId, getToken, clinicId, visitId, fetchServerReadings]);
+  usePolling(refreshReview, isOnline && reviewEncounterId !== null);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, after?: () => void) => {
@@ -397,6 +447,7 @@ export default function StationVisitPage() {
                   isDoctor={isDoctor}
                   readings={readings}
                   timezone={timezone}
+                  addedAt={addedAt}
                   onSaved={() => {
                     setUnsavedForm(false);
                     void loadReadings(visit.encounterId!);
@@ -575,6 +626,7 @@ function StationForm({
   isDoctor,
   readings,
   timezone,
+  addedAt,
   onSaved,
 }: {
   visit: StationVisitDetail;
@@ -583,6 +635,7 @@ function StationForm({
   isDoctor: boolean;
   readings: EncounterReadings;
   timezone: string;
+  addedAt: Partial<Record<SummaryRowKind, string>>;
   onSaved: () => void;
 }) {
   const encounterId = visit.encounterId!;
@@ -661,6 +714,7 @@ function StationForm({
             diabetes={readings.diabetes}
             eye={readings.eye}
             timezone={timezone}
+            addedAt={addedAt}
           />
           <CounsellingForm ruled clinicId={clinicId} encounterId={encounterId} canEdit />
           <ClinicalNotePanel
