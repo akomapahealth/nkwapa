@@ -20,6 +20,9 @@ import {
 import { RouteGuard } from '@/components/RouteGuard';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineNotice } from '@/components/ops/OpsShared';
+import { hasPermission } from '@/lib/ops';
+import { PracticeSession } from '@/components/stations/PracticeSession';
+import { DEMO_MANAGE_PERMISSION } from '@/components/patients/DemoPatientField';
 import { SectionSkeleton } from '@/components/feedback/AppState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -65,6 +68,10 @@ function StationSetupContent() {
   const getToken = useAuth();
   const bootstrap = useBootstrap()?.bootstrap ?? null;
   const clinicId = getBootstrapActiveClinicId(bootstrap);
+  const canPractise = hasPermission(
+    bootstrap?.effectivePermissionsForActiveClinic ?? [],
+    DEMO_MANAGE_PERMISSION,
+  );
   const [stations, setStations] = useState<ClinicStation[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -337,6 +344,14 @@ function StationSetupContent() {
           </form>
         </CardContent>
       </Card>
+
+      {canPractise ? (
+        <PracticeSession
+          clinicId={clinicId}
+          getToken={getToken}
+          firstStationName={stations.find((station) => station.active)?.name ?? null}
+        />
+      ) : null}
     </div>
   );
 }

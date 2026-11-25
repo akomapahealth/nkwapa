@@ -49,6 +49,7 @@ import { CounsellingModule } from './counselling/counselling.module';
 import { StaffFeedbackModule } from './staff-feedback/staff-feedback.module';
 import { EyeScreeningModule } from './eye-screening/eye-screening.module';
 import { StaffActivityModule } from './staff-activity/staff-activity.module';
+import { PracticeModule } from './practice/practice.module';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { StaffActivityModule } from './staff-activity/staff-activity.module';
     StaffFeedbackModule,
     EyeScreeningModule,
     StaffActivityModule,
+    PracticeModule,
   ],
   providers: [RateLimitGuard],
 })
