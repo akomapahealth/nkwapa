@@ -13,10 +13,7 @@
 <#assign nameRequired = totp.otpCredentials?size gte 1>
 <@layout.registrationLayout
     displayMessage=!hasFieldError && !isSetupNotice
-    journey="setup-otp"
-    step=2
-    fromSettings=fromSettings
-    description=fromSettings?then("After your password, Nkwapa will ask for the code this app shows. Setup takes about a minute.", "Your account needs a second step at sign-in. Set up an authenticator app to continue; it takes about a minute.");
+    description=fromSettings?then("After your password, Nkwapa will ask for the code this app shows.", "Your account needs a second sign-in step. It takes about a minute.");
     section>
     <#if section = "header">
         Set up your authenticator app

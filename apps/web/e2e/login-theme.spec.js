@@ -203,14 +203,30 @@ test('keyboard focus is visible and follows the reading order', async ({ page })
   ).toEqual([]);
 });
 
-test('the sign-in page says where the person is in the journey', async ({ page }) => {
-  // #277: the same step list the app shows, so leaving Nkwapa for this server reads as one
-  // path. The current step is named in words, not only by its filled marker.
+test('the sign-in page is one title, one line and the form, beside a clinic photograph', async ({
+  page,
+}) => {
+  // The step lists and labels are gone. A laptop sees the photograph with the landing headline;
+  // a phone sees the short band instead, and only one of the two crops is fetched.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await gotoKeycloakLogin(page);
-  const current = page.locator('[aria-current="step"]');
-  await expect(current).toHaveCount(1);
-  await expect(current).toContainText(/enter your email and password/i);
-  await expect(current).toContainText(/you are here/i);
+  await expect(page.getByRole('heading', { level: 1, name: 'Sign in' })).toBeVisible();
+  await expect(page.locator('[aria-current="step"]')).toHaveCount(0);
+  await expect(page.getByText('One record for every visit, even offline.')).toBeVisible();
+  await expect(page.getByText('Invitation only. Ask your clinic for access.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to home' })).toHaveAttribute(
+    'href',
+    /^https?:\/\/[^/]+\/$/,
+  );
+  const panel = page.locator('.nkwapa-auth-photo img');
+  await expect.poll(() => panel.evaluate((img) => img.currentSrc)).toMatch(/auth-clinic\.jpg$/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByText('One record for every visit, even offline.')).toBeHidden();
+  await expect
+    .poll(() => panel.evaluate((img) => img.currentSrc))
+    .toMatch(/auth-clinic-band\.jpg$/);
 });
 
 test('a broken account link says what happened and what to do next', async ({ page }) => {
@@ -219,7 +235,6 @@ test('a broken account link says what happened and what to do next', async ({ pa
   const keycloak = process.env.NEXT_PUBLIC_KEYCLOAK_URL || 'http://localhost:8080';
   await page.goto(`${keycloak}/realms/nkwapa/login-actions/action-token?key=e2e-not-a-token`);
   await expect(page.getByRole('heading', { name: 'This link needs attention' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'When a link stops working' })).toBeVisible();
   await expect(page.getByText(/ask whoever sent it for a new one/i).first()).toBeVisible();
   await expect(page.getByRole('link', { name: /back to sign in/i }).first()).toBeVisible();
 });
@@ -232,7 +247,7 @@ test('"Keep me signed in" survives the app being closed, and starts unticked', a
   */
   const { ROLES } = require('../playwright/roles');
   await gotoKeycloakLogin(page);
-  const keep = page.getByRole('checkbox', { name: 'Keep me signed in on this device' });
+  const keep = page.getByRole('checkbox', { name: 'Keep me signed in' });
   await expect(keep).not.toBeChecked();
   await page.locator('input[name="username"]').fill(ROLES.staff.username);
   await page.locator('input[name="password"]').fill(ROLES.staff.password);

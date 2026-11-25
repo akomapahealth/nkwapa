@@ -2,28 +2,15 @@
 
 import Image from 'next/image';
 import { useState, type ReactNode } from 'react';
-import { Check, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { AGREEMENT_REQUIRED_ROLES } from '@nkwapa/db/staff-agreement';
 import { useKeycloak } from '@/app/KeycloakProvider';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { requestInvitationRenewal } from '@/lib/invite-renewal';
-import {
-  JOURNEY_TITLES,
-  journeyProgress,
-  journeySteps,
-  type JourneyStepState,
-  type OnboardingJourney,
-} from '@/lib/onboarding-journey';
+import { journeyProgress, journeySteps, type OnboardingJourney } from '@/lib/onboarding-journey';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-
-const STATE_WORDS: Record<JourneyStepState, string> = {
-  done: 'Done',
-  current: 'You are here',
-  next: 'Still to do',
-};
 
 /** The Nkwapa mark and name. The pages it sits on have no sidebar to carry it. */
 export function OnboardingBrand() {
@@ -36,75 +23,6 @@ export function OnboardingBrand() {
         Nkwapa
       </span>
     </span>
-  );
-}
-
-/** The whole journey as a ruled list: each step says in words whether it is done, now or later. */
-export function JourneySteps({
-  journey,
-  current,
-  needsName,
-  needsAgreement,
-}: {
-  journey: OnboardingJourney;
-  current: string;
-  needsName?: boolean;
-  needsAgreement?: boolean;
-}) {
-  const steps = journeySteps(journey, { needsName, needsAgreement });
-  const { states } = journeyProgress(steps, current);
-  return (
-    <section aria-labelledby="journey-title" className="border-t-2 border-rule-strong">
-      <h2 id="journey-title" className="type-section-title pb-2 pt-4">
-        {JOURNEY_TITLES[journey]}
-      </h2>
-      <ol>
-        {steps.map((step, index) => {
-          const state = states[index];
-          return (
-            <li
-              key={step.id}
-              aria-current={state === 'current' ? 'step' : undefined}
-              className="flex gap-3 border-t border-rule py-3 first:border-t-0"
-            >
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums',
-                  state === 'done' && 'bg-success-surface text-success-ink',
-                  state === 'current' && 'bg-primary text-primary-foreground',
-                  state === 'next' && 'border border-input text-muted-foreground',
-                )}
-              >
-                {state === 'done' ? <Check className="h-4 w-4" /> : index + 1}
-              </span>
-              <span className="min-w-0">
-                <span
-                  className={cn(
-                    'block text-sm',
-                    state === 'current' ? 'font-semibold text-foreground' : 'text-foreground',
-                  )}
-                >
-                  {step.label}
-                </span>
-                <span className="block text-xs leading-5 text-muted-foreground">
-                  <span
-                    className={cn(
-                      'font-medium',
-                      state === 'done' && 'text-success-ink',
-                      state === 'current' && 'text-foreground',
-                    )}
-                  >
-                    {STATE_WORDS[state]}
-                  </span>
-                  {state === 'done' ? null : `. ${step.detail}`}
-                </span>
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
   );
 }
 
@@ -265,7 +183,7 @@ export function OnboardingFrame({
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto grid w-full max-w-5xl gap-10 px-4 pb-12 pt-8 focus-visible:outline-none md:px-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14 lg:pt-12"
+          className="mx-auto w-full max-w-2xl px-4 pb-12 pt-8 focus-visible:outline-none md:px-6 lg:pt-12"
         >
           <div className="min-w-0 space-y-6">
             <div className="space-y-2">
@@ -279,14 +197,6 @@ export function OnboardingFrame({
             </div>
             {children}
           </div>
-          <aside className="min-w-0">
-            <JourneySteps
-              journey={journey}
-              current={current}
-              needsName={needsName}
-              needsAgreement={needsAgreement}
-            />
-          </aside>
         </main>
       </div>
     </div>

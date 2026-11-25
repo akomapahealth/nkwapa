@@ -1,5 +1,5 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayInfo=true displayMessage=!messagesPerField.existsError('username') journey="reset" step=1 eyebrow="Password help"; section>
+<@layout.registrationLayout displayMessage=!messagesPerField.existsError('username') description="We will email you a link to choose a new one."; section>
     <#if section = "header">
         Reset your password
     <#elseif section = "form">
@@ -19,14 +19,12 @@
             </div>
 
             <div class="nkwapa-form-group nkwapa-submit-group">
-                <input class="nkwapa-btn-primary" type="submit" value="${msg("doSubmit")}"/>
+                <input class="nkwapa-btn-primary" type="submit" value="Email me a link"/>
             </div>
         </form>
 
         <div class="nkwapa-register-link nkwapa-auth-link-block">
             <a href="${url.loginUrl}">${kcSanitize(msg("backToLogin"))?no_esc}</a>
         </div>
-    <#elseif section = "info">
-        <p class="nkwapa-register-link">${msg("emailInstruction")}</p>
     </#if>
 </@layout.registrationLayout>

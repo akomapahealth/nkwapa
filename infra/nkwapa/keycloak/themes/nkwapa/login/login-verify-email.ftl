@@ -1,5 +1,5 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=true journey="setup" step=2 eyebrow="Account setup"; section>
+<@layout.registrationLayout displayMessage=true; section>
     <#if section = "header">
         Confirm your email address
     <#elseif section = "form">

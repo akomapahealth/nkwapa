@@ -1,7 +1,7 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled?? journey="signin" step=2 description="Use the email address and password for your Nkwapa account."; section>
+<@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=realm.password && realm.registrationAllowed && !registrationDisabled?? description="Use your Nkwapa email and password."; section>
     <#if section = "header">
-        Sign in to Nkwapa
+        Sign in
     <#elseif section = "form">
         <div id="kc-form">
             <div id="kc-form-wrapper">

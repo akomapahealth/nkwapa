@@ -312,6 +312,7 @@ for (const relativePath of [
   'resources/css/styles.css',
   'resources/js/password-toggle.js',
   'resources/img/auth-clinic.jpg',
+  'resources/img/auth-clinic-band.jpg',
   'resources/img/nkwapa-logo.png',
 ]) {
   await assertThemeFile(relativePath);
@@ -331,6 +332,11 @@ await assertThemeFileIncludes(
   'template.ftl',
   'img/auth-clinic.jpg',
   'template.ftl must use the optimized auth clinic photo',
+);
+await assertThemeFileIncludes(
+  'template.ftl',
+  'img/auth-clinic-band.jpg',
+  'template.ftl must give phones the short auth clinic band',
 );
 await assertThemeFileIncludes(
   'login-update-password.ftl',
