@@ -3,6 +3,7 @@
 import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { RefreshCw, AlertTriangle, UserX, ClipboardCheck, Hourglass } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -365,7 +366,7 @@ export function StationLineBoard() {
     }
   }, [override, clinicId, getToken, reason, targetStationId, assigneeUserId, refresh]);
 
-  const [dayClosed, setDayClosed] = useState<string | null>(null);
+  const router = useRouter();
   const endDay = useCallback(async () => {
     if (!clinicId || !getToken) return;
     const count = new Set(visits.map((visit) => visit.checkInId)).size;
@@ -381,16 +382,14 @@ export function StationLineBoard() {
     setError(null);
     try {
       const result = await closeClinicDay(clinicId, date, getToken);
-      setDayClosed(
-        `Clinic day closed. ${result.closed} ${result.closed === 1 ? 'patient was' : 'patients were'} closed out.`,
-      );
+      // The manager lands on how the day went (#421); the count rides along for the notice.
+      router.push(`/stations/day/${result.date}?closed=${result.closed}`);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
-    } finally {
       setBusy(false);
       refresh();
     }
-  }, [clinicId, getToken, visits, date, refresh]);
+  }, [clinicId, getToken, visits, date, refresh, router]);
 
   return (
     <div className="space-y-6">
@@ -402,6 +401,11 @@ export function StationLineBoard() {
             {canManage ? (
               <Button asChild variant="outline">
                 <Link href="/stations/setup">Set up stations</Link>
+              </Button>
+            ) : null}
+            {canManage ? (
+              <Button asChild variant="outline">
+                <Link href={`/stations/day/${date}`}>Day summary</Link>
               </Button>
             ) : null}
             {canManage && visits.length > 0 ? (
@@ -459,7 +463,6 @@ export function StationLineBoard() {
         />
       ) : null}
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
-      {dayClosed ? <InlineNotice tone="success">{dayClosed}</InlineNotice> : null}
 
       {view.isInitialLoading ? (
         <SectionSkeleton lines={6} />

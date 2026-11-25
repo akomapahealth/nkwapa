@@ -35,6 +35,7 @@ import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { createDraftEncounter } from './draft-encounter';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
+import { REAL_PATIENT } from '../common/demo-patients';
 import { computeStationMetrics } from './station-metrics';
 import { resolveReplayTime } from './ops-replay';
 import type {
@@ -646,9 +647,15 @@ export class StationService {
     };
   }
 
-  async getMetrics(clinicId: string, date?: string, now: Date = new Date()) {
+  async getMetrics(
+    clinicId: string,
+    date?: string,
+    now: Date = new Date(),
+    { realOnly = false }: { realOnly?: boolean } = {},
+  ) {
     const day = await this.dayWindow(clinicId, date);
     const inDay = { gte: day.start, lte: day.end };
+    const patient = realOnly ? REAL_PATIENT : undefined;
     const [stations, checkIns, visits, shifts] = await Promise.all([
       this.prisma.clinicStation.findMany({
         where: { clinicId },
@@ -662,11 +669,11 @@ export class StationService {
         },
       }),
       this.prisma.patientCheckIn.findMany({
-        where: { clinicId, checkedInAt: inDay },
+        where: { clinicId, checkedInAt: inDay, patient },
         select: { id: true, checkedInAt: true, status: true },
       }),
       this.prisma.patientStationVisit.findMany({
-        where: { clinicId, patientCheckIn: { checkedInAt: inDay } },
+        where: { clinicId, patientCheckIn: { checkedInAt: inDay, patient } },
         select: {
           stationId: true,
           patientCheckInId: true,
@@ -675,6 +682,7 @@ export class StationService {
           claimedAt: true,
           completedAt: true,
           releaseCount: true,
+          claimedByUserId: true,
         },
       }),
       this.prisma.staffShift.findMany({
@@ -687,6 +695,112 @@ export class StationService {
       }),
     ]);
     return computeStationMetrics({ day, now, stations, checkIns, visits, shifts });
+  }
+
+  /**
+   * How one clinic day went (#421): the station metrics for real patients, plus the clinical
+   * flags, the clinical work still open and who was on shift. Counts only; nothing names a patient
+   * or ranks a member of staff. Demo patients are left out and counted on their own line.
+   */
+  async getDaySummary(clinicId: string, date?: string, now: Date = new Date()) {
+    const metrics = await this.getMetrics(clinicId, date, now, { realOnly: true });
+    const day = await this.dayWindow(clinicId, metrics.date);
+    const inDay = { gte: day.start, lte: day.end };
+    const realDay = { clinicId, checkedInAt: inDay, patient: REAL_PATIENT };
+    const encounterOfDay = { patientCheckIn: realDay };
+
+    const [checkIns, demoCheckIns, referrals, encounters, pendingNotes, shifts] = await Promise.all(
+      [
+        this.prisma.patientCheckIn.findMany({
+          where: realDay,
+          select: { patientId: true, lineFlags: true },
+        }),
+        this.prisma.patientCheckIn.count({
+          where: { clinicId, checkedInAt: inDay, patient: { isDemo: true } },
+        }),
+        this.prisma.counsellingRecord.groupBy({
+          by: ['referralUrgency'],
+          where: { referralRecommended: true, encounter: encounterOfDay },
+          _count: { _all: true },
+        }),
+        this.prisma.encounter.groupBy({
+          by: ['status'],
+          where: { ...encounterOfDay, status: { in: ['DRAFT', 'IN_REVIEW'] } },
+          _count: { _all: true },
+        }),
+        // RLS keeps notes from managers; this definer function returns only the day's count (#421).
+        this.prisma.$queryRaw<Array<{ count: number }>>`
+          SELECT app.clinical_note_pending_count_for_day(
+            ${clinicId}::uuid,
+            (${day.start.toISOString()}::timestamptz AT TIME ZONE 'UTC'),
+            (${day.end.toISOString()}::timestamptz AT TIME ZONE 'UTC')
+          ) AS count
+        `,
+        this.prisma.staffShift.findMany({
+          where: {
+            clinicId,
+            checkedInAt: { lte: day.end },
+            OR: [{ checkedOutAt: null }, { checkedOutAt: { gte: day.start } }],
+          },
+          select: { userId: true, roleAtShift: true },
+        }),
+      ],
+    );
+
+    // Returning: seen at this clinic on an earlier day.
+    const patientIds = [...new Set(checkIns.map((checkIn) => checkIn.patientId))];
+    const returning = patientIds.length
+      ? (
+          await this.prisma.patientCheckIn.findMany({
+            where: { clinicId, patientId: { in: patientIds }, checkedInAt: { lt: day.start } },
+            distinct: ['patientId'],
+            select: { patientId: true },
+          })
+        ).length
+      : 0;
+
+    const flagCount = (source: 'BP' | 'GLUCOSE', kind: 'REFER_TODAY' | 'REPEAT_AT_REVIEW') =>
+      checkIns.filter((checkIn) =>
+        ((checkIn.lineFlags ?? []) as unknown as LineFlag[]).some(
+          (flag) => flag.source === source && flag.kind === kind,
+        ),
+      ).length;
+    const referralsBy = (urgency: string | null) =>
+      referrals.find((row) => row.referralUrgency === urgency)?._count._all ?? 0;
+    const encountersBy = (status: string) =>
+      encounters.find((row) => row.status === status)?._count._all ?? 0;
+    // One person on several shifts in a day (a station change) is one person.
+    const onShift = (role: 'VOLUNTEER' | 'DOCTOR' | 'MANAGER') =>
+      new Set(shifts.filter((shift) => shift.roleAtShift === role).map((shift) => shift.userId))
+        .size;
+
+    return {
+      metrics,
+      demoCheckIns,
+      patients: { new: patientIds.length - returning, returning },
+      clinical: {
+        referrals: {
+          urgent: referralsBy('URGENT'),
+          soon: referralsBy('SOON'),
+          routine: referralsBy('ROUTINE'),
+          unspecified: referralsBy(null),
+        },
+        bpReferToday: flagCount('BP', 'REFER_TODAY'),
+        bpRecheck: flagCount('BP', 'REPEAT_AT_REVIEW'),
+        glucoseReferToday: flagCount('GLUCOSE', 'REFER_TODAY'),
+        glucoseRaised: flagCount('GLUCOSE', 'REPEAT_AT_REVIEW'),
+      },
+      openWork: {
+        drafts: encountersBy('DRAFT'),
+        inReview: encountersBy('IN_REVIEW'),
+        notesToCosign: Number(pendingNotes[0]?.count ?? 0),
+      },
+      staff: {
+        volunteers: onShift('VOLUNTEER'),
+        doctors: onShift('DOCTOR'),
+        managers: onShift('MANAGER'),
+      },
+    };
   }
 
   async getVisit(clinicId: string, visitId: string) {

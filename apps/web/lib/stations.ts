@@ -217,7 +217,14 @@ export interface StationMetrics {
   timezone: string;
   live: boolean;
   lowVolume: boolean;
-  checkIns: { total: number; completed: number; leftEarly: number; inClinicNow: number };
+  checkIns: {
+    total: number;
+    completed: number;
+    leftEarly: number;
+    /** Still in the line when the day was closed, so never finished review (#409). */
+    closedAtDayEnd: number;
+    inClinicNow: number;
+  };
   timeInClinic: DurationSummary;
   stations: Array<{
     stationId: string;
@@ -229,6 +236,9 @@ export interface StationMetrics {
     wait: DurationSummary;
     service: DurationSummary;
     releases: number;
+    /** Stops held and then handed on with nothing recorded (#424). */
+    heldEmpty: number;
+    longestHeldMinutes: number | null;
     capacity?: number;
     peakInUse?: number;
     waitingNow: number | null;
@@ -251,6 +261,35 @@ export const fetchStationMetrics = (
   request<StationMetrics>(
     clinicId,
     `/stations/metrics${date ? `?date=${encodeURIComponent(date)}` : ''}`,
+    getToken,
+    { signal },
+  );
+
+/** How one clinic day went (#421). Counts only; demo patients are counted apart. */
+export interface ClinicDaySummary {
+  metrics: StationMetrics;
+  demoCheckIns: number;
+  patients: { new: number; returning: number };
+  clinical: {
+    referrals: { urgent: number; soon: number; routine: number; unspecified: number };
+    bpReferToday: number;
+    bpRecheck: number;
+    glucoseReferToday: number;
+    glucoseRaised: number;
+  };
+  openWork: { drafts: number; inReview: number; notesToCosign: number };
+  staff: { volunteers: number; doctors: number; managers: number };
+}
+
+export const fetchClinicDaySummary = (
+  clinicId: string,
+  date: string,
+  getToken: GetToken,
+  signal?: AbortSignal,
+) =>
+  request<ClinicDaySummary>(
+    clinicId,
+    `/stations/day/summary?date=${encodeURIComponent(date)}`,
     getToken,
     { signal },
   );

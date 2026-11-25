@@ -303,6 +303,37 @@ describe('station capacity (#32)', () => {
   });
 });
 
+describe('stops held too long or handed on empty (#424, #421)', () => {
+  it('counts a held stop skipped with nothing recorded, not one passed over unheld', () => {
+    const metrics = computeStationMetrics(
+      input({
+        visits: [
+          { ...visit('bp', 'c1', '09:00', '09:05', '09:07', 'SKIPPED'), claimedByUserId: 'u1' },
+          { ...visit('bp', 'c2', '09:00', null, '09:10', 'SKIPPED'), claimedByUserId: null },
+          visit('bp', 'c3', '09:00', '09:10', '09:50'),
+        ],
+      }),
+    );
+    expect(metrics.stations.find((station) => station.stationId === 'bp')).toMatchObject({
+      heldEmpty: 1,
+      longestHeldMinutes: 40,
+    });
+  });
+
+  it('runs a stop still being seen on a past day to the end of that day', () => {
+    const metrics = computeStationMetrics(
+      input({
+        now: new Date('2026-10-10T12:00:00Z'),
+        visits: [visit('bp', 'c1', '22:00', '23:00', null)],
+      }),
+    );
+    // Claimed at 23:00 local; the day ends at 23:59:59.999.
+    expect(metrics.stations.find((station) => station.stationId === 'bp')?.longestHeldMinutes).toBe(
+      60,
+    );
+  });
+});
+
 describe('StationService.getMetrics', () => {
   it("reads only this clinic's rows, inside the clinic-local day", async () => {
     // Imported here so the arithmetic above stays free of Nest.
