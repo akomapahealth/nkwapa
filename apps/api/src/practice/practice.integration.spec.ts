@@ -72,6 +72,7 @@ describeDb('practice patients (#410)', () => {
   const database = `nkwapa_practice_${Date.now()}`;
   const originalAppUrl = process.env.APP_DATABASE_URL;
   const originalFlag = process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+  const originalKey = process.env.NATIONAL_ID_ENCRYPTION_KEY;
   let owner: Client;
   let prisma: PrismaService;
   let interceptor: PrismaRlsInterceptor;
@@ -82,6 +83,8 @@ describeDb('practice patients (#410)', () => {
     if (!sourceUrl) throw new Error('DATABASE_URL is required');
     if (!appUrl) throw new Error('APP_DATABASE_URL is required');
     process.env.FEATURE_STATION_WORKFLOW_ENABLED = 'true';
+    // Every chart stores an encrypted ID (the patient code for "No ID"); deterministic for tests.
+    process.env.NATIONAL_ID_ENCRYPTION_KEY ??= 'a'.repeat(64);
     const root = new Client({ connectionString: databaseUrl(sourceUrl, 'postgres') });
     await root.connect();
     await root.query(`CREATE DATABASE "${database}"`);
@@ -146,7 +149,14 @@ describeDb('practice patients (#410)', () => {
     await prisma?.onModuleDestroy().catch(() => {});
     await owner?.end().catch(() => {});
     process.env.APP_DATABASE_URL = originalAppUrl;
-    process.env.FEATURE_STATION_WORKFLOW_ENABLED = originalFlag;
+    // Assigning undefined to process.env stores the string "undefined".
+    for (const [name, value] of [
+      ['FEATURE_STATION_WORKFLOW_ENABLED', originalFlag],
+      ['NATIONAL_ID_ENCRYPTION_KEY', originalKey],
+    ] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
     if (!sourceUrl) return;
     const root = new Client({ connectionString: databaseUrl(sourceUrl, 'postgres') });
     await root.connect();
