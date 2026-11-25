@@ -213,14 +213,12 @@ export class DashboardService {
     });
     const unclaimed = patients
       .filter((patient) => !patient.riskFlags[0]?.acknowledgement)
-      .map(
-        (patient): UrgentWorkItem => ({
-          patientId: patient.id,
-          patientCode: patient.patientCode,
-          patientName: formatPersonName(patient, 'short'),
-          raisedAt: patient.riskFlags[0]?.raisedAt.toISOString() ?? null,
-        }),
-      )
+      .map((patient): UrgentWorkItem => ({
+        patientId: patient.id,
+        patientCode: patient.patientCode,
+        patientName: formatPersonName(patient, 'short'),
+        raisedAt: patient.riskFlags[0]?.raisedAt.toISOString() ?? null,
+      }))
       .concat(await this.unclaimedScreening(clinicId))
       .sort((a, b) => (a.raisedAt ?? '').localeCompare(b.raisedAt ?? ''));
     return { unclaimed: unclaimed.length, items: unclaimed.slice(0, DASHBOARD_WORK_ITEM_LIMIT) };

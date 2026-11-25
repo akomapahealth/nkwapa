@@ -90,9 +90,8 @@ export function journeyProgress(steps: JourneyStep[], currentId: string) {
   );
   return {
     current,
-    states: steps.map(
-      (_, index): JourneyStepState =>
-        index < current ? 'done' : index === current ? 'current' : 'next',
+    states: steps.map((_, index): JourneyStepState =>
+      index < current ? 'done' : index === current ? 'current' : 'next',
     ),
   };
 }

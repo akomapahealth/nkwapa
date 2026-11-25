@@ -2830,9 +2830,7 @@ export class PatientPortalService {
    */
   private async sendAppointmentLifecycleEmail(
     templateKey:
-      | 'APPOINTMENT_CONFIRMED_V1'
-      | 'APPOINTMENT_RESCHEDULED_V1'
-      | 'APPOINTMENT_CANCELLED_V1',
+      'APPOINTMENT_CONFIRMED_V1' | 'APPOINTMENT_RESCHEDULED_V1' | 'APPOINTMENT_CANCELLED_V1',
     patient: { id: string; patientCode: string; firstName?: string | null; email: string | null },
     appointment: { id: string; clinicId: string; startsAt: Date },
     actorUserId: string,

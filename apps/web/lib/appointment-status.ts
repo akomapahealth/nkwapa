@@ -15,12 +15,7 @@ import type {
 import { formatOpsDateTime } from '@/lib/ops';
 
 export type PortalStatusBadgeVariant =
-  | 'secondary'
-  | 'review'
-  | 'warning'
-  | 'finalized'
-  | 'destructive'
-  | 'outline';
+  'secondary' | 'review' | 'warning' | 'finalized' | 'destructive' | 'outline';
 
 export type AppointmentRequestCategory = 'pending' | 'confirmed' | 'closed';
 export type AppointmentCategory = 'upcoming' | 'completed' | 'cancelled' | 'no-show';

@@ -151,12 +151,7 @@ export interface PatientChartSummary {
 
 export type ChartTrendDirection = 'RISING' | 'FALLING' | 'STEADY' | 'NOT_ENOUGH_DATA';
 export type ChartGlanceScreeningKind =
-  | 'VITALS'
-  | 'HYPERTENSION'
-  | 'DIABETES'
-  | 'EYE'
-  | 'COUNSELLING'
-  | 'TOBACCO';
+  'VITALS' | 'HYPERTENSION' | 'DIABETES' | 'EYE' | 'COUNSELLING' | 'TOBACCO';
 
 /**
  * A summary built from recorded values by fixed rules (see patient-chart-glance.ts). Each part is

@@ -159,12 +159,10 @@ function setup(initial: Row = {}) {
     diabetesScreening: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
     hypertensionAssessment: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
     counsellingRecord: {
-      findUnique: jest.fn(
-        async (): Promise<Row | null> => ({
-          id: 'counselling-1',
-          referralRecommended: false,
-        }),
-      ),
+      findUnique: jest.fn(async (): Promise<Row | null> => ({
+        id: 'counselling-1',
+        referralRecommended: false,
+      })),
       update: jest.fn(async () => ({})),
     },
     encounter: {
@@ -185,23 +183,19 @@ function setup(initial: Row = {}) {
       })),
     },
     staffShift: {
-      findFirst: jest.fn(
-        async (): Promise<Row> => ({
-          id: 'shift-1',
-          screenerIsAccountHolder: true,
-          screenerName: null,
-        }),
-      ),
-      findUnique: jest.fn(
-        async (): Promise<Row | null> => ({
-          id: 'shift-1',
-          clinicId: CLINIC,
-          userId: 'vol-1',
-          status: 'ACTIVE',
-          screenerIsAccountHolder: true,
-          screenerName: null,
-        }),
-      ),
+      findFirst: jest.fn(async (): Promise<Row> => ({
+        id: 'shift-1',
+        screenerIsAccountHolder: true,
+        screenerName: null,
+      })),
+      findUnique: jest.fn(async (): Promise<Row | null> => ({
+        id: 'shift-1',
+        clinicId: CLINIC,
+        userId: 'vol-1',
+        status: 'ACTIVE',
+        screenerIsAccountHolder: true,
+        screenerName: null,
+      })),
       update: jest.fn(async ({ data }: { data: Row }) => ({ id: 'shift-1', ...data })),
       findMany: jest.fn(async (): Promise<Row[]> => []),
       updateMany: jest.fn(async () => ({ count: 0 })),

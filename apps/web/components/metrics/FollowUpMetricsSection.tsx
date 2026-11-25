@@ -83,8 +83,7 @@ interface OpenFigure {
 
 /** One clinic, or every clinic in an organization (system admins, #339). */
 export type FollowUpMetricsScope =
-  | { kind: 'clinic'; clinicId: string }
-  | { kind: 'organization'; organizationId: string };
+  { kind: 'clinic'; clinicId: string } | { kind: 'organization'; organizationId: string };
 
 function endpointFor(scope: FollowUpMetricsScope): string {
   return scope.kind === 'clinic'

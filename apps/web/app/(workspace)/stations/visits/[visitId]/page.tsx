@@ -382,8 +382,7 @@ export default function StationVisitPage() {
     const key = opsCacheKey(clinicId, 'station-visit');
     void (async () => {
       const copy = (await db.ops_cache.get(key)) as
-        | { data?: { visit?: { id?: string } } }
-        | undefined;
+        { data?: { visit?: { id?: string } } } | undefined;
       if (copy?.data?.visit?.id === visitId) await db.ops_cache.delete(key);
     })().catch(() => {});
   }, [practiceCleared, clinicId, visitId]);

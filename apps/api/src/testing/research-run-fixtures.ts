@@ -126,15 +126,13 @@ export function mockStorageAdapter(path = 'research/v5/clinic=key/runs/rx-key-m2
     provider: 'LOCAL' as const,
     isConfigured: jest.fn(() => true),
     plannedPath: jest.fn(() => path),
-    putRun: jest.fn(
-      async (): Promise<StoredRunRef> => ({
-        provider: 'LOCAL',
-        path,
-        ref: 'content-sha',
-        url: `file:///${path}/`,
-        syncedAt: new Date('2026-10-08T12:01:00Z'),
-      }),
-    ),
+    putRun: jest.fn(async (): Promise<StoredRunRef> => ({
+      provider: 'LOCAL',
+      path,
+      ref: 'content-sha',
+      url: `file:///${path}/`,
+      syncedAt: new Date('2026-10-08T12:01:00Z'),
+    })),
     recoverRun: jest.fn(async (): Promise<StoredRunRef | null> => null),
   };
 }

@@ -131,10 +131,7 @@ export interface MedicationReconciliationView {
 }
 
 export type MedicationListState =
-  | 'CURRENT'
-  | 'NO_KNOWN_CURRENT_MEDICATIONS'
-  | 'HISTORICAL_ONLY'
-  | 'NOT_RECORDED';
+  'CURRENT' | 'NO_KNOWN_CURRENT_MEDICATIONS' | 'HISTORICAL_ONLY' | 'NOT_RECORDED';
 
 export function medicationListState(
   records: MedicationRecord[],

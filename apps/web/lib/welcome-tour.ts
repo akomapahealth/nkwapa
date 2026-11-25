@@ -25,12 +25,7 @@ export const WELCOME_TOUR_OPEN_EVENT = 'nkwapa:welcome-tour:open';
  * `nav:<href>`, so a step can point at any of them without a new attribute.
  */
 export type WelcomeTourAnchor =
-  | 'clinic-switcher'
-  | 'notifications'
-  | 'sync-status'
-  | 'user-menu'
-  | 'home-work'
-  | `nav:${string}`;
+  'clinic-switcher' | 'notifications' | 'sync-status' | 'user-menu' | 'home-work' | `nav:${string}`;
 
 export type WelcomeTourIcon =
   | 'welcome'

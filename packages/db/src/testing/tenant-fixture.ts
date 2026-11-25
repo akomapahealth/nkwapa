@@ -11,12 +11,7 @@
  */
 
 export type TenantFixtureRole =
-  | 'SYSTEM_ADMIN'
-  | 'DIRECTOR'
-  | 'MANAGER'
-  | 'DOCTOR'
-  | 'VOLUNTEER'
-  | 'PATIENT';
+  'SYSTEM_ADMIN' | 'DIRECTOR' | 'MANAGER' | 'DOCTOR' | 'VOLUNTEER' | 'PATIENT';
 
 export interface TenantFixtureOrganization {
   id: string;

@@ -298,12 +298,7 @@ export function overlayPendingCheckIns(
 
 /** Every clinic-operations action, and whether it can be done without a connection. */
 export type OpsAction =
-  | 'shiftCheckIn'
-  | 'shiftCheckOut'
-  | 'patientCheckIn'
-  | 'assign'
-  | 'reassign'
-  | 'startIntake';
+  'shiftCheckIn' | 'shiftCheckOut' | 'patientCheckIn' | 'assign' | 'reassign' | 'startIntake';
 
 export interface OpsOfflineSupport {
   offline: boolean;

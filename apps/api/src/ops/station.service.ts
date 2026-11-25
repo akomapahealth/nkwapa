@@ -1347,8 +1347,7 @@ export class StationService {
         glucoseMgDl: diabetes?.glucoseMgDl,
         glucoseType: diabetes?.glucoseType,
         hypertensionSymptoms: hypertension?.currentSymptoms as
-          | HypertensionSymptomValue[]
-          | undefined,
+          HypertensionSymptomValue[] | undefined,
         diabetesUrgentSymptoms: diabetes?.urgentSymptoms,
       },
       now,

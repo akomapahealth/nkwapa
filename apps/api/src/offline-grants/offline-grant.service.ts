@@ -31,11 +31,7 @@ export function offlineGrantTtlHours(raw = process.env.OFFLINE_GRANT_TTL_HOURS):
 }
 
 export type OfflineGrantRevokeReason =
-  | 'SIGN_OUT'
-  | 'DEVICE_REVOKED'
-  | 'ROLE_REMOVED'
-  | 'DEACTIVATED'
-  | 'ADMIN_SIGN_OUT';
+  'SIGN_OUT' | 'DEVICE_REVOKED' | 'ROLE_REMOVED' | 'DEACTIVATED' | 'ADMIN_SIGN_OUT';
 
 /**
  * A grant whose window ran out and was replaced by a fresh one on the next opt-in.
