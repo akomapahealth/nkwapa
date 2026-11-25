@@ -31,9 +31,19 @@ describe('scrubbing a browser error report', () => {
 
 describe('what the SDK may collect on its own', () => {
   it('turns off every category, since v11 defaults them all on', () => {
-    const values = Object.values(SENTRY_DATA_COLLECTION).flatMap((v) =>
-      Array.isArray(v) ? [v.length > 0] : typeof v === 'object' ? Object.values(v) : [v],
-    );
-    expect(values).not.toContain(true);
+    // An exact match, so a { deny: [...] } rule (which collects everything else) also fails.
+    expect(SENTRY_DATA_COLLECTION).toEqual({
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      graphQL: { document: false, variables: false },
+      genAI: { inputs: false, outputs: false },
+      mcp: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false,
+    });
   });
 });
