@@ -2009,6 +2009,14 @@ test('each station shows how it works, remembered, and prints every guide (#412)
   await page.reload();
   await expect(page.getByText(/rest them 5 minutes, then measure again/)).toBeVisible();
 
+  // The "Next" line follows the station chosen in the hand-off form, not only the default.
+  const guideNext = page.getByTestId('station-guide-next');
+  await expect(guideNext).toContainText('Next: Glucose testing.');
+  await page.getByRole('combobox', { name: 'Next station' }).click();
+  await page.getByRole('option', { name: 'Anthropometry' }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(guideNext).toContainText('Next: Anthropometry.');
+
   // The print view: every station kind but CUSTOM, with the app shell gone.
   await page.goto('/stations/guide');
   const sidebar = page.locator('#workspace-sidebar');
