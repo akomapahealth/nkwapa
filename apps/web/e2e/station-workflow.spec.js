@@ -1800,3 +1800,68 @@ test('End clinic day lands on the day summary, which copies counts and no names 
   await page.getByRole('button', { name: 'Download CSV' }).click();
   expect((await download).suggestedFilename()).toBe(`clinic-day-${body.metrics.date}.csv`);
 });
+
+test('Ready to open names an unstaffed station until someone chooses it (#411)', async ({
+  page,
+}) => {
+  const { clinicId } = await createPatient(page);
+  const name = `Ready check ${randomUUID().slice(0, 6)}`;
+  const created = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/stations`, {
+    clinicId,
+    data: { kind: 'CUSTOM', name, capacity: 1 },
+  });
+  expect(created.ok(), created.text()).toBeTruthy();
+  const station = created.json();
+  const volunteerId = (await apiRequestAs('volunteer', 'get', '/auth/whoami')).json().userId;
+  let place = null;
+  let previous = null;
+  try {
+    const volunteer = await apiRequestAs(
+      'volunteer',
+      'get',
+      `/clinics/${clinicId}/stations/readiness`,
+      { clinicId },
+    );
+    expect(volunteer.status()).toBe(403);
+
+    await page.goto('/today');
+    const card = page.getByRole('region', { name: /Ready to open/ });
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const show = card.getByRole('button', { name: 'Show checks' });
+    if (await show.isVisible()) await show.click();
+    const staffed = page.getByTestId('ready-to-open').getByRole('listitem').filter({
+      hasText: 'Every station staffed',
+    });
+    await expect(staffed).toContainText(`Check: Every station staffed`);
+    await expect(staffed).toContainText(name);
+    await expect(staffed.getByRole('link', { name: 'See who is on shift' })).toHaveAttribute(
+      'href',
+      '#on-shift',
+    );
+
+    // The volunteer starts a shift and chooses the new station.
+    await ensureShift('volunteer', clinicId);
+    const shift = (
+      await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+    )
+      .json()
+      .onShift.find((member) => member.user.id === volunteerId);
+    previous = shift.stationId ?? null;
+    place = (stationId) =>
+      apiRequestAs('volunteer', 'patch', `/clinics/${clinicId}/shifts/${shift.shiftId}/station`, {
+        clinicId,
+        data: { stationId },
+      });
+    expect((await place(station.id)).ok()).toBeTruthy();
+
+    // The card polls every 30 seconds and on focus; a focus event stands in for the wait.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(staffed).not.toContainText(name, { timeout: 15_000 });
+  } finally {
+    if (place) await place(previous);
+    await apiRequestAs('staff', 'patch', `/clinics/${clinicId}/stations/${station.id}`, {
+      clinicId,
+      data: { active: false },
+    });
+  }
+});

@@ -134,7 +134,13 @@ export class SyncController {
   @RequirePermission(PERMISSIONS.SYNC_PULL)
   @ClinicScoped({ type: 'query', queryKey: 'clinicId' })
   @RateLimit({ key: 'sync_pull', limit: 60, windowSeconds: 60, scope: 'user-or-ip' })
-  async pull(@Query() query: SyncPullQueryDto) {
-    return this.syncService.pull(query.clinicId, query.since);
+  async pull(
+    @Query() query: SyncPullQueryDto,
+    @Request() req?: { user?: { user?: { id: string } } },
+  ) {
+    const result = await this.syncService.pull(query.clinicId, query.since);
+    const userId = req?.user?.user?.id;
+    if (userId) await this.syncService.recordPull(query.clinicId, userId);
+    return result;
   }
 }

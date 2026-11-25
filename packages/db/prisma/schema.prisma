@@ -1344,6 +1344,9 @@ model StaffShift {
   screenerName               String?     @db.VarChar(120)
   /// The directory entry the screener was picked from (#226). The name above stays the snapshot.
   screenerVolunteerContactId String?     @db.Uuid
+  /// The last sync pull by this person during the shift (#411), written at most once a minute.
+  /// The "Ready to open" check reads it; per person, not per device.
+  lastPulledAt               DateTime?
   createdAt                  DateTime    @default(now())
   updatedAt                  DateTime    @updatedAt
 

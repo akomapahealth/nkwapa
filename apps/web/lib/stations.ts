@@ -294,6 +294,31 @@ export const fetchClinicDaySummary = (
     { signal },
   );
 
+export type ReadinessState = 'PASS' | 'WARN' | 'NA';
+
+/** "Ready to open" (#411): the manager's morning checks for today. Staff names only. */
+export interface ClinicReadiness {
+  date: string;
+  checkInsToday: number;
+  syncMinutes: number;
+  checks: {
+    stations: {
+      state: ReadinessState;
+      activeCount: number;
+      reviewCount: number;
+      kindsClosed: StationKindValue[];
+    };
+    staffed: { state: ReadinessState; stations: Array<{ id: string; name: string }> };
+    doctorAtReview: { state: ReadinessState };
+    synced: { state: ReadinessState; people: string[] };
+    offline: { state: ReadinessState; people: string[] };
+    yesterdayClosed: { state: ReadinessState; openCheckIns: number };
+  };
+}
+
+export const fetchClinicReadiness = (clinicId: string, getToken: GetToken, signal?: AbortSignal) =>
+  request<ClinicReadiness>(clinicId, '/stations/readiness', getToken, { signal });
+
 /** "12 min", "1 h 05 min", or an en dash when nothing was measured. */
 export function formatMinutes(minutes: number | null | undefined): string {
   if (minutes == null) return '–';

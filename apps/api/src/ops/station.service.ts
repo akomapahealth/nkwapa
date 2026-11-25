@@ -36,6 +36,7 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import { createDraftEncounter } from './draft-encounter';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 import { REAL_PATIENT } from '../common/demo-patients';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import { computeStationMetrics } from './station-metrics';
 import { resolveReplayTime } from './ops-replay';
 import type {
@@ -63,6 +64,8 @@ const EMPTY_READINGS: KeyReadings = { bp: null, glucose: null, bmi: null };
 
 /** A check-in whose patient has not yet finished or left. */
 const OPEN_CHECK_IN_STATUSES = ['WAITING', 'ASSIGNED', 'IN_PROGRESS'] as const;
+/** A device on shift that has not pulled for this long is listed on "Ready to open" (#411). */
+export const READINESS_SYNC_MINUTES = 10;
 
 /** A visit a patient is still waiting at or being seen in. At most one per check-in (SQL). */
 const OPEN_VISIT_STATUSES: StationVisitStatus[] = ['QUEUED', 'IN_PROGRESS'];
@@ -695,6 +698,106 @@ export class StationService {
       }),
     ]);
     return computeStationMetrics({ day, now, stations, checkIns, visits, shifts });
+  }
+
+  /**
+   * "Ready to open" (#411): what the manager checks before the doors open. Each check passes,
+   * warns with the stations or people it concerns, or does not apply. Staff names only; nothing
+   * here names a patient.
+   */
+  async getReadiness(clinicId: string, now: Date = new Date()) {
+    const day = await this.dayWindow(clinicId);
+    const offlineOn = isApiFeatureEnabled('offlineSession');
+    const [stations, shifts, checkInsToday, leftOpen, offlineReady] = await Promise.all([
+      this.prisma.clinicStation.findMany({
+        where: { clinicId },
+        select: { id: true, name: true, kind: true, active: true, sortOrder: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      this.prisma.staffShift.findMany({
+        where: { clinicId, status: 'ACTIVE' },
+        select: {
+          userId: true,
+          stationId: true,
+          roleAtShift: true,
+          lastPulledAt: true,
+          user: { select: { displayName: true } },
+        },
+      }),
+      this.prisma.patientCheckIn.count({
+        where: { clinicId, checkedInAt: { gte: day.start, lte: day.end } },
+      }),
+      this.prisma.patientCheckIn.count({
+        where: {
+          clinicId,
+          checkedInAt: { lt: day.start },
+          status: { in: [...OPEN_CHECK_IN_STATUSES] },
+        },
+      }),
+      // Grants are owner-only under RLS; this definer function says only who holds one.
+      offlineOn
+        ? this.prisma.$queryRaw<Array<{ user_id: string }>>`
+            SELECT user_id FROM app.offline_ready_shift_users(${clinicId}::uuid)
+          `
+        : Promise.resolve([]),
+    ]);
+
+    const active = stations.filter((station) => station.active);
+    // A closed custom station is a one-off the clinic stopped using, not one it forgot to open.
+    const kindsUsed = [
+      ...new Set(stations.map((station) => station.kind).filter((kind) => kind !== 'CUSTOM')),
+    ];
+    const kindsClosed = kindsUsed.filter(
+      (kind) => !active.some((station) => station.kind === kind),
+    );
+    const reviews = active.filter((station) => station.kind === 'REVIEW');
+    const staffedIds = new Set(shifts.map((shift) => shift.stationId).filter(Boolean));
+    const unstaffed = active.filter((station) => !staffedIds.has(station.id));
+    const reviewIds = new Set(reviews.map((station) => station.id));
+    const doctorAtReview = shifts.some(
+      (shift) =>
+        shift.stationId &&
+        reviewIds.has(shift.stationId) &&
+        (shift.roleAtShift === 'DOCTOR' || shift.roleAtShift === 'MANAGER'),
+    );
+    // One person, one row, however many shifts they hold.
+    const people = new Map(shifts.map((shift) => [shift.userId, shift]));
+    const syncCutoff = now.getTime() - READINESS_SYNC_MINUTES * 60_000;
+    const notSynced = [...people.values()].filter(
+      (shift) => !shift.lastPulledAt || shift.lastPulledAt.getTime() < syncCutoff,
+    );
+    const ready = new Set(offlineReady.map((row) => row.user_id));
+    const notOffline = [...people.values()].filter((shift) => !ready.has(shift.userId));
+    const names = (rows: Array<{ user: { displayName: string } }>) =>
+      rows.map((row) => row.user.displayName).sort((a, b) => a.localeCompare(b));
+
+    type State = 'PASS' | 'WARN' | 'NA';
+    const state = (applies: boolean, passes: boolean): State =>
+      !applies ? 'NA' : passes ? 'PASS' : 'WARN';
+    return {
+      date: day.date,
+      checkInsToday,
+      syncMinutes: READINESS_SYNC_MINUTES,
+      checks: {
+        stations: {
+          state: state(true, active.length > 0 && kindsClosed.length === 0 && reviews.length === 1),
+          activeCount: active.length,
+          reviewCount: reviews.length,
+          kindsClosed,
+        },
+        staffed: {
+          state: state(active.length > 0, unstaffed.length === 0),
+          stations: unstaffed.map((station) => ({ id: station.id, name: station.name })),
+        },
+        doctorAtReview: { state: state(reviews.length > 0, doctorAtReview) },
+        synced: { state: state(people.size > 0, notSynced.length === 0), people: names(notSynced) },
+        offline: {
+          state: state(offlineOn && people.size > 0, notOffline.length === 0),
+          people: offlineOn ? names(notOffline) : [],
+        },
+        yesterdayClosed: { state: state(true, leftOpen === 0), openCheckIns: leftOpen },
+      },
+    };
   }
 
   /**

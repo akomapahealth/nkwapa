@@ -101,6 +101,7 @@ describe('SyncController', () => {
   let syncService: {
     applyMutations: jest.Mock;
     pull: jest.Mock;
+    recordPull: jest.Mock;
   };
   let clinicScopeGuard: ClinicScopeGuard;
   let rbacGuard: RbacGuard;
@@ -109,6 +110,7 @@ describe('SyncController', () => {
     syncService = {
       applyMutations: jest.fn(),
       pull: jest.fn(),
+      recordPull: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -252,6 +254,11 @@ describe('SyncController', () => {
     syncService.pull.mockResolvedValue(pullResult);
 
     await expect(controller.pull({ clinicId: 'clinic-1' })).resolves.toEqual(pullResult);
+    expect(syncService.recordPull).not.toHaveBeenCalled();
+
+    // A signed-in pull stamps the caller's shift for "Ready to open" (#411).
+    await controller.pull({ clinicId: 'clinic-1' }, { user: { user: { id: 'user-1' } } });
+    expect(syncService.recordPull).toHaveBeenCalledWith('clinic-1', 'user-1');
   });
 
   it('rejects sync pull requests without a clinic scope', () => {
