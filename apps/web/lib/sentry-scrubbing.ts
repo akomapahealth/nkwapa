@@ -1,3 +1,26 @@
+import type * as Sentry from '@sentry/nextjs';
+
+type DataCollection = NonNullable<NonNullable<Parameters<typeof Sentry.init>[0]>['dataCollection']>;
+
+/**
+ * What the SDK may attach to an event on its own. Since v11 every category defaults to on
+ * (request bodies, headers, cookies, query strings, DB query data, local variables), and on a
+ * clinical app each of those can hold patient detail. All off, as `sendDefaultPii: false` was.
+ */
+export const SENTRY_DATA_COLLECTION = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: false,
+  httpBodies: [],
+  urlQueryParams: false,
+  graphQL: { document: false, variables: false },
+  genAI: { inputs: false, outputs: false },
+  mcp: { inputs: false, outputs: false },
+  databaseQueryData: false,
+  queues: false,
+  stackFrameVariables: false,
+} satisfies DataCollection;
+
 /**
  * Remove patient identifiers from a browser error report.
  *

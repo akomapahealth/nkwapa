@@ -1,4 +1,4 @@
-import { scrubBrowserEvent, scrubClinicalUrl } from './sentry-scrubbing';
+import { SENTRY_DATA_COLLECTION, scrubBrowserEvent, scrubClinicalUrl } from './sentry-scrubbing';
 
 const PATIENT = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
 
@@ -26,5 +26,14 @@ describe('scrubbing a browser error report', () => {
     expect(scrubBrowserEvent({ user: { id: 'user-1', email: 'nurse@example.com' } }).user).toEqual({
       id: 'user-1',
     });
+  });
+});
+
+describe('what the SDK may collect on its own', () => {
+  it('turns off every category, since v11 defaults them all on', () => {
+    const values = Object.values(SENTRY_DATA_COLLECTION).flatMap((v) =>
+      Array.isArray(v) ? [v.length > 0] : typeof v === 'object' ? Object.values(v) : [v],
+    );
+    expect(values).not.toContain(true);
   });
 });
