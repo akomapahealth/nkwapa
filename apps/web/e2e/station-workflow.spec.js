@@ -1951,3 +1951,90 @@ test('a director runs a practice session and clears it again (#410)', async ({ p
     for (const context of contexts) await context.close();
   }
 });
+
+test('each station shows how it works, remembered, and prints every guide (#412)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  let next = await claimNext('staff', clinicId, checkInId);
+  while (next.at.station.kind !== 'BLOOD_PRESSURE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  // Earlier runs of this test on the same account leave it open: start from closed.
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('nkwapa:station-guide:')) localStorage.removeItem(key);
+    }
+  });
+  await page.reload();
+  const summary = page.getByText(/^How the .+ station works$/);
+  const panel = page.locator('details').filter({ has: summary });
+  await expect(summary).toBeVisible();
+  await expect(panel).not.toHaveAttribute('open', '');
+  const step = panel.getByText(/rest them 5 minutes, then measure again/);
+  await expect(step).toBeHidden();
+
+  // Keyboard only: Tab to the summary, Enter opens it, Space closes it, Enter opens it again.
+  await page.locator('body').focus();
+  for (let i = 0; i < 80; i += 1) {
+    await page.keyboard.press('Tab');
+    if (
+      await summary
+        .locator('xpath=ancestor::summary')
+        .evaluate((el) => el === document.activeElement)
+    )
+      break;
+  }
+  await expect(summary.locator('xpath=ancestor::summary')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(step).toBeVisible();
+  await expect(panel.getByTestId('station-guide-next')).toContainText('Tell them');
+  await page.keyboard.press('Space');
+  await expect(step).toBeHidden();
+  await page.keyboard.press('Enter');
+  await expect(step).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText(/rest them 5 minutes, then measure again/)).toBeVisible();
+
+  // The "Next" line follows the station chosen in the hand-off form, not only the default.
+  const guideNext = page.getByTestId('station-guide-next');
+  await expect(guideNext).toContainText('Next: Glucose testing.');
+  await page.getByRole('combobox', { name: 'Next station' }).click();
+  await page.getByRole('option', { name: 'Anthropometry' }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(guideNext).toContainText('Next: Anthropometry.');
+
+  // The print view: every station kind but CUSTOM, with the app shell gone.
+  await page.goto('/stations/guide');
+  const sidebar = page.locator('#workspace-sidebar');
+  const header = page.locator('header').first();
+  await expect(sidebar).toBeVisible();
+  await expect(header).toBeVisible();
+  await page.emulateMedia({ media: 'print' });
+  const cards = page.locator('article.station-guide-card');
+  await expect(cards).toHaveCount(6);
+  expect(await cards.evaluateAll((all) => all.map((card) => card.dataset.stationKind))).toEqual([
+    'INTAKE',
+    'BLOOD_PRESSURE',
+    'GLUCOSE',
+    'ANTHROPOMETRY',
+    'EYE',
+    'REVIEW',
+  ]);
+  await expect(sidebar).toBeHidden();
+  await expect(header).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
+});

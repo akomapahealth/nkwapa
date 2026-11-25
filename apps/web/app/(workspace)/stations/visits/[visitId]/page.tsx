@@ -77,6 +77,7 @@ import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { AskDoctorButton } from '@/components/stations/AskDoctorDialog';
 import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
+import { StationGuidePanel } from '@/components/stations/StationGuide';
 import { Badge } from '@/components/ui/badge';
 import { DemoBadge } from '@/components/patients/DemoPatientField';
 import { Button } from '@/components/ui/button';
@@ -169,6 +170,12 @@ export default function StationVisitPage() {
   const readingsRef = useRef(readings);
   // Set by Register and start: the new patient's number goes on their card first (#413).
   const [registered, setRegistered] = useState(false);
+  // The next station chosen in the hand-off form, so the guide names the same one (#412).
+  const [chosenNext, setChosenNext] = useState<{ visitId: string; stationId: string } | null>(null);
+  const chooseNext = useCallback(
+    (stationId: string) => setChosenNext({ visitId, stationId }),
+    [visitId],
+  );
   useEffect(() => {
     setRegistered(new URLSearchParams(window.location.search).has('registered'));
   }, []);
@@ -488,6 +495,22 @@ export default function StationVisitPage() {
             />
 
             <section aria-labelledby="visit-needs" className="border-t-2 border-rule-strong pt-4">
+              <StationGuidePanel
+                kind={visit.station.kind}
+                stationName={visit.station.name}
+                nextName={
+                  (chosenNext?.visitId === visitId
+                    ? stations.find((station) => station.id === chosenNext.stationId)?.name
+                    : undefined) ??
+                  suggestedNextStation(
+                    stations.filter((station) => station.active),
+                    visit.station.id,
+                  )?.name ??
+                  null
+                }
+                glucoseUnit={glucoseUnit}
+                userId={userId}
+              />
               {/* Not "Needs you now": elsewhere that heading lists work to act on, here it explains. */}
               <h2 id="visit-needs" className="type-section-title">
                 At this station
@@ -656,6 +679,7 @@ export default function StationVisitPage() {
               <HandOff
                 visit={visit}
                 stations={stations}
+                onNextChange={chooseNext}
                 busy={busy}
                 isOnline={isOnline}
                 suggestedNote={suggestedHandoffNote(
@@ -1025,9 +1049,12 @@ function HandOff({
   onComplete,
   onRelease,
   onPatientLeft,
+  onNextChange,
 }: {
   visit: StationVisitDetail;
   stations: ClinicStation[];
+  /** Tells the page which station is chosen, for the guide's "Next" line (#412). */
+  onNextChange: (stationId: string) => void;
   busy: boolean;
   isOnline: boolean;
   /** This station's own reading is missing, so handing on asks first (#424). */
@@ -1063,6 +1090,9 @@ function HandOff({
   useEffect(() => {
     if (!nextId && suggested) setNextId(suggested.id);
   }, [nextId, suggested]);
+  useEffect(() => {
+    if (nextId) onNextChange(nextId);
+  }, [nextId, onNextChange]);
 
   const passedOver = nextId ? stationsPassedOver(active, visit.station.id, nextId) : [];
   const missingReason = passedOver.some((station) => !skipReasons[station.id]?.trim());

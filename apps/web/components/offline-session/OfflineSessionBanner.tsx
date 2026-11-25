@@ -41,7 +41,7 @@ function Banner({ lock, login }: { lock?: () => void; login: () => void }) {
   return (
     <section
       aria-label="Offline session"
-      className="flex flex-col gap-3 rounded-md border border-warning/25 bg-warning/10 px-4 py-3 text-warning-ink sm:flex-row sm:items-center"
+      className="flex flex-col gap-3 rounded-md border border-warning/25 print:hidden bg-warning/10 px-4 py-3 text-warning-ink sm:flex-row sm:items-center"
     >
       <WifiOff aria-hidden="true" className="hidden h-5 w-5 shrink-0 sm:block" />
       <p className="type-body min-w-0 flex-1 text-pretty" data-testid="offline-session-banner">

@@ -103,7 +103,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         data-app-shell=""
         className="min-h-screen bg-background px-safe [--workspace-bottom-nav-height:3.75rem] compact:[--workspace-bottom-nav-height:0px] [:root[data-keyboard]_&]:[--workspace-bottom-nav-height:var(--keyboard-inset)]"
       >
-        <NavigationProgress />
+        <div className="contents print:hidden">
+          <NavigationProgress />
+        </div>
         {/*
         First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
         user walks the whole sidebar and header on every page before reaching the chart.
@@ -120,26 +122,31 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         the product for no informational reason.
       */}
         <div className="flex min-h-screen">
-          <Sidebar
-            collapsed={desktop && sidebarCollapsed}
-            rail={!desktop}
-            animate={animateSidebar}
-          />
-          <div className="flex min-w-0 flex-1 flex-col bg-card compact:my-2 compact:mr-2 compact:rounded-xl compact:border compact:border-border">
-            <Header
-              sidebarCollapsed={sidebarCollapsed}
-              mobileOpen={tabletOpen}
-              onMobileOpenChange={setTabletOpen}
-              onToggleSidebar={(event) => {
-                if (!window.matchMedia('(min-width: 1200px)').matches) return;
-                setAnimateSidebar(event.detail > 0);
-                setSidebarCollapsed((current) => !current);
-              }}
+          {/* Printing a page prints the page, not the app around it (#412). */}
+          <div className="contents print:hidden">
+            <Sidebar
+              collapsed={desktop && sidebarCollapsed}
+              rail={!desktop}
+              animate={animateSidebar}
             />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col bg-card compact:my-2 compact:mr-2 compact:rounded-xl compact:border compact:border-border print:m-0 print:border-0 print:bg-transparent">
+            <div className="contents print:hidden">
+              <Header
+                sidebarCollapsed={sidebarCollapsed}
+                mobileOpen={tabletOpen}
+                onMobileOpenChange={setTabletOpen}
+                onToggleSidebar={(event) => {
+                  if (!window.matchMedia('(min-width: 1200px)').matches) return;
+                  setAnimateSidebar(event.detail > 0);
+                  setSidebarCollapsed((current) => !current);
+                }}
+              />
+            </div>
             <main
               id="main-content"
               tabIndex={-1}
-              className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(10rem+env(safe-area-inset-bottom))] compact:pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8"
+              className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(10rem+env(safe-area-inset-bottom))] compact:pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8 print:overflow-visible print:p-0"
             >
               <div className="mx-auto w-full max-w-[1440px] space-y-6">
                 <OfflineSessionBanner />
@@ -149,8 +156,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </main>
           </div>
         </div>
-        <BottomNav />
-        <ChatWidget />
+        <div className="contents print:hidden">
+          <BottomNav />
+          <ChatWidget />
+        </div>
       </div>
     </NavBadgesProvider>
   );
