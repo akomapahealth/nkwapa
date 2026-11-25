@@ -450,6 +450,21 @@ describe('SyncService', () => {
       expect(result).toMatchObject({ status: 'CONFLICT', conflictType: 'PATIENT_MERGED' });
       expect(opsService.createCheckIn).not.toHaveBeenCalled();
     });
+
+    it('refuses a change queued against a cleared practice chart (#410)', async () => {
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: PATIENT_ID,
+        mergedIntoPatientId: null,
+        demoClearedAt: new Date('2026-11-25T10:00:00Z'),
+      });
+
+      const [result] = await push(
+        opsMutation('patient_check_in', CHECKIN_ID, { patientId: PATIENT_ID }),
+      );
+
+      expect(result).toMatchObject({ status: 'CONFLICT', conflictType: 'PRACTICE_CLEARED' });
+      expect(opsService.createCheckIn).not.toHaveBeenCalled();
+    });
   });
 
   describe('a station hand-off queued offline (#423)', () => {
@@ -1758,6 +1773,15 @@ describe('SyncService', () => {
       const result = await service.pull('clinic-1', '2026-11-24T00:00:00.000Z|x');
 
       expect(result.clearedDemoPatientIds).toEqual(['demo-1']);
+
+      // A device's first pull never held them, so it is not sent the growing list.
+      (client.patient.findMany as jest.Mock).mockClear();
+      await service.pull('clinic-1');
+      expect(client.patient.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ OR: [{ mergedIntoPatientId: { not: null } }] }),
+        }),
+      );
       expect(result.mergedPatients).toEqual([]);
       expect(result.cursor).toBe(`${clearedAt.toISOString()}|demo-1`);
       // The chart list itself leaves cleared practice charts out.

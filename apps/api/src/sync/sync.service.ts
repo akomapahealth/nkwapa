@@ -1052,13 +1052,21 @@ export class SyncService {
   ): Promise<boolean> {
     const patient = await this.prisma.patient.findFirst({
       where: { id: patientId, primaryClinicId: clinicId },
-      select: { id: true, mergedIntoPatientId: true },
+      select: { id: true, mergedIntoPatientId: true, demoClearedAt: true },
     });
     if (patient?.mergedIntoPatientId) {
       throw await this.patientMergedConflict(
         patient.mergedIntoPatientId,
         `${entityLabel} belongs to a chart that was merged into another chart.`,
       );
+    }
+    // A cleared practice chart (#410) has left every list; a change saved offline would land on it
+    // unseen, and nobody needs practice work after the session.
+    if (patient?.demoClearedAt) {
+      throw new ConflictException({
+        code: 'PRACTICE_CLEARED',
+        message: `${entityLabel} belongs to a practice patient the director cleared.`,
+      });
     }
     return Boolean(patient);
   }
@@ -2080,7 +2088,11 @@ export class SyncService {
       this.prisma.patient.findMany({
         where: {
           primaryClinicId: clinicId,
-          OR: [{ mergedIntoPatientId: { not: null } }, { demoClearedAt: { not: null } }],
+          // A device's first pull never held a cleared practice chart, so only merges go then.
+          OR: [
+            { mergedIntoPatientId: { not: null } },
+            ...(sinceDate ? [{ demoClearedAt: { not: null } }] : []),
+          ],
           ...updatedAtFilter,
         },
         select: { id: true, mergedIntoPatientId: true, updatedAt: true },
