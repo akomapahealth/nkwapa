@@ -213,7 +213,7 @@ function DaySummary({ date }: { date: string }) {
                   links={{
                     'Draft encounters': queue('drafts'),
                     'Encounters in review': queue('review'),
-                    'Notes waiting for cosign (any day)': '/queues?tab=cosign',
+                    'Notes waiting for cosign': queue('cosign'),
                   }}
                 />
               </RecordSectionContent>

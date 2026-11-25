@@ -45,7 +45,7 @@ const summary: ClinicDaySummary = {
     glucoseReferToday: 0,
     glucoseRaised: 2,
   },
-  openWork: { drafts: 2, inReview: 3, notesToCosignAnyDay: 5 },
+  openWork: { drafts: 2, inReview: 3, notesToCosign: 5 },
   staff: { volunteers: 8, doctors: 2, managers: 1 },
 };
 

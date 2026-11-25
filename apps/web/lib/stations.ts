@@ -277,7 +277,7 @@ export interface ClinicDaySummary {
     glucoseReferToday: number;
     glucoseRaised: number;
   };
-  openWork: { drafts: number; inReview: number; notesToCosignAnyDay: number };
+  openWork: { drafts: number; inReview: number; notesToCosign: number };
   staff: { volunteers: number; doctors: number; managers: number };
 }
 

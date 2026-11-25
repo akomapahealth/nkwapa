@@ -47,6 +47,7 @@ const ID = {
   encounterReturning: id(4, 1),
   encounterFresh: id(4, 2),
   encounterDemo: id(4, 3),
+  encounterNextDay: id(4, 4),
 };
 
 function patientSql(patientId: string, code: string, demo = false) {
@@ -66,21 +67,23 @@ function fixtureSql(): string {
     INSERT INTO "Encounter" ("id", "clinicId", "patientId", "createdByUserId", "status", "updatedAt") VALUES
       ('${ID.encounterReturning}', '${a1.id}', '${ID.returning}', '${VOLUNTEER_A1.id}', 'DRAFT', CURRENT_TIMESTAMP),
       ('${ID.encounterFresh}', '${a1.id}', '${ID.fresh}', '${VOLUNTEER_A1.id}', 'IN_REVIEW', CURRENT_TIMESTAMP),
-      ('${ID.encounterDemo}', '${a1.id}', '${ID.demo}', '${VOLUNTEER_A1.id}', 'DRAFT', CURRENT_TIMESTAMP);
+      ('${ID.encounterDemo}', '${a1.id}', '${ID.demo}', '${VOLUNTEER_A1.id}', 'DRAFT', CURRENT_TIMESTAMP),
+      ('${ID.encounterNextDay}', '${a1.id}', '${ID.nextDay}', '${VOLUNTEER_A1.id}', 'IN_REVIEW', CURRENT_TIMESTAMP);
     -- 23:30Z on the 19th is 00:30 on the 20th in Lagos; 23:30Z on the 20th is already the 21st.
     INSERT INTO "PatientCheckIn" ("id", "clinicId", "patientId", "checkedInAt", "status", "dayNumber", "encounterId", "lineFlags", "updatedAt") VALUES
       ('${ID.earlier}', '${a1.id}', '${ID.returning}', '2026-11-01T09:00:00Z', 'COMPLETED', 1, NULL, '[]', CURRENT_TIMESTAMP),
       ('${ID.checkInReturning}', '${a1.id}', '${ID.returning}', '2026-11-19T23:30:00Z', 'COMPLETED', 1, '${ID.encounterReturning}', ${flags(['BP', 'REFER_TODAY'])}, CURRENT_TIMESTAMP),
       ('${ID.checkInFresh}', '${a1.id}', '${ID.fresh}', '2026-11-20T09:00:00Z', 'COMPLETED', 2, '${ID.encounterFresh}', ${flags(['BP', 'REPEAT_AT_REVIEW'], ['GLUCOSE', 'REPEAT_AT_REVIEW'])}, CURRENT_TIMESTAMP),
       ('${ID.checkInDemo}', '${a1.id}', '${ID.demo}', '2026-11-20T10:00:00Z', 'COMPLETED', 3, '${ID.encounterDemo}', ${flags(['BP', 'REFER_TODAY'])}, CURRENT_TIMESTAMP),
-      ('${ID.checkInNextDay}', '${a1.id}', '${ID.nextDay}', '2026-11-20T23:30:00Z', 'WAITING', 1, NULL, ${flags(['GLUCOSE', 'REFER_TODAY'])}, CURRENT_TIMESTAMP);
+      ('${ID.checkInNextDay}', '${a1.id}', '${ID.nextDay}', '2026-11-20T23:30:00Z', 'WAITING', 1, '${ID.encounterNextDay}', ${flags(['GLUCOSE', 'REFER_TODAY'])}, CURRENT_TIMESTAMP);
     INSERT INTO "CounsellingRecord" ("id", "clinicId", "encounterId", "authorUserId", "referralRecommended", "referralUrgency", "updatedAt") VALUES
       ('${id(5, 1)}', '${a1.id}', '${ID.encounterReturning}', '${VOLUNTEER_A1.id}', true, 'URGENT', CURRENT_TIMESTAMP),
       ('${id(5, 2)}', '${a1.id}', '${ID.encounterFresh}', '${VOLUNTEER_A1.id}', true, 'SOON', CURRENT_TIMESTAMP),
       ('${id(5, 3)}', '${a1.id}', '${ID.encounterDemo}', '${VOLUNTEER_A1.id}', true, 'URGENT', CURRENT_TIMESTAMP);
     INSERT INTO "ClinicalNote" ("id", "clinicId", "patientId", "encounterId", "authorUserId", "authorRole", "status", "assignedDoctorId", "submittedByUserId", "submittedAt", "history", "assessment", "plan", "updatedAt") VALUES
       ('${id(6, 1)}', '${a1.id}', '${ID.fresh}', '${ID.encounterFresh}', '${VOLUNTEER_A1.id}', 'VOLUNTEER', 'PENDING_COSIGN', '${DOCTOR_A1.id}', '${VOLUNTEER_A1.id}', CURRENT_TIMESTAMP, 'h', 'a', 'p', CURRENT_TIMESTAMP),
-      ('${id(6, 2)}', '${a1.id}', '${ID.demo}', '${ID.encounterDemo}', '${VOLUNTEER_A1.id}', 'VOLUNTEER', 'PENDING_COSIGN', '${DOCTOR_A1.id}', '${VOLUNTEER_A1.id}', CURRENT_TIMESTAMP, 'h', 'a', 'p', CURRENT_TIMESTAMP);
+      ('${id(6, 2)}', '${a1.id}', '${ID.demo}', '${ID.encounterDemo}', '${VOLUNTEER_A1.id}', 'VOLUNTEER', 'PENDING_COSIGN', '${DOCTOR_A1.id}', '${VOLUNTEER_A1.id}', CURRENT_TIMESTAMP, 'h', 'a', 'p', CURRENT_TIMESTAMP),
+      ('${id(6, 3)}', '${a1.id}', '${ID.nextDay}', '${ID.encounterNextDay}', '${VOLUNTEER_A1.id}', 'VOLUNTEER', 'PENDING_COSIGN', '${DOCTOR_A1.id}', '${VOLUNTEER_A1.id}', CURRENT_TIMESTAMP, 'h', 'a', 'p', CURRENT_TIMESTAMP);
     -- One stop seen for 25 minutes; one held two minutes and handed on with nothing recorded.
     INSERT INTO "PatientStationVisit" ("id", "clinicId", "patientCheckInId", "stationId", "status", "queuedAt", "queuedByUserId", "claimedByUserId", "claimedAt", "completedAt", "updatedAt") VALUES
       ('${id(7, 1)}', '${a1.id}', '${ID.checkInReturning}', '${ID.bp}', 'COMPLETED', '2026-11-20T08:50:00Z', '${VOLUNTEER_A1.id}', '${VOLUNTEER_A1.id}', '2026-11-20T09:00:00Z', '2026-11-20T09:25:00Z', CURRENT_TIMESTAMP),
@@ -179,7 +182,7 @@ describeDb('clinic day summary (#421)', () => {
       glucoseReferToday: 0,
       glucoseRaised: 1,
     });
-    expect(summary.openWork).toEqual({ drafts: 1, inReview: 1, notesToCosignAnyDay: 2 });
+    expect(summary.openWork).toEqual({ drafts: 1, inReview: 1, notesToCosign: 1 });
     expect(summary.staff).toEqual({ volunteers: 1, doctors: 1, managers: 0 });
     expect(summary.metrics.stations.find((station) => station.stationId === ID.bp)).toMatchObject({
       seen: 1,
@@ -195,5 +198,6 @@ describeDb('clinic day summary (#421)', () => {
     expect(next.metrics.checkIns.total).toBe(1);
     expect(next.clinical.glucoseReferToday).toBe(1);
     expect(next.patients).toEqual({ new: 1, returning: 0 });
+    expect(next.openWork).toEqual({ drafts: 0, inReview: 1, notesToCosign: 1 });
   });
 });

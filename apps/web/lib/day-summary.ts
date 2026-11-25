@@ -87,8 +87,8 @@ export function daySummaryRows(summary: ClinicDaySummary): DaySummaryRow[] {
     { section: 'Open work', label: 'Encounters in review', value: count(openWork.inReview) },
     {
       section: 'Open work',
-      label: 'Notes waiting for cosign (any day)',
-      value: count(openWork.notesToCosignAnyDay),
+      label: 'Notes waiting for cosign',
+      value: count(openWork.notesToCosign),
     },
     { section: 'Staff', label: 'Volunteers on shift', value: count(staff.volunteers) },
     { section: 'Staff', label: 'Doctors on shift', value: count(staff.doctors) },

@@ -728,10 +728,13 @@ export class StationService {
           where: { ...encounterOfDay, status: { in: ['DRAFT', 'IN_REVIEW'] } },
           _count: { _all: true },
         }),
-        // Notes are readable only by clinicians under RLS; this definer function gives a manager
-        // the count without the notes. It is clinic-wide, not this day's, so the page says so.
+        // RLS keeps notes from managers; this definer function returns only the day's count (#421).
         this.prisma.$queryRaw<Array<{ count: number }>>`
-          SELECT app.clinical_note_pending_count(${clinicId}::uuid) AS count
+          SELECT app.clinical_note_pending_count_for_day(
+            ${clinicId}::uuid,
+            (${day.start.toISOString()}::timestamptz AT TIME ZONE 'UTC'),
+            (${day.end.toISOString()}::timestamptz AT TIME ZONE 'UTC')
+          ) AS count
         `,
         this.prisma.staffShift.findMany({
           where: {
@@ -790,7 +793,7 @@ export class StationService {
       openWork: {
         drafts: encountersBy('DRAFT'),
         inReview: encountersBy('IN_REVIEW'),
-        notesToCosignAnyDay: Number(pendingNotes[0]?.count ?? 0),
+        notesToCosign: Number(pendingNotes[0]?.count ?? 0),
       },
       staff: {
         volunteers: onShift('VOLUNTEER'),
