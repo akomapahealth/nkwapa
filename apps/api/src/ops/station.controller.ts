@@ -133,6 +133,15 @@ export class StationController {
     return this.stationService.getBoard(clinicId, query.date);
   }
 
+  /** The nav badge for whoever is on shift at review (#419); `{count: null}` for everyone else. */
+  @Get('stations/review-waiting/count')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_READ)
+  reviewWaitingCount(@Param('clinicId') clinicId: string, @Request() req: StationRequest) {
+    this.assertEnabled();
+    return this.stationService.getReviewWaitingCount(clinicId, req.user.user.id);
+  }
+
   @Get('stations/screener-names')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_STATION_WORK)

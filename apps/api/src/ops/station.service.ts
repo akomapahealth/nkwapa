@@ -58,6 +58,8 @@ export type ShiftScreener = {
 /** The visit end reason for a patient still in the line when the clinic day was closed. */
 export const CLINIC_CLOSED_REASON = 'CLINIC_CLOSED';
 
+const EMPTY_READINGS: KeyReadings = { bp: null, glucose: null, bmi: null };
+
 /** A check-in whose patient has not yet finished or left. */
 const OPEN_CHECK_IN_STATUSES = ['WAITING', 'ASSIGNED', 'IN_PROGRESS'] as const;
 
@@ -99,6 +101,13 @@ const VISIT_INCLUDE = {
 } satisfies Prisma.PatientStationVisitInclude;
 
 type VisitWithContext = Prisma.PatientStationVisitGetPayload<{ include: typeof VISIT_INCLUDE }>;
+
+/** The three readings a doctor scans before taking a patient at review (#419). */
+export type KeyReadings = {
+  bp: { systolic: number; diastolic: number } | null;
+  glucose: { mgDl: number; type: string } | null;
+  bmi: number | null;
+};
 
 function openDoctorRequest(visit: VisitWithContext) {
   // Optional: visits built without the relation (older fixtures, hand-made rows) have none.
@@ -512,7 +521,10 @@ export class StationService {
         orderBy: { checkedInAt: 'asc' },
       }),
     ]);
-    const previous = await this.previousVisits(visits.map((visit) => visit.patientCheckInId));
+    const [previous, readings] = await Promise.all([
+      this.previousVisits(visits.map((visit) => visit.patientCheckInId)),
+      this.keyReadingsFor(visits.filter((visit) => visit.station.kind === StationKind.REVIEW)),
+    ]);
     const holding = new Map<string, number>();
     for (const visit of visits) {
       if (visit.status === 'IN_PROGRESS' && visit.claimedByUserId) {
@@ -534,7 +546,12 @@ export class StationService {
           .map((shift) => ({ ...shift.user, screenerName: this.screenerNameOf(shift) })),
         visits: visits
           .filter((visit) => visit.stationId === station.id)
-          .map((visit) => this.toVisit(visit, previous.get(visit.patientCheckInId))),
+          .map((visit) => ({
+            ...this.toVisit(visit, previous.get(visit.patientCheckInId)),
+            ...(visit.station.kind === StationKind.REVIEW && {
+              keyReadings: (visit.encounterId && readings.get(visit.encounterId)) || EMPTY_READINGS,
+            }),
+          })),
       })),
       // Everyone a manager could hand a patient to, and how many patients each is holding now.
       onShift: myShifts.map((shift) => ({
@@ -546,6 +563,63 @@ export class StationService {
         activeVisitCount: holding.get(shift.user.id) ?? 0,
       })),
     };
+  }
+
+  /**
+   * Patients waiting at review today, for the nav badge (#419). Null unless the caller's active
+   * shift is at the review station, so the badge only shows to whoever is working it.
+   */
+  async getReviewWaitingCount(clinicId: string, userId: string) {
+    const shift = await this.prisma.staffShift.findFirst({
+      where: { clinicId, userId, status: 'ACTIVE' },
+      select: { station: { select: { id: true, kind: true } } },
+    });
+    if (shift?.station?.kind !== StationKind.REVIEW) return { count: null };
+    const day = await this.dayWindow(clinicId);
+    const count = await this.prisma.patientStationVisit.count({
+      where: {
+        clinicId,
+        stationId: shift.station.id,
+        status: 'QUEUED',
+        patientCheckIn: { checkedInAt: { gte: day.start, lte: day.end } },
+      },
+    });
+    return { count };
+  }
+
+  /** BP, glucose and BMI per encounter, from the same rows `raiseLineFlags` reads. */
+  private async keyReadingsFor(visits: VisitWithContext[]) {
+    const encounterIds = [
+      ...new Set(visits.flatMap((visit) => (visit.encounterId ? [visit.encounterId] : []))),
+    ];
+    const readings = new Map<string, KeyReadings>();
+    if (encounterIds.length === 0) return readings;
+    const where = { encounterId: { in: encounterIds } };
+    const [vitals, diabetes] = await Promise.all([
+      this.prisma.vitals.findMany({
+        where,
+        select: { encounterId: true, systolicBp: true, diastolicBp: true, bmi: true },
+      }),
+      this.prisma.diabetesScreening.findMany({
+        where,
+        select: { encounterId: true, glucoseMgDl: true, glucoseType: true },
+      }),
+    ]);
+    const glucose = new Map(diabetes.map((row) => [row.encounterId, row]));
+    const vitalsBy = new Map(vitals.map((row) => [row.encounterId, row]));
+    for (const id of encounterIds) {
+      const v = vitalsBy.get(id);
+      const g = glucose.get(id);
+      readings.set(id, {
+        bp:
+          v?.systolicBp != null && v.diastolicBp != null
+            ? { systolic: v.systolicBp, diastolic: v.diastolicBp }
+            : null,
+        glucose: g?.glucoseMgDl != null ? { mgDl: g.glucoseMgDl, type: g.glucoseType } : null,
+        bmi: v?.bmi ?? null,
+      });
+    }
+    return readings;
   }
 
   /**

@@ -15,7 +15,9 @@ import {
   stationsPassedOver,
   suggestedNextStation,
   withScreener,
+  sortReviewQueue,
   type ClinicStation,
+  type StationVisit,
   type OnShiftStaff,
 } from './stations';
 
@@ -275,5 +277,53 @@ describe('heldTooLongMinutes (#424)', () => {
   it('counts from when the patient was taken, and never flags a waiting patient', () => {
     expect(heldTooLongMinutes({ ...held('GLUCOSE', 40), status: 'QUEUED' }, now)).toBeNull();
     expect(heldTooLongMinutes({ ...held('GLUCOSE', 40), claimedAt: null }, now)).toBeNull();
+  });
+});
+
+describe('sortReviewQueue (#419)', () => {
+  const at = (minute: number) => `2026-11-24T09:${String(minute).padStart(2, '0')}:00.000Z`;
+  const flag = (kind: 'REFER_TODAY' | 'REPEAT_AT_REVIEW') =>
+    ({ kind, source: 'BP', systolic: 180, diastolic: 110, stationName: 'BP', at: at(0) }) as never;
+  const visit = (id: string, minute: number, extra: Partial<StationVisit> = {}) =>
+    ({ id, queuedAt: at(minute), lineFlags: [], doctorRequest: null, ...extra }) as StationVisit;
+  const request = (urgency: 'NOW' | 'BEFORE_LEAVING', open = true) =>
+    ({ id: 'r', urgency, open }) as StationVisit['doctorRequest'];
+  const ids = (visits: StationVisit[]) => sortReviewQueue(visits).map((v) => v.id);
+
+  it('puts a doctor asked for now, then refer today, then repeat at review, then the rest', () => {
+    expect(
+      ids([
+        visit('plain', 1),
+        visit('repeat', 2, { lineFlags: [flag('REPEAT_AT_REVIEW')] }),
+        visit('refer', 3, { lineFlags: [flag('REFER_TODAY')] }),
+        visit('now', 4, { doctorRequest: request('NOW') }),
+      ]),
+    ).toEqual(['now', 'refer', 'repeat', 'plain']);
+  });
+
+  it('is oldest first within a rank, and without flags or requests', () => {
+    expect(ids([visit('b', 5), visit('a', 2), visit('c', 9)])).toEqual(['a', 'b', 'c']);
+    expect(
+      ids([
+        visit('late', 8, { lineFlags: [flag('REFER_TODAY')] }),
+        visit('early', 3, { lineFlags: [flag('REFER_TODAY')] }),
+      ]),
+    ).toEqual(['early', 'late']);
+  });
+
+  it('does not lift a before-they-leave or closed request', () => {
+    expect(
+      ids([
+        visit('leaving', 5, { doctorRequest: request('BEFORE_LEAVING') }),
+        visit('closed', 6, { doctorRequest: request('NOW', false) }),
+        visit('refer', 7, { lineFlags: [flag('REFER_TODAY')] }),
+      ]),
+    ).toEqual(['refer', 'leaving', 'closed']);
+  });
+
+  it('leaves its input untouched', () => {
+    const input = [visit('b', 5), visit('a', 2)];
+    sortReviewQueue(input);
+    expect(input.map((v) => v.id)).toEqual(['b', 'a']);
   });
 });

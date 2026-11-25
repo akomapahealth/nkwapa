@@ -31,6 +31,7 @@ import {
   performerLabel,
   screenersByUser,
   setShiftStation,
+  sortReviewQueue,
   usePolling,
   heldLabel,
   heldTooLongMinutes,
@@ -46,6 +47,7 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
 import { LineFlagChip } from '@/components/stations/LineFlags';
 import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
+import { ReviewWaitingList } from '@/components/stations/ReviewWaitingList';
 import {
   EmptyStateCard,
   InlineNotice,
@@ -245,7 +247,10 @@ export default function StationsPage() {
     ),
   );
   const queue = myStation?.visits ?? [];
-  const nextPatient = queue.find((visit) => visit.status === 'QUEUED') ?? null;
+  // At review the most urgent goes first, not the oldest (#419).
+  const atReview = myStation?.kind === 'REVIEW';
+  const nextPatient =
+    (atReview ? sortReviewQueue(queue) : queue).find((visit) => visit.status === 'QUEUED') ?? null;
   const otherPatients = queue.filter((visit) => visit.id !== nextPatient?.id);
   const inUse = myStation?.inUse ?? queue.filter((visit) => visit.status === 'IN_PROGRESS').length;
   const atCapacity = myStation?.capacity !== undefined && inUse >= myStation.capacity;
@@ -540,69 +545,78 @@ export default function StationsPage() {
         ) : null}
         {currentShift && myStation ? (
           <>
-            <div className="grid min-w-0 gap-8 tablet:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-              <section aria-labelledby="station-next" className="min-w-0">
-                <h2
-                  id="station-next"
-                  className="mb-3 break-words text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
-                >
-                  Next at {myStation.name}
-                </h2>
-                {nextPatient ? (
-                  <NextPatientTicket
-                    visit={nextPatient}
-                    canClaim={canClaim}
-                    busy={busyId === nextPatient.id}
-                    onClaim={() => void claim(nextPatient)}
-                  />
-                ) : (
-                  <EmptyStateCard
-                    title="Nobody is waiting"
-                    description="Patients appear here as soon as the previous station hands them on."
-                  />
-                )}
-                {myStation.capacity !== undefined ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {inUse} of {myStation.capacity} places in use.
-                    {atCapacity ? ' This station is at capacity.' : ''}
-                  </p>
-                ) : null}
-              </section>
-              <section aria-labelledby="station-queue" className="min-w-0">
-                <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-                  <h2 id="station-queue" className="text-lg font-semibold">
-                    Also waiting here
+            {atReview ? (
+              <ReviewWaitingList
+                visits={queue}
+                canTake={canClaim}
+                busyId={busyId}
+                onTake={(visit) => void claim(visit)}
+              />
+            ) : (
+              <div className="grid min-w-0 gap-8 tablet:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <section aria-labelledby="station-next" className="min-w-0">
+                  <h2
+                    id="station-next"
+                    className="mb-3 break-words text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+                  >
+                    Next at {myStation.name}
                   </h2>
-                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    Oldest first
-                  </span>
-                </div>
-                {otherPatients.length ? (
-                  <ol>
-                    {otherPatients.map((visit) => (
-                      <QueueRow
-                        key={visit.id}
-                        visit={visit}
-                        userId={userId}
-                        holderScreener={
-                          visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
-                        }
-                        canClaim={canClaim}
-                        handedOn={handedOn.has(visit.id)}
-                        busy={busyId === visit.id}
-                        onClaim={() => void claim(visit)}
-                      />
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="py-3 text-sm text-muted-foreground">
-                    {nextPatient
-                      ? 'Nobody else is waiting at your station.'
-                      : 'Nobody is waiting at your station.'}
-                  </p>
-                )}
-              </section>
-            </div>
+                  {nextPatient ? (
+                    <NextPatientTicket
+                      visit={nextPatient}
+                      canClaim={canClaim}
+                      busy={busyId === nextPatient.id}
+                      onClaim={() => void claim(nextPatient)}
+                    />
+                  ) : (
+                    <EmptyStateCard
+                      title="Nobody is waiting"
+                      description="Patients appear here as soon as the previous station hands them on."
+                    />
+                  )}
+                  {myStation.capacity !== undefined ? (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {inUse} of {myStation.capacity} places in use.
+                      {atCapacity ? ' This station is at capacity.' : ''}
+                    </p>
+                  ) : null}
+                </section>
+                <section aria-labelledby="station-queue" className="min-w-0">
+                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
+                    <h2 id="station-queue" className="text-lg font-semibold">
+                      Also waiting here
+                    </h2>
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      Oldest first
+                    </span>
+                  </div>
+                  {otherPatients.length ? (
+                    <ol>
+                      {otherPatients.map((visit) => (
+                        <QueueRow
+                          key={visit.id}
+                          visit={visit}
+                          userId={userId}
+                          holderScreener={
+                            visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
+                          }
+                          canClaim={canClaim}
+                          handedOn={handedOn.has(visit.id)}
+                          busy={busyId === visit.id}
+                          onClaim={() => void claim(visit)}
+                        />
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="py-3 text-sm text-muted-foreground">
+                      {nextPatient
+                        ? 'Nobody else is waiting at your station.'
+                        : 'Nobody is waiting at your station.'}
+                    </p>
+                  )}
+                </section>
+              </div>
+            )}
             {nextPatient ? (
               <div
                 data-testid="station-take-action"
