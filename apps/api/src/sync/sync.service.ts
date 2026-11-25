@@ -822,8 +822,7 @@ export class SyncService {
     // offline-synced patient stores the same consistent shape as a REST write.
     const location = resolveResidentialLocation({
       residentialLocationStatus: payload.residentialLocationStatus as
-        | PatientLocationStatus
-        | undefined,
+        PatientLocationStatus | undefined,
       residentialRegion: payload.residentialRegion as GhanaRegion | undefined,
       residentialDistrict: payload.residentialDistrict as string | undefined,
       residentialCommunity: payload.residentialCommunity as string | undefined,
@@ -836,17 +835,11 @@ export class SyncService {
       residentialLatitude: payload.residentialLatitude as number | null | undefined,
       residentialLongitude: payload.residentialLongitude as number | null | undefined,
       residentialPositionSource: payload.residentialPositionSource as
-        | ResidentialPositionSource
-        | null
-        | undefined,
+        ResidentialPositionSource | null | undefined,
       residentialPositionAccuracyM: payload.residentialPositionAccuracyM as
-        | number
-        | null
-        | undefined,
+        number | null | undefined,
       residentialPositionCapturedAt: payload.residentialPositionCapturedAt as
-        | string
-        | null
-        | undefined,
+        string | null | undefined,
     });
 
     const before = existingById ? JSON.stringify(existingById) : null;

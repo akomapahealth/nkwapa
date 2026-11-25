@@ -67,11 +67,7 @@ export const CONTACT_OUTCOME_LABELS: Record<ContactOutcome, string> = {
 };
 
 export type NotReachedReason =
-  | 'NO_ANSWER'
-  | 'WRONG_NUMBER'
-  | 'SWITCHED_OFF'
-  | 'UNAVAILABLE'
-  | 'OTHER';
+  'NO_ANSWER' | 'WRONG_NUMBER' | 'SWITCHED_OFF' | 'UNAVAILABLE' | 'OTHER';
 export const NOT_REACHED_LABELS: Record<NotReachedReason, string> = {
   NO_ANSWER: 'No answer',
   SWITCHED_OFF: 'Phone off',

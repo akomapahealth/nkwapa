@@ -5,13 +5,7 @@
  * clinics get them from ClinicService. Keep the two in step.
  */
 export type StationKindValue =
-  | 'INTAKE'
-  | 'BLOOD_PRESSURE'
-  | 'GLUCOSE'
-  | 'ANTHROPOMETRY'
-  | 'EYE'
-  | 'REVIEW'
-  | 'CUSTOM';
+  'INTAKE' | 'BLOOD_PRESSURE' | 'GLUCOSE' | 'ANTHROPOMETRY' | 'EYE' | 'REVIEW' | 'CUSTOM';
 
 export const DEFAULT_CLINIC_STATIONS: ReadonlyArray<{
   kind: StationKindValue;

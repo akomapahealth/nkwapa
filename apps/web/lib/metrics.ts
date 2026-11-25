@@ -132,13 +132,7 @@ export interface Timing {
 }
 type BpLimit = { systolic: number; diastolic: number };
 export type FollowUpMetricsTier =
-  | 'URGENT'
-  | 'HIGH'
-  | 'MODERATE'
-  | 'LOW_MODERATE'
-  | 'STABLE'
-  | 'LOW'
-  | 'NOT_TIERED';
+  'URGENT' | 'HIGH' | 'MODERATE' | 'LOW_MODERATE' | 'STABLE' | 'LOW' | 'NOT_TIERED';
 
 export interface FollowUpMetricsReport {
   month: string;

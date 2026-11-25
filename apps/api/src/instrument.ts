@@ -13,6 +13,8 @@ if (process.env.SENTRY_DSN) {
         profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
         // Error reports from a clinical API carry patient data by default: the URL names a
         // patient, the body is a record, and an exception message can quote one.
+        // Sentry 11 drops this option and turns each dataCollection category on by default;
+        // a v11 bump must set them all off instead (see apps/web/lib/sentry-scrubbing.ts).
         sendDefaultPii: false,
         beforeSend: (event) => scrubSentryEvent(event),
       });

@@ -9,12 +9,7 @@ import type { BadgeTone } from '@/lib/notification-delivery';
  * visible to be fixed.
  */
 export type IdentitySyncStatus =
-  | 'NOT_SYNCED'
-  | 'PENDING'
-  | 'IN_SYNC'
-  | 'FAILED'
-  | 'SKIPPED'
-  | string;
+  'NOT_SYNCED' | 'PENDING' | 'IN_SYNC' | 'FAILED' | 'SKIPPED' | string;
 
 export interface IdentitySync {
   status: IdentitySyncStatus;

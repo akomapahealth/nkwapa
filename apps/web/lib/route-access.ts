@@ -8,11 +8,7 @@ import type { WhoAmIResponse } from './bootstrap-context';
  * they need to contact an administrator, when the real problem was a slow network.
  */
 export type RouteAccessState =
-  | 'resolving'
-  | 'unavailable'
-  | 'session-expired'
-  | 'allowed'
-  | 'denied';
+  'resolving' | 'unavailable' | 'session-expired' | 'allowed' | 'denied';
 
 export interface RouteAccessInput {
   bootstrap: WhoAmIResponse | null;

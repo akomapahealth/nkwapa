@@ -71,9 +71,7 @@ export interface AppointmentSummary {
 }
 
 export type AppointmentRequestType =
-  | 'NEW_APPOINTMENT'
-  | 'CANCEL_APPOINTMENT'
-  | 'RESCHEDULE_APPOINTMENT';
+  'NEW_APPOINTMENT' | 'CANCEL_APPOINTMENT' | 'RESCHEDULE_APPOINTMENT';
 
 export type StaffAppointmentStatus = 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
 

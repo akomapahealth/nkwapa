@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nextjs';
-import { scrubBrowserEvent } from '@/lib/sentry-scrubbing';
+import { SENTRY_DATA_COLLECTION, scrubBrowserEvent } from '@/lib/sentry-scrubbing';
 
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   Sentry.init({
@@ -23,7 +23,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
       }),
     ],
 
-    sendDefaultPii: false,
+    dataCollection: SENTRY_DATA_COLLECTION,
     beforeSend: (event) => scrubBrowserEvent(event),
   });
 }

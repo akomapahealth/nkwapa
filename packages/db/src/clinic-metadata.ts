@@ -173,12 +173,7 @@ export function commonTimeZones(organizationTimezone?: string | null): string[] 
 export type ClinicMetadataSeverity = 'error' | 'warning' | 'info';
 
 export type ClinicMetadataField =
-  | 'organizationId'
-  | 'timezone'
-  | 'locationCode'
-  | 'zoneCode'
-  | 'countryCode'
-  | 'isActive';
+  'organizationId' | 'timezone' | 'locationCode' | 'zoneCode' | 'countryCode' | 'isActive';
 
 export type ClinicMetadataIssueCode =
   | 'ORGANIZATION_MISSING'

@@ -1,13 +1,7 @@
 /** Referral reports (#344): what the sheet offers and says. The API decides what may go in. */
 
 export type ReferralReportSection =
-  | 'SUMMARY'
-  | 'HISTORY'
-  | 'READINGS'
-  | 'MEDICATIONS'
-  | 'ASSESSMENTS'
-  | 'PLAN'
-  | 'NOTES';
+  'SUMMARY' | 'HISTORY' | 'READINGS' | 'MEDICATIONS' | 'ASSESSMENTS' | 'PLAN' | 'NOTES';
 
 export type ReferralUrgency = 'ROUTINE' | 'SOON' | 'URGENT';
 export type ReferralDelivery = 'DOWNLOAD' | 'EMAIL';

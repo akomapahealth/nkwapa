@@ -75,24 +75,22 @@ export function medicationLinesFor(
   return renderMedicationLines(
     records
       .filter((row) => row.context === context)
-      .map(
-        (row): AdherenceNarrativeRow => ({
-          entry: {
-            medicationRecordId: row.medicationRecordId,
-            observedRevisionId: row.observedRevisionId,
-            tookToday: row.tookToday,
-            dosesMissed7d: row.dosesMissed7d,
-            takingAsPrescribed: row.takingAsPrescribed,
-            supplyRemaining: row.supplyRemaining,
-            problems: row.problems,
-            problemsOther: row.problemsOther,
-          },
-          medicationName: row.observedRevision.medicationName,
-          strength: row.observedRevision.strength,
-          dose: row.observedRevision.dose,
-          doseUnit: row.observedRevision.doseUnit,
-          frequency: row.observedRevision.frequency,
-        }),
-      ),
+      .map((row): AdherenceNarrativeRow => ({
+        entry: {
+          medicationRecordId: row.medicationRecordId,
+          observedRevisionId: row.observedRevisionId,
+          tookToday: row.tookToday,
+          dosesMissed7d: row.dosesMissed7d,
+          takingAsPrescribed: row.takingAsPrescribed,
+          supplyRemaining: row.supplyRemaining,
+          problems: row.problems,
+          problemsOther: row.problemsOther,
+        },
+        medicationName: row.observedRevision.medicationName,
+        strength: row.observedRevision.strength,
+        dose: row.observedRevision.dose,
+        doseUnit: row.observedRevision.doseUnit,
+        frequency: row.observedRevision.frequency,
+      })),
   );
 }

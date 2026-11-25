@@ -157,12 +157,7 @@ export interface PatientChartSummary {
 
 export type ChartTrendDirection = 'RISING' | 'FALLING' | 'STEADY' | 'NOT_ENOUGH_DATA';
 export type ChartGlanceScreeningKind =
-  | 'VITALS'
-  | 'HYPERTENSION'
-  | 'DIABETES'
-  | 'EYE'
-  | 'COUNSELLING'
-  | 'TOBACCO';
+  'VITALS' | 'HYPERTENSION' | 'DIABETES' | 'EYE' | 'COUNSELLING' | 'TOBACCO';
 
 /** The Overview's "At a glance" block (#341). A null part is one this role cannot read. */
 export interface ChartGlance {
