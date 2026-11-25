@@ -6,6 +6,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -123,6 +124,7 @@ function applied(id: string, overwrote: boolean): SyncMutationResultDto {
 
 @Injectable()
 export class SyncService {
+  private readonly logger = new Logger(SyncService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
@@ -1998,6 +2000,29 @@ export class SyncService {
     });
 
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * Stamps the caller's active shift with this pull (#411), so the "Ready to open" check can see
+   * whose device has not synced. At most one write a minute per shift; a failure here is logged and
+   * never fails the pull it rides on.
+   */
+  async recordPull(clinicId: string, userId: string, now: Date = new Date()): Promise<void> {
+    try {
+      await this.prisma.staffShift.updateMany({
+        where: {
+          clinicId,
+          userId,
+          status: 'ACTIVE',
+          OR: [{ lastPulledAt: null }, { lastPulledAt: { lt: new Date(now.getTime() - 60_000) } }],
+        },
+        data: { lastPulledAt: now },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not record a sync pull: ${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   async pull(clinicId: string, since?: string): Promise<SyncPullResponseDto> {

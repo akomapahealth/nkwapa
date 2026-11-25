@@ -11,12 +11,13 @@ export interface AppActionRowProps {
    * a count the reader should know about but has no page of their own to act on.
    */
   action?: ReactElement;
-  tone?: 'neutral' | 'info' | 'warning' | 'destructive';
+  tone?: 'neutral' | 'info' | 'success' | 'warning' | 'destructive';
 }
 
 const tones = {
   neutral: 'text-muted-foreground',
   info: 'text-info-ink',
+  success: 'text-success-ink',
   warning: 'text-warning-ink',
   destructive: 'text-destructive-ink',
 };

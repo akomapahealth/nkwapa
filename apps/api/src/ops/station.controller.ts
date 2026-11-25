@@ -125,6 +125,15 @@ export class StationController {
     return this.stationService.getMetrics(clinicId, query.date);
   }
 
+  /** "Ready to open" (#411): the manager's morning checklist for today. */
+  @Get('stations/readiness')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  readiness(@Param('clinicId') clinicId: string) {
+    this.assertEnabled();
+    return this.stationService.getReadiness(clinicId);
+  }
+
   /** How one clinic day went (#421): counts for the manager after End clinic day. */
   @Get('stations/day/summary')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })

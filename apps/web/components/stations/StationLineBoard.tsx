@@ -8,6 +8,8 @@ import { useCallback, useState } from 'react';
 import { RefreshCw, AlertTriangle, UserX, ClipboardCheck, Hourglass } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getActiveBootstrapClinic } from '@/lib/bootstrap-clinics';
+import { ReadyToOpenCard } from '@/components/stations/ReadyToOpenCard';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { displayTimeZone, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
 import { useOpsView } from '@/lib/use-ops-view';
@@ -468,6 +470,12 @@ export function StationLineBoard() {
         <SectionSkeleton lines={6} />
       ) : !view.data ? null : (
         <>
+          {canManage && isToday && clinicId ? (
+            <ReadyToOpenCard
+              clinicId={clinicId}
+              clinicName={getActiveBootstrapClinic(bootstrap)?.clinicName ?? 'Clinic'}
+            />
+          ) : null}
           <section aria-labelledby="station-needs" className="border-t-2 border-rule-strong pt-4">
             <h2 id="station-needs" className="type-section-title">
               Needs you now
