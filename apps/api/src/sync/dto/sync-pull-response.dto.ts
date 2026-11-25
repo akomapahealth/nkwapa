@@ -44,6 +44,8 @@ export interface SyncPullResponseDto {
    * kept its copy of a merged chart indefinitely and went on queueing changes against it.
    */
   mergedPatients: SyncMergedPatientRecord[];
+  /** Practice charts a director cleared since the cursor (#410); devices drop them from search. */
+  clearedDemoPatientIds: string[];
   /** Draft visits a system admin deleted since the cursor (#384); devices drop them and their children. */
   deletedEncounterIds: string[];
   encounters: Encounter[];

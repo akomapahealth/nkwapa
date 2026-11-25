@@ -354,6 +354,9 @@ export const reorderStations = (clinicId: string, stationIds: string[], getToken
 
 // ── Practice sessions (#410) ──────────────────────────────────────────────────────────────
 
+/** The end reason on every visit a practice clear closed (the API's PRACTICE_CLEARED_REASON). */
+export const PRACTICE_CLEARED_REASON = 'PRACTICE_CLEARED';
+
 export const PRACTICE_COUNT_MIN = 1;
 export const PRACTICE_COUNT_MAX = 20;
 /** Twenty charts and check-ins are forty writes; a timed-out add tempts a retry that doubles them. */

@@ -128,6 +128,7 @@ export const EMPTY_PULL = {
   patients: [],
   mergedPatients: [],
   deletedEncounterIds: [],
+  clearedDemoPatientIds: [],
   encounters: [],
   vitals: [],
   tobaccoScreenings: [],

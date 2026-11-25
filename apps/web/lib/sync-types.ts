@@ -5,6 +5,8 @@ export interface SyncPullResponseDto {
   mergedPatients?: Array<{ id: string; mergedIntoPatientId: string }>;
   /** Draft visits a system admin deleted since the cursor (#384); the device drops them. */
   deletedEncounterIds?: string[];
+  /** Practice charts a director cleared (#410). */
+  clearedDemoPatientIds?: string[];
   encounters: Array<Record<string, unknown>>;
   vitals: Array<Record<string, unknown>>;
   tobaccoScreenings: Array<Record<string, unknown>>;

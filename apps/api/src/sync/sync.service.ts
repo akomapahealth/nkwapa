@@ -2071,14 +2071,16 @@ export class SyncService {
         where: {
           primaryClinicId: clinicId,
           mergedIntoPatientId: null,
+          demoClearedAt: null,
           ...updatedAtFilter,
         },
         select: SYNC_PATIENT_SELECT,
       }),
+      // Charts that left the device's list: retired by a merge, or a cleared practice chart (#410).
       this.prisma.patient.findMany({
         where: {
           primaryClinicId: clinicId,
-          mergedIntoPatientId: { not: null },
+          OR: [{ mergedIntoPatientId: { not: null } }, { demoClearedAt: { not: null } }],
           ...updatedAtFilter,
         },
         select: { id: true, mergedIntoPatientId: true, updatedAt: true },
@@ -2203,6 +2205,9 @@ export class SyncService {
         row.mergedIntoPatientId
           ? [{ id: row.id, mergedIntoPatientId: row.mergedIntoPatientId }]
           : [],
+      ),
+      clearedDemoPatientIds: mergedPatientRows.flatMap((row) =>
+        row.mergedIntoPatientId ? [] : [row.id],
       ),
       deletedEncounterIds: deletedEncounterRows.map((row) => row.entityId),
       encounters,

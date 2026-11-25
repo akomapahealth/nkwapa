@@ -76,6 +76,7 @@ describeDb('practice patients (#410)', () => {
   let prisma: PrismaService;
   let interceptor: PrismaRlsInterceptor;
   let practice: PracticeService;
+  let patientRepository: PatientRepository;
 
   beforeAll(async () => {
     if (!sourceUrl) throw new Error('DATABASE_URL is required');
@@ -122,8 +123,9 @@ describeDb('practice patients (#410)', () => {
       audit,
       undefined as never,
     );
+    patientRepository = new PatientRepository(prisma);
     const patients = new PatientService(
-      new PatientRepository(prisma),
+      patientRepository,
       prisma,
       audit,
       encounters,
@@ -301,6 +303,18 @@ describeDb('practice patients (#410)', () => {
       'PRACTICE.CLEAR',
     ]);
     expect(JSON.parse(audit.rows[2].afterJson)).toEqual(result);
+  });
+
+  it('leaves cleared practice charts out of the patient list and search', async () => {
+    const listed = await as(DIRECTOR_A1, () =>
+      patientRepository.findIds({ primaryClinicId: a1.id }),
+    );
+    expect(listed).toContain(real.id);
+    expect(listed.filter((patientId) => demoIds.includes(patientId))).toEqual([]);
+    const searched = await as(DIRECTOR_A1, () =>
+      patientRepository.findMany({ primaryClinicId: a1.id, search: 'Demo' }),
+    );
+    expect(searched).toEqual([]);
   });
 
   it('clears again with nothing left to do', async () => {
