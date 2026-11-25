@@ -77,6 +77,7 @@ import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
 import { AskDoctorButton } from '@/components/stations/AskDoctorDialog';
 import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
+import { StationGuidePanel } from '@/components/stations/StationGuide';
 import { Badge } from '@/components/ui/badge';
 import { DemoBadge } from '@/components/patients/DemoPatientField';
 import { Button } from '@/components/ui/button';
@@ -488,6 +489,18 @@ export default function StationVisitPage() {
             />
 
             <section aria-labelledby="visit-needs" className="border-t-2 border-rule-strong pt-4">
+              <StationGuidePanel
+                kind={visit.station.kind}
+                stationName={visit.station.name}
+                nextName={
+                  suggestedNextStation(
+                    stations.filter((station) => station.active),
+                    visit.station.id,
+                  )?.name ?? null
+                }
+                glucoseUnit={glucoseUnit}
+                userId={userId}
+              />
               {/* Not "Needs you now": elsewhere that heading lists work to act on, here it explains. */}
               <h2 id="visit-needs" className="type-section-title">
                 At this station

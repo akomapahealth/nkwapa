@@ -24,7 +24,7 @@ export function PendingStaffInviteNotice() {
       : `You have ${invites.length} clinic invitations waiting.`;
 
   return (
-    <InlineNotice tone="info" live={false}>
+    <InlineNotice tone="info" live={false} className="print:hidden">
       {summary}{' '}
       <Link
         href={STAFF_INVITE_ACCEPT_PATH}

@@ -949,3 +949,33 @@ html:has([data-landing]) {
     right: calc(30rem + 1.5rem);
   }
 }
+
+/* The station guide (#412) prints one card per A5 sheet. A named page, so no other route's
+   printing changes size. */
+@page station-guide {
+  size: A5 portrait;
+  margin: 14mm 12mm;
+}
+@media print {
+  .station-guide-card {
+    page: station-guide;
+    break-inside: avoid;
+    break-after: page;
+  }
+  .station-guide-card:last-child {
+    break-after: auto;
+  }
+  /* Paper is white whatever the theme: a dark-theme print would put light ink on it. Brand ink
+     and its muted tint. */
+  .station-guide-card,
+  .station-guide-card .text-foreground {
+    color: #19282e;
+  }
+  .station-guide-card .text-muted-foreground,
+  .station-guide-card ::marker {
+    color: #45585e;
+  }
+  .station-guide-card .border-rule {
+    border-color: #c9d6d8;
+  }
+}

@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { Printer } from 'lucide-react';
 import type { GetToken } from '@/lib/api';
 import {
   PRACTICE_COUNT_MAX,
@@ -255,6 +257,15 @@ export function PracticeSession({
           </ol>
           <p className="mt-3">
             Swap stations until everyone has done each step once, then clear the practice.
+          </p>
+          <p className="mt-3">
+            <Link
+              href="/stations/guide"
+              className="inline-flex min-h-11 items-center gap-2 font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Printer aria-hidden="true" className="h-4 w-4" />
+              Print the station guide to hand out
+            </Link>
           </p>
         </ProgressiveHelp>
       </CardContent>
