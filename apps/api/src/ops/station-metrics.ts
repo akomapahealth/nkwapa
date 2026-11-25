@@ -42,6 +42,8 @@ export interface StationMetricsInput {
     claimedAt: Date | null;
     completedAt: Date | null;
     releaseCount: number;
+    /** Who held the stop; absent from callers that do not need the #424 counts. */
+    claimedByUserId?: string | null;
   }>;
   shifts: ReadonlyArray<{ userId: string; stationId: string | null; status: string }>;
 }
@@ -83,6 +85,10 @@ export interface StationMetrics {
     service: DurationSummary;
     /** Times a patient was put back in this station's queue. */
     releases: number;
+    /** Stops someone held and then handed on with nothing recorded (#424). */
+    heldEmpty: number;
+    /** The longest anyone was with a patient here, to hand-on or to the end of the day. */
+    longestHeldMinutes: number | null;
     /** How many patients the station can see at once (#32). */
     capacity: number;
     /** The most patients it was seeing at the same moment that day. */
@@ -204,6 +210,24 @@ export function computeStationMetrics(input: StationMetricsInput): StationMetric
             .map((visit) => minutesBetween(visit.claimedAt!, visit.completedAt!)),
         ),
         releases: atStation.reduce((sum, visit) => sum + visit.releaseCount, 0),
+        heldEmpty: atStation.filter(
+          (visit) => visit.status === 'SKIPPED' && Boolean(visit.claimedByUserId),
+        ).length,
+        longestHeldMinutes: percentile(
+          atStation
+            .filter((visit) => visit.claimedAt)
+            .map((visit) =>
+              minutesBetween(
+                visit.claimedAt!,
+                // Same rule as peakInUse: only a stop still being seen runs on to now.
+                visit.completedAt ??
+                  (visit.status === 'IN_PROGRESS' ? (live ? now : day.end) : visit.claimedAt!),
+              ),
+            )
+            .filter((value) => value >= 0)
+            .sort((a, b) => a - b),
+          100,
+        ),
         capacity: station.capacity,
         peakInUse: peakConcurrency(
           atStation

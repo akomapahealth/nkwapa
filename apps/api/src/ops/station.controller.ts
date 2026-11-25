@@ -125,6 +125,15 @@ export class StationController {
     return this.stationService.getMetrics(clinicId, query.date);
   }
 
+  /** How one clinic day went (#421): counts for the manager after End clinic day. */
+  @Get('stations/day/summary')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  daySummary(@Param('clinicId') clinicId: string, @Query() query: StationDayQueryDto) {
+    this.assertEnabled();
+    return this.stationService.getDaySummary(clinicId, query.date);
+  }
+
   @Get('stations/board')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_STATION_READ)

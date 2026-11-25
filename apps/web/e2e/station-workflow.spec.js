@@ -1744,3 +1744,59 @@ test('the review list puts a flagged patient first, and Take opens the visit (#4
     await place(previous);
   }
 });
+
+test('End clinic day lands on the day summary, which copies counts and no names (#421)', async ({
+  page,
+  context,
+}) => {
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+
+  const summary = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/day/summary`, {
+    clinicId,
+  });
+  expect(summary.ok(), summary.text()).toBeTruthy();
+  const body = summary.json();
+  expect(body.metrics.checkIns.total).toBeGreaterThanOrEqual(1);
+  expect(JSON.stringify(body)).not.toContain(patient.patientId);
+  const volunteer = await apiRequestAs(
+    'volunteer',
+    'get',
+    `/clinics/${clinicId}/stations/day/summary`,
+    { clinicId },
+  );
+  expect(volunteer.status()).toBe(403);
+
+  // Ending the real day would close every other spec's patients, so only the close call is stubbed.
+  await page.route(/\/stations\/day\/close/, (route) =>
+    route.fulfill({ json: { date: body.metrics.date, closed: 3 } }),
+  );
+  await page.goto('/today');
+  await page.getByRole('button', { name: 'End clinic day' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'End clinic day' }).click();
+  await page.waitForURL(new RegExp(`/stations/day/${body.metrics.date}`));
+  await expect(page.getByRole('heading', { name: 'Clinic day summary' })).toBeVisible();
+  await expect(page.getByText('Clinic day closed. 3 patients were closed')).toBeVisible();
+  for (const name of ['Patients', 'Clinical', 'Open work', 'Staff', 'Line']) {
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  }
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Copy summary' }).click();
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain(`clinic day ${body.metrics.date}`);
+  expect(copied).toMatch(/- Checked in: \d+/);
+  expect(copied).not.toContain(patient.name);
+  expect(copied).not.toContain('E2E-STN');
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download CSV' }).click();
+  expect((await download).suggestedFilename()).toBe(`clinic-day-${body.metrics.date}.csv`);
+});
