@@ -98,6 +98,12 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
       'Open the patient’s chart and start a new visit if it is still needed, then discard this copy.',
     tone: 'warning',
   },
+  PRACTICE_CLEARED: {
+    title: 'Practice is over',
+    explanation:
+      'This change was for a demo patient, and the director cleared the practice session while this device was offline.',
+    nextStep: 'Nothing needs re-entering. Discard this copy.',
+  },
   PATIENT_NATIONAL_ID_REQUIRED: {
     title: 'This new patient needs an ID',
     explanation: 'A chart needs an ID number, or "No ID document" for a patient who has none.',
@@ -370,7 +376,8 @@ export function describeSyncFailure(
   const encounterId = outboxEncounterId(row);
   // A merged chart no longer opens as itself, so its own link is withheld in favour of the one
   // that survived.
-  const targetIsRetired = code === 'PATIENT_MERGED';
+  // A merged chart no longer opens as itself; a cleared practice chart has nothing left to do.
+  const targetIsRetired = code === 'PATIENT_MERGED' || code === 'PRACTICE_CLEARED';
 
   const description: SyncFailureDescription = {
     ...copy,
@@ -406,7 +413,11 @@ export function describeSyncFailure(
     }
   }
   // A deleted visit has no page left to open.
-  if (encounterId && category !== 'patient' && code !== 'ENCOUNTER_DELETED') {
+  if (
+    encounterId &&
+    category !== 'patient' &&
+    !['ENCOUNTER_DELETED', 'PRACTICE_CLEARED'].includes(code)
+  ) {
     description.encounterHref = encounterHref(encounterId);
     description.actions.push('open-encounter');
   }

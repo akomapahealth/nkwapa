@@ -1192,6 +1192,8 @@ model Patient {
 
   /// A training chart (2026-11-21): kept out of reports, research and outreach. Set by a director.
   isDemo Boolean @default(false)
+  /// When a practice session last cleared this demo chart (#410): open check-ins cancelled, drafts deleted.
+  demoClearedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

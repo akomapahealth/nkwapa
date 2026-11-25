@@ -97,6 +97,28 @@ describe('describeSyncFailure', () => {
     });
   });
 
+  describe('cleared practice chart (#410)', () => {
+    it('offers only discarding: there is nothing to open or retry', () => {
+      const description = describeSyncFailure(
+        failed(
+          'PRACTICE_CLEARED',
+          {},
+          {
+            entityType: 'vitals',
+            entityId: 'v-1',
+            payloadJson: '{"patientId":"demo-1","encounterId":"enc-1"}',
+          },
+        ),
+        context,
+      );
+
+      expect(description.title).toBe('Practice is over');
+      expect(description.patientHref).toBeUndefined();
+      expect(description.encounterHref).toBeUndefined();
+      expect(description.actions).toEqual(['discard']);
+    });
+  });
+
   describe('merged chart', () => {
     const merged = failed(
       'PATIENT_MERGED',

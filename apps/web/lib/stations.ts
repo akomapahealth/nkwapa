@@ -168,13 +168,14 @@ async function request<T>(
   clinicId: string,
   path: string,
   getToken: GetToken,
-  init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+  init: { method?: string; body?: unknown; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
   const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}${path}`, {
     method: init.method ?? 'GET',
     getToken,
     activeClinicId: clinicId,
     signal: init.signal,
+    timeoutMs: init.timeoutMs,
     ...(init.body !== undefined
       ? { body: JSON.stringify(init.body), headers: { 'Content-Type': 'application/json' } }
       : {}),
@@ -350,6 +351,84 @@ export const reorderStations = (clinicId: string, stationIds: string[], getToken
     method: 'PUT',
     body: { stationIds },
   });
+
+// ── Practice sessions (#410) ──────────────────────────────────────────────────────────────
+
+/** The end reason on every visit a practice clear closed (the API's PRACTICE_CLEARED_REASON). */
+export const PRACTICE_CLEARED_REASON = 'PRACTICE_CLEARED';
+
+export const PRACTICE_COUNT_MIN = 1;
+export const PRACTICE_COUNT_MAX = 20;
+/** Twenty charts and check-ins are forty writes; a timed-out add tempts a retry that doubles them. */
+const PRACTICE_TIMEOUT_MS = 60_000;
+
+/** What a practice clear would close at this clinic. */
+export interface PracticeSummary {
+  /** Demo charts not cleared yet. */
+  charts: number;
+  openCheckIns: number;
+  /** Of those, how many a volunteer is holding right now. */
+  withVolunteer: number;
+  draftVisits: number;
+}
+
+export const fetchPracticeSummary = (clinicId: string, getToken: GetToken) =>
+  request<PracticeSummary>(clinicId, '/practice', getToken);
+
+export const addPracticePatients = (
+  clinicId: string,
+  body: { count: number; checkIn: boolean },
+  getToken: GetToken,
+) =>
+  request<{ created: number; checkedIn: number; queuedAtStation: string | null }>(
+    clinicId,
+    '/practice/patients',
+    getToken,
+    { method: 'POST', body, timeoutMs: PRACTICE_TIMEOUT_MS },
+  );
+
+export const clearPractice = (clinicId: string, getToken: GetToken) =>
+  request<{ charts: number; cancelledCheckIns: number; deletedDrafts: number }>(
+    clinicId,
+    '/practice/clear',
+    getToken,
+    { method: 'POST', timeoutMs: PRACTICE_TIMEOUT_MS },
+  );
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** The practice count field's value, or null when it is not a whole number from 1 to 20. */
+export function practiceCountValue(raw: string): number | null {
+  const value = Number(raw);
+  return raw.trim() !== '' &&
+    Number.isInteger(value) &&
+    value >= PRACTICE_COUNT_MIN &&
+    value <= PRACTICE_COUNT_MAX
+    ? value
+    : null;
+}
+
+/** Nothing for a clear to do. */
+export const practiceIsClear = (summary: PracticeSummary) =>
+  summary.charts === 0 && summary.openCheckIns === 0 && summary.draftVisits === 0;
+
+/** The clear confirmation, naming everything that will change. */
+export function describePracticeClear(summary: PracticeSummary): string {
+  const parts: string[] = [];
+  if (summary.openCheckIns > 0) {
+    const n = summary.withVolunteer;
+    const held = n > 0 ? ` (${n} ${n === 1 ? 'is' : 'are'} with a volunteer right now)` : '';
+    parts.push(`takes ${plural(summary.openCheckIns, 'demo patient')} out of the line${held}`);
+  }
+  if (summary.draftVisits > 0) {
+    parts.push(`deletes ${plural(summary.draftVisits, 'unfinished visit')}`);
+  }
+  const action = parts.length > 0 ? `This ${parts.join(' and ')}. ` : '';
+  return (
+    `${action}Demo charts stay in the patient list, marked cleared. ` +
+    'Finished practice visits are kept on the chart and never count in reports.'
+  );
+}
 
 /** A station's place moved one step up or down, as the full order the API expects. */
 export function moveStation(

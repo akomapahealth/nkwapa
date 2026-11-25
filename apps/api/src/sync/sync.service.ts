@@ -1052,13 +1052,21 @@ export class SyncService {
   ): Promise<boolean> {
     const patient = await this.prisma.patient.findFirst({
       where: { id: patientId, primaryClinicId: clinicId },
-      select: { id: true, mergedIntoPatientId: true },
+      select: { id: true, mergedIntoPatientId: true, demoClearedAt: true },
     });
     if (patient?.mergedIntoPatientId) {
       throw await this.patientMergedConflict(
         patient.mergedIntoPatientId,
         `${entityLabel} belongs to a chart that was merged into another chart.`,
       );
+    }
+    // A cleared practice chart (#410) has left every list; a change saved offline would land on it
+    // unseen, and nobody needs practice work after the session.
+    if (patient?.demoClearedAt) {
+      throw new ConflictException({
+        code: 'PRACTICE_CLEARED',
+        message: `${entityLabel} belongs to a practice patient the director cleared.`,
+      });
     }
     return Boolean(patient);
   }
@@ -2071,14 +2079,20 @@ export class SyncService {
         where: {
           primaryClinicId: clinicId,
           mergedIntoPatientId: null,
+          demoClearedAt: null,
           ...updatedAtFilter,
         },
         select: SYNC_PATIENT_SELECT,
       }),
+      // Charts that left the device's list: retired by a merge, or a cleared practice chart (#410).
       this.prisma.patient.findMany({
         where: {
           primaryClinicId: clinicId,
-          mergedIntoPatientId: { not: null },
+          // A device's first pull never held a cleared practice chart, so only merges go then.
+          OR: [
+            { mergedIntoPatientId: { not: null } },
+            ...(sinceDate ? [{ demoClearedAt: { not: null } }] : []),
+          ],
           ...updatedAtFilter,
         },
         select: { id: true, mergedIntoPatientId: true, updatedAt: true },
@@ -2203,6 +2217,9 @@ export class SyncService {
         row.mergedIntoPatientId
           ? [{ id: row.id, mergedIntoPatientId: row.mergedIntoPatientId }]
           : [],
+      ),
+      clearedDemoPatientIds: mergedPatientRows.flatMap((row) =>
+        row.mergedIntoPatientId ? [] : [row.id],
       ),
       deletedEncounterIds: deletedEncounterRows.map((row) => row.entityId),
       encounters,

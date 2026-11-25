@@ -1865,3 +1865,89 @@ test('Ready to open names an unstaffed station until someone chooses it (#411)',
     });
   }
 });
+
+test('a director runs a practice session and clears it again (#410)', async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const { clinicId } = await createPatient(page);
+  for (const role of ['volunteer', 'manager']) {
+    for (const path of ['patients', 'clear']) {
+      const refused = await apiRequestAs(role, 'post', `/clinics/${clinicId}/practice/${path}`, {
+        clinicId,
+        data: { count: 1 },
+      });
+      expect(refused.status(), `${role} ${path}`).toBe(403);
+    }
+  }
+  const demoOnBoard = async () =>
+    (await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId }))
+      .json()
+      .stations.flatMap((station) => station.visits)
+      .filter((visit) => visit.patient.isDemo);
+  // A demo patient left by an earlier local run would throw off the counts below.
+  if ((await demoOnBoard()).length > 0) {
+    await apiRequestAs('director', 'post', `/clinics/${clinicId}/practice/clear`, { clinicId });
+  }
+
+  const director = await browser.newContext({ storageState: storageStateFor('director') });
+  const contexts = [director];
+  const setup = await director.newPage();
+  try {
+    await setup.goto('/stations/setup');
+    const card = setup.getByTestId('practice-session');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await card.getByLabel('Demo patients').fill('3');
+    await expect(card.getByLabel(/^Check them in at /)).toBeChecked();
+    await card.getByRole('button', { name: 'Add demo patients' }).click();
+    await expect(card.getByText(/^Added 3 demo patients\. They are waiting at /)).toBeVisible({
+      timeout: 30_000,
+    });
+    const added = await demoOnBoard();
+    expect(added).toHaveLength(3);
+
+    // A volunteer takes one and hands them on, then takes a second and is still with them.
+    await ensureShift('volunteer', clinicId);
+    const { at, claimed } = await claimNext('volunteer', clinicId, added[0].checkInId);
+    expect(at.visit.patient.lastName).toMatch(/^Demo /);
+    const handed = await complete('volunteer', clinicId, claimed.id);
+    expect(handed.ok(), handed.text()).toBeTruthy();
+    const held = await claimNext('volunteer', clinicId, added[1].checkInId);
+    const volunteer = await browser.newContext({ storageState: storageStateFor('volunteer') });
+    contexts.push(volunteer);
+    const visitPage = await volunteer.newPage();
+    await visitPage.goto(`/stations/visits/${held.claimed.id}`);
+    await expect(visitPage.getByText('with you')).toBeVisible({ timeout: 20_000 });
+
+    await card.getByRole('button', { name: 'Clear practice' }).click();
+    const dialog = setup.getByRole('dialog');
+    await expect(dialog).toContainText(
+      'takes 3 demo patients out of the line (1 is with a volunteer right now)',
+    );
+    await expect(dialog).toContainText('deletes 2 unfinished visits');
+    await dialog.getByRole('button', { name: 'Clear practice' }).click();
+    await expect(
+      card.getByText(
+        'Practice cleared: 3 demo patients taken out of the line, 2 unfinished visits deleted.',
+      ),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByTestId('practice-summary')).toHaveText('No demo patients to clear.');
+    expect(await demoOnBoard()).toEqual([]);
+
+    // The volunteer is told on the next poll, and the forms close, before any save can fail.
+    await expect(visitPage.getByText('The director cleared the practice patients')).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(visitPage.getByText('Practice is over.')).toBeVisible();
+
+    // Cleared practice charts leave the patient list.
+    const registry = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/patients?q=Demo`, {
+      clinicId,
+    });
+    expect(registry.ok(), registry.text()).toBeTruthy();
+    const ids = added.map((visit) => visit.patient.id);
+    expect(registry.json().items.filter((item) => ids.includes(item.id))).toEqual([]);
+  } finally {
+    // Leaves no practice patient in the shared line, whatever failed above.
+    await apiRequestAs('director', 'post', `/clinics/${clinicId}/practice/clear`, { clinicId });
+    for (const context of contexts) await context.close();
+  }
+});

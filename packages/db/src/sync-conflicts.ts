@@ -69,6 +69,8 @@ export const SYNC_CONFLICT_CODES = {
   CONFLICT_FINALIZED: code('locked', terminal),
   // A system admin deleted the draft visit (#384); a deletion is never undone.
   ENCOUNTER_DELETED: code('locked', terminal),
+  // A director cleared the practice chart (#410); practice work is not needed afterwards.
+  PRACTICE_CLEARED: code('locked', terminal),
   UNSUPPORTED_STATUS_TRANSITION: code('locked', terminal),
   MEDICAL_HISTORY_TERMINAL: code('locked'),
 

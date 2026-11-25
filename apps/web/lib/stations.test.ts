@@ -1,5 +1,8 @@
 import {
   describePerformerCorrection,
+  describePracticeClear,
+  practiceCountValue,
+  practiceIsClear,
   assignableStaff,
   canCorrectPerformer,
   describeRouteStop,
@@ -325,5 +328,36 @@ describe('sortReviewQueue (#419)', () => {
     const input = [visit('b', 5), visit('a', 2)];
     sortReviewQueue(input);
     expect(input.map((v) => v.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('practice sessions (#410)', () => {
+  it.each([
+    ['10', 10],
+    ['1', 1],
+    ['20', 20],
+    ['0', null],
+    ['21', null],
+    ['2.5', null],
+    ['', null],
+    [' ', null],
+  ])('reads the count %p as %p', (raw, value) => {
+    expect(practiceCountValue(raw)).toBe(value);
+  });
+
+  it('names what a clear changes, including patients with a volunteer now', () => {
+    const summary = { charts: 3, openCheckIns: 3, withVolunteer: 1, draftVisits: 1 };
+    expect(practiceIsClear(summary)).toBe(false);
+    expect(describePracticeClear(summary)).toBe(
+      'This takes 3 demo patients out of the line (1 is with a volunteer right now) and deletes ' +
+        '1 unfinished visit. Demo charts stay in the patient list, marked cleared. ' +
+        'Finished practice visits are kept on the chart and never count in reports.',
+    );
+  });
+
+  it('says only what stays when nothing is in the line', () => {
+    const summary = { charts: 2, openCheckIns: 0, withVolunteer: 0, draftVisits: 0 };
+    expect(describePracticeClear(summary)).toMatch(/^Demo charts stay/);
+    expect(practiceIsClear({ ...summary, charts: 0 })).toBe(true);
   });
 });

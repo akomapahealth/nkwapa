@@ -359,7 +359,11 @@ async function pullIntoLocalStore(clinicId: string, headers: Record<string, stri
 
   // Charts a merge retired. The server stopped sending them, so without this the device kept its
   // copy indefinitely and went on queueing changes against a chart no one can open.
-  const retiredPatientIds = (pull.mergedPatients ?? []).map((merged) => merged.id);
+  // A cleared practice chart (#410) leaves the device the same way.
+  const retiredPatientIds = [
+    ...(pull.mergedPatients ?? []).map((merged) => merged.id),
+    ...(pull.clearedDemoPatientIds ?? []),
+  ];
   if (retiredPatientIds.length > 0) {
     await db.patients.bulkDelete(retiredPatientIds);
   }

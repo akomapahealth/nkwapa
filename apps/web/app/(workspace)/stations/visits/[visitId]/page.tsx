@@ -26,6 +26,7 @@ import { buildStationHandOffMutation } from '@/lib/ops-offline';
 import { enqueueOutboxMutation } from '@/lib/outbox';
 import { queuedEyeScreening } from '@/lib/eye-screening-offline';
 import {
+  PRACTICE_CLEARED_REASON,
   cancelCheckIn,
   claimStationVisit,
   canCorrectPerformer,
@@ -323,10 +324,19 @@ export default function StationVisitPage() {
   const refreshReview = useCallback(async () => {
     if (!reviewEncounterId || !getToken || !clinicId) return;
     try {
-      const [detail, next] = await Promise.all([
+      const [visitResult, readingsResult] = await Promise.allSettled([
         fetchStationVisit(clinicId, visitId, getToken),
         fetchServerReadings(reviewEncounterId, readingsRef.current.eye),
       ]);
+      if (visitResult.status === 'rejected') return;
+      const detail = visitResult.value;
+      // Ended under us, as a practice clear does (#410): its draft and readings may be gone.
+      if (detail.status !== 'IN_PROGRESS') {
+        setVisit(detail);
+        return;
+      }
+      if (readingsResult.status === 'rejected') return;
+      const next = readingsResult.value;
       const arrived = newlyRecorded(readingsRef.current, next);
       if (arrived.length) {
         const now = new Date().toISOString();
@@ -342,6 +352,34 @@ export default function StationVisitPage() {
     }
   }, [reviewEncounterId, getToken, clinicId, visitId, fetchServerReadings]);
   usePolling(refreshReview, isOnline && reviewEncounterId !== null);
+
+  // A demo patient held here can be cleared by the director mid-visit (#410). Watching the visit
+  // closes the forms and says so on the next poll, before a save fails against a deleted draft.
+  // Review polls the visit already, and handles the end itself.
+  const watchPractice = mine && visit?.patient.isDemo === true && reviewEncounterId === null;
+  const refreshPractice = useCallback(async () => {
+    if (!getToken || !clinicId) return;
+    try {
+      const detail = await fetchStationVisit(clinicId, visitId, getToken);
+      if (detail.status !== 'IN_PROGRESS') setVisit(detail);
+    } catch {
+      // The next poll tries again.
+    }
+  }, [getToken, clinicId, visitId]);
+  usePolling(refreshPractice, isOnline && watchPractice);
+  const practiceCleared =
+    visit?.status === 'CANCELLED' && visit.endReason === PRACTICE_CLEARED_REASON;
+  useEffect(() => {
+    if (!practiceCleared || !clinicId) return;
+    // One copy per clinic: forget it only when it is this visit, never another patient's.
+    const key = opsCacheKey(clinicId, 'station-visit');
+    void (async () => {
+      const copy = (await db.ops_cache.get(key)) as
+        | { data?: { visit?: { id?: string } } }
+        | undefined;
+      if (copy?.data?.visit?.id === visitId) await db.ops_cache.delete(key);
+    })().catch(() => {});
+  }, [practiceCleared, clinicId, visitId]);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, after?: () => void) => {
@@ -455,13 +493,15 @@ export default function StationVisitPage() {
                 At this station
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                {mine
-                  ? `Record ${visit.station.name.toLowerCase()} findings, then hand the patient on.`
-                  : visit.status === 'QUEUED'
-                    ? 'Take this patient before recording findings.'
-                    : visit.status === 'IN_PROGRESS'
-                      ? 'This patient is with another member of staff.'
-                      : 'This station stop is complete. Earlier findings remain available below.'}
+                {practiceCleared
+                  ? 'Practice is over.'
+                  : mine
+                    ? `Record ${visit.station.name.toLowerCase()} findings, then hand the patient on.`
+                    : visit.status === 'QUEUED'
+                      ? 'Take this patient before recording findings.'
+                      : visit.status === 'IN_PROGRESS'
+                        ? 'This patient is with another member of staff.'
+                        : 'This station stop is complete. Earlier findings remain available below.'}
               </p>
             </section>
 
@@ -485,7 +525,17 @@ export default function StationVisitPage() {
                   : 'Red flags from earlier stations'
               }
             />
-            {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
+            {practiceCleared ? (
+              <InlineNotice tone="info">
+                The director cleared the practice patients, so there is nothing more to record for
+                this one.{' '}
+                <Link href="/stations" className="font-medium underline underline-offset-4">
+                  Back to stations
+                </Link>
+              </InlineNotice>
+            ) : actionError ? (
+              <InlineNotice tone="error">{actionError}</InlineNotice>
+            ) : null}
             {!isOnline || savedCopy ? (
               <InlineNotice tone="warning" live={false}>
                 {savedCopy

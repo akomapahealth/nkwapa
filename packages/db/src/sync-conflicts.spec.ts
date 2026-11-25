@@ -36,6 +36,7 @@ describe('sync conflict catalog', () => {
     'DUPLICATE_NATIONAL_ID',
     'CONFLICT_FINALIZED',
     'ENCOUNTER_DELETED',
+    'PRACTICE_CLEARED',
   ] as const)('treats %s as deterministic', (key) => {
     expect(DETERMINISTIC_SYNC_CONFLICT_CODES.has(key)).toBe(true);
   });
