@@ -16,6 +16,7 @@ import {
 import { VolunteerWelcome } from './VolunteerWelcome';
 import { FigureStrip, type Figure } from './FigureStrip';
 import { AlsoOnYourPlate, NeedsYouNow, workRows } from './NeedsYouNow';
+import { ReviewWaitingPanel } from '@/components/stations/ReviewWaitingPanel';
 import { DoctorDashboard } from './DoctorDashboard';
 import { ReviewDashboard } from './ReviewDashboard';
 import { DirectorDashboard } from './DirectorDashboard';
@@ -450,6 +451,9 @@ export function RoleHome({
         />
       ) : null}
       {/* Waiting work comes before trends (PRODUCT principle 1), so it is one line each here. */}
+      {role === 'DOCTOR' && isWebFeatureEnabled('stationWorkflow') ? (
+        <ReviewWaitingPanel clinicId={clinicId} />
+      ) : null}
       <AlsoOnYourPlate rows={alsoRows} />
       {work}
       {measurements ? <ClinicalMeasurementsDashboard metrics={measurements} /> : null}

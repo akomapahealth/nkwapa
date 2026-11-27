@@ -21,6 +21,7 @@ import {
   TobaccoUseStatus,
 } from '@prisma/client';
 import {
+  averageBpReadings,
   computeBmi,
   isSeverelyElevated,
   toCelsius,
@@ -45,6 +46,9 @@ import { auditOverwrite, findOverwrittenSave, overwroteNewerSave } from './overw
 type NormalizedVitals = {
   systolicBp: number | null;
   diastolicBp: number | null;
+  bpSystolicReadings: number[];
+  bpDiastolicReadings: number[];
+  pulseReadings: number[];
   bpSite: BloodPressureSite | null;
   bpSiteOther: string | null;
   patientPosition: PatientPosition | null;
@@ -386,6 +390,35 @@ export class ClinicalMeasurementsService {
       );
     }
 
+    const bpSystolicReadings = input.bpSystolicReadings ?? [];
+    const bpDiastolicReadings = input.bpDiastolicReadings ?? [];
+    if (bpSystolicReadings.length !== bpDiastolicReadings.length) {
+      this.throwFieldError('vitals.bpSystolicReadings', 'Each reading needs both numbers');
+    }
+    if (bpSystolicReadings.length === 1) {
+      this.throwFieldError('vitals.bpSystolicReadings', 'A single reading is sent as systolicBp');
+    }
+    if (bpSystolicReadings.length) {
+      const readings = bpSystolicReadings.map((systolic, index) => ({
+        systolic,
+        diastolic: bpDiastolicReadings[index],
+      }));
+      if (readings.some((reading) => reading.systolic <= reading.diastolic)) {
+        this.throwFieldError(
+          'vitals.bpSystolicReadings',
+          'Systolic blood pressure must be greater than diastolic in every reading',
+        );
+      }
+      // The recorded value is recomputed here, so a client cannot store an average it made up.
+      const average = averageBpReadings(readings)!;
+      if (average.systolic !== systolicBp || average.diastolic !== diastolicBp) {
+        this.throwFieldError(
+          'vitals.systolicBp',
+          `Blood pressure must be the average of the readings (${average.systolic}/${average.diastolic})`,
+        );
+      }
+    }
+
     const bpSite = input.bpSite ?? null;
     const patientPosition = input.patientPosition ?? null;
     const cuffSize = input.cuffSize ?? null;
@@ -405,6 +438,25 @@ export class ClinicalMeasurementsService {
     const pulseBpm = input.pulseBpm ?? input.heartRate ?? null;
     if (input.pulseBpm != null && input.heartRate != null && input.pulseBpm !== input.heartRate) {
       this.throwFieldError('vitals.pulseBpm', 'pulseBpm and legacy heartRate cannot conflict');
+    }
+    const pulseReadings = input.pulseReadings ?? [];
+    if (pulseReadings.length && pulseReadings.length !== bpSystolicReadings.length) {
+      this.throwFieldError('vitals.pulseReadings', 'Give a pulse for every reading, or none');
+    }
+    if (pulseReadings.length) {
+      const average = averageBpReadings(
+        bpSystolicReadings.map((systolic, index) => ({
+          systolic,
+          diastolic: bpDiastolicReadings[index],
+          pulse: pulseReadings[index],
+        })),
+      )!;
+      if (average.pulse !== pulseBpm) {
+        this.throwFieldError(
+          'vitals.pulseBpm',
+          `Pulse must be the average of the readings (${average.pulse})`,
+        );
+      }
     }
 
     const hasTemperature = input.temperatureValue != null;
@@ -427,6 +479,9 @@ export class ClinicalMeasurementsService {
     return {
       systolicBp,
       diastolicBp,
+      bpSystolicReadings,
+      bpDiastolicReadings,
+      pulseReadings,
       bpSite,
       bpSiteOther: this.normalizeOther('vitals.bpSiteOther', bpSite, input.bpSiteOther),
       patientPosition,

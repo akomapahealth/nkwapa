@@ -73,6 +73,14 @@ assert(
 );
 assert(realm.resetPasswordAllowed === true, 'resetPasswordAllowed must be true');
 assert(realm.verifyEmail === true, 'verifyEmail must be true');
+// A phone PWA drops session cookies when it is closed, so without this every reopen asks for a
+// password. Ticking it keeps a sign-in for a week idle, a month at most; unticked keeps 30 min / 10 h.
+assert(realm.rememberMe === true, 'rememberMe must be true');
+assert(realm.ssoSessionIdleTimeoutRememberMe === 604800, 'remember-me idle timeout must be 7 days');
+assert(
+  realm.ssoSessionMaxLifespanRememberMe === 2592000,
+  'remember-me max lifespan must be 30 days',
+);
 assert(realm.emailTheme === 'nkwapa', 'emailTheme must be nkwapa');
 // Open self-registration would let anyone create an account against a clinic. Patients are
 // provisioned from an invite instead, so this flag staying false is load-bearing.
@@ -304,6 +312,7 @@ for (const relativePath of [
   'resources/css/styles.css',
   'resources/js/password-toggle.js',
   'resources/img/auth-clinic.jpg',
+  'resources/img/auth-clinic-band.jpg',
   'resources/img/nkwapa-logo.png',
 ]) {
   await assertThemeFile(relativePath);
@@ -323,6 +332,11 @@ await assertThemeFileIncludes(
   'template.ftl',
   'img/auth-clinic.jpg',
   'template.ftl must use the optimized auth clinic photo',
+);
+await assertThemeFileIncludes(
+  'template.ftl',
+  'img/auth-clinic-band.jpg',
+  'template.ftl must give phones the short auth clinic band',
 );
 await assertThemeFileIncludes(
   'login-update-password.ftl',

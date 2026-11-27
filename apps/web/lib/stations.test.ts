@@ -1,9 +1,13 @@
 import {
   describePerformerCorrection,
+  describePracticeClear,
+  practiceCountValue,
+  practiceIsClear,
   assignableStaff,
   canCorrectPerformer,
   describeRouteStop,
   formatMinutes,
+  heldTooLongMinutes,
   isStationBoard,
   moveStation,
   minutesSince,
@@ -14,7 +18,9 @@ import {
   stationsPassedOver,
   suggestedNextStation,
   withScreener,
+  sortReviewQueue,
   type ClinicStation,
+  type StationVisit,
   type OnShiftStaff,
 } from './stations';
 
@@ -253,5 +259,105 @@ describe('ageInYears', () => {
   it('is null without a usable date', () => {
     expect(ageInYears(null, now)).toBeNull();
     expect(ageInYears('unknown', now)).toBeNull();
+  });
+});
+
+describe('heldTooLongMinutes (#424)', () => {
+  const now = new Date('2026-11-24T10:30:00Z');
+  const held = (kind: ClinicStation['kind'], minutesAgo: number) => ({
+    status: 'IN_PROGRESS' as const,
+    claimedAt: new Date(now.getTime() - minutesAgo * 60_000).toISOString(),
+    station: { id: kind, kind, name: kind, sortOrder: 1 },
+  });
+
+  it('flags a measurement station past 15 minutes and review past 30', () => {
+    expect(heldTooLongMinutes(held('BLOOD_PRESSURE', 16), now)).toBe(16);
+    expect(heldTooLongMinutes(held('BLOOD_PRESSURE', 15), now)).toBeNull();
+    expect(heldTooLongMinutes(held('REVIEW', 25), now)).toBeNull();
+    expect(heldTooLongMinutes(held('REVIEW', 31), now)).toBe(31);
+  });
+
+  it('counts from when the patient was taken, and never flags a waiting patient', () => {
+    expect(heldTooLongMinutes({ ...held('GLUCOSE', 40), status: 'QUEUED' }, now)).toBeNull();
+    expect(heldTooLongMinutes({ ...held('GLUCOSE', 40), claimedAt: null }, now)).toBeNull();
+  });
+});
+
+describe('sortReviewQueue (#419)', () => {
+  const at = (minute: number) => `2026-11-24T09:${String(minute).padStart(2, '0')}:00.000Z`;
+  const flag = (kind: 'REFER_TODAY' | 'REPEAT_AT_REVIEW') =>
+    ({ kind, source: 'BP', systolic: 180, diastolic: 110, stationName: 'BP', at: at(0) }) as never;
+  const visit = (id: string, minute: number, extra: Partial<StationVisit> = {}) =>
+    ({ id, queuedAt: at(minute), lineFlags: [], doctorRequest: null, ...extra }) as StationVisit;
+  const request = (urgency: 'NOW' | 'BEFORE_LEAVING', open = true) =>
+    ({ id: 'r', urgency, open }) as StationVisit['doctorRequest'];
+  const ids = (visits: StationVisit[]) => sortReviewQueue(visits).map((v) => v.id);
+
+  it('puts a doctor asked for now, then refer today, then repeat at review, then the rest', () => {
+    expect(
+      ids([
+        visit('plain', 1),
+        visit('repeat', 2, { lineFlags: [flag('REPEAT_AT_REVIEW')] }),
+        visit('refer', 3, { lineFlags: [flag('REFER_TODAY')] }),
+        visit('now', 4, { doctorRequest: request('NOW') }),
+      ]),
+    ).toEqual(['now', 'refer', 'repeat', 'plain']);
+  });
+
+  it('is oldest first within a rank, and without flags or requests', () => {
+    expect(ids([visit('b', 5), visit('a', 2), visit('c', 9)])).toEqual(['a', 'b', 'c']);
+    expect(
+      ids([
+        visit('late', 8, { lineFlags: [flag('REFER_TODAY')] }),
+        visit('early', 3, { lineFlags: [flag('REFER_TODAY')] }),
+      ]),
+    ).toEqual(['early', 'late']);
+  });
+
+  it('does not lift a before-they-leave or closed request', () => {
+    expect(
+      ids([
+        visit('leaving', 5, { doctorRequest: request('BEFORE_LEAVING') }),
+        visit('closed', 6, { doctorRequest: request('NOW', false) }),
+        visit('refer', 7, { lineFlags: [flag('REFER_TODAY')] }),
+      ]),
+    ).toEqual(['refer', 'leaving', 'closed']);
+  });
+
+  it('leaves its input untouched', () => {
+    const input = [visit('b', 5), visit('a', 2)];
+    sortReviewQueue(input);
+    expect(input.map((v) => v.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('practice sessions (#410)', () => {
+  it.each([
+    ['10', 10],
+    ['1', 1],
+    ['20', 20],
+    ['0', null],
+    ['21', null],
+    ['2.5', null],
+    ['', null],
+    [' ', null],
+  ])('reads the count %p as %p', (raw, value) => {
+    expect(practiceCountValue(raw)).toBe(value);
+  });
+
+  it('names what a clear changes, including patients with a volunteer now', () => {
+    const summary = { charts: 3, openCheckIns: 3, withVolunteer: 1, draftVisits: 1 };
+    expect(practiceIsClear(summary)).toBe(false);
+    expect(describePracticeClear(summary)).toBe(
+      'This takes 3 demo patients out of the line (1 is with a volunteer right now) and deletes ' +
+        '1 unfinished visit. Demo charts stay in the patient list, marked cleared. ' +
+        'Finished practice visits are kept on the chart and never count in reports.',
+    );
+  });
+
+  it('says only what stays when nothing is in the line', () => {
+    const summary = { charts: 2, openCheckIns: 0, withVolunteer: 0, draftVisits: 0 };
+    expect(describePracticeClear(summary)).toMatch(/^Demo charts stay/);
+    expect(practiceIsClear({ ...summary, charts: 0 })).toBe(true);
   });
 });

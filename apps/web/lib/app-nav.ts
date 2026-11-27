@@ -20,6 +20,7 @@ import {
   UserCog,
   Users,
   Bell,
+  MessageSquareWarning,
 } from 'lucide-react';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import type { WhoAmIResponse } from '@/lib/bootstrap-context';
@@ -273,6 +274,15 @@ const NAV_SECTIONS: AppNavSection[] = [
         icon: ShieldCheck,
         permission: 'PATIENT.DATA_REQUEST.MANAGE',
         requiresClinic: true,
+      },
+      {
+        href: '/admin/feedback',
+        label: 'Problem reports',
+        description: 'What staff reported from inside the app.',
+        icon: MessageSquareWarning,
+        permission: 'FEEDBACK.READ',
+        requiresClinic: true,
+        directorOrSystemAdminOnly: true,
       },
       {
         href: '/admin/duplicates/cross-clinic',

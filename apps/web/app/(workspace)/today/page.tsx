@@ -29,7 +29,7 @@ import {
   overlayPendingShifts,
   type WithPendingSync,
 } from '@/lib/ops-offline';
-import type { CheckInSummary } from '@/lib/ops';
+import { dayNumberLabel, type CheckInSummary } from '@/lib/ops';
 import { useOpsView } from '@/lib/use-ops-view';
 import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
@@ -351,6 +351,12 @@ function TodayBoardPage() {
         >
           <div className="min-w-0">
             <p id={`checkin-${checkIn.id}`} className="type-label truncate text-foreground">
+              {/* Imported past days have no number; a pending check-in gets one on sync. */}
+              {checkIn.dayNumber || checkIn.pendingSync ? (
+                <span className="mr-2 font-mono tabular-nums" translate="no">
+                  {dayNumberLabel(checkIn.dayNumber)}
+                </span>
+              ) : null}
               {checkIn.patient.displayName}
             </p>
             <p className="type-label mt-0.5 font-normal text-muted-foreground">

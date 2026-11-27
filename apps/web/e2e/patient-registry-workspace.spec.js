@@ -7,6 +7,12 @@ const { storageStateFor } = require('../playwright/roles');
 const { apiRequestAs } = require('../playwright/api-client');
 const { readOutboxRows } = require('../playwright/outbox');
 
+// With the station line on, a card's one button also takes the patient at the first station (#414).
+const CARD_CHECK_IN =
+  process.env.NEXT_PUBLIC_FEATURE_STATION_WORKFLOW_ENABLED === 'true'
+    ? 'Check in and start'
+    : 'Check in';
+
 test.use({ storageState: storageStateFor('staff') });
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
 const patient = {
@@ -64,7 +70,9 @@ for (const theme of ['light', 'dark']) {
         );
       const active = page.locator(tableFits ? '.data-table-grid' : '.data-table-cards');
       await expect(active).toBeVisible();
-      await expect(active.getByRole('button', { name: 'Check in', exact: true })).toBeEnabled();
+      await expect(
+        active.getByRole('button', { name: tableFits ? 'Check in' : CARD_CHECK_IN, exact: true }),
+      ).toBeEnabled();
       await page.getByRole('button', { name: 'Next page', exact: true }).scrollIntoViewIfNeeded();
       await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeInViewport({
         ratio: 1,
@@ -81,8 +89,8 @@ for (const theme of ['light', 'dark']) {
       document.documentElement.style.fontSize = '200%';
     });
     await noOverflow(page);
-    await page.getByRole('button', { name: 'Check in', exact: true }).scrollIntoViewIfNeeded();
-    await expect(page.getByRole('button', { name: 'Check in', exact: true })).toBeInViewport({
+    await page.getByRole('button', { name: CARD_CHECK_IN, exact: true }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole('button', { name: CARD_CHECK_IN, exact: true })).toBeInViewport({
       ratio: 1,
     });
     await shot(page, `registry-enlarged-${theme}`);
@@ -234,7 +242,7 @@ test('read-only registry hides create and check-in actions, including swipe', as
   await open(page);
   await expect(page.getByRole('article', { name: 'Synthetic Registry' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'New patient', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Check in', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Check in/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Synthetic Registry', exact: true })).toBeVisible();
 });
 
@@ -285,21 +293,19 @@ for (const reducedMotion of ['reduce', 'no-preference']) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion });
     await open(page);
-    await expect(page.getByRole('button', { name: 'Check in', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: CARD_CHECK_IN, exact: true })).toBeEnabled();
     await swipe(page, { cancel: true });
     await swipe(page, { vertical: true });
     await swipe(page, { distance: 30 });
     expect(writes).toBe(0);
     await swipe(page);
     await swipe(page);
-    await expect(
-      page.getByText(/already checked in today, so they were not added again/),
-    ).toBeVisible();
+    await expect(page.getByText(/was not added again\. Already checked in/)).toBeVisible();
     expect(writes).toBe(1);
     await expect(page.getByRole('article', { name: 'Synthetic Registry' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Check in', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: CARD_CHECK_IN, exact: true })).toBeEnabled();
     await swipe(page, { cancel: true });
-    const button = page.getByRole('button', { name: 'Check in', exact: true });
+    const button = page.getByRole('button', { name: CARD_CHECK_IN, exact: true });
     await button.focus();
     await page.keyboard.press('Enter');
     await expect.poll(() => writes).toBe(2);
@@ -336,15 +342,16 @@ test('real registry check-in queues offline and replays once without removing th
   const card = page.getByRole('article', { name: `Synthetic Registry-${suffix}` });
   await expect(card).toBeVisible();
   await context.setOffline(true);
-  await card.getByRole('button', { name: 'Check in', exact: true }).click();
+  await card.getByRole('button', { name: CARD_CHECK_IN, exact: true }).click();
   await expect(page.getByText(/checked in on this device and will reach/)).toBeVisible();
   await expect(card).toBeVisible();
   await expect.poll(async () => (await readOutboxRows(page)).length).toBe(1);
   await context.setOffline(false);
   await expect.poll(async () => (await readOutboxRows(page)).length, { timeout: 45000 }).toBe(0);
-  await card.getByRole('button', { name: 'Check in', exact: true }).click();
+  await card.getByRole('button', { name: CARD_CHECK_IN, exact: true }).click();
+  // With the station line on it names the station they wait at; off, today's board (#414).
   await expect(
-    page.getByText(/already checked in today, so they were not added again/),
+    page.getByText(/was not added again\. Already (on the line|checked in today)/),
   ).toBeVisible();
   // The station board is the only place an arrival can be counted, and it needs the station
   // workflow, which the smoke build leaves off. The refusal message above covers that build.
@@ -384,7 +391,7 @@ for (const theme of ['light', 'dark']) {
     expect(
       await card.getByRole('heading').evaluate((el) => getComputedStyle(el).fontFamily),
     ).toMatch(/ibmPlexSans/i);
-    const action = card.getByRole('button', { name: 'Check in', exact: true });
+    const action = card.getByRole('button', { name: CARD_CHECK_IN, exact: true });
     await action.scrollIntoViewIfNeeded();
     await expect(action).toBeInViewport({ ratio: 1 });
     const box = await action.boundingBox();

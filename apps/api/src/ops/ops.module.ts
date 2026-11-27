@@ -5,11 +5,13 @@ import { OpsController } from './ops.controller';
 import { OpsService } from './ops.service';
 import { StationController } from './station.controller';
 import { StationService } from './station.service';
+import { DoctorRequestService } from './doctor-request.service';
+import { ClinicDayCloseSweep } from './clinic-day-close.sweep';
 
 @Module({
   imports: [forwardRef(() => AuthModule), AuditModule],
   controllers: [OpsController, StationController],
-  providers: [OpsService, StationService],
-  exports: [OpsService, StationService],
+  providers: [OpsService, StationService, DoctorRequestService, ClinicDayCloseSweep],
+  exports: [OpsService, StationService, DoctorRequestService],
 })
 export class OpsModule {}

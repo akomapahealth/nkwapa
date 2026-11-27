@@ -45,6 +45,8 @@ export interface PatientRecord {
   createdByUserId?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** A training chart (2026-11-21); every staff member sees a Demo tag. */
+  isDemo?: boolean;
 }
 
 export interface EncounterRecord {
@@ -65,6 +67,11 @@ export interface VitalsRecord {
   encounterId: string;
   systolicBp?: number;
   diastolicBp?: number;
+  /** The 2-3 readings of one sitting; systolicBp/diastolicBp hold their average. */
+  bpSystolicReadings?: number[];
+  bpDiastolicReadings?: number[];
+  /** One pulse per BP reading, or none; pulseBpm holds their average. */
+  pulseReadings?: number[];
   /** @deprecated Migrated to pulseBpm in Dexie v4. */
   heartRate?: number;
   pulseBpm?: number;
@@ -567,7 +574,9 @@ export type OpsCacheKind =
   | 'station-workspace'
   | 'dashboard-shifts'
   // Open follow-up contacts due within the week, with what the record sheet needs (#338).
-  | 'follow-up-due';
+  | 'follow-up-due'
+  // The visit this device holds, so it reopens without a connection (#423).
+  | 'station-visit';
 
 /**
  * The last copy of a clinic-operations view this device loaded, so it still renders offline.

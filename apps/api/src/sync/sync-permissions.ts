@@ -117,9 +117,24 @@ export const SYNC_ENTITY_PERMISSIONS: Record<EntityType, SyncEntityPermission> =
     update: PERMISSIONS.OPS_CHECKIN_CREATE,
     delete: null,
   },
+  eye_screening: {
+    create: PERMISSIONS.SCREENING_WRITE,
+    update: PERMISSIONS.SCREENING_WRITE,
+    delete: null,
+  },
+  station_visit_complete: {
+    create: PERMISSIONS.OPS_STATION_WORK,
+    update: PERMISSIONS.OPS_STATION_WORK,
+    delete: null,
+  },
   follow_up_attempt: {
     create: PERMISSIONS.FOLLOW_UP_MANAGE,
     update: PERMISSIONS.FOLLOW_UP_MANAGE,
+    delete: null,
+  },
+  staff_feedback: {
+    create: PERMISSIONS.FEEDBACK_SUBMIT,
+    update: PERMISSIONS.FEEDBACK_SUBMIT,
     delete: null,
   },
 };

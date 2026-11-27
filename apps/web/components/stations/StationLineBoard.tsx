@@ -3,10 +3,13 @@
 import { StaleDataNotice } from '@/components/feedback/StaleDataNotice';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { RefreshCw, AlertTriangle, UserX, ClipboardCheck } from 'lucide-react';
+import { RefreshCw, AlertTriangle, UserX, ClipboardCheck, Hourglass } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
+import { getActiveBootstrapClinic } from '@/lib/bootstrap-clinics';
+import { ReadyToOpenCard } from '@/components/stations/ReadyToOpenCard';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { displayTimeZone, formatOpsDateTime, getTodayInTimeZone } from '@/lib/ops';
 import { useOpsView } from '@/lib/use-ops-view';
@@ -14,7 +17,11 @@ import {
   assignableStaff,
   assignStationVisit,
   cancelCheckIn,
+  closeClinicDay,
   fetchStationBoard,
+  HELD_TOO_LONG_MINUTES,
+  heldLabel,
+  heldTooLongMinutes,
   isStationBoard,
   minutesSince,
   moveCheckIn,
@@ -33,6 +40,10 @@ import { InlineNotice, OfflineOpsBanner } from '@/components/ops/OpsShared';
 import { Button } from '@/components/ui/button';
 import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
 import { AppActionRow } from '@/components/app-shell/AppActionRow';
+import { LineFlagChip, LINE_FLAG_LABELS } from '@/components/stations/LineFlags';
+import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
+import { doctorRequestLabel } from '@/lib/doctor-requests';
+import { worstLineFlag } from '@nkwapa/db/station-line-flags';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,6 +65,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { EndShiftForButton } from '@/components/ops/EndShiftForButton';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,7 +91,9 @@ const at = (minutes: number) => `${share(minutes)}%`;
 const isLongWait = (visit: StationVisit) =>
   visit.status === 'QUEUED' && minutesSince(visit.queuedAt) > LONG_WAIT_MINUTES;
 
-function visitStatus(visit: StationVisit) {
+function visitStatus(visit: StationVisit, holder?: string | null) {
+  const held = heldTooLongMinutes(visit);
+  if (held !== null) return heldLabel(holder ?? 'staff', held);
   if (visit.status === 'IN_PROGRESS') return 'With staff';
   return isLongWait(visit) ? 'Waiting over 20 min' : 'Waiting';
 }
@@ -108,11 +122,16 @@ function PatientBar({
   onAction: (kind: Override['kind']) => void;
 }) {
   const minutes = minutesSince(visit.queuedAt);
+  const flag = worstLineFlag(visit.lineFlags);
   const withStaff = visit.status === 'IN_PROGRESS';
-  const long = isLongWait(visit);
+  const held = heldTooLongMinutes(visit);
+  const long = isLongWait(visit) || held !== null;
   // Under 20 minutes the bar is at most half the lane, too short to hold the label on a phone.
-  const labelInside = Math.min(minutes, SCALE_END) >= LONG_WAIT_MINUTES;
-  const label = `${shortName(visit.patient)} ${minutes} min`;
+  // A held patient's label carries who has them, so it sits beside the bar, where it can wrap.
+  const labelInside = held === null && Math.min(minutes, SCALE_END) >= LONG_WAIT_MINUTES;
+  // The day number leads, as staff call it out (#413).
+  const number = visit.dayNumber ? `${visit.dayNumber} ` : '';
+  const label = `${number}${shortName(visit.patient)} ${minutes} min`;
   return (
     <li data-testid="patient-station-row" className="relative">
       <DropdownMenu>
@@ -127,10 +146,10 @@ function PatientBar({
               className={cn(
                 'flex h-6 shrink-0 items-center whitespace-nowrap rounded-sm',
                 labelInside && 'px-2',
-                withStaff
-                  ? 'bg-primary text-primary-foreground'
-                  : long
-                    ? 'border border-warning bg-warning-surface text-warning-ink'
+                long
+                  ? 'border border-warning bg-warning-surface text-warning-ink'
+                  : withStaff
+                    ? 'bg-primary text-primary-foreground'
                     : 'border border-input bg-muted text-foreground',
               )}
               // cqw: a share of the lane's track, whichever row of the wrapped lane the bar sits on.
@@ -138,19 +157,44 @@ function PatientBar({
             >
               {labelInside ? <span aria-hidden="true">{label}</span> : null}
             </span>
-            {labelInside ? null : (
+            {held !== null ? (
+              <span
+                aria-hidden="true"
+                data-testid="patient-held-label"
+                className="inline-flex items-center gap-1 pr-1 font-medium text-warning-ink"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {number}
+                  {shortName(visit.patient)} · {heldLabel(claimedByName ?? 'staff', held)}
+                </span>
+              </span>
+            ) : labelInside ? null : (
               <span aria-hidden="true" className="whitespace-nowrap pr-1 text-foreground">
                 {label}
               </span>
             )}
+            {/* aria-hidden: the bar's name below says it once, in words. */}
+            <LineFlagChip flags={visit.lineFlags} aria-hidden="true" />
+            <DoctorRequestChip request={visit.doctorRequest} aria-hidden="true" />
             <span className="sr-only">
-              {patientName(visit.patient)}, {visitStatus(visit)}, {minutes} min
+              {visit.dayNumber ? `No. ${visit.dayNumber}, ` : ''}
+              {patientName(visit.patient)}, {visitStatus(visit, claimedByName)}, {minutes} min
+              {flag ? `, ${LINE_FLAG_LABELS[flag]}` : ''}
+              {visit.doctorRequest?.open ? `, ${doctorRequestLabel(visit.doctorRequest)}` : ''}
             </span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuLabel className="font-normal">
-            <span className="block text-sm font-medium">{patientName(visit.patient)}</span>
+            <span className="block text-sm font-medium">
+              {visit.dayNumber ? (
+                <span className="mr-1.5 font-mono tabular-nums" translate="no">
+                  No. {visit.dayNumber}
+                </span>
+              ) : null}
+              {patientName(visit.patient)}
+            </span>
             <span className="block text-xs text-muted-foreground">{visit.patient.patientCode}</span>
             <span
               className={cn(
@@ -158,9 +202,10 @@ function PatientBar({
                 long ? 'text-warning-ink' : 'text-muted-foreground',
               )}
             >
-              {visitStatus(visit)} · {minutes} min
+              {held !== null ? heldLabel(claimedByName ?? 'staff', held) : visitStatus(visit)}
+              {held !== null ? '' : ` · ${minutes} min`}
             </span>
-            {withStaff && claimedByName ? (
+            {withStaff && claimedByName && held === null ? (
               <span className="block text-xs text-muted-foreground">With {claimedByName}</span>
             ) : null}
             {withStaff && visit.assignedBy ? (
@@ -263,6 +308,17 @@ export function StationLineBoard() {
     (longWaits.length > longestWaitExamples.length
       ? `; and ${longWaits.length - longestWaitExamples.length} more.`
       : '');
+  const holderName = (visit: StationVisit) =>
+    visit.claimedBy
+      ? withScreener(visit.claimedBy.displayName, screeners.get(visit.claimedBy.id))
+      : null;
+  // Longest hold first: the one most likely forgotten.
+  const heldTooLong = visits
+    .flatMap((visit) => {
+      const minutes = heldTooLongMinutes(visit);
+      return minutes === null ? [] : [{ visit, minutes }];
+    })
+    .sort((a, b) => b.minutes - a.minutes);
   const unstaffed = stations.filter((station) => station.active && station.staff.length === 0);
   const unstaffedWaiting = unstaffed
     .flatMap((station) => station.visits)
@@ -312,6 +368,31 @@ export function StationLineBoard() {
     }
   }, [override, clinicId, getToken, reason, targetStationId, assigneeUserId, refresh]);
 
+  const router = useRouter();
+  const endDay = useCallback(async () => {
+    if (!clinicId || !getToken) return;
+    const count = new Set(visits.map((visit) => visit.checkInId)).size;
+    const confirmed = await confirmAction({
+      title: 'End the clinic day?',
+      description: `${count} ${count === 1 ? 'patient is' : 'patients are'} still in the line. They will be closed out as "clinic closed", not as left. Their records stay open for review.`,
+      confirmLabel: 'End clinic day',
+      cancelLabel: 'Keep the line open',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await closeClinicDay(clinicId, date, getToken);
+      // The manager lands on how the day went (#421); the count rides along for the notice.
+      router.push(`/stations/day/${result.date}?closed=${result.closed}`);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+      setBusy(false);
+      refresh();
+    }
+  }, [clinicId, getToken, visits, date, refresh, router]);
+
   return (
     <div className="space-y-6">
       <AppPageHeader
@@ -322,6 +403,21 @@ export function StationLineBoard() {
             {canManage ? (
               <Button asChild variant="outline">
                 <Link href="/stations/setup">Set up stations</Link>
+              </Button>
+            ) : null}
+            {canManage ? (
+              <Button asChild variant="outline">
+                <Link href={`/stations/day/${date}`}>Day summary</Link>
+              </Button>
+            ) : null}
+            {canManage && visits.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void endDay()}
+                disabled={!isOnline || busy}
+              >
+                End clinic day
               </Button>
             ) : null}
             <Input
@@ -374,6 +470,12 @@ export function StationLineBoard() {
         <SectionSkeleton lines={6} />
       ) : !view.data ? null : (
         <>
+          {canManage && isToday && clinicId ? (
+            <ReadyToOpenCard
+              clinicId={clinicId}
+              clinicName={getActiveBootstrapClinic(bootstrap)?.clinicName ?? 'Clinic'}
+            />
+          ) : null}
           <section aria-labelledby="station-needs" className="border-t-2 border-rule-strong pt-4">
             <h2 id="station-needs" className="type-section-title">
               Needs you now
@@ -400,6 +502,30 @@ export function StationLineBoard() {
                         <a href="#patient-station-line">Review waits</a>
                       </Button>
                     )
+                  }
+                />
+              ) : null}
+              {heldTooLong.length ? (
+                <AppActionRow
+                  icon={Hourglass}
+                  tone="warning"
+                  title={`${heldTooLong.length} patient${heldTooLong.length === 1 ? '' : 's'} held at a station too long`}
+                  detail={
+                    heldTooLong
+                      .slice(0, 3)
+                      .map(
+                        ({ visit, minutes }) =>
+                          `${patientName(visit.patient)}, with ${holderName(visit) ?? 'staff'} for ${minutes} min at ${visit.station.name}`,
+                      )
+                      .join('; ') +
+                    (heldTooLong.length > 3 ? `; and ${heldTooLong.length - 3} more.` : '')
+                  }
+                  action={
+                    <Button asChild variant="outline">
+                      <Link href={`/stations/visits/${heldTooLong[0].visit.id}`}>
+                        Open the longest
+                      </Link>
+                    </Button>
                   }
                 />
               ) : null}
@@ -441,7 +567,10 @@ export function StationLineBoard() {
                 />
               ) : null}
             </ul>
-            {!longWaits.length && !unstaffed.length && !reviewWaiting.length ? (
+            {!longWaits.length &&
+            !heldTooLong.length &&
+            !unstaffed.length &&
+            !reviewWaiting.length ? (
               <p className="py-3 text-sm text-muted-foreground">
                 No long waits or unstaffed stations in this line.
               </p>
@@ -503,7 +632,7 @@ export function StationLineBoard() {
                             {station.name}
                           </th>
                           <td className="p-3">{patientName(visit.patient)}</td>
-                          <td className="p-3">{visitStatus(visit)}</td>
+                          <td className="p-3">{visitStatus(visit, holderName(visit))}</td>
                           <td className="p-3 tabular-nums">{minutesSince(visit.queuedAt)}</td>
                           <td className="p-3 tabular-nums">
                             {station.staff.length} of {station.capacity ?? 1}
@@ -539,6 +668,9 @@ export function StationLineBoard() {
               ) : null}
               {stations.map((station) => {
                 const stationLongWaits = station.visits.filter(isLongWait).length;
+                const stationHeld = station.visits.filter(
+                  (visit) => heldTooLongMinutes(visit) !== null,
+                ).length;
                 // Unstaffed is urgent only with patients waiting; Needs you now already lists the rest.
                 const open =
                   station.active && station.staff.length === 0 && station.visits.length > 0;
@@ -568,6 +700,11 @@ export function StationLineBoard() {
                       {stationLongWaits ? (
                         <p className="text-xs text-warning-ink">
                           {stationLongWaits} waiting over {LONG_WAIT_MINUTES} min
+                        </p>
+                      ) : null}
+                      {stationHeld ? (
+                        <p className="text-xs text-warning-ink">
+                          {stationHeld} held over {HELD_TOO_LONG_MINUTES[station.kind]} min
                         </p>
                       ) : null}
                     </div>

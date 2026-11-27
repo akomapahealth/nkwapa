@@ -1,3 +1,4 @@
+import { REAL_PATIENT } from '../common/demo-patients';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type FollowUpTier } from '@prisma/client';
 import {
@@ -155,6 +156,7 @@ export class FollowUpMetricsService {
     const patientWhere = {
       primaryClinicId: { in: clinicIds },
       mergedIntoPatientId: null,
+      ...REAL_PATIENT,
     } satisfies Prisma.PatientWhereInput;
     const clinics = Prisma.join(clinicIds.map((id) => Prisma.sql`${id}::uuid`));
     const columns = Prisma.sql`
@@ -166,7 +168,8 @@ export class FollowUpMetricsService {
     const from = Prisma.sql`
       FROM "PatientRiskAssessment" a
       JOIN "Patient" p ON p."id" = a."patientId"
-      WHERE p."primaryClinicId" IN (${clinics}) AND p."mergedIntoPatientId" IS NULL`;
+      WHERE p."primaryClinicId" IN (${clinics}) AND p."mergedIntoPatientId" IS NULL
+        AND NOT p."isDemo"`;
 
     // Each month-end needs the row in force then: the latest before the first month-end, then
     // every row after it. Bounded by the trend window rather than the whole history.
@@ -279,7 +282,7 @@ export class FollowUpMetricsService {
   private async loadActivity({ clinicIds, timeZone }: MetricsScope, month: string, now: Date) {
     const range = monthRange(month, now, timeZone);
     const trendStart = monthRange(shiftMonth(month, -(TREND_MONTHS - 1)), now, timeZone).start;
-    const inClinics = { clinicId: { in: clinicIds } };
+    const inClinics = { clinicId: { in: clinicIds }, patient: REAL_PATIENT };
     // `dueOn` is a calendar date, so its month is a range of dates, not of instants.
     const dueFrom = new Date(`${month}-01T00:00:00Z`);
     const dueTo = new Date(`${shiftMonth(month, 1)}-01T00:00:00Z`);

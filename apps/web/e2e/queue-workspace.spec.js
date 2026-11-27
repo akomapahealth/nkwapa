@@ -371,7 +371,8 @@ test('classification labels and the glucose flag remain identical in cards and t
 for (const [role, defaultLane, allowed] of [
   ['doctor', 'Cosign', ['Drafts', 'Review', 'Sign-off', 'Cosign']],
   ['volunteer', 'Drafts', ['Drafts']],
-  ['manager', 'Drafts', ['Drafts']],
+  // Managers review and sign off since the 2026-11-21 screening, but never cosign.
+  ['manager', 'Sign-off', ['Drafts', 'Review', 'Sign-off']],
 ]) {
   test.describe(`queue role ${role}`, () => {
     test.use({ storageState: storageStateFor(role) });

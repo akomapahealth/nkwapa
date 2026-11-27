@@ -2,8 +2,6 @@
 <#-- "Try another way": choose between the second steps this account has. Each option submits its
      execution id, Keycloak's contract. -->
 <@layout.registrationLayout
-    journey="verify-choose"
-    step=3
     description="Choose how to confirm it is you.";
     section>
     <#if section = "header">

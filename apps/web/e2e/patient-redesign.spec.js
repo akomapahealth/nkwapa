@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff'), reducedMotion: 'reduce' });
 
@@ -33,8 +34,7 @@ for (const theme of ['light', 'dark']) {
     );
     await page.getByLabel('Last name', { exact: true }).fill('Validation');
     await expect(page.getByLabel('First name', { exact: true })).toHaveValue('Synthetic');
-    await page.getByRole('combobox', { name: 'National ID type', exact: true }).click();
-    await page.getByRole('option', { name: 'No ID document', exact: true }).click();
+    await page.getByLabel('No ID with them today', { exact: true }).click();
     await expect(page.getByLabel('National ID', { exact: true })).toHaveCount(0);
     await expect(summary).toHaveCount(0);
     await page.getByLabel('Email', { exact: true }).fill('invalid-email');
@@ -70,7 +70,7 @@ test('record navigation and ID validation preserve the chart and consent contrac
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Synthetic');
   await page.getByLabel('Last name', { exact: true }).fill(`Redesign-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-270-${suffix}`);
+  await fillNationalId(page, `E2E-270-${suffix}`);
   await page.getByRole('button', { name: 'Create patient', exact: true }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
   const chart = new URL(page.url()).pathname;

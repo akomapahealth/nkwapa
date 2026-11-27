@@ -4,22 +4,12 @@
  */
 
 export type ResearchExportStatus =
-  | 'PENDING_APPROVAL'
-  | 'APPROVED'
-  | 'PROCESSING'
-  | 'COMPLETED'
-  | 'FAILED'
-  | 'REJECTED'
-  | 'SKIPPED';
+  'PENDING_APPROVAL' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REJECTED' | 'SKIPPED';
 
 export type ResearchStorageProvider = 'R2' | 'GITHUB' | 'LOCAL';
 export type ResearchCadence = 'WEEKLY' | 'MONTHLY';
 export type ResearchScheduleStatus =
-  | 'PENDING_APPROVAL'
-  | 'ACTIVE'
-  | 'PAUSED'
-  | 'EXPIRED'
-  | 'REVOKED';
+  'PENDING_APPROVAL' | 'ACTIVE' | 'PAUSED' | 'EXPIRED' | 'REVOKED';
 
 interface Person {
   id: string;

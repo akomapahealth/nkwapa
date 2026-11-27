@@ -28,6 +28,11 @@ export const VITALS_SECTION_FIELDS = {
   bloodPressure: [
     'systolicBp',
     'diastolicBp',
+    'bpSystolicReadings',
+    'bpDiastolicReadings',
+    // Taken with the BP, as the cuff shows it (2026-11-21); it used to sit under otherVitals.
+    'pulseBpm',
+    'pulseReadings',
     'bpSite',
     'bpSiteOther',
     'patientPosition',
@@ -37,7 +42,6 @@ export const VITALS_SECTION_FIELDS = {
   ],
   anthropometry: ['weightKg', 'heightCm', 'bmi'],
   otherVitals: [
-    'pulseBpm',
     'temperatureCelsius',
     'temperatureSource',
     'temperatureSourceOther',
@@ -49,11 +53,9 @@ export const VITALS_SECTION_FIELDS = {
 
 /** The input-side keys of each group: what a client may send, as opposed to what is stored. */
 export const VITALS_SECTION_INPUT_FIELDS = {
-  bloodPressure: VITALS_SECTION_FIELDS.bloodPressure,
+  bloodPressure: [...VITALS_SECTION_FIELDS.bloodPressure, 'heartRate'],
   anthropometry: ['weightKg', 'heightCm', 'bmi'],
   otherVitals: [
-    'pulseBpm',
-    'heartRate',
     'temperatureValue',
     'temperatureUnit',
     'temperatureSource',

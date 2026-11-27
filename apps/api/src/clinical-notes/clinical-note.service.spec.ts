@@ -96,7 +96,7 @@ describe('ClinicalNoteService', () => {
     expect(summary.preview).toBe('Headache for two days.');
   });
 
-  it.each([UserRole.PATIENT, UserRole.MANAGER, UserRole.DIRECTOR, UserRole.SYSTEM_ADMIN])(
+  it.each([UserRole.PATIENT, UserRole.DIRECTOR, UserRole.SYSTEM_ADMIN])(
     'returns no preview to %s without clinical note read access',
     async (role) => {
       await expect(
@@ -106,7 +106,7 @@ describe('ClinicalNoteService', () => {
     },
   );
 
-  it.each([UserRole.SYSTEM_ADMIN, UserRole.DIRECTOR, UserRole.MANAGER, UserRole.PATIENT])(
+  it.each([UserRole.SYSTEM_ADMIN, UserRole.DIRECTOR, UserRole.PATIENT])(
     'denies %s access to clinical note content',
     async (role) => {
       await expect(
@@ -116,7 +116,8 @@ describe('ClinicalNoteService', () => {
     },
   );
 
-  it.each([UserRole.DOCTOR, UserRole.VOLUNTEER])(
+  // Managers work stations like volunteers since the 2026-11-21 screening.
+  it.each([UserRole.DOCTOR, UserRole.VOLUNTEER, UserRole.MANAGER])(
     'permits clinic-scoped %s content reads',
     async (role) => {
       repository.findEncounterNote.mockResolvedValue(note());

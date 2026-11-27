@@ -3,7 +3,9 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
+  Equals,
   IsArray,
+  IsISO8601,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -18,7 +20,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { StationKind } from '@prisma/client';
+import { DoctorRequestReason, DoctorRequestUrgency, StationKind } from '@prisma/client';
 import { ToSanitizedString } from '../../common/validation';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -98,6 +100,22 @@ export class CompleteStationVisitDto {
   @Type(() => StationSkipDto)
   skips?: StationSkipDto[];
 
+  /**
+   * This station is ending with nothing recorded (#424): its stop is kept as skipped, with this
+   * reason, instead of done. Not for the review station, which completes the session.
+   */
+  @IsOptional()
+  @ToSanitizedString({ maxLength: 500 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  skipReason?: string;
+
+  /** Complete review although a refer-today flag has no referral recorded (#415). */
+  @IsOptional()
+  @IsBoolean()
+  acknowledgeNoReferral?: boolean;
+
   /** Who did this stop. Omitted by older clients: the shift's screener is used. */
   @IsOptional()
   @ValidateNested()
@@ -171,4 +189,24 @@ export class ReorderStationsDto {
   @ArrayUnique()
   @IsUUID('all', { each: true })
   stationIds!: string[];
+}
+
+/** A hand-off queued offline (#423). The visit is the mutation's `entityId`. */
+export class StationVisitCompleteReplayPayload extends CompleteStationVisitDto {
+  @Equals(1)
+  schemaVersion!: 1;
+
+  /** When the volunteer handed on, on the device. */
+  @IsISO8601({ strict: true })
+  occurredAt!: string;
+}
+
+/** "Ask a doctor" from a station (#418). The reason is a list, so no free text reaches a push. */
+export class CreateDoctorRequestDto {
+  @IsEnum(DoctorRequestUrgency)
+  urgency!: DoctorRequestUrgency;
+
+  @IsOptional()
+  @IsEnum(DoctorRequestReason)
+  reason?: DoctorRequestReason;
 }

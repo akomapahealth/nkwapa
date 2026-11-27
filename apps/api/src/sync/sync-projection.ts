@@ -39,6 +39,8 @@ export const SYNC_PATIENT_SELECT = {
   residentialPositionAccuracyM: true,
   residentialPositionCapturedAt: true,
   mergedIntoPatientId: true,
+  // Every staff member sees the Demo badge, offline too, so nobody treats a training chart as real.
+  isDemo: true,
   createdByUserId: true,
   createdAt: true,
   updatedAt: true,
@@ -65,6 +67,8 @@ export const SYNC_PATIENT_WITHHELD: Record<string, string> = {
     'Gated by FOLLOW_UP.READ, which sync pull does not check. The chart summary carries it to those allowed (#336).',
   currentRiskAssessmentId:
     'Points at a follow-up tier row, gated by FOLLOW_UP.READ. The chart summary carries it to those allowed (#336).',
+  demoClearedAt:
+    'When a director last cleared a practice chart (#410). Only the practice controls read it, online.',
 };
 
 export type SyncPatientProjection = Prisma.PatientGetPayload<{

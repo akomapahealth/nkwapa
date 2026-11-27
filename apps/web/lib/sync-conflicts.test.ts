@@ -97,6 +97,28 @@ describe('describeSyncFailure', () => {
     });
   });
 
+  describe('cleared practice chart (#410)', () => {
+    it('offers only discarding: there is nothing to open or retry', () => {
+      const description = describeSyncFailure(
+        failed(
+          'PRACTICE_CLEARED',
+          {},
+          {
+            entityType: 'vitals',
+            entityId: 'v-1',
+            payloadJson: '{"patientId":"demo-1","encounterId":"enc-1"}',
+          },
+        ),
+        context,
+      );
+
+      expect(description.title).toBe('Practice is over');
+      expect(description.patientHref).toBeUndefined();
+      expect(description.encounterHref).toBeUndefined();
+      expect(description.actions).toEqual(['discard']);
+    });
+  });
+
   describe('merged chart', () => {
     const merged = failed(
       'PATIENT_MERGED',
@@ -282,6 +304,15 @@ describe('clinic operations in the sync center', () => {
     expect(description.opsBoardHref).toBe('/today');
     expect(description.patientHref).toBe('/clinics/clinic-1/patients/patient-1');
     expect(description.actions).toEqual(['open-ops-board', 'open-patient', 'retry', 'discard']);
+  });
+
+  it('says where the patient already is, from the refusal (#414)', () => {
+    const message = 'Already on the line: No. 14 at Glucose, with Ama since 9:42 AM.';
+    const description = describeSyncFailure(
+      checkIn('PATIENT_ALREADY_CHECKED_IN', { message }),
+      context,
+    );
+    expect(description.serverDetail).toBe(message);
   });
 
   it('sends someone without the Today board to their own assignments instead', () => {

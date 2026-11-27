@@ -6,6 +6,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -28,11 +29,18 @@ import {
   nationalIdLast4,
   normalizePhoneToE164,
 } from '@nkwapa/db';
-import { assertPermissionAtClinic, type ScopedRole } from '../auth/clinic-roles';
+import {
+  assertPermissionAtClinic,
+  hasPermissionAtClinic,
+  type ScopedRole,
+} from '../auth/clinic-roles';
+import { PERMISSIONS } from '../auth/constants/permissions';
 import type { EntityType as SyncEntityType } from './entity-types';
 import { SYNC_ENTITY_PERMISSIONS, isSyncEntityType } from './sync-permissions';
 import { recordAppliedSyncMutation } from './applied-sync-mutation';
 import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { StaffFeedbackService } from '../staff-feedback/staff-feedback.service';
+import { StaffFeedbackReplayPayload } from '../staff-feedback/dto/staff-feedback.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { UpsertHypertensionClinicianPlanDto } from '../hypertension-assessment/dto/hypertension-assessment.dto';
@@ -80,6 +88,10 @@ import { HypertensionAssessmentService } from '../hypertension-assessment/hypert
 import { PrescriptionService } from '../prescriptions/prescription.service';
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { OpsService, type OpsWriteContext } from '../ops/ops.service';
+import { StationService } from '../ops/station.service';
+import { StationVisitCompleteReplayPayload } from '../ops/dto/station.dto';
+import { EyeScreeningService } from '../eye-screening/eye-screening.service';
+import { UpsertEyeScreeningDto } from '../eye-screening/dto/eye-screening.dto';
 import {
   PatientCheckInReplayPayload,
   ShiftCheckInReplayPayload,
@@ -112,6 +124,7 @@ function applied(id: string, overwrote: boolean): SyncMutationResultDto {
 
 @Injectable()
 export class SyncService {
+  private readonly logger = new Logger(SyncService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
@@ -125,7 +138,10 @@ export class SyncService {
     private readonly medicationAdherenceService: MedicationAdherenceService,
     private readonly prescriptionService: PrescriptionService,
     private readonly opsService: OpsService,
+    private readonly stationService: StationService,
+    private readonly eyeScreeningService: EyeScreeningService,
     private readonly clinicianPlanSeal: ClinicianPlanSealService,
+    private readonly staffFeedback: StaffFeedbackService,
     @Optional() private readonly telemetry?: TelemetryService,
     @Optional() private readonly risk?: FollowUpRiskService,
     @Optional() private readonly followUpContacts?: FollowUpContactService,
@@ -544,6 +560,12 @@ export class SyncService {
       case 'shift_check_out':
       case 'patient_check_in':
         return this.applyOpsReplay(clinicId, actorUserId, mut, payload, metadata);
+      case 'station_visit_complete':
+        return this.applyStationHandOff(clinicId, user, mut, payload);
+      case 'staff_feedback':
+        return this.applyStaffFeedback(clinicId, actorUserId, mut, payload);
+      case 'eye_screening':
+        return this.applyEyeScreening(clinicId, actorUserId, mut, payload);
       case 'follow_up_attempt':
         return this.applyFollowUpAttempt(clinicId, actorUserId, mut, payload);
       default:
@@ -612,6 +634,85 @@ export class SyncService {
       }
     }
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
+  }
+
+  /**
+   * A station hand-off made offline (#423), through the station service. The outbox sends it after
+   * the readings queued before it, so the next station sees them when the patient appears.
+   */
+  private async applyStationHandOff(
+    clinicId: string,
+    user: UserWithId,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    if (!isApiFeatureEnabled('stationWorkflow')) throw new NotFoundException();
+    // A complete DTO with two more fields; the station service reads only the DTO's own.
+    const replay = await validatePayload(
+      StationVisitCompleteReplayPayload,
+      payload,
+      'Queued hand-off failed validation',
+    );
+    await this.stationService.replayComplete(
+      clinicId,
+      mut.entityId,
+      {
+        userId: user.user.id,
+        canManage: hasPermissionAtClinic(user.roles, clinicId, PERMISSIONS.OPS_STATION_MANAGE),
+      },
+      replay,
+      { requestId: mut.idempotencyKey, occurredAt: new Date(replay.occurredAt) },
+    );
+    return this.recordAppliedMutation(clinicId, mut, mut.idempotencyKey);
+  }
+
+  /**
+   * A "Report a problem" (#422). Every report comes this way, online or not, so the device's id
+   * makes a replay land once. The payload is never logged: its text may hold patient detail.
+   */
+  private async applyStaffFeedback(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    const report = await validatePayload(
+      StaffFeedbackReplayPayload,
+      payload,
+      'Queued problem report failed validation',
+    );
+    await this.staffFeedback.submit(clinicId, actorUserId, mut.entityId, report);
+    return this.recordAppliedMutation(clinicId, mut, mut.idempotencyKey);
+  }
+
+  /**
+   * The eye examination saved offline (#423), through the same service as the REST route. It
+   * carries the version the form opened at, so a newer save made elsewhere comes back as a
+   * conflict instead of being overwritten.
+   */
+  private async applyEyeScreening(
+    clinicId: string,
+    actorUserId: string,
+    mut: SyncMutationDto,
+    payload: Record<string, unknown>,
+  ): Promise<SyncMutationResultDto> {
+    if (!isApiFeatureEnabled('stationWorkflow')) throw new NotFoundException();
+    // The encounter is the mutation's entityId; the payload's copy is only for the device.
+    const fields = { ...payload };
+    delete fields.encounterId;
+    const dto = await validatePayload(
+      UpsertEyeScreeningDto,
+      fields,
+      'Queued eye examination failed validation',
+    );
+    await this.eyeScreeningService.upsert(
+      clinicId,
+      mut.entityId,
+      actorUserId,
+      dto,
+      mut.idempotencyKey,
+    );
+    return this.recordAppliedMutation(clinicId, mut, mut.idempotencyKey);
   }
 
   /**
@@ -721,8 +822,7 @@ export class SyncService {
     // offline-synced patient stores the same consistent shape as a REST write.
     const location = resolveResidentialLocation({
       residentialLocationStatus: payload.residentialLocationStatus as
-        | PatientLocationStatus
-        | undefined,
+        PatientLocationStatus | undefined,
       residentialRegion: payload.residentialRegion as GhanaRegion | undefined,
       residentialDistrict: payload.residentialDistrict as string | undefined,
       residentialCommunity: payload.residentialCommunity as string | undefined,
@@ -735,17 +835,11 @@ export class SyncService {
       residentialLatitude: payload.residentialLatitude as number | null | undefined,
       residentialLongitude: payload.residentialLongitude as number | null | undefined,
       residentialPositionSource: payload.residentialPositionSource as
-        | ResidentialPositionSource
-        | null
-        | undefined,
+        ResidentialPositionSource | null | undefined,
       residentialPositionAccuracyM: payload.residentialPositionAccuracyM as
-        | number
-        | null
-        | undefined,
+        number | null | undefined,
       residentialPositionCapturedAt: payload.residentialPositionCapturedAt as
-        | string
-        | null
-        | undefined,
+        string | null | undefined,
     });
 
     const before = existingById ? JSON.stringify(existingById) : null;
@@ -951,13 +1045,21 @@ export class SyncService {
   ): Promise<boolean> {
     const patient = await this.prisma.patient.findFirst({
       where: { id: patientId, primaryClinicId: clinicId },
-      select: { id: true, mergedIntoPatientId: true },
+      select: { id: true, mergedIntoPatientId: true, demoClearedAt: true },
     });
     if (patient?.mergedIntoPatientId) {
       throw await this.patientMergedConflict(
         patient.mergedIntoPatientId,
         `${entityLabel} belongs to a chart that was merged into another chart.`,
       );
+    }
+    // A cleared practice chart (#410) has left every list; a change saved offline would land on it
+    // unseen, and nobody needs practice work after the session.
+    if (patient?.demoClearedAt) {
+      throw new ConflictException({
+        code: 'PRACTICE_CLEARED',
+        message: `${entityLabel} belongs to a practice patient the director cleared.`,
+      });
     }
     return Boolean(patient);
   }
@@ -1901,6 +2003,29 @@ export class SyncService {
     return { id: mut.id, status: SYNC_MUTATION_RESULT_STATUS.APPLIED };
   }
 
+  /**
+   * Stamps the caller's active shift with this pull (#411), so the "Ready to open" check can see
+   * whose device has not synced. At most one write a minute per shift; a failure here is logged and
+   * never fails the pull it rides on.
+   */
+  async recordPull(clinicId: string, userId: string, now: Date = new Date()): Promise<void> {
+    try {
+      await this.prisma.staffShift.updateMany({
+        where: {
+          clinicId,
+          userId,
+          status: 'ACTIVE',
+          OR: [{ lastPulledAt: null }, { lastPulledAt: { lt: new Date(now.getTime() - 60_000) } }],
+        },
+        data: { lastPulledAt: now },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not record a sync pull: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+
   async pull(clinicId: string, since?: string): Promise<SyncPullResponseDto> {
     const sinceDate = since
       ? (() => {
@@ -1947,14 +2072,20 @@ export class SyncService {
         where: {
           primaryClinicId: clinicId,
           mergedIntoPatientId: null,
+          demoClearedAt: null,
           ...updatedAtFilter,
         },
         select: SYNC_PATIENT_SELECT,
       }),
+      // Charts that left the device's list: retired by a merge, or a cleared practice chart (#410).
       this.prisma.patient.findMany({
         where: {
           primaryClinicId: clinicId,
-          mergedIntoPatientId: { not: null },
+          // A device's first pull never held a cleared practice chart, so only merges go then.
+          OR: [
+            { mergedIntoPatientId: { not: null } },
+            ...(sinceDate ? [{ demoClearedAt: { not: null } }] : []),
+          ],
           ...updatedAtFilter,
         },
         select: { id: true, mergedIntoPatientId: true, updatedAt: true },
@@ -2079,6 +2210,9 @@ export class SyncService {
         row.mergedIntoPatientId
           ? [{ id: row.id, mergedIntoPatientId: row.mergedIntoPatientId }]
           : [],
+      ),
+      clearedDemoPatientIds: mergedPatientRows.flatMap((row) =>
+        row.mergedIntoPatientId ? [] : [row.id],
       ),
       deletedEncounterIds: deletedEncounterRows.map((row) => row.entityId),
       encounters,

@@ -69,6 +69,7 @@ function visitRow(overrides: Row = {}): Row {
       status: 'IN_PROGRESS',
       checkedInAt: new Date('2026-10-07T08:55:00Z'),
       encounterId: 'enc-1',
+      lineFlags: overrides.lineFlags ?? [],
       patient: {
         id: 'patient-1',
         patientCode: 'NKP-2026-000001',
@@ -154,8 +155,14 @@ function setup(initial: Row = {}) {
           STATIONS.find((s) => s.id === where.id) ?? null,
       ),
     },
+    vitals: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
+    diabetesScreening: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
+    hypertensionAssessment: { findUnique: jest.fn(async (): Promise<Row | null> => null) },
     counsellingRecord: {
-      findUnique: jest.fn(async () => ({ id: 'counselling-1' })),
+      findUnique: jest.fn(async (): Promise<Row | null> => ({
+        id: 'counselling-1',
+        referralRecommended: false,
+      })),
       update: jest.fn(async () => ({})),
     },
     encounter: {
@@ -163,7 +170,10 @@ function setup(initial: Row = {}) {
       update: jest.fn(async ({ data }: { data: Row }) => ({ id: 'enc-1', ...data })),
       create: jest.fn(async () => ({ id: 'enc-new', clinicId: CLINIC, status: 'DRAFT' })),
     },
-    clinic: { findFirst: jest.fn(async () => ({ id: CLINIC })) },
+    clinic: {
+      findFirst: jest.fn(async () => ({ id: CLINIC })),
+      findUnique: jest.fn(async () => ({ id: CLINIC, timezone: 'Africa/Accra' })),
+    },
     patient: { findUnique: jest.fn(async () => ({ id: 'patient-1', primaryClinicId: CLINIC })) },
     user: {
       findFirst: jest.fn(async () => ({ id: 'vol-1' })),
@@ -173,23 +183,19 @@ function setup(initial: Row = {}) {
       })),
     },
     staffShift: {
-      findFirst: jest.fn(
-        async (): Promise<Row> => ({
-          id: 'shift-1',
-          screenerIsAccountHolder: true,
-          screenerName: null,
-        }),
-      ),
-      findUnique: jest.fn(
-        async (): Promise<Row | null> => ({
-          id: 'shift-1',
-          clinicId: CLINIC,
-          userId: 'vol-1',
-          status: 'ACTIVE',
-          screenerIsAccountHolder: true,
-          screenerName: null,
-        }),
-      ),
+      findFirst: jest.fn(async (): Promise<Row> => ({
+        id: 'shift-1',
+        screenerIsAccountHolder: true,
+        screenerName: null,
+      })),
+      findUnique: jest.fn(async (): Promise<Row | null> => ({
+        id: 'shift-1',
+        clinicId: CLINIC,
+        userId: 'vol-1',
+        status: 'ACTIVE',
+        screenerIsAccountHolder: true,
+        screenerName: null,
+      })),
       update: jest.fn(async ({ data }: { data: Row }) => ({ id: 'shift-1', ...data })),
       findMany: jest.fn(async (): Promise<Row[]> => []),
       updateMany: jest.fn(async () => ({ count: 0 })),
@@ -470,6 +476,20 @@ describe('StationService', () => {
       expect(actions(audit)).toContain('STATION.SKIP');
     });
 
+    it('keeps a stop handed on with nothing recorded as skipped, with its reason (#424)', async () => {
+      const { service, created } = setup(held);
+      const result = await service.complete(CLINIC, 'visit-1', volunteer, {
+        skipReason: 'Patient refused the cuff',
+      });
+
+      expect(result.nextStationId).toBe('st-glucose');
+      expect(result.visit).toMatchObject({
+        status: 'SKIPPED',
+        endReason: 'Patient refused the cuff',
+      });
+      expect(created[0]).toMatchObject({ stationId: 'st-glucose', status: 'QUEUED' });
+    });
+
     it('sends the patient to a station the volunteer chose', async () => {
       const { service } = setup(held);
       const result = await service.complete(CLINIC, 'visit-1', volunteer, {
@@ -486,6 +506,161 @@ describe('StationService', () => {
       await expect(service.complete(CLINIC, 'visit-1', volunteer, dto)).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    it('refuses to skip the review station, which completes the session', async () => {
+      const { service } = setup({ ...held, stationId: 'st-review' });
+      await expect(
+        service.complete(CLINIC, 'visit-1', volunteer, { skipReason: 'x' }),
+      ).rejects.toMatchObject({ response: { code: 'REVIEW_COMPLETES_SESSION' } });
+    });
+
+    describe('red flags along the line (#415)', () => {
+      const crisis = {
+        kind: 'REFER_TODAY',
+        source: 'BP',
+        systolic: 184,
+        diastolic: 112,
+        stationName: 'Blood pressure',
+        at: '2026-10-07T09:10:00.000Z',
+      };
+
+      it("stores what this station's readings raise, named by station", async () => {
+        const { service, tx } = setup(held);
+        tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 184, diastolicBp: 112 });
+        await service.complete(CLINIC, 'visit-1', volunteer, {});
+        expect(tx.patientCheckIn.update).toHaveBeenCalledWith({
+          where: { id: 'checkin-1' },
+          data: {
+            lineFlags: [
+              expect.objectContaining({
+                kind: 'REFER_TODAY',
+                source: 'BP',
+                systolic: 184,
+                diastolic: 112,
+                stationName: 'BP',
+              }),
+            ],
+          },
+        });
+      });
+
+      describe('asks a doctor with no tap (#418)', () => {
+        const withDoctors = (initial: Row, request = jest.fn(async () => ({ id: 'req-1' }))) => {
+          const parts = setup(initial);
+          const service = new StationService(
+            parts.prisma as never,
+            parts.audit as never,
+            undefined,
+            { request } as never,
+          );
+          return { ...parts, service, request };
+        };
+
+        it('raises a Now request at the next station when a reading first refers today', async () => {
+          const { service, tx, request } = withDoctors(held);
+          tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 184, diastolicBp: 112 });
+          const result = await service.complete(CLINIC, 'visit-1', volunteer, {});
+
+          expect(request).toHaveBeenCalledWith(CLINIC, result.nextVisitId, volunteer.userId, {
+            urgency: 'NOW',
+            reason: 'HIGH_BP',
+            auto: true,
+          });
+          expect(result.doctorRequested).toBe(true);
+        });
+
+        it('does not ask again for a flag an earlier station raised', async () => {
+          const { service, tx, request } = withDoctors({ ...held, lineFlags: [crisis] });
+          tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 186, diastolicBp: 114 });
+          const result = await service.complete(CLINIC, 'visit-1', volunteer, {});
+
+          expect(request).not.toHaveBeenCalled();
+          expect(result.doctorRequested).toBe(false);
+        });
+
+        it('still hands on when the request cannot be made', async () => {
+          const { service, tx } = withDoctors(
+            held,
+            jest.fn(async () => {
+              throw new Error('push down');
+            }),
+          );
+          tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 184, diastolicBp: 112 });
+          await expect(service.complete(CLINIC, 'visit-1', volunteer, {})).resolves.toMatchObject({
+            doctorRequested: false,
+            sessionCompleted: false,
+          });
+        });
+      });
+
+      it('keeps an earlier flag when a later reading is normal, and writes nothing', async () => {
+        const { service, tx } = setup({ ...held, lineFlags: [crisis] });
+        tx.vitals.findUnique.mockResolvedValueOnce({ systolicBp: 124, diastolicBp: 78 });
+        const result = await service.complete(CLINIC, 'visit-1', volunteer, {});
+        expect(tx.patientCheckIn.update).not.toHaveBeenCalled();
+        expect(result.visit.lineFlags).toEqual([crisis]);
+      });
+
+      it('asks before review completes a refer-today patient with no referral', async () => {
+        const { service, tx } = setup({ ...held, stationId: 'st-review', lineFlags: [crisis] });
+        await expect(service.complete(CLINIC, 'visit-1', volunteer, {})).rejects.toMatchObject({
+          response: { code: 'REFERRAL_NOT_RECORDED' },
+        });
+        await expect(
+          service.complete(CLINIC, 'visit-1', volunteer, { acknowledgeNoReferral: true }),
+        ).resolves.toMatchObject({ sessionCompleted: true });
+
+        const referred = setup({ ...held, stationId: 'st-review', lineFlags: [crisis] });
+        referred.tx.counsellingRecord.findUnique.mockResolvedValueOnce({
+          id: 'counselling-1',
+          referralRecommended: true,
+        });
+        await expect(
+          referred.service.complete(CLINIC, 'visit-1', volunteer, {}),
+        ).resolves.toMatchObject({ sessionCompleted: true });
+        expect(tx.counsellingRecord.findUnique).toHaveBeenCalled();
+      });
+    });
+
+    describe('a hand-off queued offline (#423)', () => {
+      const tappedAt = new Date(Date.now() - 2 * 60_000);
+      const replay = { requestId: 'ops:station_visit_complete:visit-1', occurredAt: tappedAt };
+
+      it('hands on at the time it was tapped on the device', async () => {
+        const { service, tx } = setup({ ...held, claimedAt: new Date(Date.now() - 10 * 60_000) });
+        await service.replayComplete(CLINIC, 'visit-1', volunteer, {}, replay);
+
+        expect(tx.patientStationVisit.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ status: 'COMPLETED', completedAt: tappedAt }),
+          }),
+        );
+      });
+
+      it('treats a hand-off that already landed online as applied', async () => {
+        const { service, tx } = setup({
+          status: 'COMPLETED',
+          claimedByUserId: 'vol-1',
+          completedByUserId: 'vol-1',
+        });
+        await expect(
+          service.replayComplete(CLINIC, 'visit-1', volunteer, {}, replay),
+        ).resolves.toBeUndefined();
+        expect(tx.patientStationVisit.updateMany).not.toHaveBeenCalled();
+      });
+
+      it('refuses one overtaken by a release, naming the station', async () => {
+        const { service } = setup({ status: 'QUEUED', releaseCount: 1 });
+        await expect(
+          service.replayComplete(CLINIC, 'visit-1', volunteer, {}, replay),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'STATION_HANDOFF_REFUSED',
+            message: expect.stringContaining('from BP'),
+          },
+        });
+      });
     });
 
     it('only lets the holder complete', async () => {
@@ -590,6 +765,71 @@ describe('StationService', () => {
       await expect(
         service.moveCheckIn(CLINIC, 'checkin-1', manager, { stationId: 'st-bp', reason: 'x' }),
       ).rejects.toMatchObject({ response: { code: 'CHECKIN_CLOSED' } });
+    });
+  });
+
+  describe('closing the clinic day', () => {
+    function withOpenCheckIns(ctx: ReturnType<typeof setup>) {
+      const tx = ctx.tx as unknown as Record<string, Record<string, jest.Mock>>;
+      tx.clinic.findUnique = jest.fn(async () => ({ timezone: 'Africa/Accra' }));
+      tx.clinic.findMany = jest.fn(async () => [{ id: CLINIC, timezone: 'Africa/Accra' }]);
+      tx.patientCheckIn.findMany = jest.fn(async () => [
+        { id: 'checkin-1', status: 'IN_PROGRESS' },
+      ]);
+      (ctx.prisma as unknown as Record<string, unknown>).clinic = tx.clinic;
+      return tx;
+    }
+
+    it('closes everyone still in the line as clinic closed, not left', async () => {
+      const ctx = setup({ stationId: 'st-review', status: 'QUEUED' });
+      const tx = withOpenCheckIns(ctx);
+      const result = await ctx.service.closeClinicDay(CLINIC, manager, '2026-11-21');
+
+      expect(result).toEqual({ date: '2026-11-21', closed: 1 });
+      expect(tx.patientCheckIn.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId: CLINIC,
+            status: { in: ['WAITING', 'ASSIGNED', 'IN_PROGRESS'] },
+          }),
+        }),
+      );
+      expect(ctx.current()).toMatchObject({ status: 'CANCELLED', endReason: 'CLINIC_CLOSED' });
+      expect(tx.patientCheckIn.update).toHaveBeenCalledWith({
+        where: { id: 'checkin-1' },
+        data: { status: 'COMPLETED' },
+      });
+      // The encounter stays open for the doctor's review.
+      expect(tx.encounter.update).not.toHaveBeenCalled();
+      expect(actions(ctx.audit)).toEqual(['STATION.CANCEL', 'CHECKIN.CLINIC_CLOSE']);
+    });
+
+    it('refuses a volunteer', async () => {
+      const ctx = setup();
+      withOpenCheckIns(ctx);
+      await expect(ctx.service.closeClinicDay(CLINIC, volunteer)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('sweeps only days before the clinic’s today, and their forgotten shifts', async () => {
+      const ctx = setup({ status: 'IN_PROGRESS', claimedByUserId: 'vol-1' });
+      const tx = withOpenCheckIns(ctx);
+      tx.staffShift.findMany.mockResolvedValueOnce([{ id: 'shift-old' }]);
+
+      const result = await ctx.service.closeStaleClinicDays(ctx.tx as never);
+
+      expect(result).toEqual({ checkIns: 1, shifts: 1 });
+      const where = tx.patientCheckIn.findMany.mock.calls[0][0].where;
+      expect(where.checkedInAt).toEqual({ lt: expect.any(Date) });
+      expect(tx.staffShift.update).toHaveBeenCalledWith({
+        where: { id: 'shift-old' },
+        data: expect.objectContaining({ status: 'CLOSED', stationId: null }),
+      });
+      const auditActors = (
+        ctx.audit.logWrite.mock.calls as unknown as [{ actorUserId: string }][]
+      ).map(([event]) => event.actorUserId);
+      expect(new Set(auditActors)).toEqual(new Set(['00000000-0000-4000-8000-00000000dead']));
     });
   });
 

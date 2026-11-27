@@ -1,8 +1,10 @@
 'use client';
 
 import { formatPersonName } from './person-name';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { nextStationId, type StationKindValue } from '@nkwapa/db/clinic-stations';
+import type { DoctorRequest, DoctorRequestReason, DoctorRequestUrgency } from './doctor-requests';
+import { worstLineFlag, type LineFlag } from '@nkwapa/db/station-line-flags';
 import { apiFetch, type GetToken } from './api';
 import { readApiError } from './ops';
 
@@ -38,6 +40,14 @@ export interface StationVisit {
   checkInId: string;
   checkInStatus: string;
   checkedInAt: string;
+  /** Today's number at this clinic (#413). Absent on copies saved before it existed. */
+  dayNumber?: number | null;
+  /** Red flags raised along the line so far (#415). Absent on copies saved before it existed. */
+  lineFlags?: LineFlag[];
+  /** The open "Ask a doctor" on this check-in (#418), with who took it. */
+  doctorRequest?: DoctorRequest | null;
+  /** BP, glucose and BMI so far, on visits at the review station only (#419). */
+  keyReadings?: KeyReadings;
   encounterId: string | null;
   station: Pick<ClinicStation, 'id' | 'kind' | 'name' | 'sortOrder'>;
   patient: {
@@ -46,6 +56,8 @@ export interface StationVisit {
     firstName: string;
     lastName: string;
     dob: string | null;
+    /** A training chart. Optional: copies saved on a device before 2026-11-21 lack it. */
+    isDemo?: boolean;
   };
   queuedAt: string;
   claimedBy: StaffSummary | null;
@@ -66,11 +78,19 @@ export interface StationVisit {
   performerCorrection?: PerformerCorrection | null;
   previous: {
     station: StationVisit['station'];
+    /** SKIPPED when the stop ended with nothing recorded (#424). Absent from copies saved before. */
+    status?: StationVisitStatus;
     completedBy: StaffSummary | null;
     completedAt: string | null;
     performedByName?: string | null;
     handoffNote: string | null;
   } | null;
+}
+
+export interface KeyReadings {
+  bp: { systolic: number; diastolic: number } | null;
+  glucose: { mgDl: number; type: string } | null;
+  bmi: number | null;
 }
 
 export interface PerformerCorrection {
@@ -126,10 +146,12 @@ export interface CompleteVisitResult {
   nextVisitId: string | null;
   nextStationId: string | null;
   sessionCompleted: boolean;
+  /** A refer-today reading asked for a doctor with no tap (#418). */
+  doctorRequested?: boolean;
 }
 
 /** How often an open station screen re-reads the line. Polling, not push, in v1. */
-export const STATION_POLL_MS = 12_000;
+export const STATION_POLL_MS = 6_000;
 
 /** A failed station request, with the server's code so the screen can say what happened. */
 export class StationRequestError extends Error {
@@ -146,13 +168,14 @@ async function request<T>(
   clinicId: string,
   path: string,
   getToken: GetToken,
-  init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+  init: { method?: string; body?: unknown; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
   const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}${path}`, {
     method: init.method ?? 'GET',
     getToken,
     activeClinicId: clinicId,
     signal: init.signal,
+    timeoutMs: init.timeoutMs,
     ...(init.body !== undefined
       ? { body: JSON.stringify(init.body), headers: { 'Content-Type': 'application/json' } }
       : {}),
@@ -195,7 +218,14 @@ export interface StationMetrics {
   timezone: string;
   live: boolean;
   lowVolume: boolean;
-  checkIns: { total: number; completed: number; leftEarly: number; inClinicNow: number };
+  checkIns: {
+    total: number;
+    completed: number;
+    leftEarly: number;
+    /** Still in the line when the day was closed, so never finished review (#409). */
+    closedAtDayEnd: number;
+    inClinicNow: number;
+  };
   timeInClinic: DurationSummary;
   stations: Array<{
     stationId: string;
@@ -207,6 +237,9 @@ export interface StationMetrics {
     wait: DurationSummary;
     service: DurationSummary;
     releases: number;
+    /** Stops held and then handed on with nothing recorded (#424). */
+    heldEmpty: number;
+    longestHeldMinutes: number | null;
     capacity?: number;
     peakInUse?: number;
     waitingNow: number | null;
@@ -232,6 +265,60 @@ export const fetchStationMetrics = (
     getToken,
     { signal },
   );
+
+/** How one clinic day went (#421). Counts only; demo patients are counted apart. */
+export interface ClinicDaySummary {
+  metrics: StationMetrics;
+  demoCheckIns: number;
+  patients: { new: number; returning: number };
+  clinical: {
+    referrals: { urgent: number; soon: number; routine: number; unspecified: number };
+    bpReferToday: number;
+    bpRecheck: number;
+    glucoseReferToday: number;
+    glucoseRaised: number;
+  };
+  openWork: { drafts: number; inReview: number; notesToCosign: number };
+  staff: { volunteers: number; doctors: number; managers: number };
+}
+
+export const fetchClinicDaySummary = (
+  clinicId: string,
+  date: string,
+  getToken: GetToken,
+  signal?: AbortSignal,
+) =>
+  request<ClinicDaySummary>(
+    clinicId,
+    `/stations/day/summary?date=${encodeURIComponent(date)}`,
+    getToken,
+    { signal },
+  );
+
+export type ReadinessState = 'PASS' | 'WARN' | 'NA';
+
+/** "Ready to open" (#411): the manager's morning checks for today. Staff names only. */
+export interface ClinicReadiness {
+  date: string;
+  checkInsToday: number;
+  syncMinutes: number;
+  checks: {
+    stations: {
+      state: ReadinessState;
+      activeCount: number;
+      reviewCount: number;
+      kindsClosed: StationKindValue[];
+    };
+    staffed: { state: ReadinessState; stations: Array<{ id: string; name: string }> };
+    doctorAtReview: { state: ReadinessState };
+    synced: { state: ReadinessState; people: string[] };
+    offline: { state: ReadinessState; people: string[] };
+    yesterdayClosed: { state: ReadinessState; openCheckIns: number };
+  };
+}
+
+export const fetchClinicReadiness = (clinicId: string, getToken: GetToken, signal?: AbortSignal) =>
+  request<ClinicReadiness>(clinicId, '/stations/readiness', getToken, { signal });
 
 /** "12 min", "1 h 05 min", or an en dash when nothing was measured. */
 export function formatMinutes(minutes: number | null | undefined): string {
@@ -264,6 +351,84 @@ export const reorderStations = (clinicId: string, stationIds: string[], getToken
     method: 'PUT',
     body: { stationIds },
   });
+
+// ── Practice sessions (#410) ──────────────────────────────────────────────────────────────
+
+/** The end reason on every visit a practice clear closed (the API's PRACTICE_CLEARED_REASON). */
+export const PRACTICE_CLEARED_REASON = 'PRACTICE_CLEARED';
+
+export const PRACTICE_COUNT_MIN = 1;
+export const PRACTICE_COUNT_MAX = 20;
+/** Twenty charts and check-ins are forty writes; a timed-out add tempts a retry that doubles them. */
+const PRACTICE_TIMEOUT_MS = 60_000;
+
+/** What a practice clear would close at this clinic. */
+export interface PracticeSummary {
+  /** Demo charts not cleared yet. */
+  charts: number;
+  openCheckIns: number;
+  /** Of those, how many a volunteer is holding right now. */
+  withVolunteer: number;
+  draftVisits: number;
+}
+
+export const fetchPracticeSummary = (clinicId: string, getToken: GetToken) =>
+  request<PracticeSummary>(clinicId, '/practice', getToken);
+
+export const addPracticePatients = (
+  clinicId: string,
+  body: { count: number; checkIn: boolean },
+  getToken: GetToken,
+) =>
+  request<{ created: number; checkedIn: number; queuedAtStation: string | null }>(
+    clinicId,
+    '/practice/patients',
+    getToken,
+    { method: 'POST', body, timeoutMs: PRACTICE_TIMEOUT_MS },
+  );
+
+export const clearPractice = (clinicId: string, getToken: GetToken) =>
+  request<{ charts: number; cancelledCheckIns: number; deletedDrafts: number }>(
+    clinicId,
+    '/practice/clear',
+    getToken,
+    { method: 'POST', timeoutMs: PRACTICE_TIMEOUT_MS },
+  );
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** The practice count field's value, or null when it is not a whole number from 1 to 20. */
+export function practiceCountValue(raw: string): number | null {
+  const value = Number(raw);
+  return raw.trim() !== '' &&
+    Number.isInteger(value) &&
+    value >= PRACTICE_COUNT_MIN &&
+    value <= PRACTICE_COUNT_MAX
+    ? value
+    : null;
+}
+
+/** Nothing for a clear to do. */
+export const practiceIsClear = (summary: PracticeSummary) =>
+  summary.charts === 0 && summary.openCheckIns === 0 && summary.draftVisits === 0;
+
+/** The clear confirmation, naming everything that will change. */
+export function describePracticeClear(summary: PracticeSummary): string {
+  const parts: string[] = [];
+  if (summary.openCheckIns > 0) {
+    const n = summary.withVolunteer;
+    const held = n > 0 ? ` (${n} ${n === 1 ? 'is' : 'are'} with a volunteer right now)` : '';
+    parts.push(`takes ${plural(summary.openCheckIns, 'demo patient')} out of the line${held}`);
+  }
+  if (summary.draftVisits > 0) {
+    parts.push(`deletes ${plural(summary.draftVisits, 'unfinished visit')}`);
+  }
+  const action = parts.length > 0 ? `This ${parts.join(' and ')}. ` : '';
+  return (
+    `${action}Demo charts stay in the patient list, marked cleared. ` +
+    'Finished practice visits are kept on the chart and never count in reports.'
+  );
+}
 
 /** A station's place moved one step up or down, as the full order the API expects. */
 export function moveStation(
@@ -342,6 +507,8 @@ export const completeStationVisit = (
     nextStationId?: string;
     skips?: Array<{ stationId: string; reason: string }>;
     screener?: Screener;
+    /** Complete review although a refer-today flag has no referral (#415). */
+    acknowledgeNoReferral?: boolean;
   },
   getToken: GetToken,
 ) =>
@@ -495,6 +662,15 @@ export const moveCheckIn = (
     { method: 'POST', body: { stationId, reason } },
   );
 
+/** "End clinic day": closes everyone still in the line as clinic closed (not left). */
+export const closeClinicDay = (clinicId: string, date: string, getToken: GetToken) =>
+  request<{ date: string; closed: number }>(
+    clinicId,
+    `/stations/day/close?date=${encodeURIComponent(date)}`,
+    getToken,
+    { method: 'POST' },
+  );
+
 export const cancelCheckIn = (
   clinicId: string,
   checkInId: string,
@@ -562,6 +738,36 @@ export function minutesSince(iso: string, now: Date = new Date()): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000));
 }
 
+/**
+ * How long a patient can be with someone at each kind of station before the line flags it (#424):
+ * a measurement takes minutes, review with counselling takes longer.
+ */
+export const HELD_TOO_LONG_MINUTES: Record<StationKind, number> = {
+  INTAKE: 15,
+  BLOOD_PRESSURE: 15,
+  GLUCOSE: 15,
+  ANTHROPOMETRY: 15,
+  EYE: 15,
+  CUSTOM: 15,
+  REVIEW: 30,
+};
+
+/**
+ * Minutes a taken patient has been held past their station's limit, or null when they are not
+ * held too long. Counts from when they were taken, not from when they joined the queue.
+ */
+export function heldTooLongMinutes(
+  visit: Pick<StationVisit, 'status' | 'claimedAt' | 'station'>,
+  now: Date = new Date(),
+): number | null {
+  if (visit.status !== 'IN_PROGRESS' || !visit.claimedAt) return null;
+  const minutes = minutesSince(visit.claimedAt, now);
+  return minutes > HELD_TOO_LONG_MINUTES[visit.station.kind] ? minutes : null;
+}
+
+/** "With Kofi Boateng for 25 min": one wording for a held patient on the board and the queue (#424). */
+export const heldLabel = (holder: string, minutes: number) => `With ${holder} for ${minutes} min`;
+
 /** Whole years from a date of birth (YYYY-MM-DD or ISO), or null without one. */
 export function ageInYears(dob: string | null, now: Date = new Date()): number | null {
   if (!dob) return null;
@@ -594,4 +800,102 @@ export function usePolling(refresh: () => void, enabled: boolean, intervalMs = S
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [refresh, enabled, intervalMs]);
+}
+
+/** "Ask a doctor" (#418). Asking again on the same patient raises the one request already open. */
+export const requestDoctor = (
+  clinicId: string,
+  visitId: string,
+  body: { urgency: DoctorRequestUrgency; reason?: DoctorRequestReason },
+  getToken: GetToken,
+) =>
+  request<DoctorRequest>(
+    clinicId,
+    `/station-visits/${encodeURIComponent(visitId)}/doctor-request`,
+    getToken,
+    { method: 'POST', body },
+  );
+
+/** "I'm on it". A 409 with code DOCTOR_REQUEST_TAKEN names who took it first. */
+export const claimDoctorRequest = (clinicId: string, requestId: string, getToken: GetToken) =>
+  request<DoctorRequest>(
+    clinicId,
+    `/doctor-requests/${encodeURIComponent(requestId)}/claim`,
+    getToken,
+    { method: 'POST' },
+  );
+
+/** "Seen", by the doctor who took it. */
+export const resolveDoctorRequest = (clinicId: string, requestId: string, getToken: GetToken) =>
+  request<DoctorRequest>(
+    clinicId,
+    `/doctor-requests/${encodeURIComponent(requestId)}/resolve`,
+    getToken,
+    { method: 'POST' },
+  );
+
+/** How urgent a patient waiting at review is (#419): lower comes first. */
+function reviewRank(visit: StationVisit): number {
+  if (visit.doctorRequest?.open && visit.doctorRequest.urgency === 'NOW') return 0;
+  const worst = worstLineFlag(visit.lineFlags);
+  if (worst === 'REFER_TODAY') return 1;
+  if (worst === 'REPEAT_AT_REVIEW') return 2;
+  return 3;
+}
+
+/**
+ * The review station's waiting list (#419): a doctor asked for now, then refer today, then repeat
+ * at review, then everyone else oldest first. Without flags or requests it is simply oldest first.
+ */
+export function sortReviewQueue(visits: readonly StationVisit[]): StationVisit[] {
+  return [...visits].sort(
+    (a, b) => reviewRank(a) - reviewRank(b) || a.queuedAt.localeCompare(b.queuedAt),
+  );
+}
+
+const REVIEW_COUNT_POLL_MS = 60_000;
+
+/**
+ * Patients waiting at review, for the Stations nav badge (#419). Null unless this person is on
+ * shift at the review station. Polls once a minute and on focus, like the notification bell;
+ * a failed read keeps the last number.
+ */
+export function useReviewWaitingCount(
+  clinicId: string | null,
+  getToken: GetToken | undefined,
+  enabled: boolean,
+): number | null {
+  const [count, setCount] = useState<number | null>(null);
+  const active = enabled && Boolean(clinicId && getToken);
+
+  const refresh = useCallback(async () => {
+    if (!clinicId || !getToken || document.visibilityState === 'hidden' || !navigator.onLine)
+      return;
+    try {
+      const body = await request<{ count: number | null }>(
+        clinicId,
+        '/stations/review-waiting/count',
+        getToken,
+      );
+      setCount(body.count);
+    } catch {
+      // A courtesy number: keep the last one.
+    }
+  }, [clinicId, getToken]);
+
+  useEffect(() => {
+    if (!active) return;
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), REVIEW_COUNT_POLL_MS);
+    const onChange = () => void refresh();
+    window.addEventListener('focus', onChange);
+    document.addEventListener('visibilitychange', onChange);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onChange);
+      document.removeEventListener('visibilitychange', onChange);
+    };
+  }, [active, refresh]);
+
+  return active ? count : null;
 }

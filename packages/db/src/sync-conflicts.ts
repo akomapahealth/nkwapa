@@ -69,6 +69,8 @@ export const SYNC_CONFLICT_CODES = {
   CONFLICT_FINALIZED: code('locked', terminal),
   // A system admin deleted the draft visit (#384); a deletion is never undone.
   ENCOUNTER_DELETED: code('locked', terminal),
+  // A director cleared the practice chart (#410); practice work is not needed afterwards.
+  PRACTICE_CLEARED: code('locked', terminal),
   UNSUPPORTED_STATUS_TRANSITION: code('locked', terminal),
   MEDICAL_HISTORY_TERMINAL: code('locked'),
 
@@ -95,6 +97,8 @@ export const SYNC_CONFLICT_CODES = {
   // Only reachable online: manager assignment is refused while the station workflow is on (#167),
   // and assignment is never queued. Catalogued because the ops service is a sync handler module.
   STATION_WORKFLOW_ACTIVE: code('stale', { retryable: false }),
+  // A hand-off queued offline (#423) after the visit was released, moved or ended elsewhere.
+  STATION_HANDOFF_REFUSED: code('stale', terminal),
 
   // Content the server will not accept
   VALIDATION_ERROR: code('validation'),

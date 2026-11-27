@@ -7,6 +7,7 @@ const { storageStateFor } = require('../playwright/roles');
 const { apiRequestAs } = require('../playwright/api-client');
 const { overflow } = require('../playwright/responsive-routes');
 const { minButtonHeight } = require('../playwright/hit-target');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
@@ -15,7 +16,7 @@ async function openEncounter(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Synthetic');
   await page.getByLabel('Last name', { exact: true }).fill(`Vitals-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`R37-${suffix}`);
+  await fillNationalId(page, `R37-${suffix}`);
   await page.getByRole('button', { name: 'Create patient', exact: true }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');
@@ -338,6 +339,16 @@ for (const theme of ['light', 'dark']) {
       await expect(signal).toContainText('Unsaved BP reading');
       await expect(signal.locator('[aria-current="step"]')).toHaveText(category);
       await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      // The danger-sign notice fades in over 200 ms; axe samples its colour mid-fade otherwise.
+      await page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            // Spinners loop forever; only finite entrance animations can be waited out.
+            .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+            .map((animation) => animation.finished),
+        ),
+      );
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     }
     for (const width of [320, 390, 600, 1200, 1440]) {

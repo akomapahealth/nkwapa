@@ -3,6 +3,7 @@ const { readFile } = require('fs/promises');
 const { test, expect } = require('@playwright/test');
 const { storageStateFor } = require('../playwright/roles');
 const { clearMailpitInbox, findMessageTo, messageContent } = require('../playwright/mailpit');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /** Referral report (#344): a locked PDF, its passcode shown once, nothing about the patient in mail. */
 
@@ -11,7 +12,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Akosua');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-REF-${lastName}`);
+  await fillNationalId(page, `E2E-REF-${lastName}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+/, { timeout: 20_000 });
   await expect(page.getByRole('heading', { level: 1, name: new RegExp(lastName) })).toBeVisible({
@@ -152,11 +153,12 @@ test.describe('volunteer', () => {
 test.describe('manager', () => {
   test.use({ storageState: storageStateFor('manager') });
 
-  test('can make a report, without signed notes', async ({ page }) => {
+  test('can make a report, with signed notes off by default', async ({ page }) => {
     await createPatient(page);
     const sheet = await openSheet(page);
     await expect(sheet.getByRole('checkbox', { name: /Readings/ })).toBeChecked();
-    await expect(sheet.getByRole('checkbox', { name: /Signed clinical notes/ })).toHaveCount(0);
+    // Managers read notes since the 2026-11-21 screening; notes stay opt-in.
+    await expect(sheet.getByRole('checkbox', { name: /Signed clinical notes/ })).not.toBeChecked();
   });
 });
 

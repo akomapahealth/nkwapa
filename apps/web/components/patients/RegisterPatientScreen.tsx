@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { readApiError } from '@/lib/ops';
+import { hasPermission, readApiError } from '@/lib/ops';
+import { useBootstrap } from '@/lib/bootstrap-context';
+import { isWebFeatureEnabled } from '@/lib/feature-flags';
+import { generateClientId } from '@/lib/outbox';
+import { DemoPatientField, DEMO_MANAGE_PERMISSION } from '@/components/patients/DemoPatientField';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
 import { InlineNotice } from '@/components/feedback/InlineNotice';
 import { apiFetch, type GetToken } from '@/lib/api';
@@ -39,22 +43,14 @@ import {
 } from '@/lib/residential-location';
 import { FieldError, FieldLabel, RequiredLegend } from '@/components/ui/field';
 
-import { formatPersonName, normalizeMiddleName } from '@/lib/person-name';
+import { formatPersonName } from '@/lib/person-name';
+import { registrationBody, type RegistrationForm } from '@/lib/patient-registration';
+import { Checkbox } from '@/components/ui/checkbox';
 import { MiddleNameField } from './MiddleNameField';
 import { PatientFormErrors, usePatientFormErrors } from './PatientFormErrors';
 import styles from './registration-workspace.module.css';
 
-interface CreatePatientBody {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  dob?: string;
-  sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
-  phoneE164?: string;
-  email?: string;
-  nationalIdType: 'VOTER_ID' | 'NATIONAL_ID' | 'PASSPORT' | 'OTHER' | 'NONE';
-  nationalId: string;
-}
+type CreatePatientBody = RegistrationForm;
 
 interface ExistingPatient {
   id: string;
@@ -111,6 +107,14 @@ export function RegisterPatientScreen({
   }, []);
   const router = useRouter();
   const { isOnline } = useSync();
+  const permissions = useBootstrap()?.bootstrap?.effectivePermissionsForActiveClinic ?? [];
+  // Registration is the first station: whoever registers can take the patient straight in.
+  const canStart =
+    isWebFeatureEnabled('stationWorkflow') &&
+    hasPermission(permissions, 'OPS.CHECKIN.CREATE') &&
+    hasPermission(permissions, 'OPS.STATION.WORK');
+  const canMarkDemo = hasPermission(permissions, DEMO_MANAGE_PERMISSION);
+  const [isDemo, setIsDemo] = useState(false);
   const validation = usePatientFormErrors();
   const registryHref = `/clinics/${clinicId}/patients`;
   const [form, setForm] = useState<CreatePatientBody>({
@@ -122,7 +126,8 @@ export function RegisterPatientScreen({
     sex: undefined,
     phoneE164: '',
     email: '',
-    nationalIdType: 'OTHER',
+    // No default: a volunteer chooses the document the patient showed, or no ID (#428).
+    nationalIdType: '',
     nationalId: '',
   });
   const [location, setLocation] = useState<ResidentialLocationValue>(emptyResidentialLocation());
@@ -130,15 +135,34 @@ export function RegisterPatientScreen({
   const submitting = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictPatient, setConflictPatient] = useState<ExistingPatient | null>(null);
+  // Unticking No ID gives back the document chosen before it, with the number still typed.
+  const typeBeforeNoId = useRef<CreatePatientBody['nationalIdType']>('');
+  const setNoId = (noId: boolean) => {
+    validation.clear('nationalId');
+    setError(null);
+    setForm((current) => {
+      if (noId && current.nationalIdType !== 'NONE')
+        typeBeforeNoId.current = current.nationalIdType;
+      return { ...current, nationalIdType: noId ? 'NONE' : typeBeforeNoId.current };
+    });
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!clinicId || !getToken || submitting.current) {
       return;
     }
+    const startNow =
+      canStart && (event.nativeEvent as SubmitEvent).submitter?.getAttribute('name') === 'start';
     const locationError = residentialLocationError(location);
     if (locationError) {
       setError(locationError);
+      return;
+    }
+    const prepared = registrationBody(form);
+    if ('error' in prepared) {
+      setError(prepared.error);
+      document.getElementById('nationalIdType')?.focus();
       return;
     }
 
@@ -149,17 +173,10 @@ export function RegisterPatientScreen({
 
     let leaving = false;
     try {
-      const noId = form.nationalIdType === 'NONE';
       const body = {
-        ...form,
-        // A patient with no ID document has no number to send (#214).
-        nationalId: noId ? undefined : form.nationalId,
-        middleName: normalizeMiddleName(form.middleName) ?? undefined,
-        dob: form.dob || undefined,
-        sex: form.sex ?? 'UNKNOWN',
-        phoneE164: form.phoneE164 || undefined,
-        email: form.email || undefined,
+        ...prepared.body,
         ...toResidentialLocationPayload(location),
+        ...(canMarkDemo && isDemo ? { isDemo: true } : {}),
       };
 
       const response = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/patients`, {
@@ -188,6 +205,33 @@ export function RegisterPatientScreen({
       }
 
       const patient = (await response.json()) as { id: string };
+      if (startNow) {
+        // The chart exists either way; if this fails, the chart's own check-in button still works.
+        const checkIn = await apiFetch(`/clinics/${encodeURIComponent(clinicId)}/checkins`, {
+          method: 'POST',
+          body: JSON.stringify({ id: generateClientId(), patientId: patient.id, startNow: true }),
+          getToken,
+          activeClinicId: clinicId,
+        }).catch(() => null);
+        const result = checkIn?.ok
+          ? ((await checkIn.json()) as {
+              startedVisitId?: string | null;
+              dayNumber?: number | null;
+            })
+          : null;
+        if (result?.startedVisitId) {
+          router.push(`/stations/visits/${result.startedVisitId}?registered=1`);
+          leaving = true;
+          return;
+        }
+        // Checked in but not started (not at the first station yet): the number still goes on
+        // the card first (#413), and the patient waits in the first station's queue.
+        if (result?.dayNumber) {
+          router.push(`/stations?registered=1&no=${result.dayNumber}`);
+          leaving = true;
+          return;
+        }
+      }
       router.push(`/clinics/${clinicId}/patients/${patient.id}`);
       leaving = true;
     } catch (requestError) {
@@ -231,9 +275,13 @@ export function RegisterPatientScreen({
       >
         <DialogContent className={styles.conflict}>
           <DialogHeader>
-            <DialogTitle>Patient already exists</DialogTitle>
-            <DialogDescription>
-              A patient with this national ID is already in the system.
+            <DialogTitle>This ID number is already on a chart</DialogTitle>
+            {/* A long name is one unbroken word; it must wrap, not widen the dialog. */}
+            <DialogDescription className="[overflow-wrap:anywhere]">
+              {conflictPatient
+                ? `This ID number is already on ${formatPersonName(conflictPatient)}’s chart. `
+                : ''}
+              If this is a different person, check the number, or choose No ID with them today.
             </DialogDescription>
           </DialogHeader>
           {conflictPatient ? (
@@ -251,7 +299,16 @@ export function RegisterPatientScreen({
           ) : null}
           <DialogFooter className={styles.conflictActions}>
             <Button variant="outline" onClick={() => setConflictPatient(null)}>
-              Review details
+              Check the number
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConflictPatient(null);
+                setNoId(true);
+              }}
+            >
+              Register with no ID
             </Button>
             {conflictPatient ? (
               <Button asChild>
@@ -269,10 +326,11 @@ export function RegisterPatientScreen({
           title="Before you save"
           className="rounded-none border-x-0 border-t-0 bg-transparent shadow-none"
         >
-          Capture the most reliable identity details available today. If the patient has no ID
-          document at all, choose &ldquo;No ID document&rdquo;: the chart is identified by its
-          patient code, and the ID can be added from the chart when they bring one. Without an ID,
-          Nkwapa relies on name, date of birth and phone to spot duplicates, so fill those in.
+          Capture the most reliable identity details available today. If the patient has no ID with
+          them, tick &ldquo;No ID with them today&rdquo;: the chart is identified by its patient
+          code, and the ID can be added from the chart when they bring one. Never make up a number.
+          Without an ID, Nkwapa relies on name, date of birth and phone to spot duplicates, so fill
+          those in.
         </ProgressiveHelp>
 
         <form
@@ -390,38 +448,35 @@ export function RegisterPatientScreen({
             <FormSectionCard
               title="National ID"
               description="The ID check runs when you save this form."
-              hint="Choose the document the patient showed. If they have none, choose “No ID document” and add the ID later from the chart."
+              hint="Choose the document the patient showed. If they have none with them, tick “No ID with them today” and add the ID later from the chart."
             >
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,220px),minmax(0,1fr)]">
-                <div className="space-y-2">
-                  <Label htmlFor="nationalIdType">National ID type</Label>
-                  <Select
-                    value={form.nationalIdType}
-                    onValueChange={(value) => {
-                      validation.clear('nationalId');
-                      setForm((current) => ({
-                        ...current,
-                        nationalIdType: value as CreatePatientBody['nationalIdType'],
-                      }));
-                    }}
-                  >
-                    <SelectTrigger id="nationalIdType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                      <SelectItem value="VOTER_ID">Voter ID</SelectItem>
-                      <SelectItem value="NATIONAL_ID">National ID</SelectItem>
-                      <SelectItem value="PASSPORT">Passport</SelectItem>
-                      <SelectItem value="NONE">No ID document</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {form.nationalIdType === 'NONE' ? (
-                  <p className="self-end text-sm text-muted-foreground">
-                    No ID number. The patient code identifies this chart until an ID is added.
-                  </p>
-                ) : (
+              {form.nationalIdType !== 'NONE' ? (
+                <div className="grid gap-4 sm:grid-cols-[minmax(0,220px),minmax(0,1fr)]">
+                  <div className="space-y-2">
+                    <FieldLabel htmlFor="nationalIdType" required>
+                      National ID type
+                    </FieldLabel>
+                    <Select
+                      value={form.nationalIdType}
+                      onValueChange={(value) => {
+                        validation.clear('nationalId');
+                        setForm((current) => ({
+                          ...current,
+                          nationalIdType: value as CreatePatientBody['nationalIdType'],
+                        }));
+                      }}
+                    >
+                      <SelectTrigger id="nationalIdType">
+                        <SelectValue placeholder="Choose the document they showed" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                        <SelectItem value="VOTER_ID">Voter ID</SelectItem>
+                        <SelectItem value="PASSPORT">Passport</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <FieldLabel htmlFor="nationalId" required>
                       National ID
@@ -442,7 +497,24 @@ export function RegisterPatientScreen({
                       message={validation.fieldMessage('nationalId')}
                     />
                   </div>
-                )}
+                </div>
+              ) : null}
+              {/* Beside the field it replaces, so it is found without opening the select. */}
+              <div className="mt-4 flex items-start gap-3">
+                <Checkbox
+                  id="noIdToday"
+                  checked={form.nationalIdType === 'NONE'}
+                  onCheckedChange={(checked) => setNoId(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Label htmlFor="noIdToday">No ID with them today</Label>
+                  {form.nationalIdType === 'NONE' ? (
+                    <p className="text-sm text-muted-foreground">
+                      The patient code identifies this chart. Add the ID later from the chart.
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </FormSectionCard>
 
@@ -482,6 +554,14 @@ export function RegisterPatientScreen({
             </FormSectionCard>
 
             <ResidentialLocationFields value={location} onChange={setLocation} />
+            {canMarkDemo ? (
+              <FormSectionCard
+                title="Training"
+                description="For running volunteers through the workflow without touching real data."
+              >
+                <DemoPatientField checked={isDemo} onChange={setIsDemo} />
+              </FormSectionCard>
+            ) : null}
           </div>
           <div
             className={styles.actions}
@@ -492,9 +572,19 @@ export function RegisterPatientScreen({
             <Button variant="outline" asChild>
               <Link href={registryHref}>Cancel</Link>
             </Button>
-            <Button type="submit" disabled={loading} aria-busy={loading || undefined}>
+            <Button
+              type="submit"
+              variant={canStart ? 'outline' : undefined}
+              disabled={loading}
+              aria-busy={loading || undefined}
+            >
               {loading ? 'Creating...' : 'Create patient'}
             </Button>
+            {canStart ? (
+              <Button type="submit" name="start" disabled={loading}>
+                Register and start
+              </Button>
+            ) : null}
           </div>
         </form>
       </div>

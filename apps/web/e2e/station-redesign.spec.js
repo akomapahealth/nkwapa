@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.skip(
   process.env.FEATURE_STATION_WORKFLOW_ENABLED !== 'true' ||
@@ -59,6 +60,34 @@ function syntheticBoard(now) {
     onShift: [{ user: staff, roleAtShift: 'VOLUNTEER', stationId: bp.id, activeVisitCount: 1 }],
   };
 }
+
+test('a patient held past the station limit is named with who has them and for how long (#424)', async ({
+  page,
+}) => {
+  const now = Date.now();
+  await page.clock.setFixedTime(now);
+  const board = syntheticBoard(now);
+  // Blood pressure allows 15 minutes with a patient; this one has been held 16.
+  board.stations[0].visits[0].claimedAt = new Date(now - 16 * 60_000).toISOString();
+  board.stations[0].visits[0].queuedAt = new Date(now - 18 * 60_000).toISOString();
+  await page.route('**/stations/board*', (route) => route.fulfill({ json: board }));
+  await page.goto('/today');
+  const needs = page.getByRole('region', { name: 'Needs you now' });
+  await expect(needs.getByText('1 patient held at a station too long')).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(
+    needs.getByText(/with Synthetic Screener for 16 min at Blood pressure/),
+  ).toBeVisible();
+  const bpLane = page.getByTestId('patient-station-lane').filter({ hasText: 'Blood pressure' });
+  await expect(bpLane.getByText('1 held over 15 min', { exact: true })).toBeVisible();
+  await expect(bpLane.getByTestId('patient-held-label')).toContainText(
+    'With Synthetic Screener for 16 min',
+  );
+  await expect(
+    page.getByRole('button', { name: /Synthetic WithStaff, With Synthetic Screener for 16 min/ }),
+  ).toBeVisible();
+});
 
 for (const theme of ['light', 'dark']) {
   test(`patient station lanes preserve exact waits, states, staffing and table in ${theme}`, async ({
@@ -170,7 +199,7 @@ async function openBloodPressureVisit(page, lastName) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Synthetic');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-${lastName}-${Date.now()}`);
+  await fillNationalId(page, `E2E-${lastName}-${Date.now()}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');

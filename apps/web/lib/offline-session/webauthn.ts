@@ -23,8 +23,7 @@ export interface PasskeyUnlock {
 
 function prfOf(credential: Credential | null): PrfResults | undefined {
   const results = (credential as PublicKeyCredential | null)?.getClientExtensionResults?.() as
-    | { prf?: PrfResults }
-    | undefined;
+    { prf?: PrfResults } | undefined;
   return results?.prf;
 }
 

@@ -56,63 +56,78 @@ export class EncounterService {
     actor: DraftDeleteActor,
   ) {
     assertDraftDeleteSeat(actor);
-    const patientId = await this.prisma.$transaction(async (tx) => {
-      const encounter = await tx.encounter.findFirst({
-        where: { id: encounterId, clinicId },
-        include: {
-          clinicalNote: { select: { id: true, status: true, version: true } },
-          // Ids of what cascades with it, so the audit row says what went.
-          vitals: ID,
-          tobaccoScreening: ID,
-          diabetesScreening: ID,
-          hypertensionAssessment: ID,
-          carePlan: ID,
-          counsellingRecord: ID,
-          eyeScreening: ID,
-          prescriptions: ID,
-          medicationAdherence: ID,
-          riskFlags: ID,
-        },
-      });
-      if (!encounter) throw new NotFoundException('Encounter not found');
-      if (encounter.status !== 'DRAFT') throw notDraft('visit', encounter.status);
-      const note = encounter.clinicalNote;
-      if (note && note.status !== 'DRAFT') throw notDraft('note', note.status);
-
-      if (note) await tx.clinicalNote.delete({ where: { id: note.id } });
-      try {
-        await tx.encounter.delete({ where: { id: encounter.id } });
-      } catch (err) {
-        // A submitted note is hidden from a system admin by row security, so it surfaces here,
-        // as the note's Restrict foreign key.
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
-          throw notDraft('note', 'SUBMITTED');
-        }
-        throw err;
-      }
-
-      await this.auditService.logWrite(
-        {
-          clinicId,
-          actorUserId: actor.userId,
-          action: ENCOUNTER_DELETE_ACTION,
-          entityType: 'Encounter',
-          entityId: encounter.id,
-          // The note is selected as id, status and version only: its text never enters the log.
-          beforeJson: JSON.stringify(encounter),
-          afterJson: JSON.stringify({ deleted: true, reason, patientId: encounter.patientId }),
-          requestId: actor.requestId,
-        },
-        tx,
-      );
-      return encounter.patientId;
-    });
-    await this.risk?.recomputeAfterCommit({
-      patientId,
-      trigger: 'PATIENT',
-      actorUserId: actor.userId,
-    });
+    const patientId = await this.prisma.$transaction((tx) =>
+      this.deleteDraftInTx(tx, clinicId, encounterId, reason, actor),
+    );
+    await this.recomputeRiskAfterDelete(patientId, actor.userId);
     return { deleted: true, patientId };
+  }
+
+  /** A deleted draft took its readings with it, so the patient's follow-up tier is recomputed. */
+  recomputeRiskAfterDelete(patientId: string, actorUserId: string) {
+    return this.risk?.recomputeAfterCommit({ patientId, trigger: 'PATIENT', actorUserId });
+  }
+
+  /**
+   * The delete itself, inside the caller's transaction, with no seat check: the caller has made
+   * it. Practice clearing (#410) uses it for demo charts' drafts. Returns the patient id.
+   */
+  async deleteDraftInTx(
+    tx: Prisma.TransactionClient,
+    clinicId: string,
+    encounterId: string,
+    reason: string,
+    actor: Pick<DraftDeleteActor, 'userId' | 'requestId'>,
+  ): Promise<string> {
+    const encounter = await tx.encounter.findFirst({
+      where: { id: encounterId, clinicId },
+      include: {
+        clinicalNote: { select: { id: true, status: true, version: true } },
+        // Ids of what cascades with it, so the audit row says what went.
+        vitals: ID,
+        tobaccoScreening: ID,
+        diabetesScreening: ID,
+        hypertensionAssessment: ID,
+        carePlan: ID,
+        counsellingRecord: ID,
+        eyeScreening: ID,
+        prescriptions: ID,
+        medicationAdherence: ID,
+        riskFlags: ID,
+      },
+    });
+    if (!encounter) throw new NotFoundException('Encounter not found');
+    if (encounter.status !== 'DRAFT') throw notDraft('visit', encounter.status);
+    const note = encounter.clinicalNote;
+    if (note && note.status !== 'DRAFT') throw notDraft('note', note.status);
+
+    if (note) await tx.clinicalNote.delete({ where: { id: note.id } });
+    try {
+      await tx.encounter.delete({ where: { id: encounter.id } });
+    } catch (err) {
+      // A submitted note is hidden from a system admin by row security, so it surfaces here,
+      // as the note's Restrict foreign key.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+        throw notDraft('note', 'SUBMITTED');
+      }
+      throw err;
+    }
+
+    await this.auditService.logWrite(
+      {
+        clinicId,
+        actorUserId: actor.userId,
+        action: ENCOUNTER_DELETE_ACTION,
+        entityType: 'Encounter',
+        entityId: encounter.id,
+        // The note is selected as id, status and version only: its text never enters the log.
+        beforeJson: JSON.stringify(encounter),
+        afterJson: JSON.stringify({ deleted: true, reason, patientId: encounter.patientId }),
+        requestId: actor.requestId,
+      },
+      tx,
+    );
+    return encounter.patientId;
   }
 
   /** Delete only the DRAFT clinical note on a visit, leaving the visit itself (#384). */

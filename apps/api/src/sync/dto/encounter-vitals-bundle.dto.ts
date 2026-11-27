@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayNotEmpty,
   ArrayUnique,
   IsArray,
@@ -25,7 +26,7 @@ import {
   TemperatureSource,
   TobaccoUseStatus,
 } from '@prisma/client';
-import { VITALS_SECTIONS, type VitalsSection } from '@nkwapa/db';
+import { BP_MAX_READINGS, VITALS_SECTIONS, type VitalsSection } from '@nkwapa/db';
 import { ToOptionalNumber, ToSanitizedString } from '../../common/validation';
 
 export const TEMPERATURE_UNITS = ['CELSIUS', 'FAHRENHEIT'] as const;
@@ -45,6 +46,32 @@ export class VitalsInputDto {
   @Min(20)
   @Max(200)
   diastolicBp?: number | null;
+
+  /** The 2-3 readings of one sitting; `systolicBp`/`diastolicBp` must be their average. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(BP_MAX_READINGS)
+  @IsInt({ each: true })
+  @Min(40, { each: true })
+  @Max(300, { each: true })
+  bpSystolicReadings?: number[] | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(BP_MAX_READINGS)
+  @IsInt({ each: true })
+  @Min(20, { each: true })
+  @Max(200, { each: true })
+  bpDiastolicReadings?: number[] | null;
+
+  /** One pulse per BP reading, or none; `pulseBpm` must be their average. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(BP_MAX_READINGS)
+  @IsInt({ each: true })
+  @Min(20, { each: true })
+  @Max(300, { each: true })
+  pulseReadings?: number[] | null;
 
   @IsOptional()
   @IsEnum(BloodPressureSite)

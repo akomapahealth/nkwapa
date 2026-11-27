@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/app-shell/BottomNav';
+import { NavBadgesProvider } from '@/components/app-shell/NavBadges';
 import { NavigationProgress } from '@/components/app-shell/NavigationProgress';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatWidget } from '@/components/chat/ChatWidget';
@@ -97,54 +98,69 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div
-      data-app-shell=""
-      className="min-h-screen bg-background px-safe [--workspace-bottom-nav-height:3.75rem] compact:[--workspace-bottom-nav-height:0px] [:root[data-keyboard]_&]:[--workspace-bottom-nav-height:var(--keyboard-inset)]"
-    >
-      <NavigationProgress />
-      {/*
+    <NavBadgesProvider>
+      <div
+        data-app-shell=""
+        className="min-h-screen bg-background px-safe [--workspace-bottom-nav-height:3.75rem] compact:[--workspace-bottom-nav-height:0px] [:root[data-keyboard]_&]:[--workspace-bottom-nav-height:var(--keyboard-inset)]"
+      >
+        <div className="contents print:hidden">
+          <NavigationProgress />
+        </div>
+        {/*
         First thing in the tab order, hidden until focused. Without it a keyboard or screen reader
         user walks the whole sidebar and header on every page before reaching the chart.
       */}
-      <a
-        href="#main-content"
-        className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm"
-      >
-        Skip to main content
-      </a>
-      {/*
+        <a
+          href="#main-content"
+          className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-lg focus-visible:bg-background focus-visible:px-4 focus-visible:py-3 focus-visible:text-sm focus-visible:font-medium focus-visible:shadow-sm"
+        >
+          Skip to main content
+        </a>
+        {/*
         The canvas is `--background` and nothing else. A two-stop decorative radial gradient used
         to sit behind every clinical page here; it tinted the corners of every chart and table in
         the product for no informational reason.
       */}
-      <div className="flex min-h-screen">
-        <Sidebar collapsed={desktop && sidebarCollapsed} rail={!desktop} animate={animateSidebar} />
-        <div className="flex min-w-0 flex-1 flex-col bg-card compact:my-2 compact:mr-2 compact:rounded-xl compact:border compact:border-border">
-          <Header
-            sidebarCollapsed={sidebarCollapsed}
-            mobileOpen={tabletOpen}
-            onMobileOpenChange={setTabletOpen}
-            onToggleSidebar={(event) => {
-              if (!window.matchMedia('(min-width: 1200px)').matches) return;
-              setAnimateSidebar(event.detail > 0);
-              setSidebarCollapsed((current) => !current);
-            }}
-          />
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(10rem+env(safe-area-inset-bottom))] compact:pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8"
-          >
-            <div className="mx-auto w-full max-w-[1440px] space-y-6">
-              <OfflineSessionBanner />
-              <PendingStaffInviteNotice />
-              {children}
+        <div className="flex min-h-screen">
+          {/* Printing a page prints the page, not the app around it (#412). */}
+          <div className="contents print:hidden">
+            <Sidebar
+              collapsed={desktop && sidebarCollapsed}
+              rail={!desktop}
+              animate={animateSidebar}
+            />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col bg-card compact:my-2 compact:mr-2 compact:rounded-xl compact:border compact:border-border print:m-0 print:border-0 print:bg-transparent">
+            <div className="contents print:hidden">
+              <Header
+                sidebarCollapsed={sidebarCollapsed}
+                mobileOpen={tabletOpen}
+                onMobileOpenChange={setTabletOpen}
+                onToggleSidebar={(event) => {
+                  if (!window.matchMedia('(min-width: 1200px)').matches) return;
+                  setAnimateSidebar(event.detail > 0);
+                  setSidebarCollapsed((current) => !current);
+                }}
+              />
             </div>
-          </main>
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="min-w-0 flex-1 overflow-auto px-4 py-5 pb-[calc(10rem+env(safe-area-inset-bottom))] compact:pb-[calc(6rem+env(safe-area-inset-bottom))] focus-visible:outline-none compact:px-6 desktop:px-8 print:overflow-visible print:p-0"
+            >
+              <div className="mx-auto w-full max-w-[1440px] space-y-6">
+                <OfflineSessionBanner />
+                <PendingStaffInviteNotice />
+                {children}
+              </div>
+            </main>
+          </div>
+        </div>
+        <div className="contents print:hidden">
+          <BottomNav />
+          <ChatWidget />
         </div>
       </div>
-      <BottomNav />
-      <ChatWidget />
-    </div>
+    </NavBadgesProvider>
   );
 }

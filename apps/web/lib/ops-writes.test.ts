@@ -39,7 +39,7 @@ describe('submitOpsWrite', () => {
       d,
     );
 
-    expect(result).toEqual({ outcome: 'applied' });
+    expect(result).toMatchObject({ outcome: 'applied' });
     expect(send).toHaveBeenCalledWith(
       '/clinics/clinic-1/shifts/check-in',
       expect.objectContaining({

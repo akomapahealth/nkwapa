@@ -299,7 +299,7 @@ describe('ReferralReportService (#344)', () => {
     expect(service.allowedSections(CLINIC, doctor)).toContain('NOTES');
   });
 
-  it('gives a manager everything they can read on the chart, which leaves out signed notes', () => {
+  it('gives a manager everything they can read on the chart, signed notes included', () => {
     const { service } = setup();
     const manager = { userId: 'manager-1', roles: [{ clinicId: CLINIC, role: UserRole.MANAGER }] };
     expect(service.allowedSections(CLINIC, manager)).toEqual([
@@ -309,6 +309,7 @@ describe('ReferralReportService (#344)', () => {
       'MEDICATIONS',
       'ASSESSMENTS',
       'PLAN',
+      'NOTES',
     ]);
   });
 

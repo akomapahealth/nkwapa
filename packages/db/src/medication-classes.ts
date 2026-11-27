@@ -40,8 +40,7 @@ export const HYPERTENSION_DRUG_CATEGORIES = [
 export const DIABETES_DRUG_CATEGORIES = ['ANTIDIABETIC'] as const;
 
 export type ChronicDrugCategory =
-  | (typeof HYPERTENSION_DRUG_CATEGORIES)[number]
-  | (typeof DIABETES_DRUG_CATEGORIES)[number];
+  (typeof HYPERTENSION_DRUG_CATEGORIES)[number] | (typeof DIABETES_DRUG_CATEGORIES)[number];
 
 export function drugCategoriesForCondition(
   condition: ChronicCondition,

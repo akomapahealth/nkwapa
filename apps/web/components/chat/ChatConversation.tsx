@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, LogOut, Pencil, Send, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, ArrowUp, LogOut, Pencil, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import {
@@ -23,6 +23,7 @@ import {
   typingSummary,
 } from '@/lib/chat-display';
 import { confirmAction } from '@/components/ui/confirm-dialog';
+import { Button } from '@/components/ui/button';
 
 type MessageErrorPayload = {
   conversationId?: string;
@@ -135,6 +136,7 @@ export function ChatConversation({
   const [hasMore, setHasMore] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const group = isGroup(conversation);
@@ -320,6 +322,14 @@ export function ChatConversation({
     [handleSend],
   );
 
+  // Grow with the text up to max-h-32, then scroll; shrink back after sending.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setInput(e.target.value);
@@ -369,16 +379,18 @@ export function ChatConversation({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b px-3 py-2.5">
-        <button
+      <div className="flex items-center gap-2.5 border-b px-3 py-2">
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onBack}
-          className="cursor-pointer rounded-md p-1 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="-ml-1.5 shrink-0 rounded-full"
           aria-label="Back to conversations"
         >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
+          <ArrowLeft aria-hidden="true" />
+        </Button>
         {group ? (
           <ChatGroupAvatar onlineCount={onlineCount} size="sm" />
         ) : (
@@ -405,14 +417,16 @@ export function ChatConversation({
           </p>
         </div>
         {group ? (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setPanel(panel === 'members' ? 'none' : 'members')}
-            className="cursor-pointer rounded-md p-1.5 transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="shrink-0 rounded-full"
             aria-label="Members"
             aria-expanded={panel === 'members'}
           >
-            <Users className="h-4 w-4" />
-          </button>
+            <Users aria-hidden="true" />
+          </Button>
         ) : null}
       </div>
 
@@ -543,6 +557,7 @@ export function ChatConversation({
                 onRetry={handleRetry}
                 showSender={group && !sameRun(older, msg)}
                 showTime={!sameRun(msg, newer)}
+                startsRun={!sameRun(older, msg)}
               />
               {firstOfDay ? <ChatDayLabel value={msg.createdAt} /> : null}
             </Fragment>
@@ -575,26 +590,29 @@ export function ChatConversation({
         </div>
       )}
 
-      {/* Input */}
-      <div className="border-t px-3 py-2">
-        <div className="flex items-end gap-2">
+      {/* Input: one pill, the send button inside it, centred on the last line. */}
+      <div className="border-t px-3 py-2.5">
+        <div className="flex items-end gap-1.5 rounded-[1.375rem] border border-input bg-card py-1 pl-4 pr-1 transition-[border-color,box-shadow] duration-fast focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/30">
           <textarea
+            ref={inputRef}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Write a message…"
             aria-label="Message"
             rows={1}
-            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            className="max-h-32 min-h-[var(--button-height)] flex-1 resize-none self-center bg-transparent py-2 text-base leading-6 outline-none placeholder:text-muted-foreground [@media(pointer:fine)]:py-1 [@media(pointer:fine)]:text-sm"
           />
-          <button
+          <Button
+            type="button"
+            size="icon"
             onClick={handleSend}
             disabled={!input.trim()}
-            className="touch-target cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 rounded-full"
             aria-label="Send message"
           >
-            <Send className="h-4 w-4" />
-          </button>
+            <ArrowUp aria-hidden="true" strokeWidth={2.5} />
+          </Button>
         </div>
       </div>
     </div>

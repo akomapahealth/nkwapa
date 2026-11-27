@@ -1,7 +1,7 @@
 <#import "template.ftl" as layout>
 <#-- Keycloak's own copy here is "To restart the login process, click here." twice over. Both
      links keep their ids and targets; they are worded as the two choices they are. -->
-<@layout.registrationLayout displayMessage=true journey="help" eyebrow="Sign-in paused"; section>
+<@layout.registrationLayout displayMessage=true; section>
     <#if section = "header">
         ${msg("pageExpiredTitle")}
     <#elseif section = "form">

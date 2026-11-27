@@ -13,12 +13,7 @@ import type { PatientChartSectionId } from './patient-chart-sections';
 
 export type ChartTrendDirection = 'RISING' | 'FALLING' | 'STEADY' | 'NOT_ENOUGH_DATA';
 export type ChartGlanceScreeningKind =
-  | 'VITALS'
-  | 'HYPERTENSION'
-  | 'DIABETES'
-  | 'EYE'
-  | 'COUNSELLING'
-  | 'TOBACCO';
+  'VITALS' | 'HYPERTENSION' | 'DIABETES' | 'EYE' | 'COUNSELLING' | 'TOBACCO';
 
 /** The glance payload as JSON carries it (dates as ISO strings). */
 export interface GlanceLinesInput {

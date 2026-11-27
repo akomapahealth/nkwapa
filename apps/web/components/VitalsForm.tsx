@@ -16,6 +16,7 @@ import {
 } from '@/components/patients/RecordSection';
 import styles from './vitals-workspace.module.css';
 import { BloodPressureSignal } from '@/components/patients/BloodPressureSignal';
+import { BpReadingsDialog } from '@/components/BpReadingsDialog';
 import {
   Select,
   SelectContent,
@@ -55,7 +56,8 @@ const NONE_VALUE = '__NONE__';
 function retainEditedFields<T extends object>(current: T, baseline: T, incoming: T): T {
   const next = { ...incoming };
   for (const key of Object.keys(incoming) as (keyof T)[]) {
-    if (current[key] !== baseline[key]) next[key] = current[key];
+    // By value: `stored` and `bpReadings` are rebuilt on every load, so identity always differs.
+    if (JSON.stringify(current[key]) !== JSON.stringify(baseline[key])) next[key] = current[key];
   }
   return next;
 }
@@ -106,6 +108,11 @@ function initialVitals(
   return {
     systolicBp: String(data?.systolicBp ?? ''),
     diastolicBp: String(data?.diastolicBp ?? ''),
+    bpReadings: (data?.bpSystolicReadings ?? []).map((systolic, index) => ({
+      systolic,
+      diastolic: data?.bpDiastolicReadings?.[index] ?? 0,
+      ...(data?.pulseReadings?.[index] != null ? { pulse: data.pulseReadings[index] } : {}),
+    })),
     bpSite: data?.bpSite ?? '',
     bpSiteOther: data?.bpSiteOther ?? '',
     patientPosition: data?.patientPosition ?? '',
@@ -130,7 +137,10 @@ function initialVitals(
 }
 
 /** The form fields that hold typed text. */
-type VitalsTextField = Exclude<keyof VitalsFormValues, 'temperatureUnit' | 'bodyUnit' | 'stored'>;
+type VitalsTextField = Exclude<
+  keyof VitalsFormValues,
+  'temperatureUnit' | 'bodyUnit' | 'stored' | 'bpReadings'
+>;
 
 function initialTobacco(data?: TobaccoScreeningRecord | null): TobaccoFormValues {
   return {
@@ -251,13 +261,13 @@ function ReadOnlyMeasurements({
         ['Site', displayValue(vitals?.bpSiteOther || vitals?.bpSite)],
         ['Position', displayValue(vitals?.patientPositionOther || vitals?.patientPosition)],
         ['Cuff size', displayValue(vitals?.cuffSizeOther || vitals?.cuffSize)],
+        ['Pulse', displayValue(vitals?.pulseBpm ?? vitals?.heartRate, ' bpm')],
       ],
     },
     {
       title: 'Other measurements',
       icon: Thermometer,
       rows: [
-        ['Pulse', displayValue(vitals?.pulseBpm ?? vitals?.heartRate, ' bpm')],
         ['Temperature', displayValue(vitals?.temperatureCelsius, ' °C')],
         [
           'Temperature source',
@@ -345,8 +355,8 @@ function ReadOnlyMeasurements({
 const MEASUREMENT_FIELD_ORDER = [
   'systolicBp',
   'diastolicBp',
-  'bloodPressureContext',
   'pulseBpm',
+  'bloodPressureContext',
   'respiratoryRate',
   'spo2',
   'temperature',
@@ -416,6 +426,7 @@ export function VitalsForm({
   const tobaccoScreeningId = useRef(initialTobaccoData?.id ?? generateClinicalId());
   const { bodyUnit } = useClinicUnits(clinicId);
   const [vitals, setVitals] = useState(() => initialVitals(initialData, bodyUnit));
+  const [readingsOpen, setReadingsOpen] = useState(false);
   const [tobacco, setTobacco] = useState(() => initialTobacco(initialTobaccoData));
   const vitalsBaseline = useRef(initialVitals(initialData, bodyUnit));
   const tobaccoBaseline = useRef(initialTobacco(initialTobaccoData));
@@ -455,7 +466,21 @@ export function VitalsForm({
   }, [initialTobaccoData]);
 
   const updateVital = (field: VitalsTextField, value: string) => {
-    setVitals((current) => ({ ...current, [field]: value }));
+    setVitals((current) => ({
+      ...current,
+      [field]: value,
+      // A BP typed over the average is a single reading again, so the readings no longer apply.
+      ...(field === 'systolicBp' || field === 'diastolicBp' ? { bpReadings: [] } : {}),
+      // A pulse typed over the average drops the per-reading pulses, which no longer match it.
+      ...(field === 'pulseBpm'
+        ? {
+            bpReadings: current.bpReadings?.map(({ systolic, diastolic }) => ({
+              systolic,
+              diastolic,
+            })),
+          }
+        : {}),
+    }));
     setErrors((current) => {
       const next = { ...current };
       delete next[field];
@@ -667,7 +692,48 @@ export function VitalsForm({
               <div className={styles.pressure}>
                 {numberField('systolicBp', 'Systolic BP (mmHg)')}
                 {numberField('diastolicBp', 'Diastolic BP (mmHg)')}
+                {numberField('pulseBpm', 'Pulse (bpm)')}
               </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="outline" onClick={() => setReadingsOpen(true)}>
+                  {vitals.bpReadings?.length ? 'Change readings' : 'Take several readings'}
+                </Button>
+                {vitals.bpReadings?.length ? (
+                  <p className="text-sm text-muted-foreground" data-testid="bp-readings-summary">
+                    Average of{' '}
+                    {vitals.bpReadings
+                      .map(
+                        (reading) =>
+                          `${reading.systolic}/${reading.diastolic}${reading.pulse != null ? ` (pulse ${reading.pulse})` : ''}`,
+                      )
+                      .join(', ')}
+                  </p>
+                ) : null}
+              </div>
+              <BpReadingsDialog
+                open={readingsOpen}
+                onOpenChange={setReadingsOpen}
+                initial={vitals.bpReadings}
+                onUse={(readings, average) => {
+                  setVitals((current) => ({
+                    ...current,
+                    systolicBp: String(average.systolic),
+                    diastolicBp: String(average.diastolic),
+                    // Without a pulse on each reading used, a pulse already typed is kept.
+                    pulseBpm: average.pulse != null ? String(average.pulse) : current.pulseBpm,
+                    bpReadings: readings,
+                  }));
+                  setErrors((current) => {
+                    const next = { ...current };
+                    delete next.systolicBp;
+                    delete next.diastolicBp;
+                    if (average.pulse != null) delete next.pulseBpm;
+                    return next;
+                  });
+                  setStatus(null);
+                  setStatusIsError(false);
+                }}
+              />
               <BloodPressureSignal
                 systolic={vitals.systolicBp}
                 diastolic={vitals.diastolicBp}
@@ -758,10 +824,9 @@ export function VitalsForm({
               <SectionHeading
                 icon={Thermometer}
                 title="Other measurements"
-                description="Capture pulse, breathing, oxygen saturation, and temperature."
+                description="Capture breathing, oxygen saturation, and temperature."
               />
               <div className={styles.fields}>
-                {numberField('pulseBpm', 'Pulse (bpm)')}
                 {numberField('respiratoryRate', 'Respiratory rate (/min)')}
                 {numberField('spo2Percent', 'SpO₂ (%)')}
                 <div className="flex min-w-0 flex-col gap-2">

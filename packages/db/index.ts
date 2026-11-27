@@ -385,6 +385,8 @@ export {
   BP_ESCALATION_DIASTOLIC,
   BP_HYPOTENSION_SYSTOLIC,
   BP_HYPOTENSION_DIASTOLIC,
+  BP_MAX_READINGS,
+  averageBpReadings,
   classifyBloodPressure,
   shouldPromptRepeat,
   isSeverelyElevated,
@@ -472,3 +474,4 @@ export {
   type GlanceLinesInput,
 } from './src/patient-chart-glance-lines';
 export * from './src/follow-up-stratification';
+export * from './src/station-line-flags';

@@ -278,6 +278,8 @@ export class PatientRepository {
     if (!filters.includeMerged) {
       where.mergedIntoPatientId = null;
     }
+    // A practice chart a director cleared (#410) leaves the list and search; its link still opens it.
+    where.demoClearedAt = null;
     // Residential location filters are AND-ed with the clinic scope above so
     // they can only ever narrow results, never widen them across clinics.
     if (filters.residentialRegion) {

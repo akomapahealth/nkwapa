@@ -27,10 +27,12 @@ export function ServiceWorkerRegistration() {
     });
     const isSyncing = () => syncStatus === 'syncing';
 
+    let unmounted = false;
     let cleanup: () => void = () => undefined;
     navigator.serviceWorker
       .register('/service-worker.js', { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
+        if (unmounted) return;
         const controller = createUpdateController({
           registration,
           container: navigator.serviceWorker,
@@ -67,6 +69,7 @@ export function ServiceWorkerRegistration() {
         document.addEventListener('visibilitychange', onVisible);
         const interval = window.setInterval(controller.checkForUpdate, 5 * 60 * 1000);
         cleanup = () => {
+          controller.dispose();
           document.removeEventListener('visibilitychange', onVisible);
           window.clearInterval(interval);
         };
@@ -74,6 +77,7 @@ export function ServiceWorkerRegistration() {
       .catch((err) => console.warn('SW registration failed:', err));
 
     return () => {
+      unmounted = true;
       stopTrackingSync();
       cleanup();
     };

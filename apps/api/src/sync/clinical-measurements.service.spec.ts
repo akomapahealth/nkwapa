@@ -122,11 +122,88 @@ describe('ClinicalMeasurementsService', () => {
         },
       },
     ],
+    [
+      'a recorded value that is not the average of the readings',
+      {
+        vitals: {
+          systolicBp: 150,
+          diastolicBp: 95,
+          bpSystolicReadings: [150, 140, 138],
+          bpDiastolicReadings: [95, 90, 88],
+          bpSite: BloodPressureSite.LEFT_ARM,
+        },
+      },
+    ],
+    [
+      'a pulse that is not the average of the pulse readings',
+      {
+        vitals: {
+          systolicBp: 139,
+          diastolicBp: 89,
+          bpSystolicReadings: [150, 140, 138],
+          bpDiastolicReadings: [95, 90, 88],
+          pulseReadings: [90, 80, 78],
+          pulseBpm: 83,
+          bpSite: BloodPressureSite.LEFT_ARM,
+        },
+      },
+    ],
+    [
+      'pulse for only some readings',
+      {
+        vitals: {
+          systolicBp: 139,
+          diastolicBp: 89,
+          bpSystolicReadings: [150, 140, 138],
+          bpDiastolicReadings: [95, 90, 88],
+          pulseReadings: [80, 78],
+          pulseBpm: 79,
+          bpSite: BloodPressureSite.LEFT_ARM,
+        },
+      },
+    ],
+    [
+      'readings without a partner',
+      {
+        vitals: {
+          systolicBp: 139,
+          diastolicBp: 89,
+          bpSystolicReadings: [140, 138],
+          bpDiastolicReadings: [90],
+          bpSite: BloodPressureSite.LEFT_ARM,
+        },
+      },
+    ],
   ])('rejects %s with field errors', async (_label, overrides) => {
     const { service } = createHarness();
     await expect(service.validateAndNormalize(payload(overrides))).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('keeps the readings of a sitting and records their average', async () => {
+    const { service } = createHarness();
+    const bundle = await service.validateAndNormalize(
+      payload({
+        vitals: {
+          systolicBp: 139,
+          diastolicBp: 89,
+          bpSystolicReadings: [150, 140, 138],
+          bpDiastolicReadings: [95, 90, 88],
+          pulseReadings: [90, 80, 78],
+          pulseBpm: 79,
+          bpSite: BloodPressureSite.LEFT_ARM,
+        },
+      }),
+    );
+    expect(bundle.vitals).toMatchObject({
+      systolicBp: 139,
+      diastolicBp: 89,
+      bpSystolicReadings: [150, 140, 138],
+      bpDiastolicReadings: [95, 90, 88],
+      pulseReadings: [90, 80, 78],
+      pulseBpm: 79,
+    });
   });
 
   // The web client builds this payload in apps/web/lib/clinical-measurements.ts. It used to
@@ -436,6 +513,12 @@ describe('ClinicalMeasurementsService', () => {
       expect(update).toEqual({
         systolicBp: 130,
         diastolicBp: 85,
+        // A single reading clears any earlier sitting's readings.
+        bpSystolicReadings: [],
+        bpDiastolicReadings: [],
+        // Pulse is taken with the BP since 2026-11-21.
+        pulseBpm: null,
+        pulseReadings: [],
         bpSite: BloodPressureSite.LEFT_ARM,
         bpSiteOther: null,
         patientPosition: null,

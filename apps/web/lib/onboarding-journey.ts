@@ -16,11 +16,6 @@ export interface JourneyStep {
   detail: string;
 }
 
-export const JOURNEY_TITLES: Record<OnboardingJourney, string> = {
-  staff: 'Joining your clinic team',
-  patient: 'Opening your patient record',
-};
-
 const STAFF_STEPS: JourneyStep[] = [
   {
     id: 'password',
@@ -95,9 +90,8 @@ export function journeyProgress(steps: JourneyStep[], currentId: string) {
   );
   return {
     current,
-    states: steps.map(
-      (_, index): JourneyStepState =>
-        index < current ? 'done' : index === current ? 'current' : 'next',
+    states: steps.map((_, index): JourneyStepState =>
+      index < current ? 'done' : index === current ? 'current' : 'next',
     ),
   };
 }

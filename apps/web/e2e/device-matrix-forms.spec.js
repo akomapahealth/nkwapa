@@ -12,6 +12,7 @@ const {
   reachable,
   requireAuditDatabase,
 } = require('../playwright/device-matrix.cjs');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.beforeAll(() => requireAuditDatabase());
 
@@ -55,9 +56,7 @@ for (const input of INPUTS)
         await page
           .getByLabel('Last name', { exact: true })
           .fill(`Matrix-${randomUUID().slice(0, 8)}`);
-        await page
-          .getByLabel('National ID', { exact: true })
-          .fill(`R82-${randomUUID().slice(0, 12)}`);
+        await fillNationalId(page, `R82-${randomUUID().slice(0, 12)}`);
         await matrix(page, info, `registration-${input}-${theme}`, {
           field: first,
           value: 'Synthetic',

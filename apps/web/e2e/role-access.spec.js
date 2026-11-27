@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const { test, expect } = require('@playwright/test');
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /**
  * What each clinical role sees in the browser.
@@ -16,7 +17,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Role');
   await page.getByLabel('Last name', { exact: true }).fill(`E2E-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-ROLE-${suffix}`);
+  await fillNationalId(page, `E2E-ROLE-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+/, { timeout: 20_000 });
   const url = new URL(page.url());

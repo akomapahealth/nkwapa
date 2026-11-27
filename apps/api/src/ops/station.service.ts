@@ -3,16 +3,29 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { PushService } from '../push/push.service';
+import {
+  DOCTOR_REQUEST_VIEW_SELECT,
+  DoctorRequestService,
+  toDoctorRequestView,
+} from './doctor-request.service';
 import { Prisma, StationKind, StationVisitStatus } from '@prisma/client';
 import {
   CLINIC_DEFAULT_TIMEZONE,
   clinicDayWindow,
+  lineFlagsFor,
+  mergeLineFlags,
   nextStationId,
+  parseLineFlags,
+  worstLineFlag,
   type ClinicDayWindow,
+  type HypertensionSymptomValue,
+  type LineFlag,
+  type LineFlagSource,
 } from '@nkwapa/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService, type LogWriteParams } from '../audit/audit.service';
@@ -21,7 +34,11 @@ import { lockForTransaction } from '../prisma/transaction-lock';
 import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { PERMISSIONS } from '../auth/constants/permissions';
 import { createDraftEncounter } from './draft-encounter';
+import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
+import { REAL_PATIENT } from '../common/demo-patients';
+import { isApiFeatureEnabled } from '../common/feature-flags';
 import { computeStationMetrics } from './station-metrics';
+import { resolveReplayTime } from './ops-replay';
 import type {
   CompleteStationVisitDto,
   CreateStationDto,
@@ -39,6 +56,16 @@ export type ShiftScreener = {
   screenerName: string | null;
   screenerVolunteerContactId: string | null;
 };
+
+/** The visit end reason for a patient still in the line when the clinic day was closed. */
+export const CLINIC_CLOSED_REASON = 'CLINIC_CLOSED';
+
+const EMPTY_READINGS: KeyReadings = { bp: null, glucose: null, bmi: null };
+
+/** A check-in whose patient has not yet finished or left. */
+const OPEN_CHECK_IN_STATUSES = ['WAITING', 'ASSIGNED', 'IN_PROGRESS'] as const;
+/** A device on shift that has not pulled for this long is listed on "Ready to open" (#411). */
+export const READINESS_SYNC_MINUTES = 10;
 
 /** A visit a patient is still waiting at or being seen in. At most one per check-in (SQL). */
 const OPEN_VISIT_STATUSES: StationVisitStatus[] = ['QUEUED', 'IN_PROGRESS'];
@@ -59,14 +86,38 @@ const VISIT_INCLUDE = {
       status: true,
       checkedInAt: true,
       encounterId: true,
+      dayNumber: true,
+      lineFlags: true,
+      // The open "Ask a doctor" (#418), at most one by a partial unique index.
+      doctorRequests: { where: { resolvedAt: null }, take: 1, select: DOCTOR_REQUEST_VIEW_SELECT },
       patient: {
-        select: { id: true, patientCode: true, firstName: true, lastName: true, dob: true },
+        select: {
+          id: true,
+          patientCode: true,
+          firstName: true,
+          lastName: true,
+          dob: true,
+          isDemo: true,
+        },
       },
     },
   },
 } satisfies Prisma.PatientStationVisitInclude;
 
 type VisitWithContext = Prisma.PatientStationVisitGetPayload<{ include: typeof VISIT_INCLUDE }>;
+
+/** The three readings a doctor scans before taking a patient at review (#419). */
+export type KeyReadings = {
+  bp: { systolic: number; diastolic: number } | null;
+  glucose: { mgDl: number; type: string } | null;
+  bmi: number | null;
+};
+
+function openDoctorRequest(visit: VisitWithContext) {
+  // Optional: visits built without the relation (older fixtures, hand-made rows) have none.
+  const row = visit.patientCheckIn.doctorRequests?.[0];
+  return row ? toDoctorRequestView(row) : null;
+}
 
 /** Who did a stop before its latest correction, and who corrected it when (#307). */
 export type PerformerCorrection = {
@@ -95,6 +146,8 @@ export interface StationActor {
 
 export interface StationWriteContext {
   requestId?: string;
+  /** A hand-off queued offline (#423): when it happened on the device. */
+  occurredAt?: Date;
 }
 
 /** Who did a stop, as stored on the visit (#227). */
@@ -118,10 +171,13 @@ type Performer = {
  */
 @Injectable()
 export class StationService {
+  private readonly logger = new Logger(StationService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     @Optional() private readonly push?: PushService,
+    @Optional() private readonly doctorRequests?: DoctorRequestService,
   ) {}
 
   // ── Stations ────────────────────────────────────────────────────────────────────────────
@@ -469,7 +525,10 @@ export class StationService {
         orderBy: { checkedInAt: 'asc' },
       }),
     ]);
-    const previous = await this.previousVisits(visits.map((visit) => visit.patientCheckInId));
+    const [previous, readings] = await Promise.all([
+      this.previousVisits(visits.map((visit) => visit.patientCheckInId)),
+      this.keyReadingsFor(visits.filter((visit) => visit.station.kind === StationKind.REVIEW)),
+    ]);
     const holding = new Map<string, number>();
     for (const visit of visits) {
       if (visit.status === 'IN_PROGRESS' && visit.claimedByUserId) {
@@ -491,7 +550,12 @@ export class StationService {
           .map((shift) => ({ ...shift.user, screenerName: this.screenerNameOf(shift) })),
         visits: visits
           .filter((visit) => visit.stationId === station.id)
-          .map((visit) => this.toVisit(visit, previous.get(visit.patientCheckInId))),
+          .map((visit) => ({
+            ...this.toVisit(visit, previous.get(visit.patientCheckInId)),
+            ...(visit.station.kind === StationKind.REVIEW && {
+              keyReadings: (visit.encounterId && readings.get(visit.encounterId)) || EMPTY_READINGS,
+            }),
+          })),
       })),
       // Everyone a manager could hand a patient to, and how many patients each is holding now.
       onShift: myShifts.map((shift) => ({
@@ -503,6 +567,63 @@ export class StationService {
         activeVisitCount: holding.get(shift.user.id) ?? 0,
       })),
     };
+  }
+
+  /**
+   * Patients waiting at review today, for the nav badge (#419). Null unless the caller's active
+   * shift is at the review station, so the badge only shows to whoever is working it.
+   */
+  async getReviewWaitingCount(clinicId: string, userId: string) {
+    const shift = await this.prisma.staffShift.findFirst({
+      where: { clinicId, userId, status: 'ACTIVE' },
+      select: { station: { select: { id: true, kind: true } } },
+    });
+    if (shift?.station?.kind !== StationKind.REVIEW) return { count: null };
+    const day = await this.dayWindow(clinicId);
+    const count = await this.prisma.patientStationVisit.count({
+      where: {
+        clinicId,
+        stationId: shift.station.id,
+        status: 'QUEUED',
+        patientCheckIn: { checkedInAt: { gte: day.start, lte: day.end } },
+      },
+    });
+    return { count };
+  }
+
+  /** BP, glucose and BMI per encounter, from the same rows `raiseLineFlags` reads. */
+  private async keyReadingsFor(visits: VisitWithContext[]) {
+    const encounterIds = [
+      ...new Set(visits.flatMap((visit) => (visit.encounterId ? [visit.encounterId] : []))),
+    ];
+    const readings = new Map<string, KeyReadings>();
+    if (encounterIds.length === 0) return readings;
+    const where = { encounterId: { in: encounterIds } };
+    const [vitals, diabetes] = await Promise.all([
+      this.prisma.vitals.findMany({
+        where,
+        select: { encounterId: true, systolicBp: true, diastolicBp: true, bmi: true },
+      }),
+      this.prisma.diabetesScreening.findMany({
+        where,
+        select: { encounterId: true, glucoseMgDl: true, glucoseType: true },
+      }),
+    ]);
+    const glucose = new Map(diabetes.map((row) => [row.encounterId, row]));
+    const vitalsBy = new Map(vitals.map((row) => [row.encounterId, row]));
+    for (const id of encounterIds) {
+      const v = vitalsBy.get(id);
+      const g = glucose.get(id);
+      readings.set(id, {
+        bp:
+          v?.systolicBp != null && v.diastolicBp != null
+            ? { systolic: v.systolicBp, diastolic: v.diastolicBp }
+            : null,
+        glucose: g?.glucoseMgDl != null ? { mgDl: g.glucoseMgDl, type: g.glucoseType } : null,
+        bmi: v?.bmi ?? null,
+      });
+    }
+    return readings;
   }
 
   /**
@@ -529,9 +650,15 @@ export class StationService {
     };
   }
 
-  async getMetrics(clinicId: string, date?: string, now: Date = new Date()) {
+  async getMetrics(
+    clinicId: string,
+    date?: string,
+    now: Date = new Date(),
+    { realOnly = false }: { realOnly?: boolean } = {},
+  ) {
     const day = await this.dayWindow(clinicId, date);
     const inDay = { gte: day.start, lte: day.end };
+    const patient = realOnly ? REAL_PATIENT : undefined;
     const [stations, checkIns, visits, shifts] = await Promise.all([
       this.prisma.clinicStation.findMany({
         where: { clinicId },
@@ -545,11 +672,11 @@ export class StationService {
         },
       }),
       this.prisma.patientCheckIn.findMany({
-        where: { clinicId, checkedInAt: inDay },
+        where: { clinicId, checkedInAt: inDay, patient },
         select: { id: true, checkedInAt: true, status: true },
       }),
       this.prisma.patientStationVisit.findMany({
-        where: { clinicId, patientCheckIn: { checkedInAt: inDay } },
+        where: { clinicId, patientCheckIn: { checkedInAt: inDay, patient } },
         select: {
           stationId: true,
           patientCheckInId: true,
@@ -558,6 +685,7 @@ export class StationService {
           claimedAt: true,
           completedAt: true,
           releaseCount: true,
+          claimedByUserId: true,
         },
       }),
       this.prisma.staffShift.findMany({
@@ -570,6 +698,212 @@ export class StationService {
       }),
     ]);
     return computeStationMetrics({ day, now, stations, checkIns, visits, shifts });
+  }
+
+  /**
+   * "Ready to open" (#411): what the manager checks before the doors open. Each check passes,
+   * warns with the stations or people it concerns, or does not apply. Staff names only; nothing
+   * here names a patient.
+   */
+  async getReadiness(clinicId: string, now: Date = new Date()) {
+    const day = await this.dayWindow(clinicId);
+    const offlineOn = isApiFeatureEnabled('offlineSession');
+    const [stations, shifts, checkInsToday, leftOpen, offlineReady] = await Promise.all([
+      this.prisma.clinicStation.findMany({
+        where: { clinicId },
+        select: { id: true, name: true, kind: true, active: true, sortOrder: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      this.prisma.staffShift.findMany({
+        where: { clinicId, status: 'ACTIVE' },
+        select: {
+          userId: true,
+          stationId: true,
+          roleAtShift: true,
+          lastPulledAt: true,
+          user: { select: { displayName: true } },
+        },
+      }),
+      this.prisma.patientCheckIn.count({
+        where: { clinicId, checkedInAt: { gte: day.start, lte: day.end } },
+      }),
+      this.prisma.patientCheckIn.count({
+        where: {
+          clinicId,
+          checkedInAt: { lt: day.start },
+          status: { in: [...OPEN_CHECK_IN_STATUSES] },
+        },
+      }),
+      // Grants are owner-only under RLS; this definer function says only who holds one.
+      offlineOn
+        ? this.prisma.$queryRaw<Array<{ user_id: string }>>`
+            SELECT user_id FROM app.offline_ready_shift_users(${clinicId}::uuid)
+          `
+        : Promise.resolve([]),
+    ]);
+
+    const active = stations.filter((station) => station.active);
+    // A closed custom station is a one-off the clinic stopped using, not one it forgot to open.
+    const kindsUsed = [
+      ...new Set(stations.map((station) => station.kind).filter((kind) => kind !== 'CUSTOM')),
+    ];
+    const kindsClosed = kindsUsed.filter(
+      (kind) => !active.some((station) => station.kind === kind),
+    );
+    const reviews = active.filter((station) => station.kind === 'REVIEW');
+    const staffedIds = new Set(shifts.map((shift) => shift.stationId).filter(Boolean));
+    const unstaffed = active.filter((station) => !staffedIds.has(station.id));
+    const reviewIds = new Set(reviews.map((station) => station.id));
+    const doctorAtReview = shifts.some(
+      (shift) =>
+        shift.stationId &&
+        reviewIds.has(shift.stationId) &&
+        (shift.roleAtShift === 'DOCTOR' || shift.roleAtShift === 'MANAGER'),
+    );
+    // One person, one row, however many shifts they hold.
+    const people = new Map(shifts.map((shift) => [shift.userId, shift]));
+    const syncCutoff = now.getTime() - READINESS_SYNC_MINUTES * 60_000;
+    const notSynced = [...people.values()].filter(
+      (shift) => !shift.lastPulledAt || shift.lastPulledAt.getTime() < syncCutoff,
+    );
+    const ready = new Set(offlineReady.map((row) => row.user_id));
+    const notOffline = [...people.values()].filter((shift) => !ready.has(shift.userId));
+    const names = (rows: Array<{ user: { displayName: string } }>) =>
+      rows.map((row) => row.user.displayName).sort((a, b) => a.localeCompare(b));
+
+    type State = 'PASS' | 'WARN' | 'NA';
+    const state = (applies: boolean, passes: boolean): State =>
+      !applies ? 'NA' : passes ? 'PASS' : 'WARN';
+    return {
+      date: day.date,
+      checkInsToday,
+      syncMinutes: READINESS_SYNC_MINUTES,
+      checks: {
+        stations: {
+          state: state(true, active.length > 0 && kindsClosed.length === 0 && reviews.length === 1),
+          activeCount: active.length,
+          reviewCount: reviews.length,
+          kindsClosed,
+        },
+        staffed: {
+          state: state(active.length > 0, unstaffed.length === 0),
+          stations: unstaffed.map((station) => ({ id: station.id, name: station.name })),
+        },
+        doctorAtReview: { state: state(reviews.length > 0, doctorAtReview) },
+        synced: { state: state(people.size > 0, notSynced.length === 0), people: names(notSynced) },
+        offline: {
+          state: state(offlineOn && people.size > 0, notOffline.length === 0),
+          people: offlineOn ? names(notOffline) : [],
+        },
+        yesterdayClosed: { state: state(true, leftOpen === 0), openCheckIns: leftOpen },
+      },
+    };
+  }
+
+  /**
+   * How one clinic day went (#421): the station metrics for real patients, plus the clinical
+   * flags, the clinical work still open and who was on shift. Counts only; nothing names a patient
+   * or ranks a member of staff. Demo patients are left out and counted on their own line.
+   */
+  async getDaySummary(clinicId: string, date?: string, now: Date = new Date()) {
+    const metrics = await this.getMetrics(clinicId, date, now, { realOnly: true });
+    const day = await this.dayWindow(clinicId, metrics.date);
+    const inDay = { gte: day.start, lte: day.end };
+    const realDay = { clinicId, checkedInAt: inDay, patient: REAL_PATIENT };
+    const encounterOfDay = { patientCheckIn: realDay };
+
+    const [checkIns, demoCheckIns, referrals, encounters, pendingNotes, shifts] = await Promise.all(
+      [
+        this.prisma.patientCheckIn.findMany({
+          where: realDay,
+          select: { patientId: true, lineFlags: true },
+        }),
+        this.prisma.patientCheckIn.count({
+          where: { clinicId, checkedInAt: inDay, patient: { isDemo: true } },
+        }),
+        this.prisma.counsellingRecord.groupBy({
+          by: ['referralUrgency'],
+          where: { referralRecommended: true, encounter: encounterOfDay },
+          _count: { _all: true },
+        }),
+        this.prisma.encounter.groupBy({
+          by: ['status'],
+          where: { ...encounterOfDay, status: { in: ['DRAFT', 'IN_REVIEW'] } },
+          _count: { _all: true },
+        }),
+        // RLS keeps notes from managers; this definer function returns only the day's count (#421).
+        this.prisma.$queryRaw<Array<{ count: number }>>`
+          SELECT app.clinical_note_pending_count_for_day(
+            ${clinicId}::uuid,
+            (${day.start.toISOString()}::timestamptz AT TIME ZONE 'UTC'),
+            (${day.end.toISOString()}::timestamptz AT TIME ZONE 'UTC')
+          ) AS count
+        `,
+        this.prisma.staffShift.findMany({
+          where: {
+            clinicId,
+            checkedInAt: { lte: day.end },
+            OR: [{ checkedOutAt: null }, { checkedOutAt: { gte: day.start } }],
+          },
+          select: { userId: true, roleAtShift: true },
+        }),
+      ],
+    );
+
+    // Returning: seen at this clinic on an earlier day.
+    const patientIds = [...new Set(checkIns.map((checkIn) => checkIn.patientId))];
+    const returning = patientIds.length
+      ? (
+          await this.prisma.patientCheckIn.findMany({
+            where: { clinicId, patientId: { in: patientIds }, checkedInAt: { lt: day.start } },
+            distinct: ['patientId'],
+            select: { patientId: true },
+          })
+        ).length
+      : 0;
+
+    const flagCount = (source: 'BP' | 'GLUCOSE', kind: 'REFER_TODAY' | 'REPEAT_AT_REVIEW') =>
+      checkIns.filter((checkIn) =>
+        ((checkIn.lineFlags ?? []) as unknown as LineFlag[]).some(
+          (flag) => flag.source === source && flag.kind === kind,
+        ),
+      ).length;
+    const referralsBy = (urgency: string | null) =>
+      referrals.find((row) => row.referralUrgency === urgency)?._count._all ?? 0;
+    const encountersBy = (status: string) =>
+      encounters.find((row) => row.status === status)?._count._all ?? 0;
+    // One person on several shifts in a day (a station change) is one person.
+    const onShift = (role: 'VOLUNTEER' | 'DOCTOR' | 'MANAGER') =>
+      new Set(shifts.filter((shift) => shift.roleAtShift === role).map((shift) => shift.userId))
+        .size;
+
+    return {
+      metrics,
+      demoCheckIns,
+      patients: { new: patientIds.length - returning, returning },
+      clinical: {
+        referrals: {
+          urgent: referralsBy('URGENT'),
+          soon: referralsBy('SOON'),
+          routine: referralsBy('ROUTINE'),
+          unspecified: referralsBy(null),
+        },
+        bpReferToday: flagCount('BP', 'REFER_TODAY'),
+        bpRecheck: flagCount('BP', 'REPEAT_AT_REVIEW'),
+        glucoseReferToday: flagCount('GLUCOSE', 'REFER_TODAY'),
+        glucoseRaised: flagCount('GLUCOSE', 'REPEAT_AT_REVIEW'),
+      },
+      openWork: {
+        drafts: encountersBy('DRAFT'),
+        inReview: encountersBy('IN_REVIEW'),
+        notesToCosign: Number(pendingNotes[0]?.count ?? 0),
+      },
+      staff: {
+        volunteers: onShift('VOLUNTEER'),
+        doctors: onShift('DOCTOR'),
+        managers: onShift('MANAGER'),
+      },
+    };
   }
 
   async getVisit(clinicId: string, visitId: string) {
@@ -651,7 +985,26 @@ export class StationService {
       entityId: visit.id,
       afterJson: JSON.stringify(visit),
     });
-    return visit;
+    return { ...visit, stationName: first.name };
+  }
+
+  /**
+   * "Register and start": the person who just checked a patient in takes them at once, when their
+   * shift is at the station the patient was queued at. Otherwise the patient waits in the line.
+   */
+  async claimIfAtStation(
+    tx: TxClient,
+    clinicId: string,
+    visit: { id: string; stationId: string },
+    userId: string,
+    context: StationWriteContext = {},
+  ) {
+    const shift = await tx.staffShift.findFirst({
+      where: { clinicId, userId, status: 'ACTIVE' },
+      select: { stationId: true },
+    });
+    if (!shift || shift.stationId !== visit.stationId) return null;
+    return this.claimInTx(tx, clinicId, visit.id, userId, userId, context);
   }
 
   /**
@@ -781,9 +1134,12 @@ export class StationService {
       if (visit.status !== 'IN_PROGRESS' || visit.claimedByUserId !== actor.userId) {
         throw this.notYourVisit(visit);
       }
-      const now = new Date();
+      const now = context.occurredAt
+        ? await this.replayTime(tx, clinicId, context.occurredAt, visit.claimedAt)
+        : new Date();
       const stations = await tx.clinicStation.findMany({ where: { clinicId } });
       const isReview = visit.station.kind === StationKind.REVIEW;
+      const lineFlags = await this.raiseLineFlags(tx, visit, now);
 
       let nextId: string | null = null;
       const skips = dto.skips ?? [];
@@ -823,7 +1179,7 @@ export class StationService {
           });
         }
       } else {
-        if (skips.length || dto.nextStationId) {
+        if (skips.length || dto.nextStationId || dto.skipReason) {
           throw new BadRequestException({
             code: 'REVIEW_COMPLETES_SESSION',
             message: 'Completing the review station ends the session; there is no next station.',
@@ -838,6 +1194,26 @@ export class StationService {
             message: 'Record the counselling given before completing the session.',
           });
         }
+        // Warns, never blocks: the client asks, then sends acknowledgeNoReferral (#415).
+        if (
+          worstLineFlag(lineFlags) === 'REFER_TODAY' &&
+          !counselling.referralRecommended &&
+          !dto.acknowledgeNoReferral
+        ) {
+          throw new ConflictException({
+            code: 'REFERRAL_NOT_RECORDED',
+            message:
+              'No referral recorded for a refer-today reading. Record it in counselling, or complete anyway.',
+          });
+        }
+      }
+
+      const before = parseLineFlags(visit.patientCheckIn.lineFlags);
+      if (JSON.stringify(lineFlags) !== JSON.stringify(before)) {
+        await tx.patientCheckIn.update({
+          where: { id: visit.patientCheckInId },
+          data: { lineFlags: lineFlags as unknown as Prisma.InputJsonValue },
+        });
       }
 
       const performer = await this.performerFor(tx, clinicId, actor.userId, dto.screener);
@@ -845,10 +1221,11 @@ export class StationService {
         where: { id: visitId, status: 'IN_PROGRESS', claimedByUserId: actor.userId },
         data: {
           ...performer,
-          status: 'COMPLETED',
+          status: dto.skipReason ? 'SKIPPED' : 'COMPLETED',
           completedByUserId: actor.userId,
           completedAt: now,
           handoffNote: dto.handoffNote?.trim() || null,
+          ...(dto.skipReason ? { endReason: dto.skipReason.trim() } : {}),
         },
       });
       if (completed.count === 0) throw this.notYourVisit(visit);
@@ -895,6 +1272,8 @@ export class StationService {
       }
 
       const updated = await this.loadVisit(tx, visitId);
+      const referNow =
+        worstLineFlag(lineFlags) === 'REFER_TODAY' && worstLineFlag(before) !== 'REFER_TODAY';
       await this.audit(tx, clinicId, actor.userId, context, {
         action: 'STATION.COMPLETE',
         entityType: 'PatientStationVisit',
@@ -902,14 +1281,130 @@ export class StationService {
         beforeJson: JSON.stringify(this.auditShape(visit)),
         afterJson: JSON.stringify({ ...this.auditShape(updated), nextVisitId: next?.id ?? null }),
       });
-      return { updated, next };
+      const refer = referNow ? lineFlags.find((flag) => flag.kind === 'REFER_TODAY') : undefined;
+      return { updated, next, refer };
     });
+    // A refer-today reading asks for a doctor with no tap (#418), once the hand-off has landed.
+    const doctorRequested = Boolean(
+      result.refer &&
+      result.next &&
+      (await this.autoRequestDoctor(clinicId, result.next.id, actor.userId, result.refer.source)),
+    );
     return {
       visit: this.toVisit(result.updated),
       nextVisitId: result.next?.id ?? null,
       nextStationId: result.next?.stationId ?? null,
       sessionCompleted: result.next === null,
+      doctorRequested,
     };
+  }
+
+  /** Never fails the hand-off: the flag still travels, and a doctor can still be asked by hand. */
+  private async autoRequestDoctor(
+    clinicId: string,
+    nextVisitId: string,
+    actorUserId: string,
+    source: LineFlagSource,
+  ): Promise<boolean> {
+    if (!this.doctorRequests) return false;
+    try {
+      await this.doctorRequests.request(clinicId, nextVisitId, actorUserId, {
+        urgency: 'NOW',
+        reason: source === 'BP' ? 'HIGH_BP' : 'HIGH_GLUCOSE',
+        auto: true,
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(`Automatic doctor request failed: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  /**
+   * The check-in's flags once this station's readings are counted (#415): the encounter's
+   * readings so far, through the shared rules, merged so a flag is never taken back.
+   */
+  private async raiseLineFlags(
+    tx: Prisma.TransactionClient,
+    visit: VisitWithContext,
+    now: Date,
+  ): Promise<LineFlag[]> {
+    const before = parseLineFlags(visit.patientCheckIn.lineFlags);
+    if (!visit.encounterId) return before;
+    const where = { encounterId: visit.encounterId };
+    const [vitals, diabetes, hypertension] = await Promise.all([
+      tx.vitals.findUnique({ where, select: { systolicBp: true, diastolicBp: true } }),
+      tx.diabetesScreening.findUnique({
+        where,
+        select: { glucoseMgDl: true, glucoseType: true, urgentSymptoms: true },
+      }),
+      tx.hypertensionAssessment.findUnique({ where, select: { currentSymptoms: true } }),
+    ]);
+    const raised = lineFlagsFor(
+      {
+        systolic: vitals?.systolicBp,
+        diastolic: vitals?.diastolicBp,
+        glucoseMgDl: diabetes?.glucoseMgDl,
+        glucoseType: diabetes?.glucoseType,
+        hypertensionSymptoms: hypertension?.currentSymptoms as
+          HypertensionSymptomValue[] | undefined,
+        diabetesUrgentSymptoms: diabetes?.urgentSymptoms,
+      },
+      now,
+    );
+    return mergeLineFlags(
+      before,
+      raised.map((flag) => ({ ...flag, stationName: visit.station.name, at: now.toISOString() })),
+    );
+  }
+
+  /**
+   * A hand-off queued while the device was offline (#423), replayed by sync after the readings
+   * queued before it. One that already landed (sent online before the signal dropped) is applied;
+   * one overtaken by a release, a move or the patient leaving is refused for good, naming the
+   * station. The readings are separate changes and are kept either way.
+   */
+  async replayComplete(
+    clinicId: string,
+    visitId: string,
+    actor: StationActor,
+    dto: CompleteStationVisitDto,
+    context: StationWriteContext & { occurredAt: Date },
+  ): Promise<void> {
+    const visit = await this.loadVisitInClinic(this.prisma, clinicId, visitId);
+    if (
+      (visit.status === 'COMPLETED' || visit.status === 'SKIPPED') &&
+      visit.completedByUserId === actor.userId
+    ) {
+      return;
+    }
+    if (visit.status !== 'IN_PROGRESS' || visit.claimedByUserId !== actor.userId) {
+      throw new ConflictException({
+        code: 'STATION_HANDOFF_REFUSED',
+        message: `The hand-off from ${visit.station.name} was not sent: the patient was released, moved or finished by someone else first. The readings recorded there were kept.`,
+        stationName: visit.station.name,
+      });
+    }
+    await this.complete(clinicId, visitId, actor, dto, context);
+  }
+
+  /** When a replayed hand-off happened: the device's time, never before the patient was taken. */
+  private async replayTime(
+    tx: TxClient,
+    clinicId: string,
+    occurredAt: Date,
+    claimedAt: Date | null,
+  ) {
+    const clinic = await tx.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    const at = resolveReplayTime(
+      occurredAt,
+      new Date(),
+      clinic?.timezone ?? CLINIC_DEFAULT_TIMEZONE,
+    );
+    return claimedAt && at < claimedAt ? claimedAt : at;
   }
 
   /** Manager override: send a patient to any station, with a reason. */
@@ -1000,6 +1495,80 @@ export class StationService {
       });
     });
     return { checkInId, status: 'CANCELLED' as const };
+  }
+
+  /**
+   * The clinic day is over: everyone still in the line is closed out, so nobody sits in the
+   * review queue overnight. The check-in ends COMPLETED (they were not "Left"), the open visit
+   * ends CANCELLED with `CLINIC_CLOSED`, and the encounter is untouched so a doctor can still
+   * review it.
+   */
+  async closeClinicDay(
+    clinicId: string,
+    actor: StationActor,
+    date?: string,
+    context: StationWriteContext = {},
+  ) {
+    if (!actor.canManage) {
+      throw new ForbiddenException('Only a manager can close the clinic day');
+    }
+    const day = await this.dayWindow(clinicId, date);
+    const closed = await this.prisma.$transaction((tx) =>
+      this.closeOpenCheckIns(tx, clinicId, { gte: day.start, lte: day.end }, actor.userId, context),
+    );
+    return { date: day.date, closed };
+  }
+
+  /**
+   * The overnight sweep's half of `closeClinicDay`: every clinic's check-ins and shifts from
+   * before its own today, in its own time zone, for a day nobody closed by hand.
+   */
+  async closeStaleClinicDays(tx: TxClient) {
+    const clinics = await tx.clinic.findMany({ select: { id: true, timezone: true } });
+    let checkIns = 0;
+    let shifts = 0;
+    for (const clinic of clinics) {
+      const today = clinicDayWindow(null, clinic.timezone ?? CLINIC_DEFAULT_TIMEZONE);
+      checkIns += await this.closeOpenCheckIns(
+        tx,
+        clinic.id,
+        { lt: today.start },
+        SYSTEM_ACTOR_USER_ID,
+        {},
+      );
+      const stale = await tx.staffShift.findMany({
+        where: { clinicId: clinic.id, status: 'ACTIVE', checkedInAt: { lt: today.start } },
+        select: { id: true },
+      });
+      for (const shift of stale) {
+        // Nobody is held any more: the check-ins above closed every open visit of those days.
+        await tx.staffShift.update({
+          where: { id: shift.id },
+          data: {
+            status: 'CLOSED',
+            checkedOutAt: new Date(),
+            stationId: null,
+            screenerIsAccountHolder: true,
+            screenerName: null,
+            screenerVolunteerContactId: null,
+          },
+        });
+        await this.audit(
+          tx,
+          clinic.id,
+          SYSTEM_ACTOR_USER_ID,
+          {},
+          {
+            action: 'SHIFT.CHECKOUT',
+            entityType: 'StaffShift',
+            entityId: shift.id,
+            afterJson: JSON.stringify({ status: 'CLOSED', reason: CLINIC_CLOSED_REASON }),
+          },
+        );
+      }
+      shifts += stale.length;
+    }
+    return { checkIns, shifts };
   }
 
   /**
@@ -1186,6 +1755,38 @@ export class StationService {
     });
   }
 
+  private async closeOpenCheckIns(
+    tx: TxClient,
+    clinicId: string,
+    checkedInAt: Prisma.DateTimeFilter,
+    actorUserId: string,
+    context: StationWriteContext,
+  ) {
+    const open = await tx.patientCheckIn.findMany({
+      where: { clinicId, checkedInAt, status: { in: [...OPEN_CHECK_IN_STATUSES] } },
+      select: { id: true, status: true },
+    });
+    for (const checkIn of open) {
+      await this.cancelOpenVisit(
+        tx,
+        clinicId,
+        checkIn.id,
+        actorUserId,
+        CLINIC_CLOSED_REASON,
+        context,
+      );
+      await tx.patientCheckIn.update({ where: { id: checkIn.id }, data: { status: 'COMPLETED' } });
+      await this.audit(tx, clinicId, actorUserId, context, {
+        action: 'CHECKIN.CLINIC_CLOSE',
+        entityType: 'PatientCheckIn',
+        entityId: checkIn.id,
+        beforeJson: JSON.stringify({ status: checkIn.status }),
+        afterJson: JSON.stringify({ status: 'COMPLETED', reason: CLINIC_CLOSED_REASON }),
+      });
+    }
+    return open.length;
+  }
+
   private async cancelOpenVisit(
     tx: TxClient,
     clinicId: string,
@@ -1261,7 +1862,11 @@ export class StationService {
   private async previousVisits(checkInIds: string[]) {
     if (!checkInIds.length) return new Map<string, VisitWithContext>();
     const finished = await this.prisma.patientStationVisit.findMany({
-      where: { patientCheckInId: { in: checkInIds }, status: 'COMPLETED' },
+      where: {
+        patientCheckInId: { in: checkInIds },
+        // A stop someone held and then skipped (#424) carries a note too; one passed over was never held.
+        OR: [{ status: 'COMPLETED' }, { status: 'SKIPPED', claimedByUserId: { not: null } }],
+      },
       include: VISIT_INCLUDE,
       orderBy: { completedAt: 'desc' },
     });
@@ -1533,6 +2138,9 @@ export class StationService {
       checkInId: visit.patientCheckInId,
       checkInStatus: visit.patientCheckIn.status,
       checkedInAt: visit.patientCheckIn.checkedInAt.toISOString(),
+      dayNumber: visit.patientCheckIn.dayNumber,
+      lineFlags: parseLineFlags(visit.patientCheckIn.lineFlags),
+      doctorRequest: openDoctorRequest(visit),
       encounterId: visit.encounterId,
       station: visit.station,
       patient: {
@@ -1541,6 +2149,7 @@ export class StationService {
         firstName: patient.firstName,
         lastName: patient.lastName,
         dob: patient.dob ? patient.dob.toISOString().slice(0, 10) : null,
+        isDemo: patient.isDemo,
       },
       queuedAt: visit.queuedAt.toISOString(),
       claimedBy: visit.claimedBy,
@@ -1557,6 +2166,7 @@ export class StationService {
       previous: previous
         ? {
             station: previous.station,
+            status: previous.status,
             completedBy: previous.completedBy,
             completedAt: previous.completedAt?.toISOString() ?? null,
             performedByName: this.performedByNameOf(previous),

@@ -27,9 +27,7 @@ export type PatientChartSectionId = (typeof PATIENT_CHART_SECTION_IDS)[number];
 
 /** Feature flags gating a chart section, keyed as both apps' flag readers key them. */
 export type PatientChartFeatureFlag =
-  | 'medicalHistory'
-  | 'medicationReconciliation'
-  | 'clinicalNotes';
+  'medicalHistory' | 'medicationReconciliation' | 'clinicalNotes';
 
 export interface PatientChartSection {
   id: PatientChartSectionId;

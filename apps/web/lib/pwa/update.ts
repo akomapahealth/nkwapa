@@ -1,8 +1,11 @@
 /**
  * The service worker update flow (#206), kept free of React and the DOM so it can be tested with
- * plain objects. A new worker installs and waits. The page offers a reload, and only when the
- * person accepts does the worker take over and the page reload, once, after any sync in flight.
- * A clinician halfway through a vitals form never loses it to a deploy.
+ * plain objects. A new worker installs and waits. A page that finds one waiting as it loads takes
+ * it straight away: nothing has been typed yet, and a browser reload alone never activates it, so
+ * offering the reload there made the prompt come back on every load. A page already open offers a
+ * reload instead, and only when the person accepts does the worker take over and the page reload,
+ * once, after any sync in flight. A clinician halfway through a vitals form never loses it to a
+ * deploy.
  */
 
 export const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -20,11 +23,13 @@ export interface RegistrationLike {
   installing: WorkerLike | null;
   update(): Promise<unknown>;
   addEventListener(type: 'updatefound', listener: Listener): void;
+  removeEventListener(type: 'updatefound', listener: Listener): void;
 }
 
 export interface ContainerLike {
   controller: unknown;
   addEventListener(type: 'controllerchange', listener: Listener): void;
+  removeEventListener(type: 'controllerchange', listener: Listener): void;
 }
 
 export interface UpdateControllerOptions {
@@ -52,13 +57,13 @@ export function createUpdateController({
   now = Date.now,
 }: UpdateControllerOptions) {
   let requested = false;
+  let disposed = false;
   let lastCheck = now();
   // The first worker claims an uncontrolled page; that controllerchange is not an update.
   let hadController = Boolean(container.controller);
 
-  // With no controller this is the first install, not an update: there is nothing to reload into.
   const announceIfWaiting = () => {
-    if (registration.waiting && container.controller) onUpdateReady();
+    if (!disposed && registration.waiting && container.controller) onUpdateReady();
   };
 
   const reloadWhenIdle = () => {
@@ -75,14 +80,21 @@ export function createUpdateController({
     });
   };
 
-  registration.addEventListener('updatefound', () => {
+  const applyUpdate = () => {
+    requested = true;
+    if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    else reloadWhenIdle();
+  };
+
+  const onUpdateFound = () => {
     const worker = registration.installing;
     worker?.addEventListener('statechange', () => {
       if (worker.state === 'installed') announceIfWaiting();
     });
-  });
+  };
 
-  container.addEventListener('controllerchange', () => {
+  const onControllerChange = () => {
+    if (disposed) return;
     if (!hadController) {
       hadController = true;
       return;
@@ -91,15 +103,21 @@ export function createUpdateController({
     // the reload rather than taking it: this tab may hold unsaved input.
     if (requested) reloadWhenIdle();
     else onUpdateReady();
-  });
+  };
 
-  announceIfWaiting();
+  registration.addEventListener('updatefound', onUpdateFound);
+  container.addEventListener('controllerchange', onControllerChange);
+
+  // Waiting at load: take it now. With no controller this is the first install, not an update.
+  if (registration.waiting && container.controller) applyUpdate();
 
   return {
-    applyUpdate() {
-      requested = true;
-      if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      else reloadWhenIdle();
+    applyUpdate,
+    /** Removes the listeners, so a remounted registration never leaves a second controller. */
+    dispose() {
+      disposed = true;
+      registration.removeEventListener('updatefound', onUpdateFound);
+      container.removeEventListener('controllerchange', onControllerChange);
     },
     /** Installed apps stay open for days, so look for a new version on focus, at most hourly. */
     checkForUpdate() {

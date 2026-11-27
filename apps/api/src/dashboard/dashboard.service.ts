@@ -23,6 +23,7 @@ import type { UserRole } from '@prisma/client';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { screeningFlagOpenSince } from '../follow-up/follow-up-flags.service';
 import { parseZoneFilter, summarizeZones, zoneFilterMatches, type ZoneFilter } from '@nkwapa/db';
+import { REAL_PATIENT } from '../common/demo-patients';
 
 /** How many named rows a "Needs you now" line carries; the count says the rest. */
 export const DASHBOARD_WORK_ITEM_LIMIT = 5;
@@ -212,14 +213,12 @@ export class DashboardService {
     });
     const unclaimed = patients
       .filter((patient) => !patient.riskFlags[0]?.acknowledgement)
-      .map(
-        (patient): UrgentWorkItem => ({
-          patientId: patient.id,
-          patientCode: patient.patientCode,
-          patientName: formatPersonName(patient, 'short'),
-          raisedAt: patient.riskFlags[0]?.raisedAt.toISOString() ?? null,
-        }),
-      )
+      .map((patient): UrgentWorkItem => ({
+        patientId: patient.id,
+        patientCode: patient.patientCode,
+        patientName: formatPersonName(patient, 'short'),
+        raisedAt: patient.riskFlags[0]?.raisedAt.toISOString() ?? null,
+      }))
       .concat(await this.unclaimedScreening(clinicId))
       .sort((a, b) => (a.raisedAt ?? '').localeCompare(b.raisedAt ?? ''));
     return { unclaimed: unclaimed.length, items: unclaimed.slice(0, DASHBOARD_WORK_ITEM_LIMIT) };
@@ -280,9 +279,9 @@ export class DashboardService {
 
     const [totalPatients, encountersToday, pendingDrafts, pendingReview, readyToFinalize] =
       await Promise.all([
-        this.prisma.patient.count({ where: { primaryClinicId: clinicId } }),
+        this.prisma.patient.count({ where: { isDemo: false, primaryClinicId: clinicId } }),
         this.prisma.encounter.count({
-          where: { clinicId, createdAt: { gte: todayStart } },
+          where: { patient: REAL_PATIENT, clinicId, createdAt: { gte: todayStart } },
         }),
         this.prisma.encounter.count({
           where: { clinicId, status: 'DRAFT' },
@@ -337,32 +336,51 @@ export class DashboardService {
         },
       }),
       this.prisma.encounter.count({
-        where: { clinicId, doctorFinalizedById: userId, updatedAt: { gte: todayStart } },
+        where: {
+          patient: REAL_PATIENT,
+          clinicId,
+          doctorFinalizedById: userId,
+          updatedAt: { gte: todayStart },
+        },
       }),
       this.prisma.encounter.count({
-        where: { clinicId, doctorFinalizedById: userId, updatedAt: { gte: weekStart } },
+        where: {
+          patient: REAL_PATIENT,
+          clinicId,
+          doctorFinalizedById: userId,
+          updatedAt: { gte: weekStart },
+        },
       }),
       this.prisma.encounter.count({
-        where: { clinicId, doctorFinalizedById: userId, updatedAt: { gte: monthStart } },
+        where: {
+          patient: REAL_PATIENT,
+          clinicId,
+          doctorFinalizedById: userId,
+          updatedAt: { gte: monthStart },
+        },
       }),
       this.prisma.hypertensionAssessment.groupBy({
         by: ['classification'],
-        where: { clinicId },
+        where: { encounter: { patient: REAL_PATIENT }, clinicId },
         _count: true,
       }),
       this.prisma.diabetesScreening.count({
-        where: {
-          clinicId,
-          ...FLAGGED_DIABETES_WHERE,
-        },
+        where: { encounter: { patient: REAL_PATIENT }, clinicId, ...FLAGGED_DIABETES_WHERE },
       }),
-      this.prisma.diabetesScreening.count({ where: { clinicId } }),
+      this.prisma.diabetesScreening.count({
+        where: { encounter: { patient: REAL_PATIENT }, clinicId },
+      }),
       this.prisma.carePlan.count({
-        where: { clinicId, followUpDate: { not: null } },
+        where: { encounter: { patient: REAL_PATIENT }, clinicId, followUpDate: { not: null } },
       }),
-      this.prisma.carePlan.count({ where: { clinicId } }),
+      this.prisma.carePlan.count({ where: { encounter: { patient: REAL_PATIENT }, clinicId } }),
       this.prisma.encounter.findMany({
-        where: { clinicId, doctorFinalizedById: userId, status: 'FINALIZED' },
+        where: {
+          patient: REAL_PATIENT,
+          clinicId,
+          doctorFinalizedById: userId,
+          status: 'FINALIZED',
+        },
         orderBy: { updatedAt: 'desc' },
         take: 10,
         include: { patient: { select: { patientCode: true, firstName: true, lastName: true } } },
@@ -389,6 +407,7 @@ export class DashboardService {
     const finalizationsByDay = await this.prisma.encounter.groupBy({
       by: ['updatedAt'],
       where: {
+        patient: REAL_PATIENT,
         clinicId,
         doctorFinalizedById: userId,
         status: 'FINALIZED',
@@ -428,19 +447,30 @@ export class DashboardService {
           where: { clinicId, status: 'IN_REVIEW', preceptorReviewedById: null },
         }),
         this.prisma.encounter.count({
-          where: { clinicId, preceptorReviewedById: userId, updatedAt: { gte: todayStart } },
+          where: {
+            patient: REAL_PATIENT,
+            clinicId,
+            preceptorReviewedById: userId,
+            updatedAt: { gte: todayStart },
+          },
         }),
         this.prisma.encounter.count({
-          where: { clinicId, preceptorReviewedById: userId, updatedAt: { gte: weekStart } },
+          where: {
+            patient: REAL_PATIENT,
+            clinicId,
+            preceptorReviewedById: userId,
+            updatedAt: { gte: weekStart },
+          },
         }),
         this.prisma.encounter.findMany({
-          where: { clinicId, preceptorReviewedById: userId },
+          where: { patient: REAL_PATIENT, clinicId, preceptorReviewedById: userId },
           orderBy: { updatedAt: 'desc' },
           take: 10,
           include: { patient: { select: { patientCode: true, firstName: true, lastName: true } } },
         }),
         this.prisma.encounter.findMany({
           where: {
+            patient: REAL_PATIENT,
             clinicId,
             preceptorReviewedById: userId,
             updatedAt: { gte: fourteenDaysAgo },
@@ -451,7 +481,7 @@ export class DashboardService {
           by: ['classification'],
           where: {
             clinicId,
-            encounter: { preceptorReviewedById: userId },
+            encounter: { patient: REAL_PATIENT, preceptorReviewedById: userId },
           },
           _count: true,
         }),
@@ -504,24 +534,30 @@ export class DashboardService {
     ] = await Promise.all([
       this.prisma.patient.groupBy({
         by: ['createdAt'],
-        where: { primaryClinicId: clinicId, createdAt: { gte: thirtyDaysAgo } },
+        where: { isDemo: false, primaryClinicId: clinicId, createdAt: { gte: thirtyDaysAgo } },
         _count: true,
       }),
       this.prisma.encounter.groupBy({
         by: ['createdAt'],
-        where: { clinicId, createdAt: { gte: thirtyDaysAgo } },
+        where: { patient: REAL_PATIENT, clinicId, createdAt: { gte: thirtyDaysAgo } },
         _count: true,
       }),
       this.prisma.hypertensionAssessment.groupBy({
         by: ['classification'],
-        where: { clinicId },
+        where: { encounter: { patient: REAL_PATIENT }, clinicId },
         _count: true,
       }),
-      this.prisma.hypertensionAssessment.count({ where: { clinicId } }),
-      this.prisma.diabetesScreening.count({ where: { clinicId } }),
-      this.prisma.encounter.count({ where: { clinicId } }),
-      this.prisma.carePlan.count({ where: { clinicId, followUpDate: { not: null } } }),
-      this.prisma.carePlan.count({ where: { clinicId } }),
+      this.prisma.hypertensionAssessment.count({
+        where: { encounter: { patient: REAL_PATIENT }, clinicId },
+      }),
+      this.prisma.diabetesScreening.count({
+        where: { encounter: { patient: REAL_PATIENT }, clinicId },
+      }),
+      this.prisma.encounter.count({ where: { patient: REAL_PATIENT, clinicId } }),
+      this.prisma.carePlan.count({
+        where: { encounter: { patient: REAL_PATIENT }, clinicId, followUpDate: { not: null } },
+      }),
+      this.prisma.carePlan.count({ where: { encounter: { patient: REAL_PATIENT }, clinicId } }),
       this.prisma.userClinicRole.findMany({
         where: { clinicId },
         include: { user: { select: { id: true, displayName: true } } },
@@ -559,7 +595,7 @@ export class DashboardService {
 
     const encounterStatusCounts = await this.prisma.encounter.groupBy({
       by: ['status'],
-      where: { clinicId },
+      where: { patient: REAL_PATIENT, clinicId },
       _count: true,
     });
     const encounterStatusDistribution: Record<string, number> = {};
@@ -573,8 +609,12 @@ export class DashboardService {
     for (const ur of staffRaw) {
       if (staffActivity.some((s) => s.userId === ur.userId)) continue;
       const [created, finalized] = await Promise.all([
-        this.prisma.encounter.count({ where: { clinicId, createdByUserId: ur.userId } }),
-        this.prisma.encounter.count({ where: { clinicId, doctorFinalizedById: ur.userId } }),
+        this.prisma.encounter.count({
+          where: { patient: REAL_PATIENT, clinicId, createdByUserId: ur.userId },
+        }),
+        this.prisma.encounter.count({
+          where: { patient: REAL_PATIENT, clinicId, doctorFinalizedById: ur.userId },
+        }),
       ]);
       staffActivity.push({
         userId: ur.userId,
@@ -617,13 +657,19 @@ export class DashboardService {
     ] = await Promise.all([
       this.prisma.patient.count({
         where: {
+          isDemo: false,
           primaryClinicId: clinicId,
           createdByUserId: userId,
           createdAt: { gte: todayStart },
         },
       }),
       this.prisma.encounter.count({
-        where: { clinicId, createdByUserId: userId, createdAt: { gte: todayStart } },
+        where: {
+          patient: REAL_PATIENT,
+          clinicId,
+          createdByUserId: userId,
+          createdAt: { gte: todayStart },
+        },
       }),
       this.prisma.encounter.count({
         where: { clinicId, createdByUserId: userId, status: 'DRAFT' },
@@ -631,6 +677,7 @@ export class DashboardService {
       this.prisma.patient.groupBy({
         by: ['createdAt'],
         where: {
+          isDemo: false,
           primaryClinicId: clinicId,
           createdByUserId: userId,
           createdAt: { gte: fourteenDaysAgo },
@@ -640,6 +687,7 @@ export class DashboardService {
       this.prisma.encounter.groupBy({
         by: ['createdAt'],
         where: {
+          patient: REAL_PATIENT,
           clinicId,
           createdByUserId: userId,
           createdAt: { gte: fourteenDaysAgo },
@@ -648,23 +696,23 @@ export class DashboardService {
       }),
       this.prisma.encounter.groupBy({
         by: ['status'],
-        where: { clinicId, createdByUserId: userId },
+        where: { patient: REAL_PATIENT, clinicId, createdByUserId: userId },
         _count: true,
       }),
       this.prisma.hypertensionAssessment.groupBy({
         by: ['classification'],
-        where: { clinicId, encounter: { createdByUserId: userId } },
+        where: { clinicId, encounter: { patient: REAL_PATIENT, createdByUserId: userId } },
         _count: true,
       }),
       this.prisma.diabetesScreening.count({
         where: {
           clinicId,
-          encounter: { createdByUserId: userId },
+          encounter: { patient: REAL_PATIENT, createdByUserId: userId },
           ...FLAGGED_DIABETES_WHERE,
         },
       }),
       this.prisma.diabetesScreening.count({
-        where: { clinicId, encounter: { createdByUserId: userId } },
+        where: { clinicId, encounter: { patient: REAL_PATIENT, createdByUserId: userId } },
       }),
     ]);
 
@@ -722,15 +770,15 @@ export class DashboardService {
     ] = await Promise.all([
       this.prisma.clinic.count({ where: { isActive: true } }),
       this.prisma.user.count({ where: { isActive: true } }),
-      this.prisma.patient.count(),
-      this.prisma.encounter.count(),
+      this.prisma.patient.count({ where: REAL_PATIENT }),
+      this.prisma.encounter.count({ where: { patient: REAL_PATIENT } }),
       this.prisma.clinic.findMany({
         where: { isActive: true },
         select: { id: true, name: true, zoneCode: true, isActive: true },
       }),
       this.prisma.encounter.groupBy({
         by: ['createdAt'],
-        where: { createdAt: { gte: thirtyDaysAgo } },
+        where: { patient: REAL_PATIENT, createdAt: { gte: thirtyDaysAgo } },
         _count: true,
       }),
     ]);
@@ -752,17 +800,17 @@ export class DashboardService {
     const [patientsByClinic, encountersByClinic, finalizedByClinic] = await Promise.all([
       this.prisma.patient.groupBy({
         by: ['primaryClinicId'],
-        where: { primaryClinicId: { in: comparedClinicIds } },
+        where: { isDemo: false, primaryClinicId: { in: comparedClinicIds } },
         _count: true,
       }),
       this.prisma.encounter.groupBy({
         by: ['clinicId'],
-        where: { clinicId: { in: comparedClinicIds } },
+        where: { patient: REAL_PATIENT, clinicId: { in: comparedClinicIds } },
         _count: true,
       }),
       this.prisma.encounter.groupBy({
         by: ['clinicId'],
-        where: { clinicId: { in: comparedClinicIds }, status: 'FINALIZED' },
+        where: { patient: REAL_PATIENT, clinicId: { in: comparedClinicIds }, status: 'FINALIZED' },
         _count: true,
       }),
     ]);
@@ -799,9 +847,11 @@ export class DashboardService {
   ): Promise<ClinicalMeasurementMetrics> {
     const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const [totalEncounters, vitals, tobaccoScreens, tobaccoGroups] = await Promise.all([
-      this.prisma.encounter.count({ where: { clinicId, createdAt: { gte: windowStart } } }),
+      this.prisma.encounter.count({
+        where: { patient: REAL_PATIENT, clinicId, createdAt: { gte: windowStart } },
+      }),
       this.prisma.vitals.findMany({
-        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        where: { clinicId, encounter: { patient: REAL_PATIENT, createdAt: { gte: windowStart } } },
         select: {
           temperatureCelsius: true,
           respiratoryRate: true,
@@ -810,7 +860,7 @@ export class DashboardService {
         },
       }),
       this.prisma.tobaccoScreening.findMany({
-        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        where: { clinicId, encounter: { patient: REAL_PATIENT, createdAt: { gte: windowStart } } },
         select: {
           smokingStatus: true,
           smokelessTobaccoStatus: true,
@@ -821,7 +871,7 @@ export class DashboardService {
       }),
       this.prisma.tobaccoScreening.groupBy({
         by: ['smokingStatus'],
-        where: { clinicId, encounter: { createdAt: { gte: windowStart } } },
+        where: { clinicId, encounter: { patient: REAL_PATIENT, createdAt: { gte: windowStart } } },
         _count: true,
       }),
     ]);

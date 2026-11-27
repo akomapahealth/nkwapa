@@ -14,6 +14,11 @@ function emitter() {
   return {
     addEventListener: (type: string, fn: Listener) =>
       listeners.set(type, [...(listeners.get(type) ?? []), fn]),
+    removeEventListener: (type: string, fn: Listener) =>
+      listeners.set(
+        type,
+        (listeners.get(type) ?? []).filter((l) => l !== fn),
+      ),
     emit: (type: string) => listeners.get(type)?.forEach((fn) => fn()),
   };
 }
@@ -40,10 +45,12 @@ function setup({
     installing: null as WorkerLike | null,
     update: jest.fn().mockResolvedValue(undefined),
     addEventListener: regEvents.addEventListener,
+    removeEventListener: regEvents.removeEventListener,
   } satisfies RegistrationLike;
   const container = {
     controller,
     addEventListener: containerEvents.addEventListener,
+    removeEventListener: containerEvents.removeEventListener,
   } satisfies ContainerLike;
   const state = { syncing, clock: 0 };
   const syncListeners = new Set<Listener>();
@@ -79,9 +86,34 @@ function setup({
 beforeEach(() => resetReloadGuardForTests());
 
 describe('service worker update flow (#206)', () => {
-  it('offers a reload for a worker already waiting at load', () => {
-    const { onUpdateReady } = setup({ waiting: fakeWorker('installed') });
-    expect(onUpdateReady).toHaveBeenCalledTimes(1);
+  it('takes a worker already waiting at load without asking, and reloads once', () => {
+    const worker = fakeWorker('installed');
+    const t = setup({ waiting: worker });
+    expect(t.onUpdateReady).not.toHaveBeenCalled();
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+    expect(t.reload).not.toHaveBeenCalled();
+
+    t.containerEvents.emit('controllerchange');
+    expect(t.reload).toHaveBeenCalledTimes(1);
+    expect(t.onUpdateReady).not.toHaveBeenCalled();
+  });
+
+  it('waits for a sync in flight before the reload at load', () => {
+    const t = setup({ waiting: fakeWorker('installed'), syncing: true });
+    t.containerEvents.emit('controllerchange');
+    expect(t.reload).not.toHaveBeenCalled();
+    t.setSyncing(false);
+    expect(t.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops listening once disposed', () => {
+    const t = setup();
+    t.dispose();
+    const worker = fakeWorker();
+    t.registration.installing = worker;
+    t.regEvents.emit('updatefound');
+    t.containerEvents.emit('controllerchange');
+    expect(t.onUpdateReady).not.toHaveBeenCalled();
   });
 
   it('stays quiet on the very first install, when nothing controls the page yet', () => {
@@ -109,9 +141,16 @@ describe('service worker update flow (#206)', () => {
     expect(t.onUpdateReady).toHaveBeenCalledTimes(1);
   });
 
-  it('never reloads on its own: only after the person accepts and the worker takes over', () => {
-    const worker = fakeWorker('installed');
-    const t = setup({ waiting: worker });
+  it('never reloads an open page on its own: only after the person accepts', () => {
+    const t = setup();
+    const worker = fakeWorker();
+    t.registration.installing = worker;
+    t.regEvents.emit('updatefound');
+    worker.state = 'installed';
+    t.registration.waiting = worker;
+    worker.emit('statechange');
+    expect(t.onUpdateReady).toHaveBeenCalledTimes(1);
+    expect(worker.postMessage).not.toHaveBeenCalled();
     expect(t.reload).not.toHaveBeenCalled();
 
     t.applyUpdate();
@@ -124,7 +163,8 @@ describe('service worker update flow (#206)', () => {
   });
 
   it('waits for a sync in flight before reloading', () => {
-    const t = setup({ waiting: fakeWorker('installed'), syncing: true });
+    const t = setup({ syncing: true });
+    t.registration.waiting = fakeWorker('installed');
     t.applyUpdate();
     t.containerEvents.emit('controllerchange');
     expect(t.reload).not.toHaveBeenCalled();
@@ -145,7 +185,6 @@ describe('service worker update flow (#206)', () => {
 
   it('never starts a second reload, even from a second controller', () => {
     const first = setup({ waiting: fakeWorker('installed') });
-    first.applyUpdate();
     first.containerEvents.emit('controllerchange');
     const second = setup();
     second.applyUpdate();

@@ -1,4 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import {
+  DOCTOR_REQUEST_VIEW_SELECT,
+  toDoctorRequestView,
+  type DoctorRequestView,
+} from '../ops/doctor-request.service';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ReqUser } from '../auth/auth.controller';
@@ -52,17 +57,22 @@ export class InboxService {
           updatedAt: true,
           readAt: true,
           riskFlagId: true,
+          doctorRequestId: true,
         },
       }),
       this.unreadCount(user),
     ]);
     const hasMore = items.length > INBOX_PAGE_SIZE;
     const page = hasMore ? items.slice(0, INBOX_PAGE_SIZE) : items;
-    const flags = await this.riskFlags(page.map((item) => item.riskFlagId));
+    const [flags, requests] = await Promise.all([
+      this.riskFlags(page.map((item) => item.riskFlagId)),
+      this.doctorRequests(page.map((item) => item.doctorRequestId)),
+    ]);
     return {
-      items: page.map(({ riskFlagId, ...item }) => ({
+      items: page.map(({ riskFlagId, doctorRequestId, ...item }) => ({
         ...item,
         riskFlag: (riskFlagId && flags.get(riskFlagId)) || null,
+        doctorRequest: (doctorRequestId && requests.get(doctorRequestId)) || null,
       })),
       unreadCount,
       nextBefore: hasMore ? page[page.length - 1].updatedAt.toISOString() : null,
@@ -116,6 +126,21 @@ export class InboxService {
         },
       ]),
     );
+  }
+
+  /** The doctor requests behind these tiles (#418), with who took them. Read as the system, as above. */
+  private async doctorRequests(ids: Array<string | null>): Promise<Map<string, DoctorRequestView>> {
+    const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+    if (wanted.length === 0) return new Map();
+    const rows = await this.prisma.detachFromRlsContext(() =>
+      this.prisma.withSystemContext({ systemReason: 'Show who took a doctor request' }, (tx) =>
+        tx.doctorRequest.findMany({
+          where: { id: { in: wanted } },
+          select: DOCTOR_REQUEST_VIEW_SELECT,
+        }),
+      ),
+    );
+    return new Map(rows.map((row) => [row.id, toDoctorRequestView(row)]));
   }
 
   unreadCount(user: ReqUser): Promise<number> {

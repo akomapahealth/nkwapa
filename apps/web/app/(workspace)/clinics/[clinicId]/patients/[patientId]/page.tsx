@@ -22,6 +22,7 @@ import { enqueueOutboxMutation } from '@/lib/outbox';
 import { SYNC_OPERATION } from '@/lib/outbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DemoBadge } from '@/components/patients/DemoPatientField';
 import {
   RecordSection as Card,
   RecordSectionContent as CardContent,
@@ -94,6 +95,8 @@ interface PatientWithEncounters {
   patient: {
     id: string;
     patientCode: string;
+    /** A training chart; shown to every staff member as a Demo tag. */
+    isDemo?: boolean;
     firstName: string;
     middleName?: string | null;
     lastName: string;
@@ -423,6 +426,7 @@ function PatientChartWorkspace() {
             patient: {
               id: patient.id,
               patientCode: patient.patientCode,
+              isDemo: patient.isDemo,
               firstName: patient.firstName,
               lastName: patient.lastName,
               dob: patient.dob ?? null,
@@ -652,6 +656,7 @@ function PatientChartWorkspace() {
         tier={canSeeTier && followUp.data ? (followUp.data.current?.tier ?? null) : undefined}
         badges={
           <>
+            <DemoBadge isDemo={patient.isDemo} />
             {canSeeTier && followUp.data ? (
               <FollowUpTierSummary
                 assessment={followUp.data.current}
@@ -693,6 +698,8 @@ function PatientChartWorkspace() {
             ) : null}
             {canCreateOpsCheckIn ? (
               <Button
+                // Quiet beside Check in and start when the station line is on (#414).
+                variant={patientCheckIn.canStart ? 'outline' : undefined}
                 onClick={() =>
                   void patientCheckIn.checkIn({
                     id: patient.id,
@@ -705,6 +712,24 @@ function PatientChartWorkspace() {
               >
                 <Stethoscope className="h-4 w-4" />
                 {patientCheckIn.isBusy ? 'Checking in...' : 'Check in patient'}
+              </Button>
+            ) : null}
+            {canCreateOpsCheckIn && patientCheckIn.canStart ? (
+              <Button
+                onClick={() =>
+                  void patientCheckIn.checkIn(
+                    {
+                      id: patient.id,
+                      patientCode: patient.patientCode,
+                      firstName: patient.firstName,
+                      lastName: patient.lastName,
+                    },
+                    { startNow: true },
+                  )
+                }
+                disabled={loading || patientCheckIn.isBusy || !patientCheckIn.canSubmit}
+              >
+                Check in and start
               </Button>
             ) : null}
           </>

@@ -32,10 +32,13 @@ export type OpsWrite =
       checkInId: string;
       patientId: string;
       patient?: { patientCode?: string; displayName?: string };
+      /** Take the patient at the first station too, if the caller is there (#414). Online only. */
+      startNow?: boolean;
     };
 
 export type OpsWriteResult =
-  | { outcome: 'applied' }
+  /** `body` is the server's answer, when it sent JSON. */
+  | { outcome: 'applied'; body?: unknown }
   | { outcome: 'queued' }
   | { outcome: 'refused'; error: ApiError };
 
@@ -71,7 +74,11 @@ function restRequest(write: OpsWrite, clinicId: string): { path: string; body?: 
     case 'patientCheckIn':
       return {
         path: `${clinic}/checkins`,
-        body: { id: write.checkInId, patientId: write.patientId },
+        body: {
+          id: write.checkInId,
+          patientId: write.patientId,
+          ...(write.startNow ? { startNow: true } : {}),
+        },
       };
   }
 }
@@ -120,7 +127,8 @@ export async function submitOpsWrite(write: OpsWrite, deps: OpsWriteDeps): Promi
         getToken: deps.getToken,
         activeClinicId: deps.clinicId,
       });
-      if (response.ok) return { outcome: 'applied' };
+      if (response.ok)
+        return { outcome: 'applied', body: await response.json().catch(() => undefined) };
       return { outcome: 'refused', error: await readApiError(response) };
     } catch (error) {
       if (!isUnanswered(error)) throw error;

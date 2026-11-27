@@ -1,5 +1,13 @@
 import { Sex } from '@prisma/client';
-import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { IsAllowedEmailDomain } from '../../common/email-policy';
 import { ToNormalizedEmail, ToOptionalName, ToSanitizedString } from '../../common/validation';
 import { ResidentialLocationDto } from './residential-location.dto';
@@ -45,4 +53,9 @@ export class UpdatePatientBodyDto extends ResidentialLocationDto {
   @IsAllowedEmailDomain()
   @MaxLength(320)
   email?: string;
+
+  /** A training chart. Only a holder of PATIENT.DEMO.MANAGE may set it. */
+  @IsOptional()
+  @IsBoolean()
+  isDemo?: boolean;
 }

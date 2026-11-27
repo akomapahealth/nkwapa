@@ -53,6 +53,7 @@ const PAGE_KEYWORDS: Record<string, string> = {
   '/reports/organization': 'organization rollup all clinics',
   '/admin/duplicates': 'duplicate charts merge',
   '/admin/data-requests': 'data rights access correction deletion requests',
+  '/admin/feedback': 'problem reports feedback bugs issues',
 };
 
 const PLACEMENTS: AppNavPlacement[] = ['sidebar', 'header', 'profile'];

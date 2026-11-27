@@ -177,6 +177,16 @@ describe('merged charts', () => {
     expect(await db.patients.get('retired-1')).toBeUndefined();
     expect(await db.patients.get('canonical-1')).toBeDefined();
   });
+
+  it('drops a practice chart a director cleared (#410)', async () => {
+    await db.patients.bulkPut([{ id: 'demo-1' }, { id: 'real-1' }]);
+    mockSyncFetch([], { ...EMPTY_PULL, clearedDemoPatientIds: ['demo-1'] });
+
+    await syncNow({ clinicId: 'clinic-1', currentUserId: OWNER });
+
+    expect(await db.patients.get('demo-1')).toBeUndefined();
+    expect(await db.patients.get('real-1')).toBeDefined();
+  });
 });
 
 describe('deleted draft visits', () => {

@@ -15,11 +15,7 @@ import {
  * act on the email I just sent?" on its own.
  */
 export type InvitedIdentityOutcome =
-  | 'PROVISIONED'
-  | 'EXISTING_PENDING'
-  | 'ALREADY_ACTIVE'
-  | 'SKIPPED'
-  | 'FAILED';
+  'PROVISIONED' | 'EXISTING_PENDING' | 'ALREADY_ACTIVE' | 'SKIPPED' | 'FAILED';
 
 export interface ProvisionInvitedIdentityInput {
   email: string;

@@ -5,7 +5,7 @@
      and send "Back to sign in" through Nkwapa so a sign-in starts with a real redirect. -->
 <#assign appUrl = (properties.nkwapaWebOrigins!'')?split(",")[0]?trim?remove_ending("/") />
 <#assign resetUrl = (client??)?then(url.loginResetCredentialsUrl, url.loginResetCredentialsUrl + url.loginResetCredentialsUrl?contains("?")?then("&", "?") + "client_id=nkwapa-web") />
-<@layout.registrationLayout displayMessage=true journey="help" eyebrow="Link problem"; section>
+<@layout.registrationLayout displayMessage=true; section>
     <#if section = "header">
         This link needs attention
     <#elseif section = "form">

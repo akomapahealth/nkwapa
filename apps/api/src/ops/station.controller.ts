@@ -22,6 +22,7 @@ import { PERMISSIONS } from '../auth/constants/permissions';
 import { hasPermissionAtClinic } from '../auth/clinic-roles';
 import { isApiFeatureEnabled } from '../common/feature-flags';
 import { StationService, type StationActor } from './station.service';
+import { DoctorRequestService } from './doctor-request.service';
 import {
   AssignStationVisitDto,
   CompleteStationVisitDto,
@@ -34,6 +35,7 @@ import {
   StationDayQueryDto,
   StationReasonDto,
   UpdateStationDto,
+  CreateDoctorRequestDto,
 } from './dto/station.dto';
 
 type StationRequest = {
@@ -48,7 +50,10 @@ type StationRequest = {
 @Controller('clinics/:clinicId')
 @UseGuards(JwtAuthGuard, ClinicScopeGuard, RbacGuard)
 export class StationController {
-  constructor(private readonly stationService: StationService) {}
+  constructor(
+    private readonly stationService: StationService,
+    private readonly doctorRequests: DoctorRequestService,
+  ) {}
 
   @Get('stations')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
@@ -120,12 +125,39 @@ export class StationController {
     return this.stationService.getMetrics(clinicId, query.date);
   }
 
+  /** "Ready to open" (#411): the manager's morning checklist for today. */
+  @Get('stations/readiness')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  readiness(@Param('clinicId') clinicId: string) {
+    this.assertEnabled();
+    return this.stationService.getReadiness(clinicId);
+  }
+
+  /** How one clinic day went (#421): counts for the manager after End clinic day. */
+  @Get('stations/day/summary')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  daySummary(@Param('clinicId') clinicId: string, @Query() query: StationDayQueryDto) {
+    this.assertEnabled();
+    return this.stationService.getDaySummary(clinicId, query.date);
+  }
+
   @Get('stations/board')
   @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
   @RequirePermission(PERMISSIONS.OPS_STATION_READ)
   getBoard(@Param('clinicId') clinicId: string, @Query() query: StationDayQueryDto) {
     this.assertEnabled();
     return this.stationService.getBoard(clinicId, query.date);
+  }
+
+  /** The nav badge for whoever is on shift at review (#419); `{count: null}` for everyone else. */
+  @Get('stations/review-waiting/count')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_READ)
+  reviewWaitingCount(@Param('clinicId') clinicId: string, @Request() req: StationRequest) {
+    this.assertEnabled();
+    return this.stationService.getReviewWaitingCount(clinicId, req.user.user.id);
   }
 
   @Get('stations/screener-names')
@@ -345,6 +377,80 @@ export class StationController {
       this.actor(req, clinicId),
       body.reason,
       this.ctx(req),
+    );
+  }
+
+  /** "End clinic day": everyone still in the line is closed out as CLINIC_CLOSED. */
+  @Post('stations/day/close')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_MANAGE)
+  closeDay(
+    @Param('clinicId') clinicId: string,
+    @Query() query: StationDayQueryDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.stationService.closeClinicDay(
+      clinicId,
+      this.actor(req, clinicId),
+      query.date,
+      this.ctx(req),
+    );
+  }
+
+  /** "Ask a doctor" (#418): the doctors on shift are told, with no patient name. */
+  @Post('station-visits/:visitId/doctor-request')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.OPS_STATION_WORK)
+  requestDoctor(
+    @Param('clinicId') clinicId: string,
+    @Param('visitId', ParseUUIDPipe) visitId: string,
+    @Body() body: CreateDoctorRequestDto,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.doctorRequests.request(
+      clinicId,
+      visitId,
+      req.user.user.id,
+      body,
+      this.ctx(req).requestId,
+    );
+  }
+
+  /** "I'm on it": doctors, and managers who review (#418). */
+  @Post('doctor-requests/:requestId/claim')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  claimDoctorRequest(
+    @Param('clinicId') clinicId: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.doctorRequests.claim(
+      clinicId,
+      requestId,
+      req.user.user.id,
+      this.ctx(req).requestId,
+    );
+  }
+
+  /** "Seen", by the doctor who took it. */
+  @Post('doctor-requests/:requestId/resolve')
+  @ClinicScoped({ type: 'param', paramKey: 'clinicId' })
+  @RequirePermission(PERMISSIONS.ENCOUNTER_REVIEW)
+  resolveDoctorRequest(
+    @Param('clinicId') clinicId: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Request() req: StationRequest,
+  ) {
+    this.assertEnabled();
+    return this.doctorRequests.resolve(
+      clinicId,
+      requestId,
+      req.user.user.id,
+      this.ctx(req).requestId,
     );
   }
 

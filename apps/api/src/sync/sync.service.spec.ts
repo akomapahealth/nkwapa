@@ -22,8 +22,11 @@ import { HypertensionAssessmentService } from '../hypertension-assessment/hypert
 import { MedicationAdherenceService } from '../medication-adherence/medication-adherence.service';
 import { PrescriptionService } from '../prescriptions/prescription.service';
 import { OpsService } from '../ops/ops.service';
+import { StationService } from '../ops/station.service';
+import { EyeScreeningService } from '../eye-screening/eye-screening.service';
 import { createSyncMutationStore } from '../testing/sync-mutation-store';
 import { ClinicianPlanSealService } from './clinician-plan-seal.service';
+import { StaffFeedbackService } from '../staff-feedback/staff-feedback.service';
 import { sealClinicianPlan } from '@nkwapa/db';
 import { OfflineGrantService } from '../offline-grants/offline-grant.service';
 import { getOfflineSession } from '../common/request-context.store';
@@ -166,6 +169,7 @@ describe('SyncService', () => {
         },
         // The real one: replay tests seal with the browser's own function and must open here.
         ClinicianPlanSealService,
+        { provide: StaffFeedbackService, useValue: { submit: jest.fn() } },
         { provide: OfflineGrantService, useValue: offlineGrants },
         {
           provide: MedicationAdherenceService,
@@ -192,6 +196,14 @@ describe('SyncService', () => {
             checkOut: jest.fn().mockResolvedValue({ id: 'shift-1' }),
             createCheckIn: jest.fn().mockResolvedValue({ id: 'checkin-1' }),
           },
+        },
+        {
+          provide: EyeScreeningService,
+          useValue: { upsert: jest.fn().mockResolvedValue({ record: { id: 'eye-1' } }) },
+        },
+        {
+          provide: StationService,
+          useValue: { replayComplete: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -437,6 +449,193 @@ describe('SyncService', () => {
 
       expect(result).toMatchObject({ status: 'CONFLICT', conflictType: 'PATIENT_MERGED' });
       expect(opsService.createCheckIn).not.toHaveBeenCalled();
+    });
+
+    it('refuses a change queued against a cleared practice chart (#410)', async () => {
+      (prisma.patient.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: PATIENT_ID,
+        mergedIntoPatientId: null,
+        demoClearedAt: new Date('2026-11-25T10:00:00Z'),
+      });
+
+      const [result] = await push(
+        opsMutation('patient_check_in', CHECKIN_ID, { patientId: PATIENT_ID }),
+      );
+
+      expect(result).toMatchObject({ status: 'CONFLICT', conflictType: 'PRACTICE_CLEARED' });
+      expect(opsService.createCheckIn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a station hand-off queued offline (#423)', () => {
+    const VISIT_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c09';
+    const NEXT_ID = '0b9a4a8e-4c1f-4c38-9b2d-6f1f8f0a1c0a';
+    const original = process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+    beforeEach(() => {
+      process.env.FEATURE_STATION_WORKFLOW_ENABLED = 'true';
+    });
+    afterAll(() => {
+      if (original === undefined) delete process.env.FEATURE_STATION_WORKFLOW_ENABLED;
+      else process.env.FEATURE_STATION_WORKFLOW_ENABLED = original;
+    });
+    const handOff = (): SyncMutationDto =>
+      ({
+        id: 'mut-handoff',
+        entityType: 'station_visit_complete',
+        entityId: VISIT_ID,
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: {
+          schemaVersion: 1,
+          occurredAt: '2026-03-21T09:00:00.000Z',
+          nextStationId: NEXT_ID,
+          handoffNote: 'Recheck BP',
+        },
+        idempotencyKey: `ops:station_visit_complete:${VISIT_ID}`,
+      }) as SyncMutationDto;
+
+    it('replays the hand-off at the device time and records it as applied', async () => {
+      const stations = moduleRef.get(StationService) as unknown as { replayComplete: jest.Mock };
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [handOff()]);
+
+      expect(result.status).toBe('APPLIED');
+      expect(stations.replayComplete).toHaveBeenCalledWith(
+        'clinic-1',
+        VISIT_ID,
+        expect.objectContaining({ userId: 'user-1' }),
+        expect.objectContaining({ nextStationId: NEXT_ID, handoffNote: 'Recheck BP' }),
+        {
+          requestId: `ops:station_visit_complete:${VISIT_ID}`,
+          occurredAt: new Date('2026-03-21T09:00:00.000Z'),
+        },
+      );
+      expect(prisma.syncMutation.create).toHaveBeenCalled();
+    });
+
+    it('replays an eye examination saved offline against the encounter it names', async () => {
+      const eye = moduleRef.get(EyeScreeningService) as unknown as { upsert: jest.Mock };
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [
+        {
+          id: 'mut-eye',
+          entityType: 'eye_screening',
+          entityId: 'enc-1',
+          operation: 'UPSERT',
+          clinicId: 'clinic-1',
+          payloadJson: {
+            encounterId: 'enc-1',
+            hasEyeComplaint: false,
+            wearsCorrection: false,
+            findings: [],
+            diabeticSignsSeen: false,
+            hypertensiveSignsSeen: false,
+            referralRecommended: false,
+          },
+          idempotencyKey: 'eye-key-1',
+        } as SyncMutationDto,
+      ]);
+
+      expect(result.status).toBe('APPLIED');
+      expect(eye.upsert).toHaveBeenCalledWith(
+        'clinic-1',
+        'enc-1',
+        'user-1',
+        expect.objectContaining({ hasEyeComplaint: false, findings: [] }),
+        'eye-key-1',
+      );
+    });
+
+    const report = (payload: Record<string, unknown> = {}) =>
+      ({
+        id: 'mut-report',
+        entityType: 'staff_feedback',
+        entityId: '7d0d7a1c-5d5c-4d7f-9a43-0f3e2b6c1a11',
+        operation: 'UPSERT',
+        clinicId: 'clinic-1',
+        payloadJson: {
+          schemaVersion: 1,
+          category: 'NOT_SAVED',
+          text: 'The reading would not save',
+          stationKind: 'GLUCOSE',
+          context: {
+            route: '/stations/visits/:id',
+            role: 'Volunteer',
+            version: 'abc1234',
+            online: false,
+            outboxSize: 3,
+            occurredAt: '2026-11-21T09:00:00.000Z',
+          },
+          ...payload,
+        },
+        idempotencyKey: 'ops:staff_feedback:7d0d7a1c',
+      }) as SyncMutationDto;
+
+    it('stores a problem report under the id the device gave it', async () => {
+      const feedback = moduleRef.get(StaffFeedbackService) as unknown as { submit: jest.Mock };
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [report()]);
+
+      expect(result.status).toBe('APPLIED');
+      expect(feedback.submit).toHaveBeenCalledWith(
+        'clinic-1',
+        'user-1',
+        '7d0d7a1c-5d5c-4d7f-9a43-0f3e2b6c1a11',
+        expect.objectContaining({
+          category: 'NOT_SAVED',
+          stationKind: 'GLUCOSE',
+          context: expect.objectContaining({ route: '/stations/visits/:id', online: false }),
+        }),
+      );
+    });
+
+    it('clips a problem report longer than 500 characters', async () => {
+      const feedback = moduleRef.get(StaffFeedbackService) as unknown as { submit: jest.Mock };
+      feedback.submit.mockClear();
+      await service.applyMutations('clinic-1', mockUser as never, [
+        report({ text: 'x'.repeat(900) }),
+      ]);
+
+      expect(feedback.submit.mock.calls[0][3].text).toHaveLength(500);
+    });
+
+    it.each([
+      ['an unknown category', { category: 'BROKEN' }],
+      [
+        'a route that is not a path',
+        {
+          context: {
+            route: 'https://evil',
+            role: 'x',
+            online: true,
+            outboxSize: 0,
+            occurredAt: '2026-11-21T09:00:00.000Z',
+          },
+        },
+      ],
+    ])('refuses a problem report with %s', async (_label, payload) => {
+      const feedback = moduleRef.get(StaffFeedbackService) as unknown as { submit: jest.Mock };
+      feedback.submit.mockClear();
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [
+        report(payload),
+      ]);
+
+      expect(result.status).not.toBe('APPLIED');
+      expect(feedback.submit).not.toHaveBeenCalled();
+    });
+
+    it('reports a hand-off overtaken by a release as a conflict that never retries', async () => {
+      const stations = moduleRef.get(StationService) as unknown as { replayComplete: jest.Mock };
+      stations.replayComplete.mockRejectedValueOnce(
+        new ConflictException({
+          code: 'STATION_HANDOFF_REFUSED',
+          message: 'The hand-off from BP was not sent.',
+        }),
+      );
+      const [result] = await service.applyMutations('clinic-1', mockUser as never, [handOff()]);
+
+      expect(result).toMatchObject({
+        status: 'CONFLICT',
+        conflictType: 'STATION_HANDOFF_REFUSED',
+        retryable: false,
+      });
     });
   });
 
@@ -888,11 +1087,11 @@ describe('SyncService', () => {
     });
 
     it('does not let a volunteer seat at another clinic authorize a screening write here', async () => {
-      // Manager at clinic-1, volunteer at clinic-2. The manager seat admits the request; only the
+      // Director at clinic-1, volunteer at clinic-2. The director seat admits the request; only the
       // roles held at clinic-1 may decide what it is allowed to write.
       const results = await push(
         [
-          { clinicId: 'clinic-1', role: 'MANAGER' },
+          { clinicId: 'clinic-1', role: 'DIRECTOR' },
           { clinicId: 'clinic-2', role: 'VOLUNTEER' },
         ],
         'diabetes_screening',
@@ -1550,8 +1749,45 @@ describe('SyncService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             primaryClinicId: 'clinic-1',
-            mergedIntoPatientId: { not: null },
+            OR: [{ mergedIntoPatientId: { not: null } }, { demoClearedAt: { not: null } }],
           }),
+        }),
+      );
+      expect(result.clearedDemoPatientIds).toEqual([]);
+    });
+
+    it('tells the device which practice charts a director cleared (#410)', async () => {
+      const client = prisma as unknown as Record<string, { findMany: jest.Mock }>;
+      for (const model of MODELS) {
+        client[model] = { ...client[model], findMany: jest.fn().mockResolvedValue([]) };
+      }
+      const clearedAt = new Date('2026-11-25T10:00:00.000Z');
+      client.patient.findMany = jest
+        .fn()
+        .mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+          where.mergedIntoPatientId === null
+            ? []
+            : [{ id: 'demo-1', mergedIntoPatientId: null, updatedAt: clearedAt }],
+        );
+
+      const result = await service.pull('clinic-1', '2026-11-24T00:00:00.000Z|x');
+
+      expect(result.clearedDemoPatientIds).toEqual(['demo-1']);
+
+      // A device's first pull never held them, so it is not sent the growing list.
+      (client.patient.findMany as jest.Mock).mockClear();
+      await service.pull('clinic-1');
+      expect(client.patient.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ OR: [{ mergedIntoPatientId: { not: null } }] }),
+        }),
+      );
+      expect(result.mergedPatients).toEqual([]);
+      expect(result.cursor).toBe(`${clearedAt.toISOString()}|demo-1`);
+      // The chart list itself leaves cleared practice charts out.
+      expect(client.patient.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ mergedIntoPatientId: null, demoClearedAt: null }),
         }),
       );
     });

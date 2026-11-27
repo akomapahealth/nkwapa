@@ -1,3 +1,4 @@
+import { REAL_PATIENT } from '../common/demo-patients';
 import { Injectable } from '@nestjs/common';
 import { Prisma, ResearchExportStatus, ResearchExportTrigger } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -98,7 +99,12 @@ export class ResearchExportRepository {
   /** Patients with research consent granted now: the cohort a run would publish. */
   async consentedPatientIds(clinicId: string): Promise<string[]> {
     const consents = await this.prisma.patientConsent.findMany({
-      where: { clinicId, consentType: 'RESEARCH_DEIDENTIFIED', status: 'GRANTED' },
+      where: {
+        clinicId,
+        consentType: 'RESEARCH_DEIDENTIFIED',
+        status: 'GRANTED',
+        patient: REAL_PATIENT,
+      },
       distinct: ['patientId'],
       select: { patientId: true },
     });

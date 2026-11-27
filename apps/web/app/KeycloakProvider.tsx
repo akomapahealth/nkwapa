@@ -27,6 +27,7 @@ import {
 import { dropAllKeys } from '@/lib/offline-session/keys';
 import { lockOfflineSession } from '@/lib/offline-session/unlock';
 import { setOutboxOfflineSession } from '@/lib/outbox';
+import { settleShiftBeforeSignOut } from '@/lib/sign-out-shift';
 import { AuthBootstrapWrapper } from './AuthBootstrapWrapper';
 import { SyncWithAuth } from './SyncWithAuth';
 
@@ -82,6 +83,8 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     const kc = getKeycloak();
     if (kc) {
+      // First, while the session can still reach the server: a shift left running (#425).
+      if (!(await settleShiftBeforeSignOut(getToken))) return;
       // R8: on a shared device the default is to take offline access away with the session.
       const userId = getSignedInUserId();
       if (

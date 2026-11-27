@@ -173,7 +173,13 @@ describe('computeStationMetrics', () => {
         ],
       }),
     );
-    expect(metrics.checkIns).toEqual({ total: 5, completed: 2, leftEarly: 1, inClinicNow: 2 });
+    expect(metrics.checkIns).toEqual({
+      total: 5,
+      completed: 2,
+      leftEarly: 1,
+      closedAtDayEnd: 0,
+      inClinicNow: 2,
+    });
     expect(metrics.timeInClinic).toEqual({ n: 2, medianMinutes: 60, p90Minutes: 90 });
     expect(metrics.lowVolume).toBe(false);
   });
@@ -294,6 +300,37 @@ describe('station capacity (#32)', () => {
 
   it('has no constraint to report without a bottleneck', () => {
     expect(computeStationMetrics(input()).bottleneckConstraint).toBeNull();
+  });
+});
+
+describe('stops held too long or handed on empty (#424, #421)', () => {
+  it('counts a held stop skipped with nothing recorded, not one passed over unheld', () => {
+    const metrics = computeStationMetrics(
+      input({
+        visits: [
+          { ...visit('bp', 'c1', '09:00', '09:05', '09:07', 'SKIPPED'), claimedByUserId: 'u1' },
+          { ...visit('bp', 'c2', '09:00', null, '09:10', 'SKIPPED'), claimedByUserId: null },
+          visit('bp', 'c3', '09:00', '09:10', '09:50'),
+        ],
+      }),
+    );
+    expect(metrics.stations.find((station) => station.stationId === 'bp')).toMatchObject({
+      heldEmpty: 1,
+      longestHeldMinutes: 40,
+    });
+  });
+
+  it('runs a stop still being seen on a past day to the end of that day', () => {
+    const metrics = computeStationMetrics(
+      input({
+        now: new Date('2026-10-10T12:00:00Z'),
+        visits: [visit('bp', 'c1', '22:00', '23:00', null)],
+      }),
+    );
+    // Claimed at 23:00 local; the day ends at 23:59:59.999.
+    expect(metrics.stations.find((station) => station.stationId === 'bp')?.longestHeldMinutes).toBe(
+      60,
+    );
   });
 });
 

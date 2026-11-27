@@ -953,11 +953,13 @@ model Clinic {
   stationVisits             PatientStationVisit[]
   counsellingRecords        CounsellingRecord[]
   eyeScreenings             EyeScreening[]
+  doctorRequests            DoctorRequest[]
   appointmentRequests       AppointmentRequest[]
   appointments              Appointment[]
   patientPortalInvites      PatientPortalInvite[]
   staffInvites              StaffInvite[]
   telemetryEvents           TelemetryEvent[]
+  staffFeedback             StaffFeedback[]
   conversations             Conversation[]
   chatMessages              Message[]
   medicalHistoryRecords     MedicalHistoryRecord[]
@@ -1066,6 +1068,8 @@ model User {
   completedStationVisits          PatientStationVisit[]           @relation("StationVisitCompletedBy")
   counsellingRecords              CounsellingRecord[]             @relation("CounsellingRecordAuthor")
   eyeScreenings                   EyeScreening[]                  @relation("EyeScreeningAuthor")
+  doctorRequestsMade              DoctorRequest[]                 @relation("DoctorRequestRequestedBy")
+  doctorRequestsClaimed           DoctorRequest[]                 @relation("DoctorRequestClaimedBy")
   doctorAppointments              Appointment[]                   @relation("AppointmentAssignedDoctor")
   volunteerAppointments           Appointment[]                   @relation("AppointmentAssignedVolunteer")
   cancelledAppointments           Appointment[]                   @relation("AppointmentCancelledBy")
@@ -1073,6 +1077,7 @@ model User {
   pushSubscriptions               PushSubscription[]
   inboxNotifications              InboxNotification[]
   riskFlagAcknowledgements        RiskFlagAcknowledgement[]
+  staffFeedback                   StaffFeedback[]
   followUpContactsOwned           FollowUpContact[]               @relation("FollowUpContactOwner")
   followUpAttempts                FollowUpAttempt[]
   staffAgreementAcceptances       StaffAgreementAcceptance[]
@@ -1185,6 +1190,11 @@ model Patient {
   currentRiskAssessmentId String?       @unique @db.Uuid
   currentRiskTier         FollowUpTier?
 
+  /// A training chart (2026-11-21): kept out of reports, research and outreach. Set by a director.
+  isDemo Boolean @default(false)
+  /// When a practice session last cleared this demo chart (#410): open check-ins cancelled, drafts deleted.
+  demoClearedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1230,6 +1240,7 @@ model Patient {
   @@index([phoneE164])
   @@index([updatedAt])
   @@index([primaryClinicId, updatedAt, id])
+  @@index([primaryClinicId, isDemo])
   @@index([primaryClinicId, residentialRegion])
   @@index([primaryClinicId, residentialLocationStatus])
   @@index([primaryClinicId, currentRiskTier])
@@ -1335,6 +1346,9 @@ model StaffShift {
   screenerName               String?     @db.VarChar(120)
   /// The directory entry the screener was picked from (#226). The name above stays the snapshot.
   screenerVolunteerContactId String?     @db.Uuid
+  /// The last sync pull by this person during the shift (#411), written at most once a minute.
+  /// The "Ready to open" check reads it; per person, not per device.
+  lastPulledAt               DateTime?
   createdAt                  DateTime    @default(now())
   updatedAt                  DateTime    @updatedAt
 
@@ -1356,15 +1370,25 @@ model PatientCheckIn {
   status      CheckInStatus @default(WAITING)
   encounterId String?       @unique @db.Uuid
   notes       String?       @db.Text
+  /// Called out instead of a name on the day (#413): 1, 2, 3 per clinic per clinic-local day.
+  /// Null only on check-ins written by the screening import, which are past and closed.
+  dayNumber   Int?
+  /// The clinic-local date dayNumber counts within.
+  dayDate     DateTime?     @db.Date
+  /// Red flags raised at the stations so far (#415), worst per source, never taken back while
+  /// the patient is on the line. Shape: LineFlag[] in station-line-flags.ts.
+  lineFlags   Json          @default("[]")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  clinic        Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient       Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  encounter     Encounter?            @relation(fields: [encounterId], references: [id], onDelete: SetNull)
-  assignments   PatientAssignment[]
-  stationVisits PatientStationVisit[]
+  clinic         Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient        Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter      Encounter?            @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  assignments    PatientAssignment[]
+  stationVisits  PatientStationVisit[]
+  doctorRequests DoctorRequest[]
 
+  @@unique([clinicId, dayDate, dayNumber])
   @@index([clinicId, status, checkedInAt])
   @@index([patientId, checkedInAt])
 }
@@ -1462,6 +1486,7 @@ model PatientStationVisit {
   claimedBy                   User?             @relation("StationVisitClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
   assignedBy                  User?             @relation("StationVisitAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
   completedBy                 User?             @relation("StationVisitCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  doctorRequests              DoctorRequest[]
 
   @@index([clinicId, stationId, status, queuedAt])
   @@index([patientCheckInId, queuedAt])
@@ -1645,10 +1670,16 @@ model Vitals {
   clinicId    String @db.Uuid
   encounterId String @unique @db.Uuid
 
-  systolicBp  Int?
-  diastolicBp Int?
-  bpSite      BloodPressureSite?
-  bpSiteOther String?            @db.VarChar(120)
+  /// The reading used for care: the average of `bp*Readings` when several were taken.
+  systolicBp          Int?
+  diastolicBp         Int?
+  /// The 2-3 readings of one sitting, in the order taken; empty when a single reading was taken.
+  bpSystolicReadings  Int[]              @default([])
+  bpDiastolicReadings Int[]              @default([])
+  /// The pulse of each of those readings; empty, or one per BP reading. pulseBpm holds their average.
+  pulseReadings       Int[]              @default([])
+  bpSite              BloodPressureSite?
+  bpSiteOther         String?            @db.VarChar(120)
 
   patientPosition      PatientPosition?
   patientPositionOther String?                @db.VarChar(120)
@@ -2922,33 +2953,84 @@ enum InboxNotificationKind {
   RISK_TIER_CHANGE
   /// Follow-up work is due: a missed contact (#338) or the directors' daily counts (#337).
   FOLLOW_UP_DUE
+  /// A station asked for a doctor (#418); the tile offers "I'm on it".
+  DOCTOR_REQUEST
 }
 
 model InboxNotification {
-  id         String                @id @default(uuid()) @db.Uuid
-  userId     String                @db.Uuid
+  id              String                @id @default(uuid()) @db.Uuid
+  userId          String                @db.Uuid
   /// The clinic it is about. Listed only while the reader still has a role there.
-  clinicId   String?               @db.Uuid
-  kind       InboxNotificationKind
-  title      String                @db.VarChar(200)
-  body       String?               @db.VarChar(500)
+  clinicId        String?               @db.Uuid
+  kind            InboxNotificationKind
+  title           String                @db.VarChar(200)
+  body            String?               @db.VarChar(500)
   /// Same-origin path the tile opens.
-  url        String                @db.VarChar(500)
+  url             String                @db.VarChar(500)
   /// An unread notification with the same tag is updated in place rather than stacked.
-  tag        String?               @db.VarChar(120)
+  tag             String?               @db.VarChar(120)
   /// How many events the unread notification stands for, e.g. three messages in one chat.
-  count      Int                   @default(1)
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @default(now()) @updatedAt
-  readAt     DateTime?
+  count           Int                   @default(1)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @default(now()) @updatedAt
+  readAt          DateTime?
   /// The risk flag this tile is about, so it can offer "I'm on it" and show who took it (#337).
-  riskFlagId String?               @db.Uuid
+  riskFlagId      String?               @db.Uuid
+  /// The doctor request this tile is about (#418), for "I'm on it" and who took it.
+  doctorRequestId String?               @db.Uuid
 
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  riskFlag PatientRiskFlag? @relation(fields: [riskFlagId], references: [id], onDelete: SetNull)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  riskFlag      PatientRiskFlag? @relation(fields: [riskFlagId], references: [id], onDelete: SetNull)
+  doctorRequest DoctorRequest?   @relation(fields: [doctorRequestId], references: [id], onDelete: SetNull)
 
   @@index([userId, updatedAt])
   @@index([riskFlagId])
+  @@index([doctorRequestId])
+}
+
+/// How soon a station needs a doctor (#418).
+enum DoctorRequestUrgency {
+  NOW
+  BEFORE_LEAVING
+}
+
+/// Why, from a fixed list, so no free text reaches a notification (#418).
+enum DoctorRequestReason {
+  HIGH_BP
+  HIGH_GLUCOSE
+  SYMPTOMS
+  MEDICATION
+  OTHER
+}
+
+/// A station asking for a doctor for a checked-in patient (#418). At most one open per check-in
+/// (a partial unique index in the migration). Open means not resolved and the check-in still
+/// open, so closing a check-in any way (review, Patient left, End clinic day) closes its request.
+model DoctorRequest {
+  id                String               @id @default(uuid()) @db.Uuid
+  clinicId          String               @db.Uuid
+  checkInId         String               @db.Uuid
+  stationVisitId    String?              @db.Uuid
+  urgency           DoctorRequestUrgency
+  reason            DoctorRequestReason?
+  /// Raised by a refer-today reading (#415), not by a person.
+  auto              Boolean              @default(false)
+  requestedByUserId String?              @db.Uuid
+  claimedByUserId   String?              @db.Uuid
+  claimedAt         DateTime?
+  resolvedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  clinic        Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  checkIn       PatientCheckIn       @relation(fields: [checkInId], references: [id], onDelete: Cascade)
+  stationVisit  PatientStationVisit? @relation(fields: [stationVisitId], references: [id], onDelete: SetNull)
+  requestedBy   User?                @relation("DoctorRequestRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  claimedBy     User?                @relation("DoctorRequestClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  notifications InboxNotification[]
+
+  @@index([clinicId, createdAt])
+  @@index([checkInId])
 }
 
 /// One signature on one version of a staff agreement (#330). Append-only: the application role
@@ -2978,18 +3060,18 @@ model StaffAgreementAcceptance {
 /// device, refreshed in place while online; queued writes name it, and the server refuses them once
 /// it is revoked or they were recorded after it expired.
 model OfflineGrant {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
   /// A random id the browser profile generated for itself. Identifies the device, not the person.
-  deviceId  String    @db.Uuid
-  issuedAt  DateTime  @default(now())
-  expiresAt DateTime
-  revokedAt DateTime?
+  deviceId      String    @db.Uuid
+  issuedAt      DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
   /// Why it was revoked: SIGN_OUT, DEVICE_REVOKED, ROLE_REMOVED, DEACTIVATED, ADMIN_SIGN_OUT.
-  revokedReason String? @db.VarChar(40)
+  revokedReason String?   @db.VarChar(40)
   /// To name the device on the settings page.
-  userAgent String?   @db.VarChar(400)
-  createdAt DateTime  @default(now())
+  userAgent     String?   @db.VarChar(400)
+  createdAt     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -3079,6 +3161,39 @@ model TelemetryEvent {
   @@index([event, occurredAt])
   @@index([clinicId, occurredAt])
   @@index([occurredAt])
+}
+
+/// What a staff member says went wrong (#422). The same list the "Report a problem" dialog shows.
+enum StaffFeedbackCategory {
+  NOT_SAVED
+  ERROR_MESSAGE
+  SLOW
+  CONFUSING
+  WRONG_INFO
+  OTHER
+}
+
+/// A problem a staff member reported from inside the app (#422), with where they were.
+/// The text may still hold patient detail despite the warning, so it is clinic-scoped clinical
+/// data: row level security, never sent to Sentry or logs, swept after a retention period.
+model StaffFeedback {
+  /// Made on the device, so a report replayed from the outbox is stored once.
+  id          String                @id @db.Uuid
+  clinicId    String                @db.Uuid
+  userId      String                @db.Uuid
+  category    StaffFeedbackCategory
+  text        String?               @db.VarChar(500)
+  /// The station the reporter was working, copied from the context so the list can filter on it.
+  stationKind StationKind?
+  /// Route with ids masked, role, app version, online state, outbox size, device time.
+  context     Json                  @default("{}")
+  createdAt   DateTime              @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, createdAt])
+  @@index([createdAt])
 }
 
 /// What a patient asked the clinic to do with their information.

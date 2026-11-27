@@ -7,6 +7,10 @@ const { storageStateFor } = require('../playwright/roles');
 const { answer, question } = require('../playwright/interview');
 const { keyboardDialog } = require('../playwright/clinical-keyboard.cjs');
 const { readLocalTable } = require('../playwright/local-db');
+const { fillNationalId } = require('../playwright/register-patient');
+const { readOutboxRows } = require('../playwright/outbox');
+
+const API_ORIGIN = new URL(process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000').origin;
 
 /*
   Issue #167: the station line, end to end.
@@ -33,7 +37,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Line');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-STN-${suffix}`);
+  await fillNationalId(page, `E2E-STN-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');
@@ -164,7 +168,9 @@ test('a patient moves through every station and reaches a doctor', async ({ page
   });
   await volunteerPage.getByLabel('Note for the next station').fill('BP high, recheck at review.');
   await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
-  await volunteerPage.waitForURL(/\/stations$/, { timeout: 20_000 });
+  // Back at the queue, told where the patient went (screening-day feedback, 2026-11-21).
+  await volunteerPage.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+  await expect(volunteerPage.getByText(/Patient No\. \d+ handed on to Glucose/)).toBeVisible();
   await volunteerContext.close();
 
   // Glucose: the reading alone.
@@ -455,6 +461,198 @@ test('intake runs the interviews the volunteer chooses, and reopens a saved one'
   ).toBeChecked();
 });
 
+/*
+  #427: a glucose reading that reaches the server after the review visit opened (entered late
+  from paper, or held in a device outbox) shows up without reopening the page, and says so.
+*/
+test('the review summary picks up a reading saved after it opened (#427)', async ({ page }) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+
+  // Every stop before review is handed on with nothing recorded.
+  let next = await claimNext('staff', clinicId, checkInId);
+  const encounterId = next.claimed.encounterId;
+  while (next.at.station.kind !== 'REVIEW') {
+    const done = await complete('staff', clinicId, next.at.visit.id);
+    expect(done.ok(), done.text()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  const glucoseCell = page.locator('dl > div').filter({ hasText: 'Blood glucose' });
+  await expect(glucoseCell.getByText('Not recorded')).toBeVisible({ timeout: 20_000 });
+  // Typing in counselling must survive the refresh.
+  await page.getByLabel('Advice given').fill('Recheck fasting glucose.');
+
+  const reading = await apiRequestAs(
+    'staff',
+    'put',
+    `/clinics/${clinicId}/encounters/${encounterId}/diabetes-screening/glucose`,
+    {
+      clinicId,
+      data: { glucoseMgDl: 210, glucoseType: 'RANDOM', collectedAt: new Date().toISOString() },
+    },
+  );
+  expect(reading.ok(), reading.text()).toBeTruthy();
+
+  // One poll is six seconds; allow two.
+  await expect(glucoseCell.getByText(/^Added at /)).toBeVisible({ timeout: 15_000 });
+  await expect(glucoseCell.getByText('Not recorded')).toHaveCount(0);
+  await expect(page.getByLabel('Advice given')).toHaveValue('Recheck fasting glucose.');
+});
+
+test('handing on a station with nothing recorded asks first, and Skip keeps a reason (#424)', async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+
+  let next = await claimNext('staff', clinicId, checkInId);
+  while (next.at.station.kind !== 'GLUCOSE') {
+    const done = await complete('staff', clinicId, next.at.visit.id);
+    expect(done.ok(), done.text()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  const send = page.getByRole('button', { name: /^Send to / });
+  await send.click({ timeout: 20_000 });
+  const ask = page.getByRole('group', { name: /^Nothing was recorded at .+\. Hand on anyway\?$/ });
+  await expect(ask).toBeVisible();
+  const skip = ask.getByRole('button', { name: 'Skip this station' });
+  await expect(skip).toBeDisabled();
+  // Go back stays on the visit, at the station's own form.
+  await ask.getByRole('button', { name: 'Go back' }).click();
+  await expect(ask).toHaveCount(0);
+  await expect(page).toHaveURL(/\/stations\/visits\//);
+
+  await page.getByLabel('Note for the next station').fill('No strips left.');
+  await send.click();
+  await ask.getByLabel('Why was nothing recorded?').fill('Out of glucose strips');
+  await skip.click();
+  await page.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+
+  const timeline = await apiRequestAs(
+    'staff',
+    'get',
+    `/clinics/${clinicId}/checkins/${checkInId}/station-visits`,
+    { clinicId },
+  );
+  const glucose = timeline.json().items.find((stop) => stop.station.kind === 'GLUCOSE');
+  expect(glucose).toMatchObject({ status: 'SKIPPED', endReason: 'Out of glucose strips' });
+  // The next station still reads the note, from a stop marked skipped.
+  const after = await boardVisit('staff', clinicId, checkInId);
+  expect(after.visit.previous).toMatchObject({
+    status: 'SKIPPED',
+    handoffNote: 'No strips left.',
+  });
+});
+
+test('a refer-today reading travels with the patient to review (#415)', async ({ page }) => {
+  test.setTimeout(180_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+
+  let next = await claimNext('staff', clinicId, checkInId);
+  const encounterId = next.claimed.encounterId;
+  while (next.at.station.kind !== 'BLOOD_PRESSURE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  // A crisis reading at Blood pressure suggests its own hand-off note.
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await page.getByLabel('Systolic BP (mmHg)').fill('184');
+  await page.getByLabel('Diastolic BP (mmHg)').fill('112');
+  await page.getByLabel('Measurement site').click();
+  await page.getByRole('option', { name: /left arm/i }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save measurements' }).click();
+  // The station's own crisis alert stays as it was; the flag is in addition to it.
+  await page.getByRole('button', { name: "I've told a clinician" }).click({ timeout: 20_000 });
+  await expect(page.getByText('Measurements saved and synced.')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByLabel('Note for the next station')).toHaveValue('BP 184/112, refer today');
+  await page.getByRole('button', { name: /^Send to / }).click();
+  await page.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+
+  // The next station sees the flag and the reading, with no note needed.
+  next = await claimNext('staff', clinicId, checkInId);
+  expect(next.at.visit.lineFlags).toEqual([
+    expect.objectContaining({ kind: 'REFER_TODAY', source: 'BP', systolic: 184, diastolic: 112 }),
+  ]);
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await expect(page.getByTestId('line-flag-chip').first()).toHaveText('Refer today', {
+    timeout: 20_000,
+  });
+  await expect(page.getByTestId('line-flags-notice')).toContainText(
+    /BP 184\/112 at Blood pressure, /,
+  );
+
+  while (next.at.station.kind !== 'REVIEW') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+  const counselling = await apiRequestAs(
+    'staff',
+    'put',
+    `/clinics/${clinicId}/encounters/${encounterId}/counselling`,
+    {
+      clinicId,
+      data: {
+        topics: ['BLOOD_PRESSURE'],
+        adviceGiven: 'Recheck BP today.',
+        followUpRecommended: true,
+        followUpWindow: 'WITHIN_1_MONTH',
+        referralRecommended: false,
+      },
+    },
+  );
+  expect(counselling.ok(), counselling.text()).toBeTruthy();
+
+  // Review lists the flag; completing without a referral asks, and Go back stays.
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await expect(page.getByTestId('line-flags-notice')).toContainText(
+    'Red flags raised along the line',
+    {
+      timeout: 20_000,
+    },
+  );
+  await page.getByRole('button', { name: 'Complete session' }).click();
+  const ask = page.getByRole('alertdialog').or(page.getByRole('dialog'));
+  await expect(
+    ask.getByText('No referral recorded for a refer-today reading. Complete anyway?'),
+  ).toBeVisible();
+  await ask.getByRole('button', { name: 'Go back and record it' }).click();
+  await expect(page).toHaveURL(/\/stations\/visits\//);
+  await page.getByRole('button', { name: 'Complete session' }).click();
+  await ask.getByRole('button', { name: 'Complete anyway' }).click();
+  await page.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
+  expect(await boardVisit('staff', clinicId, checkInId)).toBeNull();
+});
+
 test('manager assignment is refused while the station line runs', async ({ page }) => {
   const patient = await createPatient(page);
   const { clinicId } = patient;
@@ -482,6 +680,153 @@ test('manager assignment is refused while the station line runs', async ({ page 
   );
   expect(left.ok(), left.text()).toBeTruthy();
   expect(await boardVisit('staff', clinicId, checkIn.json().id)).toBeNull();
+});
+
+/*
+  #426: on a phone with a flaky signal the eye history kept resetting. Going offline disabled the
+  form (focus lost) and coming back reloaded it over the typing.
+*/
+test('eye history keeps its typing through a connection flicker on a phone (#426)', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  let next = await claimNext('staff', clinicId, checkIn.json().id);
+  while (next.at.station.kind !== 'EYE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkIn.json().id);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  await page.getByLabel('The patient has an eye complaint').click();
+  const history = page.getByLabel('Brief eye history');
+  await history.fill('Blurred since June');
+
+  // The caret goes to the start, then the connection drops and returns: it must stay put.
+  await history.evaluate((field) => {
+    field.focus();
+    field.setSelectionRange(0, 0);
+  });
+  await context.setOffline(true);
+  // Since #423 Save keeps working offline, on the device.
+  await expect(
+    page.getByText(/Offline\. Saving keeps the examination on this device/),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save eye examination' })).toBeEnabled();
+  await expect(history).toBeEnabled();
+  await expect(history).toBeFocused();
+  await history.pressSequentially('Right eye. ');
+  await context.setOffline(false);
+  await expect(page.getByRole('button', { name: 'Save eye examination' })).toBeEnabled();
+  await history.pressSequentially('Itchy. ');
+  await expect(history).toHaveValue('Right eye. Itchy. Blurred since June');
+
+  await page.getByRole('button', { name: 'Save eye examination' }).click();
+  await expect(page.getByText('Eye examination saved.')).toBeVisible({ timeout: 20_000 });
+  await expect(history).toHaveValue('Right eye. Itchy. Blurred since June');
+});
+
+/*
+  #423: the signal drops mid-patient. The visit this device holds reopens from its copy, the
+  reading saves on the device, and the hand-off queues behind it. Once the server is back the
+  patient reaches the next station with the reading. The phone still says it is online, as on
+  screening day: only the API is unreachable.
+*/
+test('a hand-off made without a connection reaches the next station with the reading (#423)', async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  let next = await claimNext('staff', clinicId, checkInId);
+  while (next.at.station.kind !== 'BLOOD_PRESSURE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+  const visitId = next.at.visit.id;
+  // From the station line, as a volunteer comes: the device keeps a copy of both.
+  await page.goto('/stations');
+  await expect(page.getByRole('heading', { name: 'With you now' })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.goto(`/stations/visits/${visitId}`);
+  await expect(page.getByLabel('Systolic BP (mmHg)')).toBeVisible({ timeout: 20_000 });
+
+  // The visit itself cannot be fetched: it opens from this device's copy.
+  const visitRoute = `${API_ORIGIN}/clinics/${clinicId}/station-visits/${visitId}`;
+  await page.route(visitRoute, (route) => route.abort('internetdisconnected'));
+  await page.reload();
+  await expect(page.getByText(/this visit opened from this device/)).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.unroute(visitRoute);
+
+  // Now nothing reaches the API.
+  const unreachable = (route) => route.abort('internetdisconnected');
+  await page.route(`${API_ORIGIN}/**`, unreachable);
+  await page.getByLabel('Systolic BP (mmHg)').fill('150');
+  await page.getByLabel('Diastolic BP (mmHg)').fill('95');
+  await page.getByLabel('Measurement site').click();
+  await page.getByRole('option', { name: /left arm/i }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save measurements' }).click();
+  await expect(page.getByText('Measurements saved on this device and pending sync.')).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByLabel('Note for the next station').fill('Taken offline (#423).');
+  await page.getByRole('button', { name: /^Send to / }).click();
+  await page.waitForURL(/\/stations\?.*queued=1/, { timeout: 30_000 });
+  await expect(page.getByText(/It is sent when the connection returns/)).toBeVisible();
+
+  // The board loads again but nothing has synced: the patient shows as handed on, not held.
+  await page.unroute(`${API_ORIGIN}/**`, unreachable);
+  await page.route(`${API_ORIGIN}/sync/**`, unreachable);
+  await page.reload();
+  await expect(page.getByTestId('handed-on-offline').first()).toBeVisible({ timeout: 20_000 });
+
+  // The reading is queued ahead of the hand-off, so the server applies it first.
+  const queued = (await readOutboxRows(page, clinicId)).sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  );
+  const handOff = queued.findIndex(
+    (row) => row.entityType === 'station_visit_complete' && row.entityId === visitId,
+  );
+  const reading = queued.findIndex((row) => /vitals/.test(row.entityType));
+  expect(handOff).toBeGreaterThan(-1);
+  expect(reading).toBeGreaterThan(-1);
+  expect(reading).toBeLessThan(handOff);
+
+  // Back online: the patient is waiting at the next station, with the reading and the note.
+  await page.unroute(`${API_ORIGIN}/sync/**`, unreachable);
+  await page.reload();
+  await expect
+    .poll(async () => (await boardVisit('staff', clinicId, checkInId))?.visit.status, {
+      timeout: 60_000,
+    })
+    .toBe('QUEUED');
+  const at = await boardVisit('staff', clinicId, checkInId);
+  expect(at.station.kind).not.toBe('BLOOD_PRESSURE');
+  expect(at.visit.previous?.handoffNote).toBe('Taken offline (#423).');
+  const encounter = await apiRequestAs('staff', 'get', `/encounters/${at.visit.encounterId}`, {
+    clinicId,
+  });
+  expect(encounter.json().vitals).toMatchObject({ systolicBp: 150, diastolicBp: 95 });
 });
 
 test.describe('station flow metrics on the dashboard (#24)', () => {
@@ -699,11 +1044,14 @@ test('a manager hands a waiting patient to a volunteer on shift', async ({ page 
   });
   // A busy station folds patients past the first eight; this one queued last.
   await expect(page.getByTestId('patient-wait-track').first()).toBeVisible({ timeout: 20_000 });
-  for (const more of await page.getByRole('button', { name: /^Show \d+ more$/ }).all()) {
-    await more.click();
-  }
+  // Each click renames its button "Show fewer", so take the first remaining one each time.
+  const more = page.getByRole('button', { name: /^Show \d+ more$/ });
+  while ((await more.count()) > 0) await more.first().click();
   // The bar opens the patient's menu, which says who handed them over.
-  await page.getByRole('button', { name: new RegExp(`^${patient.name}, With staff`) }).click();
+  // The day number leads the bar's name (#413).
+  await page
+    .getByRole('button', { name: new RegExp(`^No\\. \\d+, ${patient.name}, With staff`) })
+    .click();
   await expect(
     page.getByRole('menu').getByText(`Assigned by ${assigned.json().assignedBy.displayName}`),
   ).toBeVisible();
@@ -803,7 +1151,7 @@ test("a volunteer screening on someone else's account is named on each stop (#22
       timeout: 20_000,
     });
     await volunteerPage.getByRole('button', { name: /^Send to Glucose/ }).click();
-    await volunteerPage.waitForURL(/\/stations$/, { timeout: 20_000 });
+    await volunteerPage.waitForURL(/\/stations(\?|$)/, { timeout: 20_000 });
   } finally {
     await volunteerContext.close();
   }
@@ -1077,4 +1425,616 @@ test('closing a station clears it from the volunteer working there, who is told 
     await close();
     await context.close();
   }
+});
+
+test('each check-in gets the next day number, called out instead of the name (#413)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const first = await createPatient(page);
+  const second = await createPatient(page);
+  const { clinicId } = first;
+  const checkIn = (patientId, id = randomUUID()) =>
+    apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+      clinicId,
+      data: { id, patientId },
+    });
+
+  // Two devices at the same moment: the numbers still differ, one after the other.
+  const ids = [randomUUID(), randomUUID()];
+  const [a, b] = await Promise.all([
+    checkIn(first.patientId, ids[0]),
+    checkIn(second.patientId, ids[1]),
+  ]);
+  expect(a.ok(), a.text()).toBeTruthy();
+  expect(b.ok(), b.text()).toBeTruthy();
+  const numbers = [a.json().dayNumber, b.json().dayNumber];
+  for (const n of numbers) expect(Number.isInteger(n) && n > 0).toBe(true);
+  expect(Math.abs(numbers[0] - numbers[1])).toBe(1);
+
+  // A replay of the same check-in keeps its number rather than taking a new one.
+  const replay = await checkIn(first.patientId, ids[0]);
+  expect(replay.ok(), replay.text()).toBeTruthy();
+  expect(replay.json().dayNumber).toBe(numbers[0]);
+
+  // The station visit carries it, and the visit header shows it large.
+  const at = await boardVisit('staff', clinicId, ids[1]);
+  expect(at.visit.dayNumber).toBe(numbers[1]);
+  await page.goto(`/stations/visits/${at.visit.id}`);
+  await expect(page.getByRole('heading', { level: 1, name: second.name })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText(`No. ${numbers[1]}`, { exact: true })).toBeVisible();
+
+  // Register and start: the new patient's number is the first thing to write down.
+  await ensureShift('staff', clinicId);
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+  await page.goto('/patients/new');
+  await page.getByLabel('First name', { exact: true }).fill('Line');
+  await page.getByLabel('Last name', { exact: true }).fill(`Numbered-${suffix}`);
+  await fillNationalId(page, `E2E-NUM-${suffix}`);
+  await page.getByRole('button', { name: 'Register and start' }).click();
+  // Staff is at no station, so the patient is checked in and waits at the first one.
+  await page.waitForURL(/\/stations\?registered=1&no=\d+$/, { timeout: 20_000 });
+  await expect(page.getByText(/^Patient number \d+\. Write it on their card\.$/)).toBeVisible();
+});
+
+test('a returning patient: check in and start, already on the line, and where they are (#414)', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const away = await createPatient(page);
+  const returning = await createPatient(page);
+  const { clinicId } = away;
+  const board = (
+    await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  ).json();
+  const first = board.stations
+    .filter((station) => station.active)
+    .sort((a, b) => a.sortOrder - b.sortOrder)[0];
+
+  // Staff is at no station: Check in and start checks the patient in and says where they wait.
+  await page.goto('/patients');
+  const search = page.getByLabel('Name, patient code, phone or ID last 4');
+  await search.fill(away.name);
+  const row = page.getByRole('row', { name: new RegExp(away.name) });
+  await row.getByRole('button', { name: 'Check in and start' }).click();
+  await expect(
+    page.getByText(
+      new RegExp(`is checked in\\. Waiting at ${first.name}\\. .* is No\\. \\d+ today`),
+    ),
+  ).toBeVisible({ timeout: 20_000 });
+  // Straight on to the next patient.
+  await expect(search).toHaveValue('');
+  await expect(search).toBeFocused();
+
+  // Already on the line: the row says where, in place of a second check-in.
+  await search.fill(away.name);
+  await expect(row.getByText(new RegExp(`^No\\. \\d+ · At ${first.name}$`))).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(row.getByRole('button', { name: /^Check in/ })).toHaveCount(0);
+
+  // A second check-in from elsewhere is refused with where they are.
+  const again = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: away.patientId },
+  });
+  expect(again.status()).toBe(409);
+  expect(again.json().message).toMatch(
+    new RegExp(`^Already on the line: No\\. \\d+, waiting at ${first.name} since `),
+  );
+
+  // A volunteer at the first station takes a returning patient straight to their visit.
+  await ensureShift('volunteer', clinicId);
+  const volunteerId = (await apiRequestAs('volunteer', 'get', '/auth/whoami')).json().userId;
+  const shift = (
+    await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  )
+    .json()
+    .onShift.find((member) => member.user.id === volunteerId);
+  const place = (stationId) =>
+    apiRequestAs('volunteer', 'patch', `/clinics/${clinicId}/shifts/${shift.shiftId}/station`, {
+      clinicId,
+      data: { stationId },
+    });
+  const previous = shift.stationId ?? null;
+  expect((await place(first.id)).ok()).toBeTruthy();
+  const volunteerContext = await browser.newContext({
+    storageState: storageStateFor('volunteer'),
+  });
+  try {
+    const volunteerPage = await volunteerContext.newPage();
+    await volunteerPage.goto('/patients');
+    await volunteerPage.getByLabel('Name, patient code, phone or ID last 4').fill(returning.name);
+    await volunteerPage
+      .getByRole('row', { name: new RegExp(returning.name) })
+      .getByRole('button', { name: 'Check in and start' })
+      .click();
+    await volunteerPage.waitForURL(/\/stations\/visits\/[^/?]+\?registered=1$/, {
+      timeout: 20_000,
+    });
+    await expect(
+      volunteerPage.getByText(/^Patient number \d+\. Write it on their card\.$/),
+    ).toBeVisible();
+  } finally {
+    await volunteerContext.close();
+    await place(previous);
+  }
+});
+
+test('a station asks a doctor, the doctor on shift takes it, and the station sees who (#418)', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const doctorShift = await apiRequestAs('doctor', 'post', `/clinics/${clinicId}/shifts/check-in`, {
+    clinicId,
+    data: { roleAtShift: 'DOCTOR' },
+  });
+  if (!doctorShift.ok()) expect(doctorShift.json().code).toBe('SHIFT_ALREADY_ACTIVE');
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const { at } = await claimNext('staff', clinicId, checkIn.json().id);
+
+  // The station asks: urgency is required, the reason a list, no free text to reach a push.
+  await page.goto(`/stations/visits/${at.visit.id}`);
+  await page.getByRole('button', { name: 'Ask a doctor' }).click();
+  const dialog = page.getByRole('dialog');
+  const send = dialog.getByRole('button', { name: 'Send to doctors' });
+  await expect(send).toBeDisabled();
+  await dialog.getByText('Now', { exact: true }).click();
+  await dialog.getByText('High BP', { exact: true }).click();
+  await send.click();
+  await expect(page.getByTestId('doctor-request-chip')).toHaveText('Doctor needed now');
+
+  // The doctor's bell says where and which number, never who.
+  const tiles = await apiRequestAs('doctor', 'get', '/me/notifications');
+  const tile = tiles
+    .json()
+    .items.find(
+      (item) =>
+        item.kind === 'DOCTOR_REQUEST' && item.doctorRequest?.stationVisitId === at.visit.id,
+    );
+  expect(tile).toMatchObject({
+    title: 'Doctor needed now',
+    url: `/stations/visits/${at.visit.id}`,
+  });
+  expect(tile.body).toContain(`No. ${at.visit.dayNumber}, high BP`);
+  expect(JSON.stringify(tile)).not.toContain(patient.name.split(' ')[1]);
+
+  const doctor = await browser.newContext({ storageState: storageStateFor('doctor') });
+  const doctorPage = await doctor.newPage();
+  await doctorPage.goto('/notifications');
+  const row = doctorPage.getByRole('listitem').filter({ hasText: tile.body }).first();
+  await row.getByRole('button', { name: "I'm on it" }).click({ timeout: 20_000 });
+  await expect(row.getByTestId('notification-owner')).toHaveText("You're on it");
+  await doctor.close();
+
+  // The station sees who took it, and the button gives way to the chip.
+  await page.reload();
+  await expect(page.getByTestId('doctor-request-chip')).toHaveText(/ on it$/, { timeout: 20_000 });
+  await expect(page.getByRole('button', { name: 'Ask a doctor' })).toHaveCount(0);
+});
+
+/*
+  #419: at the review station the most urgent patient is listed first, not the oldest. Two
+  patients reach review; the newer one carries a high glucose reading. Taking opens the visit,
+  and someone at another station sees no review list.
+*/
+test('the review list puts a flagged patient first, and Take opens the visit (#419)', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  const plain = await createPatient(page);
+  const flagged = await createPatient(page);
+  const { clinicId } = plain;
+  await ensureShift('staff', clinicId);
+
+  /** Hands every stop before review on with nothing recorded; review stays waiting. */
+  async function toReview(patient, beforeFirstHandOff) {
+    const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+      clinicId,
+      data: { patientId: patient.patientId },
+    });
+    expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+    const checkInId = checkIn.json().id;
+    let first = true;
+    for (;;) {
+      const at = await boardVisit('staff', clinicId, checkInId);
+      if (at.station.kind === 'REVIEW') return at;
+      const { claimed } = await claimNext('staff', clinicId, checkInId);
+      if (first && beforeFirstHandOff) await beforeFirstHandOff(claimed.encounterId);
+      first = false;
+      const done = await complete('staff', clinicId, at.visit.id);
+      expect(done.ok(), done.text()).toBeTruthy();
+    }
+  }
+
+  const plainAt = await toReview(plain);
+  const flaggedAt = await toReview(flagged, async (encounterId) => {
+    const reading = await apiRequestAs(
+      'staff',
+      'put',
+      `/clinics/${clinicId}/encounters/${encounterId}/diabetes-screening/glucose`,
+      {
+        clinicId,
+        data: { glucoseMgDl: 450, glucoseType: 'RANDOM', collectedAt: new Date().toISOString() },
+      },
+    );
+    expect(reading.ok(), reading.text()).toBeTruthy();
+  });
+  expect(flaggedAt.visit.lineFlags.length).toBeGreaterThan(0);
+
+  // The volunteer works the review station for this test, then goes back where they were.
+  await ensureShift('volunteer', clinicId);
+  const volunteerId = (await apiRequestAs('volunteer', 'get', '/auth/whoami')).json().userId;
+  const shift = (
+    await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+  )
+    .json()
+    .onShift.find((member) => member.user.id === volunteerId);
+  const place = (stationId) =>
+    apiRequestAs('volunteer', 'patch', `/clinics/${clinicId}/shifts/${shift.shiftId}/station`, {
+      clinicId,
+      data: { stationId },
+    });
+  const previous = shift.stationId ?? null;
+  expect((await place(plainAt.station.id)).ok()).toBeTruthy();
+
+  const volunteerContext = await browser.newContext({
+    storageState: storageStateFor('volunteer'),
+  });
+  try {
+    const volunteerPage = await volunteerContext.newPage();
+    await volunteerPage.goto('/stations');
+    const list = volunteerPage.getByTestId('review-waiting-list');
+    await expect(list).toBeVisible({ timeout: 20_000 });
+    const rows = list.getByTestId('review-waiting-row');
+    await expect(rows.filter({ hasText: plain.name })).toHaveCount(1, { timeout: 20_000 });
+    await expect(rows.filter({ hasText: flagged.name })).toHaveCount(1);
+    // Leftover patients may sit between them; only the order of these two matters.
+    const names = await rows.allInnerTexts();
+    const position = (name) => names.findIndex((text) => text.includes(name));
+    expect(position(flagged.name)).toBeLessThan(position(plain.name));
+    const flaggedRow = rows.filter({ hasText: flagged.name });
+    await expect(flaggedRow.getByTestId('line-flag-chip')).toBeVisible();
+    await expect(flaggedRow).toContainText(/Glucose /);
+    // The Stations item carries the count while this person is at review.
+    await expect(
+      volunteerPage.getByRole('link', { name: /^Stations, \d+ waiting for review$/ }).first(),
+    ).toBeAttached({ timeout: 20_000 });
+
+    await flaggedRow.getByRole('button', { name: /^Take patient/ }).click();
+    await volunteerPage.waitForURL(`**/stations/visits/${flaggedAt.visit.id}`, {
+      timeout: 20_000,
+    });
+    const release = await apiRequestAs(
+      'volunteer',
+      'post',
+      `/clinics/${clinicId}/station-visits/${flaggedAt.visit.id}/release`,
+      { clinicId, data: { reason: 'E2E cleanup' } },
+    );
+    expect(release.ok(), release.text()).toBeTruthy();
+
+    // At any other station there is no review list.
+    const board = (
+      await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+    ).json();
+    const elsewhere = board.stations.find((station) => station.kind !== 'REVIEW' && station.active);
+    expect((await place(elsewhere.id)).ok()).toBeTruthy();
+    await volunteerPage.goto('/stations');
+    await expect(volunteerPage.getByRole('heading', { name: 'Stations' })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(volunteerPage.getByText(`Next at ${elsewhere.name}`)).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(volunteerPage.getByTestId('review-waiting-list')).toHaveCount(0);
+  } finally {
+    await volunteerContext.close();
+    await place(previous);
+  }
+});
+
+test('End clinic day lands on the day summary, which copies counts and no names (#421)', async ({
+  page,
+  context,
+}) => {
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+
+  const summary = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/day/summary`, {
+    clinicId,
+  });
+  expect(summary.ok(), summary.text()).toBeTruthy();
+  const body = summary.json();
+  expect(body.metrics.checkIns.total).toBeGreaterThanOrEqual(1);
+  expect(JSON.stringify(body)).not.toContain(patient.patientId);
+  const volunteer = await apiRequestAs(
+    'volunteer',
+    'get',
+    `/clinics/${clinicId}/stations/day/summary`,
+    { clinicId },
+  );
+  expect(volunteer.status()).toBe(403);
+
+  // Ending the real day would close every other spec's patients, so only the close call is stubbed.
+  await page.route(/\/stations\/day\/close/, (route) =>
+    route.fulfill({ json: { date: body.metrics.date, closed: 3 } }),
+  );
+  await page.goto('/today');
+  await page.getByRole('button', { name: 'End clinic day' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'End clinic day' }).click();
+  await page.waitForURL(new RegExp(`/stations/day/${body.metrics.date}`));
+  await expect(page.getByRole('heading', { name: 'Clinic day summary' })).toBeVisible();
+  await expect(page.getByText('Clinic day closed. 3 patients were closed')).toBeVisible();
+  for (const name of ['Patients', 'Clinical', 'Open work', 'Staff', 'Line']) {
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  }
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Copy summary' }).click();
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain(`clinic day ${body.metrics.date}`);
+  expect(copied).toMatch(/- Checked in: \d+/);
+  expect(copied).not.toContain(patient.name);
+  expect(copied).not.toContain('E2E-STN');
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download CSV' }).click();
+  expect((await download).suggestedFilename()).toBe(`clinic-day-${body.metrics.date}.csv`);
+});
+
+test('Ready to open names an unstaffed station until someone chooses it (#411)', async ({
+  page,
+}) => {
+  const { clinicId } = await createPatient(page);
+  const name = `Ready check ${randomUUID().slice(0, 6)}`;
+  const created = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/stations`, {
+    clinicId,
+    data: { kind: 'CUSTOM', name, capacity: 1 },
+  });
+  expect(created.ok(), created.text()).toBeTruthy();
+  const station = created.json();
+  const volunteerId = (await apiRequestAs('volunteer', 'get', '/auth/whoami')).json().userId;
+  let place = null;
+  let previous = null;
+  try {
+    const volunteer = await apiRequestAs(
+      'volunteer',
+      'get',
+      `/clinics/${clinicId}/stations/readiness`,
+      { clinicId },
+    );
+    expect(volunteer.status()).toBe(403);
+
+    await page.goto('/today');
+    const card = page.getByRole('region', { name: /Ready to open/ });
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const show = card.getByRole('button', { name: 'Show checks' });
+    if (await show.isVisible()) await show.click();
+    const staffed = page.getByTestId('ready-to-open').getByRole('listitem').filter({
+      hasText: 'Every station staffed',
+    });
+    await expect(staffed).toContainText(`Check: Every station staffed`);
+    await expect(staffed).toContainText(name);
+    await expect(staffed.getByRole('link', { name: 'See who is on shift' })).toHaveAttribute(
+      'href',
+      '#on-shift',
+    );
+
+    // The volunteer starts a shift and chooses the new station.
+    await ensureShift('volunteer', clinicId);
+    const shift = (
+      await apiRequestAs('volunteer', 'get', `/clinics/${clinicId}/stations/board`, { clinicId })
+    )
+      .json()
+      .onShift.find((member) => member.user.id === volunteerId);
+    previous = shift.stationId ?? null;
+    place = (stationId) =>
+      apiRequestAs('volunteer', 'patch', `/clinics/${clinicId}/shifts/${shift.shiftId}/station`, {
+        clinicId,
+        data: { stationId },
+      });
+    expect((await place(station.id)).ok()).toBeTruthy();
+
+    // The card polls every 30 seconds and on focus; a focus event stands in for the wait.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(staffed).not.toContainText(name, { timeout: 15_000 });
+  } finally {
+    if (place) await place(previous);
+    await apiRequestAs('staff', 'patch', `/clinics/${clinicId}/stations/${station.id}`, {
+      clinicId,
+      data: { active: false },
+    });
+  }
+});
+
+test('a director runs a practice session and clears it again (#410)', async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const { clinicId } = await createPatient(page);
+  for (const role of ['volunteer', 'manager']) {
+    for (const path of ['patients', 'clear']) {
+      const refused = await apiRequestAs(role, 'post', `/clinics/${clinicId}/practice/${path}`, {
+        clinicId,
+        data: { count: 1 },
+      });
+      expect(refused.status(), `${role} ${path}`).toBe(403);
+    }
+  }
+  const demoOnBoard = async () =>
+    (await apiRequestAs('staff', 'get', `/clinics/${clinicId}/stations/board`, { clinicId }))
+      .json()
+      .stations.flatMap((station) => station.visits)
+      .filter((visit) => visit.patient.isDemo);
+  // A demo patient left by an earlier local run would throw off the counts below.
+  if ((await demoOnBoard()).length > 0) {
+    await apiRequestAs('director', 'post', `/clinics/${clinicId}/practice/clear`, { clinicId });
+  }
+
+  const director = await browser.newContext({ storageState: storageStateFor('director') });
+  const contexts = [director];
+  const setup = await director.newPage();
+  try {
+    await setup.goto('/stations/setup');
+    const card = setup.getByTestId('practice-session');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await card.getByLabel('Demo patients').fill('3');
+    await expect(card.getByLabel(/^Check them in at /)).toBeChecked();
+    await card.getByRole('button', { name: 'Add demo patients' }).click();
+    await expect(card.getByText(/^Added 3 demo patients\. They are waiting at /)).toBeVisible({
+      timeout: 30_000,
+    });
+    const added = await demoOnBoard();
+    expect(added).toHaveLength(3);
+
+    // A volunteer takes one and hands them on, then takes a second and is still with them.
+    await ensureShift('volunteer', clinicId);
+    const { at, claimed } = await claimNext('volunteer', clinicId, added[0].checkInId);
+    expect(at.visit.patient.lastName).toMatch(/^Demo /);
+    const handed = await complete('volunteer', clinicId, claimed.id);
+    expect(handed.ok(), handed.text()).toBeTruthy();
+    const held = await claimNext('volunteer', clinicId, added[1].checkInId);
+    const volunteer = await browser.newContext({ storageState: storageStateFor('volunteer') });
+    contexts.push(volunteer);
+    const visitPage = await volunteer.newPage();
+    await visitPage.goto(`/stations/visits/${held.claimed.id}`);
+    await expect(visitPage.getByText('with you')).toBeVisible({ timeout: 20_000 });
+
+    await card.getByRole('button', { name: 'Clear practice' }).click();
+    const dialog = setup.getByRole('dialog');
+    await expect(dialog).toContainText(
+      'takes 3 demo patients out of the line (1 is with a volunteer right now)',
+    );
+    await expect(dialog).toContainText('deletes 2 unfinished visits');
+    await dialog.getByRole('button', { name: 'Clear practice' }).click();
+    await expect(
+      card.getByText(
+        'Practice cleared: 3 demo patients taken out of the line, 2 unfinished visits deleted.',
+      ),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByTestId('practice-summary')).toHaveText('No demo patients to clear.');
+    expect(await demoOnBoard()).toEqual([]);
+
+    // The volunteer is told on the next poll, and the forms close, before any save can fail.
+    await expect(visitPage.getByText('The director cleared the practice patients')).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(visitPage.getByText('Practice is over.')).toBeVisible();
+
+    // Cleared practice charts leave the patient list.
+    const registry = await apiRequestAs('staff', 'get', `/clinics/${clinicId}/patients?q=Demo`, {
+      clinicId,
+    });
+    expect(registry.ok(), registry.text()).toBeTruthy();
+    const ids = added.map((visit) => visit.patient.id);
+    expect(registry.json().items.filter((item) => ids.includes(item.id))).toEqual([]);
+  } finally {
+    // Leaves no practice patient in the shared line, whatever failed above.
+    await apiRequestAs('director', 'post', `/clinics/${clinicId}/practice/clear`, { clinicId });
+    for (const context of contexts) await context.close();
+  }
+});
+
+test('each station shows how it works, remembered, and prints every guide (#412)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const patient = await createPatient(page);
+  const { clinicId } = patient;
+  await ensureShift('staff', clinicId);
+  const checkIn = await apiRequestAs('staff', 'post', `/clinics/${clinicId}/checkins`, {
+    clinicId,
+    data: { patientId: patient.patientId },
+  });
+  expect(checkIn.ok(), checkIn.text()).toBeTruthy();
+  const checkInId = checkIn.json().id;
+  let next = await claimNext('staff', clinicId, checkInId);
+  while (next.at.station.kind !== 'BLOOD_PRESSURE') {
+    expect((await complete('staff', clinicId, next.at.visit.id)).ok()).toBeTruthy();
+    next = await claimNext('staff', clinicId, checkInId);
+  }
+
+  await page.goto(`/stations/visits/${next.at.visit.id}`);
+  // Earlier runs of this test on the same account leave it open: start from closed.
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('nkwapa:station-guide:')) localStorage.removeItem(key);
+    }
+  });
+  await page.reload();
+  const summary = page.getByText(/^How the .+ station works$/);
+  const panel = page.locator('details').filter({ has: summary });
+  await expect(summary).toBeVisible();
+  await expect(panel).not.toHaveAttribute('open', '');
+  const step = panel.getByText(/rest them 5 minutes, then measure again/);
+  await expect(step).toBeHidden();
+
+  // Keyboard only: Tab to the summary, Enter opens it, Space closes it, Enter opens it again.
+  await page.locator('body').focus();
+  for (let i = 0; i < 80; i += 1) {
+    await page.keyboard.press('Tab');
+    if (
+      await summary
+        .locator('xpath=ancestor::summary')
+        .evaluate((el) => el === document.activeElement)
+    )
+      break;
+  }
+  await expect(summary.locator('xpath=ancestor::summary')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(step).toBeVisible();
+  await expect(panel.getByTestId('station-guide-next')).toContainText('Tell them');
+  await page.keyboard.press('Space');
+  await expect(step).toBeHidden();
+  await page.keyboard.press('Enter');
+  await expect(step).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText(/rest them 5 minutes, then measure again/)).toBeVisible();
+
+  // The "Next" line follows the station chosen in the hand-off form, not only the default.
+  const guideNext = page.getByTestId('station-guide-next');
+  await expect(guideNext).toContainText('Next: Glucose testing.');
+  await page.getByRole('combobox', { name: 'Next station' }).click();
+  await page.getByRole('option', { name: 'Anthropometry' }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(guideNext).toContainText('Next: Anthropometry.');
+
+  // The print view: every station kind but CUSTOM, with the app shell gone.
+  await page.goto('/stations/guide');
+  const sidebar = page.locator('#workspace-sidebar');
+  const header = page.locator('header').first();
+  await expect(sidebar).toBeVisible();
+  await expect(header).toBeVisible();
+  await page.emulateMedia({ media: 'print' });
+  const cards = page.locator('article.station-guide-card');
+  await expect(cards).toHaveCount(6);
+  expect(await cards.evaluateAll((all) => all.map((card) => card.dataset.stationKind))).toEqual([
+    'INTAKE',
+    'BLOOD_PRESSURE',
+    'GLUCOSE',
+    'ANTHROPOMETRY',
+    'EYE',
+    'REVIEW',
+  ]);
+  await expect(sidebar).toBeHidden();
+  await expect(header).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
 });

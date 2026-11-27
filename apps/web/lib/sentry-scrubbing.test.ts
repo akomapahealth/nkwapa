@@ -1,4 +1,4 @@
-import { scrubBrowserEvent, scrubClinicalUrl } from './sentry-scrubbing';
+import { SENTRY_DATA_COLLECTION, scrubBrowserEvent, scrubClinicalUrl } from './sentry-scrubbing';
 
 const PATIENT = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
 
@@ -25,6 +25,25 @@ describe('scrubbing a browser error report', () => {
   it('keeps the actor id and nothing else about them', () => {
     expect(scrubBrowserEvent({ user: { id: 'user-1', email: 'nurse@example.com' } }).user).toEqual({
       id: 'user-1',
+    });
+  });
+});
+
+describe('what the SDK may collect on its own', () => {
+  it('turns off every category, since v11 defaults them all on', () => {
+    // An exact match, so a { deny: [...] } rule (which collects everything else) also fails.
+    expect(SENTRY_DATA_COLLECTION).toEqual({
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      graphQL: { document: false, variables: false },
+      genAI: { inputs: false, outputs: false },
+      mcp: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false,
     });
   });
 });

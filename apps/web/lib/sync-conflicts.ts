@@ -98,6 +98,12 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
       'Open the patient’s chart and start a new visit if it is still needed, then discard this copy.',
     tone: 'warning',
   },
+  PRACTICE_CLEARED: {
+    title: 'Practice is over',
+    explanation:
+      'This change was for a demo patient, and the director cleared the practice session while this device was offline.',
+    nextStep: 'Nothing needs re-entering. Discard this copy.',
+  },
   PATIENT_NATIONAL_ID_REQUIRED: {
     title: 'This new patient needs an ID',
     explanation: 'A chart needs an ID number, or "No ID document" for a patient who has none.',
@@ -165,7 +171,13 @@ const CODE_COPY: Partial<Record<SyncConflictCode, Partial<SyncFailureCopy>>> = {
     title: 'This patient is already checked in today',
     explanation:
       'Someone checked the patient in before this device synced, so a second check-in was not created.',
-    nextStep: 'Find the patient on the Today board. If they are in the queue, discard this copy.',
+    nextStep: 'Find the patient where it says below, then discard this copy.',
+  },
+  STATION_HANDOFF_REFUSED: {
+    title: 'This hand-off was not sent',
+    explanation:
+      'The patient was released, moved or finished by someone else before this device reconnected. The readings recorded at the station were kept.',
+    nextStep: 'Check the station line for where the patient is now, then discard this copy.',
   },
   OPS_REPLAY_EXPIRED: {
     title: 'This was saved on an earlier clinic day',
@@ -234,7 +246,10 @@ const ENTITY_LABELS: Record<string, string> = {
   shift_check_in: 'Shift start',
   shift_check_out: 'Shift end',
   patient_check_in: 'Patient check-in',
+  station_visit_complete: 'Station hand-off',
+  eye_screening: 'Eye examination',
   follow_up_attempt: 'Follow-up call',
+  staff_feedback: 'Problem report',
 };
 
 export function syncEntityLabel(entityType: string): string {
@@ -361,13 +376,21 @@ export function describeSyncFailure(
   const encounterId = outboxEncounterId(row);
   // A merged chart no longer opens as itself, so its own link is withheld in favour of the one
   // that survived.
-  const targetIsRetired = code === 'PATIENT_MERGED';
+  // A merged chart no longer opens as itself; a cleared practice chart has nothing left to do.
+  const targetIsRetired = code === 'PATIENT_MERGED' || code === 'PRACTICE_CLEARED';
 
   const description: SyncFailureDescription = {
     ...copy,
     code,
     category,
-    serverDetail: category === 'validation' ? serverDetailFor(failure) : undefined,
+    serverDetail:
+      category === 'validation' ||
+      code === 'PATIENT_ALREADY_CHECKED_IN' ||
+      code === 'STATION_HANDOFF_REFUSED'
+        ? // A duplicate check-in names where the patient already is (#414); a refused hand-off
+          // names the station (#423).
+          serverDetailFor(failure)
+        : undefined,
     actions: [],
     // After a merge the surviving chart is the patient's only chart, not an "existing" one.
     actionLabels: targetIsRetired ? { 'open-canonical-patient': 'Open current chart' } : {},
@@ -390,7 +413,11 @@ export function describeSyncFailure(
     }
   }
   // A deleted visit has no page left to open.
-  if (encounterId && category !== 'patient' && code !== 'ENCOUNTER_DELETED') {
+  if (
+    encounterId &&
+    category !== 'patient' &&
+    !['ENCOUNTER_DELETED', 'PRACTICE_CLEARED'].includes(code)
+  ) {
     description.encounterHref = encounterHref(encounterId);
     description.actions.push('open-encounter');
   }

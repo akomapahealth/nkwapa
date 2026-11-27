@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 
 const { apiRequestAs } = require('../playwright/api-client');
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /*
   Issue #116: a volunteer can see the clinic's patient reminders and schedule a follow-up reminder
@@ -20,7 +21,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Follow');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-REM-${suffix}`);
+  await fillNationalId(page, `E2E-REM-${suffix}`);
   await page.getByPlaceholder('024 123 4567').fill('0241234567');
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ChevronDown, CloudUpload, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useBootstrap } from '@/lib/bootstrap-context';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
@@ -16,7 +16,7 @@ import {
   hasPermission,
 } from '@/lib/ops';
 import { fetchActiveShifts } from '@/lib/ops-api';
-import { overlayPendingShifts } from '@/lib/ops-offline';
+import { handedOnOffline, overlayPendingShifts } from '@/lib/ops-offline';
 import { useOpsView } from '@/lib/use-ops-view';
 import { usePendingOpsWrites } from '@/lib/use-pending-ops-writes';
 import { useShiftControls } from '@/lib/use-shift-controls';
@@ -31,17 +31,23 @@ import {
   performerLabel,
   screenersByUser,
   setShiftStation,
+  sortReviewQueue,
   usePolling,
+  heldLabel,
+  heldTooLongMinutes,
   withScreener,
   type StationBoard,
   type StationVisit,
 } from '@/lib/stations';
-import type { ActiveShiftsResponse } from '@/lib/ops';
+import { dayNumberLabel, type ActiveShiftsResponse } from '@/lib/ops';
 import { LONG_WAIT_MINUTES } from '@/components/dashboard/StationLineLanes';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
 import { RouteGuard } from '@/components/RouteGuard';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
+import { LineFlagChip } from '@/components/stations/LineFlags';
+import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
+import { ReviewWaitingList } from '@/components/stations/ReviewWaitingList';
 import {
   EmptyStateCard,
   InlineNotice,
@@ -49,6 +55,7 @@ import {
   OpsFeedbackNotice,
 } from '@/components/ops/OpsShared';
 import { Badge } from '@/components/ui/badge';
+import { DemoBadge } from '@/components/patients/DemoPatientField';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -112,9 +119,44 @@ export default function StationsPage() {
   const canWriteShift = hasPermission(permissions, 'OPS.SHIFT.WRITE');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Set by the visit page after a hand-off (`?sent=<station name>` or `done`, and `no=<day number>`).
+  // Read once on arrival, not through useSearchParams, which would need a Suspense boundary.
+  const [sent, setSent] = useState<{
+    to: string | null;
+    no: string | null;
+    registered: boolean;
+    queued: boolean;
+    doctor: boolean;
+  }>({ to: null, no: null, registered: false, queued: false, doctor: false });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSent({
+      to: params.get('sent'),
+      no: params.get('no'),
+      registered: params.has('registered'),
+      queued: params.has('queued'),
+      doctor: params.has('doctor'),
+    });
+  }, []);
+  // The number is read out to the patient with the station (#413): "No. 14, go to Blood pressure".
+  const who = sent.no ? `Patient No. ${sent.no}` : 'Patient';
+  const handOffNotice =
+    sent.registered && sent.no
+      ? `Patient number ${sent.no}. Write it on their card.`
+      : sent.to === null
+        ? null
+        : sent.to === 'done'
+          ? `${who} finished. Their session is closed.`
+          : `${who} handed on to ${sent.to || 'the next station'}.${
+              // Queued offline (#423): the next station sees them after this device syncs.
+              sent.queued
+                ? ` It is sent when the connection returns. Tell the patient their number and send them on.`
+                : ''
+            }${sent.doctor ? ' Doctor notified: the reading refers today.' : ''}`;
 
   const pendingWrites = usePendingOpsWrites(clinicId);
   const pendingIds = useMemo(() => pendingWrites.map((write) => write.entityId), [pendingWrites]);
+  const handedOn = useMemo(() => handedOnOffline(pendingWrites), [pendingWrites]);
   const view = useOpsView<StationsView>({
     clinicId: enabled ? clinicId : null,
     kind: 'station-workspace',
@@ -205,7 +247,10 @@ export default function StationsPage() {
     ),
   );
   const queue = myStation?.visits ?? [];
-  const nextPatient = queue.find((visit) => visit.status === 'QUEUED') ?? null;
+  // At review the most urgent goes first, not the oldest (#419).
+  const atReview = myStation?.kind === 'REVIEW';
+  const nextPatient =
+    (atReview ? sortReviewQueue(queue) : queue).find((visit) => visit.status === 'QUEUED') ?? null;
   const otherPatients = queue.filter((visit) => visit.id !== nextPatient?.id);
   const inUse = myStation?.inUse ?? queue.filter((visit) => visit.status === 'IN_PROGRESS').length;
   const atCapacity = myStation?.capacity !== undefined && inUse >= myStation.capacity;
@@ -364,9 +409,6 @@ export default function StationsPage() {
     </Button>
   );
 
-  // Queue positions count only the patients still waiting; someone being seen has no place in line.
-  let position = nextPatient ? 1 : 0;
-
   return (
     <RouteGuard requiredPermission="OPS.STATION.READ" requiresClinic>
       <div
@@ -406,6 +448,9 @@ export default function StationsPage() {
           />
         ) : null}
         {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
+        {handOffNotice && !actionError ? (
+          <InlineNotice tone="success">{handOffNotice}</InlineNotice>
+        ) : null}
         <OpsFeedbackNotice feedback={shiftControls.feedback} />
         {view.isInitialLoading ? (
           <SectionSkeleton lines={3} />
@@ -455,18 +500,29 @@ export default function StationsPage() {
                 className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3"
               >
                 <div className="min-w-0">
-                  <p className="break-words font-semibold">{patientName(visit.patient)}</p>
+                  <p className="break-words font-semibold">
+                    <span className="mr-2 font-mono tabular-nums" translate="no">
+                      {dayNumberLabel(visit.dayNumber)}
+                    </span>
+                    {patientName(visit.patient)}
+                  </p>
                   <p className="break-words text-sm text-muted-foreground">
                     <span className="font-mono">{visit.patient.patientCode}</span> ·{' '}
                     {visit.station.name}
                   </p>
+                  {/* The volunteer waiting with the patient sees who is coming (#418). */}
+                  <DoctorRequestChip request={visit.doctorRequest} me={userId} className="mt-1" />
                 </div>
-                <Button asChild>
-                  <Link href={`/stations/visits/${visit.id}`}>
-                    Continue
-                    <ArrowRight aria-hidden="true" />
-                  </Link>
-                </Button>
+                {handedOn.has(visit.id) ? (
+                  <HandedOnLabel />
+                ) : (
+                  <Button asChild>
+                    <Link href={`/stations/visits/${visit.id}`}>
+                      Continue
+                      <ArrowRight aria-hidden="true" />
+                    </Link>
+                  </Button>
+                )}
               </div>
             ))}
           </section>
@@ -489,69 +545,78 @@ export default function StationsPage() {
         ) : null}
         {currentShift && myStation ? (
           <>
-            <div className="grid min-w-0 gap-8 tablet:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-              <section aria-labelledby="station-next" className="min-w-0">
-                <h2
-                  id="station-next"
-                  className="mb-3 break-words text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
-                >
-                  Next at {myStation.name}
-                </h2>
-                {nextPatient ? (
-                  <NextPatientTicket
-                    visit={nextPatient}
-                    canClaim={canClaim}
-                    busy={busyId === nextPatient.id}
-                    onClaim={() => void claim(nextPatient)}
-                  />
-                ) : (
-                  <EmptyStateCard
-                    title="Nobody is waiting"
-                    description="Patients appear here as soon as the previous station hands them on."
-                  />
-                )}
-                {myStation.capacity !== undefined ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {inUse} of {myStation.capacity} places in use.
-                    {atCapacity ? ' This station is at capacity.' : ''}
-                  </p>
-                ) : null}
-              </section>
-              <section aria-labelledby="station-queue" className="min-w-0">
-                <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-                  <h2 id="station-queue" className="text-lg font-semibold">
-                    Also waiting here
+            {atReview ? (
+              <ReviewWaitingList
+                visits={queue}
+                canTake={canClaim}
+                busyId={busyId}
+                onTake={(visit) => void claim(visit)}
+              />
+            ) : (
+              <div className="grid min-w-0 gap-8 tablet:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <section aria-labelledby="station-next" className="min-w-0">
+                  <h2
+                    id="station-next"
+                    className="mb-3 break-words text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+                  >
+                    Next at {myStation.name}
                   </h2>
-                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    Oldest first
-                  </span>
-                </div>
-                {otherPatients.length ? (
-                  <ol>
-                    {otherPatients.map((visit) => (
-                      <QueueRow
-                        key={visit.id}
-                        visit={visit}
-                        position={visit.status === 'QUEUED' ? ++position : null}
-                        userId={userId}
-                        holderScreener={
-                          visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
-                        }
-                        canClaim={canClaim}
-                        busy={busyId === visit.id}
-                        onClaim={() => void claim(visit)}
-                      />
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="py-3 text-sm text-muted-foreground">
-                    {nextPatient
-                      ? 'Nobody else is waiting at your station.'
-                      : 'Nobody is waiting at your station.'}
-                  </p>
-                )}
-              </section>
-            </div>
+                  {nextPatient ? (
+                    <NextPatientTicket
+                      visit={nextPatient}
+                      canClaim={canClaim}
+                      busy={busyId === nextPatient.id}
+                      onClaim={() => void claim(nextPatient)}
+                    />
+                  ) : (
+                    <EmptyStateCard
+                      title="Nobody is waiting"
+                      description="Patients appear here as soon as the previous station hands them on."
+                    />
+                  )}
+                  {myStation.capacity !== undefined ? (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {inUse} of {myStation.capacity} places in use.
+                      {atCapacity ? ' This station is at capacity.' : ''}
+                    </p>
+                  ) : null}
+                </section>
+                <section aria-labelledby="station-queue" className="min-w-0">
+                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
+                    <h2 id="station-queue" className="text-lg font-semibold">
+                      Also waiting here
+                    </h2>
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      Oldest first
+                    </span>
+                  </div>
+                  {otherPatients.length ? (
+                    <ol>
+                      {otherPatients.map((visit) => (
+                        <QueueRow
+                          key={visit.id}
+                          visit={visit}
+                          userId={userId}
+                          holderScreener={
+                            visit.claimedBy ? (screeners.get(visit.claimedBy.id) ?? null) : null
+                          }
+                          canClaim={canClaim}
+                          handedOn={handedOn.has(visit.id)}
+                          busy={busyId === visit.id}
+                          onClaim={() => void claim(visit)}
+                        />
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="py-3 text-sm text-muted-foreground">
+                      {nextPatient
+                        ? 'Nobody else is waiting at your station.'
+                        : 'Nobody is waiting at your station.'}
+                    </p>
+                  )}
+                </section>
+              </div>
+            )}
             {nextPatient ? (
               <div
                 data-testid="station-take-action"
@@ -707,19 +772,29 @@ function NextPatientTicket({
       className="flex min-w-0 overflow-hidden rounded-lg border border-border bg-card"
     >
       <div className="flex w-16 shrink-0 flex-col items-center justify-center gap-1 border-r-2 border-dashed border-mint-line bg-deep py-5 text-white compact:w-24">
-        <span className="text-[0.6875rem] uppercase tracking-[0.12em] text-white/80">Queue</span>
-        <span className="font-mono text-3xl text-secondary">01</span>
+        {/* The patient's day number, called out instead of their name (#413). */}
+        <span className="text-[0.6875rem] uppercase tracking-[0.12em] text-white/80">No.</span>
+        <span
+          className="font-mono text-3xl tabular-nums text-secondary"
+          translate="no"
+          aria-label={dayNumberLabel(visit.dayNumber)}
+        >
+          {visit.dayNumber ?? '–'}
+        </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 compact:p-5">
         {previous ? (
           <p>
             <span className="inline-block break-words rounded bg-info-surface px-2 py-1 text-xs font-semibold text-info-ink">
-              {previous.station.name} done
+              {previous.station.name} {previous.status === 'SKIPPED' ? 'skipped' : 'done'}
             </span>
           </p>
         ) : null}
         <div className="min-w-0">
           <h3 className="break-words text-2xl font-semibold">{patientName(visit.patient)}</h3>
+          <DemoBadge isDemo={visit.patient.isDemo} />
+          <LineFlagChip flags={visit.lineFlags} className="mt-1" />
+          <DoctorRequestChip request={visit.doctorRequest} className="mt-1" />
           <p className="mt-1 break-words text-sm text-muted-foreground">
             <span className="font-mono">{visit.patient.patientCode}</span>
             {age !== null ? ` · ${age} yrs` : ''}
@@ -758,43 +833,55 @@ function NextPatientTicket({
 
 function QueueRow({
   visit,
-  position,
   userId,
   holderScreener,
   canClaim,
+  handedOn,
   busy,
   onClaim,
 }: {
   visit: StationVisit;
-  /** Place in line, counting the next patient as 1; null while someone is seeing them. */
-  position: number | null;
   userId: string;
   /** Who is really screening on the holder's account, if not them (#227). */
   holderScreener: string | null;
   canClaim: boolean;
+  /** Handed on offline from this device and not sent yet (#423): handed on, not held. */
+  handedOn: boolean;
   busy: boolean;
   onClaim: () => void;
 }) {
   const taken = visit.status === 'IN_PROGRESS';
   const mine = taken && visit.claimedBy?.id === userId;
   const minutes = minutesSince(visit.queuedAt);
-  const long = !taken && minutes > LONG_WAIT_MINUTES;
+  const held = handedOn ? null : heldTooLongMinutes(visit);
+  const long = (!taken && minutes > LONG_WAIT_MINUTES) || held !== null;
+  const holder = visit.claimedBy
+    ? withScreener(visit.claimedBy.displayName, holderScreener)
+    : 'someone';
   return (
     <li
       className={cn(
-        'grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 border-b border-border px-2 py-3',
+        'grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 border-b border-border px-2 py-3',
         long && 'bg-warning-surface',
-        taken && !mine && 'bg-muted/40',
+        taken && !mine && !long && 'bg-muted/40',
       )}
     >
-      <span className="pt-0.5 font-mono text-sm text-muted-foreground">
-        {position !== null ? String(position).padStart(2, '0') : ''}
+      {/* The day number replaces the place in line: the list is already in order (#413). */}
+      <span className="font-mono text-base font-semibold tabular-nums" translate="no">
+        {visit.dayNumber ? (
+          `No. ${visit.dayNumber}`
+        ) : (
+          <span className="text-xs font-normal text-muted-foreground">Number on sync</span>
+        )}
       </span>
       <div className="min-w-0 space-y-0.5">
         <p className="break-words font-semibold">{patientName(visit.patient)}</p>
         <p className="break-words font-mono text-xs text-muted-foreground">
           {visit.patient.patientCode}
         </p>
+        <DemoBadge isDemo={visit.patient.isDemo} />
+        <LineFlagChip flags={visit.lineFlags} />
+        <DoctorRequestChip request={visit.doctorRequest} />
         {visit.previous?.handoffNote ? (
           <p className="break-words pt-1 text-sm">
             <span className="text-muted-foreground">Note: </span>
@@ -804,25 +891,36 @@ function QueueRow({
         {visit.endReason && visit.status === 'QUEUED' ? (
           <p className="text-xs text-muted-foreground">Returned to the queue: {visit.endReason}</p>
         ) : null}
+        {held !== null ? (
+          <p
+            data-testid="queue-held-notice"
+            className="flex items-start gap-1.5 pt-1 text-sm font-medium text-warning-ink"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {mine
+              ? `You still have ${patientName(visit.patient)}. Hand them on or release them.`
+              : heldLabel(holder, held)}
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-col items-end gap-2">
-        <span className={cn('text-sm tabular-nums', long && 'font-semibold text-warning-ink')}>
-          {long ? 'Waiting over 20 min · ' : ''}
-          {minutes} min
-        </span>
+        {held === null ? (
+          <span className={cn('text-sm tabular-nums', long && 'font-semibold text-warning-ink')}>
+            {long ? 'Waiting over 20 min · ' : ''}
+            {minutes} min
+          </span>
+        ) : null}
         {taken ? (
-          mine ? (
+          handedOn ? (
+            <HandedOnLabel />
+          ) : mine ? (
             <Button asChild size="sm">
               <Link href={`/stations/visits/${visit.id}`}>Continue</Link>
             </Button>
-          ) : (
-            <Badge variant="secondary">
-              With{' '}
-              {visit.claimedBy
-                ? withScreener(visit.claimedBy.displayName, holderScreener)
-                : 'someone'}
-            </Badge>
-          )
+          ) : // A held patient's notice already says who has them.
+          held === null ? (
+            <Badge variant="secondary">With {holder}</Badge>
+          ) : null
         ) : (
           <Button size="sm" variant="outline" onClick={onClaim} disabled={!canClaim}>
             {busy ? 'Taking…' : 'Take patient'}
@@ -830,5 +928,18 @@ function QueueRow({
         )}
       </div>
     </li>
+  );
+}
+
+/** A hand-off queued on this device (#423), said in words beside the patient it moved. */
+function HandedOnLabel() {
+  return (
+    <span
+      data-testid="handed-on-offline"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-info-ink"
+    >
+      <CloudUpload className="h-4 w-4 shrink-0" aria-hidden="true" />
+      Handed on, sending when online
+    </span>
   );
 }

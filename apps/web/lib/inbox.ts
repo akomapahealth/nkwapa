@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import type { DoctorRequest } from '@/lib/doctor-requests';
 
 export type InboxKind =
   | 'MESSAGE'
@@ -14,7 +15,8 @@ export type InboxKind =
   | 'REMINDER_FAILED'
   | 'ACCESS_CHANGE'
   | 'RISK_TIER_CHANGE'
-  | 'FOLLOW_UP_DUE';
+  | 'FOLLOW_UP_DUE'
+  | 'DOCTOR_REQUEST';
 
 /** The urgent flag a tile is about (#337), with who took it. Absent with the flag off. */
 export interface InboxRiskFlag {
@@ -36,6 +38,8 @@ export interface InboxItem {
   updatedAt: string;
   readAt: string | null;
   riskFlag?: InboxRiskFlag | null;
+  /** The "Ask a doctor" a tile is about (#418), with who took it. */
+  doctorRequest?: DoctorRequest | null;
 }
 
 export interface InboxPage {

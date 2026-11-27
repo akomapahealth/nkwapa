@@ -158,6 +158,31 @@ Rules:
   keeps the device time, and the audit event's own timestamp is when the server applied it.
   Display context (patient code and name, who queued it) lives on the outbox row as
   `localContext`, which is never sent.
+
+### Station visits through a dropped connection (#423)
+
+- **The held visit reopens offline.** While a volunteer holds a visit, the device keeps a copy of
+  it and the clinic's stations (`ops_cache`, kind `station-visit`, one per clinic per device). When
+  the visit cannot be fetched, the page opens from that copy and says so. Handing on, releasing or
+  the patient leaving removes it; it is also scoped to the clinic day.
+- **Hand-off queues behind the readings.** `station_visit_complete` (permission
+  `OPS.STATION.WORK`, key `ops:station_visit_complete:<visitId>`) is queued when the device is
+  offline, when sync cannot reach the server, or when the complete request gets no answer. The
+  outbox sends in creation order, so the station's readings apply first. It replays through
+  `StationService.replayComplete` at the device time (same clinic day, never before the patient
+  was taken). One that already landed online is applied; one overtaken by a release, a move or
+  the patient leaving is refused for good as `STATION_HANDOFF_REFUSED`, naming the station. The
+  readings are separate changes and are kept. Until it syncs, the station queue on that device
+  shows the patient as "Handed on, sending when online", not held (#424).
+- **Review stays online.** Completing the session locks counselling, which is online only (it is
+  shared by everyone reviewing the patient), so the review station's Complete waits for a
+  connection.
+- **Eye examination.** `eye_screening` (entityId the encounter, `SCREENING.WRITE`) replays through
+  the same `EyeScreeningService.upsert` as the REST route, carrying the version the form opened at.
+  The device keeps one queued save per encounter: a later save replaces one not yet sent. Offline,
+  the form opens on that queued save, or blank.
+- **Devices do not talk to each other.** The next station sees the patient only after the device
+  that handed on syncs. The volunteer says the patient's number (#413) and sends them on.
 - **Pull is unchanged.** The board reloads over REST when a queued change leaves the queue; shifts
   and check-ins are not part of `/sync/pull`. Offline, the board shows the last copy for the same
   clinic day with queued changes drawn on top, labelled _Pending sync_, _Retrying sync_ or _Needs
@@ -337,7 +362,10 @@ name and national ID never reach Cache Storage.
 A new worker installs and waits; it never takes over an open tab by itself. The page shows "A new
 version of Nkwapa is ready" with a Reload action (`lib/pwa/update.ts`). Reload posts
 `SKIP_WAITING`; when the new worker takes control the page reloads once, after any sync pass in
-flight. Another tab accepting the update shows the same prompt rather than reloading this one. An
+flight. Another tab accepting the update shows the same prompt rather than reloading this one.
+A page that finds a worker already waiting as it loads takes it without asking and reloads once:
+nothing has been typed yet, and a browser reload on its own never activates a waiting worker, so
+prompting there brought the prompt back on every load. An
 open installed app checks for a new version when it regains focus, at most hourly.
 
 Version skew: the old tab's chunks stay in `nkwapa-static-<old>` until the new worker activates,

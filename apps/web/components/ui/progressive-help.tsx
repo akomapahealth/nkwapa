@@ -22,14 +22,21 @@ export function ProgressiveHelp({
   children,
   className,
   contentClassName,
+  open,
+  onOpenChange,
 }: {
   title?: string;
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  /** Controlled open state, for a caller that remembers it (#412). Omit both to leave it native. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <details
+      open={open}
+      onToggle={onOpenChange ? (event) => onOpenChange(event.currentTarget.open) : undefined}
       className={cn(
         'group w-full rounded-lg border border-border/70 bg-background/80 shadow-sm',
         className,

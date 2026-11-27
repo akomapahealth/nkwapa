@@ -164,18 +164,17 @@ body.nkwapa-auth-body {
 }
 
 /*
-  #277: the same frame as the app's /login and account-setup pages. A hairline header with the
-  logo, then the form on the sheet (R5.2) under a strong rule, with the journey beside it. The deep
-  teal card, its shadow and its marketing copy are gone: MASTER.md section 12 keeps cards for
-  things that float, and this page should read as the next screen of Nkwapa, not a poster.
-*/
-/*
-  R5.2: the canvas with one inset sheet, as the app's portal and staff shells have from 600px.
-  On a phone the sheet fills the screen; above it, it sits 8px inside the canvas.
+  The frame: one white sheet, the form on the left and a clinic photograph inset on the right,
+  one line of the landing page's headline over it. From 768px the two sit side by side; below,
+  the photograph becomes a short band above the logo. The sheet sits 8px inside the canvas from
+  600px, as the app's shells do (R5.2).
 */
 .nkwapa-auth-sheet {
   min-height: 100vh;
   min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   background: var(--nkwapa-surface);
 }
 
@@ -185,43 +184,95 @@ body.nkwapa-auth-body {
     min-height: calc(100dvh - 16px);
     border: 1px solid var(--nkwapa-border);
     border-radius: var(--nkwapa-radius-xl);
+    overflow: hidden;
   }
 }
 
-.nkwapa-auth-header {
-  border-bottom: 1px solid var(--nkwapa-rule);
+@media (min-width: 768px) {
+  .nkwapa-auth-sheet {
+    grid-template-columns: minmax(380px, 5fr) 6fr;
+    grid-template-rows: none;
+  }
 }
 
-.nkwapa-auth-header__inner {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: 10px 24px;
+.nkwapa-auth-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 24px 20px 20px;
+}
+
+@media (min-width: 600px) {
+  .nkwapa-auth-column {
+    padding: 32px 40px 24px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .nkwapa-auth-column {
+    padding: 40px 64px 28px;
+  }
+}
+
+.nkwapa-auth-header,
+.nkwapa-auth-shell,
+.nkwapa-auth-foot {
+  width: 100%;
+  max-width: 380px;
+  margin-inline: auto;
+}
+
+.nkwapa-auth-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+}
+
+/* Not everyone knows the logo leads home, so the way back is said in words. */
+.nkwapa-auth-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--nkwapa-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nkwapa-auth-home:hover {
+  color: var(--nkwapa-text);
 }
 
 .nkwapa-auth-logo {
-  height: 28px;
+  height: 30px;
   width: auto;
   display: block;
 }
 
-.nkwapa-auth-header__note {
-  color: var(--nkwapa-muted);
-  font-size: 0.85rem;
+.nkwapa-auth-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding-block: 28px 40px;
 }
 
-.nkwapa-auth-shell {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: 48px 24px 64px;
-  display: grid;
-  grid-template-columns: minmax(0, 28rem) minmax(0, 18rem);
-  justify-content: space-between;
-  gap: 56px;
-  align-items: start;
+@media (min-width: 768px) {
+  .nkwapa-auth-header,
+  .nkwapa-auth-shell {
+    margin-inline: 0;
+  }
+
+  .nkwapa-auth-shell {
+    justify-content: center;
+    padding-block: 40px;
+  }
+
+  .nkwapa-auth-foot {
+    max-width: none;
+    margin-inline: 0;
+  }
 }
 
 .nkwapa-auth-panel {
@@ -231,147 +282,122 @@ body.nkwapa-auth-body {
   min-width: 0;
 }
 
-.nkwapa-auth-panel__eyebrow {
-  margin: 0 0 8px;
-  color: var(--nkwapa-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .nkwapa-auth-title {
   margin: 0;
   font-family: var(--nkwapa-font-heading);
-  font-size: clamp(1.75rem, 2.6vw, 2.25rem);
-  line-height: 1.15;
-  letter-spacing: -0.01em;
+  font-size: clamp(2rem, 1.4rem + 2vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
   font-weight: 600;
   color: var(--nkwapa-text);
+  text-wrap: balance;
 }
 
 .nkwapa-auth-panel__description {
   margin: 8px 0 0;
-  max-width: 60ch;
+  max-width: 40ch;
   color: var(--nkwapa-muted);
-  font-size: 0.95rem;
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
-/* The form sits under the same 2px ink rule as every group in the app. */
-.nkwapa-auth-form {
-  border-top: 2px solid var(--nkwapa-rule-strong);
-  padding-top: 20px;
-}
-
-.nkwapa-auth-aside {
-  min-width: 0;
-  display: grid;
-  gap: 24px;
-}
-
-.nkwapa-journey {
-  border-top: 2px solid var(--nkwapa-rule-strong);
-}
-
-.nkwapa-journey__title {
-  margin: 0;
-  padding: 16px 0 8px;
-  font-family: var(--nkwapa-font-body);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--nkwapa-text);
-}
-
-.nkwapa-journey__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.nkwapa-journey__step,
-.nkwapa-journey__help {
+.nkwapa-auth-foot {
   display: flex;
-  gap: 12px;
-  padding: 12px 0;
-  border-top: 1px solid var(--nkwapa-rule);
-}
-
-.nkwapa-journey__step:first-child {
-  border-top: 0;
-}
-
-.nkwapa-journey__help {
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nkwapa-journey__marker {
-  flex: 0 0 28px;
-  height: 28px;
-  margin-top: 1px;
-  display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  border: 1px solid var(--nkwapa-border-strong);
-  color: var(--nkwapa-muted);
-}
-
-.nkwapa-journey__step--done .nkwapa-journey__marker {
-  border-color: transparent;
-  background: var(--nkwapa-success-soft);
-  color: var(--nkwapa-success-ink);
-}
-
-.nkwapa-journey__step--current .nkwapa-journey__marker {
-  border-color: transparent;
-  background: var(--nkwapa-primary);
-  color: var(--nkwapa-on-primary);
-}
-
-.nkwapa-journey__text {
-  min-width: 0;
-}
-
-.nkwapa-journey__label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--nkwapa-text);
-}
-
-.nkwapa-journey__step--current .nkwapa-journey__label,
-.nkwapa-journey__help .nkwapa-journey__label {
-  font-weight: 600;
-}
-
-.nkwapa-journey__detail {
-  display: block;
+  justify-content: space-between;
+  gap: 6px 18px;
   font-size: 0.8125rem;
-  line-height: 1.5;
   color: var(--nkwapa-muted);
 }
 
-.nkwapa-journey__state {
-  font-weight: 500;
+.nkwapa-auth-foot p {
+  margin: 0;
 }
 
-.nkwapa-journey__step--done .nkwapa-journey__state {
-  color: var(--nkwapa-success-ink);
+.nkwapa-auth-foot nav {
+  display: flex;
+  gap: 18px;
 }
 
-.nkwapa-journey__step--current .nkwapa-journey__state {
-  color: var(--nkwapa-text);
+.nkwapa-auth-foot a {
+  color: var(--nkwapa-muted);
+  text-underline-offset: 3px;
 }
 
+/* The photograph: a short band on phones, an inset panel beside the form from 768px. */
 .nkwapa-auth-photo {
+  position: relative;
+  order: -1;
+  height: 168px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 0 0 20px 20px;
+  background: #0f3b43;
+}
+
+.nkwapa-auth-photo img {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  height: 100%;
   object-fit: cover;
-  border-radius: var(--nkwapa-radius-lg);
+}
+
+.nkwapa-auth-photo__line {
+  display: none;
+}
+
+@media (min-width: 600px) and (max-width: 767px) {
+  .nkwapa-auth-photo {
+    height: 200px;
+    margin: 8px 8px 0;
+    border-radius: var(--nkwapa-radius-lg);
+  }
+}
+
+@media (min-width: 768px) {
+  .nkwapa-auth-photo {
+    order: 0;
+    height: auto;
+    margin: 8px;
+    border-radius: var(--nkwapa-radius-lg);
+  }
+
+  /* Narrow panels keep the student's face; wider ones also fit the cuff. */
+  .nkwapa-auth-photo img {
+    object-position: 15% 40%;
+  }
+
+  .nkwapa-auth-photo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgb(10 30 34 / 0) 45%, rgb(10 30 34 / 0.72) 100%);
+  }
+
+  .nkwapa-auth-photo__line {
+    display: block;
+    position: absolute;
+    z-index: 1;
+    left: clamp(20px, 3vw, 36px);
+    right: clamp(20px, 3vw, 36px);
+    bottom: clamp(20px, 3vw, 36px);
+    max-width: 16ch;
+    margin: 0;
+    color: #ffffff;
+    font-family: var(--nkwapa-font-heading);
+    font-size: clamp(1.75rem, 1rem + 1.6vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+}
+
+@media (min-width: 1100px) {
+  .nkwapa-auth-photo img {
+    object-position: 8% 40%;
+  }
 }
 
 .nkwapa-alert {
@@ -519,6 +545,10 @@ body.nkwapa-auth-body {
   justify-content: space-between;
   gap: 12px;
   margin: 2px 0 24px;
+}
+
+.nkwapa-forgot-link {
+  white-space: nowrap;
 }
 
 .nkwapa-checkbox-group {
@@ -1012,38 +1042,6 @@ body.nkwapa-auth-body {
 
 .card-pf {
   box-shadow: none !important;
-}
-
-/*
-  Breakpoints are the ones the design system commits to (MASTER.md section 8). Below 1024 the
-  journey drops under the form, which is what the person came to fill in, and the photo goes.
-*/
-@media (max-width: 1023px) {
-  .nkwapa-auth-shell {
-    grid-template-columns: minmax(0, 1fr);
-    max-width: 36rem;
-    padding: 32px 20px 48px;
-    gap: 40px;
-  }
-
-  .nkwapa-auth-photo {
-    display: none;
-  }
-}
-
-@media (max-width: 479px) {
-  .nkwapa-auth-header__inner {
-    padding: 8px 16px;
-  }
-
-  .nkwapa-auth-shell {
-    padding: 24px 16px 40px;
-  }
-
-  .nkwapa-form-options {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

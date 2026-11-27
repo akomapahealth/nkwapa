@@ -13,7 +13,9 @@ import { HypertensionAssessmentModule } from '../hypertension-assessment/hyperte
 import { MedicationAdherenceModule } from '../medication-adherence/medication-adherence.module';
 import { PrescriptionModule } from '../prescriptions/prescription.module';
 import { OpsModule } from '../ops/ops.module';
+import { EyeScreeningModule } from '../eye-screening/eye-screening.module';
 import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
+import { StaffFeedbackModule } from '../staff-feedback/staff-feedback.module';
 
 @Module({
   imports: [
@@ -27,7 +29,9 @@ import { OfflineGrantModule } from '../offline-grants/offline-grant.module';
     MedicationAdherenceModule,
     PrescriptionModule,
     OpsModule,
+    EyeScreeningModule,
     OfflineGrantModule,
+    StaffFeedbackModule,
   ],
   controllers: [SyncController],
   providers: [SyncService, ClinicalMeasurementsService, ClinicianPlanSealService],

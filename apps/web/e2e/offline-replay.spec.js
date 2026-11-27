@@ -8,6 +8,7 @@ const {
   waitForPush,
 } = require('../playwright/outbox');
 const { storageStateFor } = require('../playwright/roles');
+const { fillNationalId } = require('../playwright/register-patient');
 
 /*
   Issue #21: the replay cases in docs/security/offline-job-execution-matrix.md that only a browser
@@ -23,7 +24,7 @@ async function createPatient(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Queued');
   await page.getByLabel('Last name', { exact: true }).fill(lastName);
-  await page.getByLabel('National ID', { exact: true }).fill(`E2E-REPLAY-${suffix}`);
+  await fillNationalId(page, `E2E-REPLAY-${suffix}`);
   await page.getByRole('button', { name: 'Create patient' }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/, { timeout: 20_000 });
   const [, , clinicId, , patientId] = new URL(page.url()).pathname.split('/');

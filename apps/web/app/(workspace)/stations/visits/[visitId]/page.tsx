@@ -2,18 +2,31 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, History } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, History, MessageSquareWarning } from 'lucide-react';
+import { openReportProblem } from '@/components/report-problem/ReportProblemDialog';
 import { useAuth } from '@/lib/auth-context';
-import { useBootstrap } from '@/lib/bootstrap-context';
+import { useBootstrap, useClinicUnits } from '@/lib/bootstrap-context';
+import { lineFlagsFor, type LineFlagSource } from '@nkwapa/db/station-line-flags';
 import { useSync } from '@/app/ServiceWorkerAndSyncProvider';
-import { apiFetch, type GetToken } from '@/lib/api';
+import { ApiError, apiFetch, type GetToken } from '@/lib/api';
 import { getBootstrapActiveClinicId } from '@/lib/bootstrap-clinics';
 import { db, type DiabetesScreeningRecord, type VitalsRecord } from '@/lib/db';
 import { isWebFeatureEnabled } from '@/lib/feature-flags';
-import { displayTimeZone, formatOpsDateTime, getTodayInTimeZone, formatOpsDay } from '@/lib/ops';
-import { isFullySynced } from '@/lib/sync';
 import {
+  dayNumberLabel,
+  displayTimeZone,
+  formatOpsDateTime,
+  getTodayInTimeZone,
+  formatOpsDay,
+} from '@/lib/ops';
+import { isFullySynced } from '@/lib/sync';
+import { opsCacheKey, readOpsCache, writeOpsCache } from '@/lib/ops-cache';
+import { buildStationHandOffMutation } from '@/lib/ops-offline';
+import { enqueueOutboxMutation } from '@/lib/outbox';
+import { queuedEyeScreening } from '@/lib/eye-screening-offline';
+import {
+  PRACTICE_CLEARED_REASON,
   cancelCheckIn,
   claimStationVisit,
   canCorrectPerformer,
@@ -27,12 +40,14 @@ import {
   type PerformerCorrection as PerformerCorrectionRecord,
   releaseStationVisit,
   screenerFromName,
+  StationRequestError,
   stationsPassedOver,
   suggestedNextStation,
   type ClinicStation,
   type OnShiftStaff,
   type StationVisit,
   type StationVisitDetail,
+  usePolling,
 } from '@/lib/stations';
 import { AppPageHeader } from '@/components/app-shell/AppPageHeader';
 import { InlineErrorState, SectionSkeleton } from '@/components/feedback/AppState';
@@ -46,11 +61,25 @@ import { GlucoseReadingForm } from '@/components/stations/GlucoseReadingForm';
 import { CounsellingForm } from '@/components/stations/CounsellingForm';
 import { EyeScreeningForm } from '@/components/stations/EyeScreeningForm';
 import { eyeScreeningPath, type EyeScreeningRecord } from '@/lib/eye-screening';
-import { StationResultsSummary } from '@/components/stations/StationResultsSummary';
+import {
+  StationResultsSummary,
+  newlyRecorded,
+  nothingRecordedAt,
+  type SummaryRowKind,
+} from '@/components/stations/StationResultsSummary';
 import { IntakeInterviews } from '@/components/stations/IntakeInterviews';
+import {
+  LineFlagChip,
+  LineFlagsNotice,
+  suggestedHandoffNote,
+} from '@/components/stations/LineFlags';
 import { PerformerCorrection } from '@/components/stations/PerformerCorrection';
+import { AskDoctorButton } from '@/components/stations/AskDoctorDialog';
+import { DoctorRequestChip } from '@/components/stations/DoctorRequestChip';
 import { ScreenerControl } from '@/components/stations/ScreenerControl';
+import { StationGuidePanel } from '@/components/stations/StationGuide';
 import { Badge } from '@/components/ui/badge';
+import { DemoBadge } from '@/components/patients/DemoPatientField';
 import { Button } from '@/components/ui/button';
 import {
   RecordSection as Card,
@@ -75,8 +104,33 @@ interface EncounterReadings {
   diabetes: DiabetesScreeningRecord | null;
   /** The intake interview's record, for the hypertension interview to build on. */
   hypertension: Record<string, unknown> | null;
-  /** Online only: null offline, and before the eye station records. */
+  /** The server's, or this device's queued save (#423); null before the eye station records. */
   eye: EyeScreeningRecord | null;
+}
+
+/** The flag a station's own reading can raise, for its hand-off note (#415). */
+const FLAG_SOURCE_AT: Partial<Record<StationVisit['station']['kind'], LineFlagSource>> = {
+  BLOOD_PRESSURE: 'BP',
+  GLUCOSE: 'GLUCOSE',
+};
+
+/** What a held visit needs to reopen offline (#423). */
+interface VisitCopy {
+  visit: StationVisitDetail;
+  stations: ClinicStation[];
+}
+
+function isVisitCopy(data: unknown): data is VisitCopy {
+  const copy = data as Partial<VisitCopy> | null;
+  return Boolean(copy?.visit?.id && copy.visit.station && Array.isArray(copy.stations));
+}
+
+/** A request that never got an answer, as opposed to one the server refused. */
+function isUnanswered(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.code === 'NETWORK_ERROR' || error.code === 'REQUEST_TIMEOUT')
+  );
 }
 
 const STATUS_LABELS: Record<StationVisit['status'], string> = {
@@ -102,6 +156,7 @@ export default function StationVisitPage() {
   const canManage = perms.includes('*') || perms.includes('OPS.STATION.MANAGE');
   const { isOnline, syncNow } = useSync();
   const enabled = isWebFeatureEnabled('stationWorkflow');
+  const { glucoseUnit } = useClinicUnits();
 
   const [visit, setVisit] = useState<StationVisitDetail | null>(null);
   const [stations, setStations] = useState<ClinicStation[]>([]);
@@ -111,8 +166,28 @@ export default function StationVisitPage() {
     hypertension: null,
     eye: null,
   });
+  // What the summary shows now, for the poll to compare against without re-creating itself.
+  const readingsRef = useRef(readings);
+  // Set by Register and start: the new patient's number goes on their card first (#413).
+  const [registered, setRegistered] = useState(false);
+  // The next station chosen in the hand-off form, so the guide names the same one (#412).
+  const [chosenNext, setChosenNext] = useState<{ visitId: string; stationId: string } | null>(null);
+  const chooseNext = useCallback(
+    (stationId: string) => setChosenNext({ visitId, stationId }),
+    [visitId],
+  );
+  useEffect(() => {
+    setRegistered(new URLSearchParams(window.location.search).has('registered'));
+  }, []);
+  useEffect(() => {
+    readingsRef.current = readings;
+  }, [readings]);
+  /** Readings that reached the review screen after it opened, and when (#427). */
+  const [addedAt, setAddedAt] = useState<Partial<Record<SummaryRowKind, string>>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** The visit on screen is this device's copy, opened without a connection (#423). */
+  const [savedCopy, setSavedCopy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Edits typed into this station's form since its last save; hand-off asks before dropping them.
@@ -127,64 +202,80 @@ export default function StationVisitPage() {
   const [myShift, setMyShift] = useState<OnShiftStaff | null>(null);
   const [changingScreener, setChangingScreener] = useState(false);
 
-  /** The eye record has its own route; a failure leaves the summary showing it as not recorded. */
+  /** The eye record has its own route; undefined when it could not be read. */
   const loadEyeScreening = useCallback(
     async (encounterId: string) => {
-      if (!getToken || !clinicId) return null;
+      if (!getToken || !clinicId) return undefined;
       try {
         const response = await apiFetch(eyeScreeningPath(clinicId, encounterId), {
           getToken,
           activeClinicId: clinicId,
         });
-        if (!response.ok) return null;
+        if (!response.ok) return undefined;
         return ((await response.json()) as { record: EyeScreeningRecord | null }).record;
       } catch {
-        return null;
+        return undefined;
       }
     },
     [getToken, clinicId],
   );
 
+  /** The server's readings for the encounter; throws when the server cannot be reached. */
+  const fetchServerReadings = useCallback(
+    async (encounterId: string, previousEye: EyeScreeningRecord | null) => {
+      const response = await apiFetch(`/encounters/${encodeURIComponent(encounterId)}`, {
+        getToken: getToken!,
+        activeClinicId: clinicId ?? undefined,
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      const encounter = (await response.json()) as {
+        vitals?: VitalsRecord | null;
+        diabetesScreening?: DiabetesScreeningRecord | null;
+        hypertensionAssessment?: Record<string, unknown> | null;
+      };
+      const eye = await loadEyeScreening(encounterId);
+      return {
+        vitals: encounter.vitals ?? null,
+        diabetes: encounter.diabetesScreening ?? null,
+        hypertension: encounter.hypertensionAssessment ?? null,
+        // An eye read that failed keeps what was there, so the row never blanks.
+        eye: eye === undefined ? previousEye : eye,
+      } satisfies EncounterReadings;
+    },
+    [getToken, clinicId, loadEyeScreening],
+  );
+
   const loadReadings = useCallback(
     async (encounterId: string) => {
       if (!getToken) return;
+      // An eye examination saved on this device and not sent yet still counts (#423).
+      const queuedEye = () =>
+        clinicId ? queuedEyeScreening(db, clinicId, encounterId) : Promise.resolve(null);
       try {
-        const response = await apiFetch(`/encounters/${encodeURIComponent(encounterId)}`, {
-          getToken,
-          activeClinicId: clinicId ?? undefined,
-        });
-        if (!response.ok) throw new Error(String(response.status));
-        const encounter = (await response.json()) as {
-          vitals?: VitalsRecord | null;
-          diabetesScreening?: DiabetesScreeningRecord | null;
-          hypertensionAssessment?: Record<string, unknown> | null;
-        };
-        setReadings({
-          vitals: encounter.vitals ?? null,
-          diabetes: encounter.diabetesScreening ?? null,
-          hypertension: encounter.hypertensionAssessment ?? null,
-          eye: await loadEyeScreening(encounterId),
-        });
+        const server = await fetchServerReadings(encounterId, null);
+        setReadings(server.eye ? server : { ...server, eye: await queuedEye() });
       } catch {
         // Offline or unreachable: this device's copy is what the forms build on.
-        const [vitals, diabetes, hypertension] = await Promise.all([
+        const [vitals, diabetes, hypertension, eye] = await Promise.all([
           db.vitals.where('encounterId').equals(encounterId).first(),
           db.diabetes_screenings.where('encounterId').equals(encounterId).first(),
           db.hypertension_assessments.where('encounterId').equals(encounterId).first(),
+          queuedEye(),
         ]);
         setReadings({
           vitals: vitals ?? null,
           diabetes: diabetes ?? null,
           hypertension: (hypertension as unknown as Record<string, unknown>) ?? null,
-          eye: null,
+          eye,
         });
       }
     },
-    [getToken, clinicId, loadEyeScreening],
+    [getToken, fetchServerReadings, clinicId],
   );
 
   const load = useCallback(async () => {
     if (!getToken || !clinicId || !enabled) return;
+    const copyKey = { clinicId, kind: 'station-visit' as const, date: getTodayInTimeZone() };
     try {
       const [detail, stationList, board] = await Promise.all([
         fetchStationVisit(clinicId, visitId, getToken),
@@ -194,10 +285,28 @@ export default function StationVisitPage() {
       ]);
       setVisit(detail);
       setStations(stationList.items);
+      setSavedCopy(false);
       if (board) setMyShift(board.onShift?.find((shift) => shift.user.id === userId) ?? null);
       setLoadError(null);
+      // shortcut: one held visit per clinic on a device; keep several if volunteers hold more.
+      if (detail.status === 'IN_PROGRESS' && detail.claimedBy?.id === userId) {
+        void writeOpsCache(db, {
+          ...copyKey,
+          data: { visit: detail, stations: stationList.items },
+        });
+      }
       if (detail.encounterId) await loadReadings(detail.encounterId);
     } catch (error) {
+      // Offline, a visit this device holds opens from its copy (#423).
+      const copy = await readOpsCache<VisitCopy>(db, { ...copyKey, isValid: isVisitCopy });
+      if (copy?.data.visit.id === visitId) {
+        setVisit(copy.data.visit);
+        setStations(copy.data.stations);
+        setSavedCopy(true);
+        setLoadError(null);
+        if (copy.data.visit.encounterId) await loadReadings(copy.data.visit.encounterId);
+        return;
+      }
       setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
@@ -209,6 +318,74 @@ export default function StationVisitPage() {
   }, [load]);
 
   const mine = visit?.status === 'IN_PROGRESS' && visit.claimedBy?.id === userId;
+  /** The visit is no longer this device's to reopen offline. */
+  const forgetVisitCopy = () => {
+    if (clinicId) void db.ops_cache.delete(opsCacheKey(clinicId, 'station-visit')).catch(() => {});
+  };
+
+  // The review summary keeps up with readings that reach the server after it opened (#427):
+  // a glucose entered late from paper, or held in another device's outbox. Only the visit and
+  // its readings refresh; the counselling form and note keep their own state.
+  const reviewEncounterId =
+    mine && visit?.station.kind === 'REVIEW' ? (visit.encounterId ?? null) : null;
+  const refreshReview = useCallback(async () => {
+    if (!reviewEncounterId || !getToken || !clinicId) return;
+    try {
+      const [visitResult, readingsResult] = await Promise.allSettled([
+        fetchStationVisit(clinicId, visitId, getToken),
+        fetchServerReadings(reviewEncounterId, readingsRef.current.eye),
+      ]);
+      if (visitResult.status === 'rejected') return;
+      const detail = visitResult.value;
+      // Ended under us, as a practice clear does (#410): its draft and readings may be gone.
+      if (detail.status !== 'IN_PROGRESS') {
+        setVisit(detail);
+        return;
+      }
+      if (readingsResult.status === 'rejected') return;
+      const next = readingsResult.value;
+      const arrived = newlyRecorded(readingsRef.current, next);
+      if (arrived.length) {
+        const now = new Date().toISOString();
+        setAddedAt((current) => ({
+          ...current,
+          ...Object.fromEntries(arrived.map((row) => [row, now])),
+        }));
+      }
+      setVisit(detail);
+      setReadings(next);
+    } catch {
+      // A missed poll keeps what is on screen; the next one tries again.
+    }
+  }, [reviewEncounterId, getToken, clinicId, visitId, fetchServerReadings]);
+  usePolling(refreshReview, isOnline && reviewEncounterId !== null);
+
+  // A demo patient held here can be cleared by the director mid-visit (#410). Watching the visit
+  // closes the forms and says so on the next poll, before a save fails against a deleted draft.
+  // Review polls the visit already, and handles the end itself.
+  const watchPractice = mine && visit?.patient.isDemo === true && reviewEncounterId === null;
+  const refreshPractice = useCallback(async () => {
+    if (!getToken || !clinicId) return;
+    try {
+      const detail = await fetchStationVisit(clinicId, visitId, getToken);
+      if (detail.status !== 'IN_PROGRESS') setVisit(detail);
+    } catch {
+      // The next poll tries again.
+    }
+  }, [getToken, clinicId, visitId]);
+  usePolling(refreshPractice, isOnline && watchPractice);
+  const practiceCleared =
+    visit?.status === 'CANCELLED' && visit.endReason === PRACTICE_CLEARED_REASON;
+  useEffect(() => {
+    if (!practiceCleared || !clinicId) return;
+    // One copy per clinic: forget it only when it is this visit, never another patient's.
+    const key = opsCacheKey(clinicId, 'station-visit');
+    void (async () => {
+      const copy = (await db.ops_cache.get(key)) as
+        { data?: { visit?: { id?: string } } } | undefined;
+      if (copy?.data?.visit?.id === visitId) await db.ops_cache.delete(key);
+    })().catch(() => {});
+  }, [practiceCleared, clinicId, visitId]);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, after?: () => void) => {
@@ -270,36 +447,125 @@ export default function StationVisitPage() {
               title={patientName(visit.patient)}
               description={`${visit.patient.patientCode}${visit.patient.dob ? ` · born ${formatOpsDay(`${visit.patient.dob.slice(0, 10)}T12:00:00Z`)}` : ''} · checked in ${formatOpsDateTime(visit.checkedInAt, timezone)}`}
               actions={
-                <Badge variant={mine ? 'default' : 'secondary'}>
-                  {STATUS_LABELS[visit.status]}
-                  {visit.claimedBy && visit.status === 'IN_PROGRESS'
-                    ? ` · ${mine ? 'with you' : visit.claimedBy.displayName}`
-                    : ''}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Large enough to read out to the patient across a table (#413). */}
+                  <span
+                    className="mr-1 font-mono text-2xl font-semibold tabular-nums"
+                    translate="no"
+                  >
+                    {dayNumberLabel(visit.dayNumber)}
+                  </span>
+                  <DemoBadge isDemo={visit.patient.isDemo} />
+                  <LineFlagChip flags={visit.lineFlags} />
+                  <DoctorRequestChip request={visit.doctorRequest} me={userId} />
+                  {visit.station.kind !== 'REVIEW' &&
+                  !visit.doctorRequest?.claimedBy &&
+                  ['QUEUED', 'IN_PROGRESS'].includes(visit.status) ? (
+                    <AskDoctorButton
+                      clinicId={clinicId}
+                      visitId={visit.id}
+                      isOnline={isOnline}
+                      getToken={getToken!}
+                      onSent={(doctorRequest) =>
+                        setVisit((current) => (current ? { ...current, doctorRequest } : current))
+                      }
+                    />
+                  ) : null}
+                  <Badge variant={mine ? 'default' : 'secondary'}>
+                    {STATUS_LABELS[visit.status]}
+                    {visit.claimedBy && visit.status === 'IN_PROGRESS'
+                      ? ` · ${mine ? 'with you' : visit.claimedBy.displayName}`
+                      : ''}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() =>
+                      openReportProblem({ kind: visit.station.kind, name: visit.station.name })
+                    }
+                  >
+                    <MessageSquareWarning aria-hidden="true" />
+                    Report a problem
+                  </Button>
+                </div>
               }
             />
 
             <section aria-labelledby="visit-needs" className="border-t-2 border-rule-strong pt-4">
+              <StationGuidePanel
+                kind={visit.station.kind}
+                stationName={visit.station.name}
+                nextName={
+                  (chosenNext?.visitId === visitId
+                    ? stations.find((station) => station.id === chosenNext.stationId)?.name
+                    : undefined) ??
+                  suggestedNextStation(
+                    stations.filter((station) => station.active),
+                    visit.station.id,
+                  )?.name ??
+                  null
+                }
+                glucoseUnit={glucoseUnit}
+                userId={userId}
+              />
               {/* Not "Needs you now": elsewhere that heading lists work to act on, here it explains. */}
               <h2 id="visit-needs" className="type-section-title">
                 At this station
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                {mine
-                  ? `Record ${visit.station.name.toLowerCase()} findings, then hand the patient on. Readings pending sync must reach the server before hand-off.`
-                  : visit.status === 'QUEUED'
-                    ? 'Take this patient before recording findings.'
-                    : visit.status === 'IN_PROGRESS'
-                      ? 'This patient is with another member of staff.'
-                      : 'This station stop is complete. Earlier findings remain available below.'}
+                {practiceCleared
+                  ? 'Practice is over.'
+                  : mine
+                    ? `Record ${visit.station.name.toLowerCase()} findings, then hand the patient on.`
+                    : visit.status === 'QUEUED'
+                      ? 'Take this patient before recording findings.'
+                      : visit.status === 'IN_PROGRESS'
+                        ? 'This patient is with another member of staff.'
+                        : 'This station stop is complete. Earlier findings remain available below.'}
               </p>
             </section>
 
-            {actionError ? <InlineNotice tone="error">{actionError}</InlineNotice> : null}
-            {!isOnline ? (
+            {registered && visit.dayNumber ? (
+              <InlineNotice tone="success" live={false}>
+                <span className="text-lg">
+                  Patient number{' '}
+                  <strong className="font-mono tabular-nums" translate="no">
+                    {visit.dayNumber}
+                  </strong>
+                  . Write it on their card.
+                </span>
+              </InlineNotice>
+            ) : null}
+            <LineFlagsNotice
+              flags={visit.lineFlags}
+              timezone={timezone}
+              title={
+                visit.station.kind === 'REVIEW'
+                  ? 'Red flags raised along the line'
+                  : 'Red flags from earlier stations'
+              }
+            />
+            {practiceCleared ? (
+              <InlineNotice tone="info">
+                The director cleared the practice patients, so there is nothing more to record for
+                this one.{' '}
+                <Link href="/stations" className="font-medium underline underline-offset-4">
+                  Back to stations
+                </Link>
+              </InlineNotice>
+            ) : actionError ? (
+              <InlineNotice tone="error">{actionError}</InlineNotice>
+            ) : null}
+            {!isOnline || savedCopy ? (
               <InlineNotice tone="warning" live={false}>
-                You are offline. Readings still save on this device; handing the patient on waits
-                for a connection.
+                {savedCopy
+                  ? 'The server cannot be reached, so this visit opened from this device. '
+                  : 'You are offline. '}
+                {visit.station.kind === 'REVIEW'
+                  ? 'Readings still save on this device; completing the session waits for a connection.'
+                  : 'Readings save on this device, and handing on is sent when the connection returns. Until then the next station cannot see the patient: say their number and send them on.'}
               </InlineNotice>
             ) : null}
 
@@ -375,6 +641,7 @@ export default function StationVisitPage() {
                 Give each form a dirty flag if those need guarding too.
               */
               <div
+                data-station-form
                 onInput={(event) => markUnsaved(event.target)}
                 onChange={(event) => markUnsaved(event.target)}
                 onClick={(event) => {
@@ -393,6 +660,7 @@ export default function StationVisitPage() {
                   isDoctor={isDoctor}
                   readings={readings}
                   timezone={timezone}
+                  addedAt={addedAt}
                   onSaved={() => {
                     setUnsavedForm(false);
                     void loadReadings(visit.encounterId!);
@@ -410,55 +678,152 @@ export default function StationVisitPage() {
               <HandOff
                 visit={visit}
                 stations={stations}
+                onNextChange={chooseNext}
                 busy={busy}
                 isOnline={isOnline}
-                onComplete={async (body) => {
-                  if (
-                    unsavedForm &&
-                    GUARDED_STATION_KINDS.has(visit.station.kind) &&
-                    !(await confirmAction({
-                      title: `${visit.station.name} is not saved`,
-                      description:
-                        'This station has answers that were typed but not saved. Handing the patient on now leaves them out of the record.',
-                      confirmLabel: 'Hand on without saving',
-                      cancelLabel: 'Go back and save',
-                      destructive: true,
-                    }))
-                  )
-                    return;
+                suggestedNote={suggestedHandoffNote(
+                  lineFlagsFor({
+                    systolic: readings.vitals?.systolicBp,
+                    diastolic: readings.vitals?.diastolicBp,
+                    glucoseMgDl: readings.diabetes?.glucoseMgDl,
+                    glucoseType: readings.diabetes?.glucoseType,
+                  }).filter((flag) => flag.source === FLAG_SOURCE_AT[visit.station.kind]),
+                  glucoseUnit,
+                )}
+                nothingRecorded={nothingRecordedAt(visit.station.kind, readings)}
+                // Typed but unsaved answers are asked about first: saving them is the usual fix.
+                confirmUnsaved={async () =>
+                  !unsavedForm ||
+                  !GUARDED_STATION_KINDS.has(visit.station.kind) ||
+                  confirmAction({
+                    title: `${visit.station.name} is not saved`,
+                    description:
+                      'This station has answers that were typed but not saved. Handing the patient on now leaves them out of the record.',
+                    confirmLabel: 'Hand on without saving',
+                    cancelLabel: 'Go back and save',
+                    destructive: true,
+                  })
+                }
+                onComplete={(body) => {
+                  let handedTo = '';
+                  let stayed = false;
+                  let queued = false;
+                  let doctorNotified = false;
+                  // Sent, not inferred, so the stamp is what the banner showed (#227).
+                  const sent = myShift
+                    ? { ...body, screener: screenerFromName(myShift.screenerName) }
+                    : body;
+                  // Offline (#423): queued behind this station's readings, so the server applies
+                  // them first, and sent when the connection returns.
+                  const queueHandOff = async () => {
+                    await enqueueOutboxMutation(
+                      db,
+                      buildStationHandOffMutation({
+                        clinicId,
+                        occurredAt: new Date().toISOString(),
+                        actorUserId: userId,
+                        actorName: bootstrap?.displayName ?? undefined,
+                        visitId: visit.id,
+                        body: sent,
+                        patient: {
+                          patientCode: visit.patient.patientCode,
+                          displayName: patientName(visit.patient),
+                        },
+                      }),
+                    );
+                    const nextId =
+                      body.nextStationId ??
+                      suggestedNextStation(
+                        stations.filter((station) => station.active),
+                        visit.station.id,
+                      )?.id;
+                    handedTo = stations.find((station) => station.id === nextId)?.name ?? '';
+                    queued = true;
+                  };
                   void run(
                     async () => {
+                      const isReview = visit.station.kind === 'REVIEW';
+                      if (!isOnline && !isReview) return queueHandOff();
                       // The next station reads what this one recorded, so it must reach the
                       // server first. A reading still queued would arrive after the hand-off.
                       const synced = await syncNow(clinicId);
+                      // No server to reach (a phone that still says online): the hand-off waits
+                      // behind the readings instead. A refused reading still stops it.
+                      if (synced && !synced.success && !synced.blockedCount && !isReview) {
+                        return queueHandOff();
+                      }
                       if (!isFullySynced(synced)) {
                         throw new Error(
                           'Some readings have not reached the server yet. Check the sync status, then hand the patient on.',
                         );
                       }
-                      return completeStationVisit(
-                        clinicId,
-                        visit.id,
-                        // Sent, not inferred, so the stamp is what the banner showed (#227).
-                        myShift
-                          ? { ...body, screener: screenerFromName(myShift.screenerName) }
-                          : body,
-                        getToken!,
+                      let result;
+                      try {
+                        result = await completeStationVisit(clinicId, visit.id, sent, getToken!);
+                      } catch (error) {
+                        // No answer: the same hand-off is queued, and the server applies it once.
+                        if (isUnanswered(error) && !isReview) {
+                          await queueHandOff();
+                          return;
+                        }
+                        // Review warns about a refer-today patient with no referral (#415).
+                        if (
+                          !(error instanceof StationRequestError) ||
+                          error.code !== 'REFERRAL_NOT_RECORDED'
+                        )
+                          throw error;
+                        const anyway = await confirmAction({
+                          title: 'No referral recorded',
+                          description:
+                            'No referral recorded for a refer-today reading. Complete anyway?',
+                          confirmLabel: 'Complete anyway',
+                          cancelLabel: 'Go back and record it',
+                          destructive: true,
+                        });
+                        if (!anyway) {
+                          stayed = true;
+                          return;
+                        }
+                        result = await completeStationVisit(
+                          clinicId,
+                          visit.id,
+                          { ...sent, acknowledgeNoReferral: true },
+                          getToken!,
+                        );
+                      }
+                      doctorNotified = Boolean(result.doctorRequested);
+                      handedTo = result.sessionCompleted
+                        ? 'done'
+                        : (stations.find((station) => station.id === result.nextStationId)?.name ??
+                          '');
+                    },
+                    // The queue says where the patient went, with the next patient one tap away.
+                    // Only the station name and the day number ride in the URL; never the patient's.
+                    () => {
+                      if (stayed) return void load();
+                      forgetVisitCopy();
+                      router.push(
+                        `/stations?sent=${encodeURIComponent(handedTo)}${visit.dayNumber ? `&no=${visit.dayNumber}` : ''}${queued ? '&queued=1' : ''}${doctorNotified ? '&doctor=1' : ''}`,
                       );
                     },
-                    () => router.push('/stations'),
                   );
                 }}
                 onRelease={(reason) =>
                   void run(
                     () => releaseStationVisit(clinicId, visit.id, reason, getToken!),
-                    () => router.push('/stations'),
+                    () => {
+                      forgetVisitCopy();
+                      router.push('/stations');
+                    },
                   )
                 }
                 onPatientLeft={(reason) =>
                   void run(
                     () => cancelCheckIn(clinicId, visit.checkInId, reason, getToken!),
-                    () => router.push('/stations'),
+                    () => {
+                      forgetVisitCopy();
+                      router.push('/stations');
+                    },
                   )
                 }
               />
@@ -564,6 +929,7 @@ function StationForm({
   isDoctor,
   readings,
   timezone,
+  addedAt,
   onSaved,
 }: {
   visit: StationVisitDetail;
@@ -572,6 +938,7 @@ function StationForm({
   isDoctor: boolean;
   readings: EncounterReadings;
   timezone: string;
+  addedAt: Partial<Record<SummaryRowKind, string>>;
   onSaved: () => void;
 }) {
   const encounterId = visit.encounterId!;
@@ -650,6 +1017,7 @@ function StationForm({
             diabetes={readings.diabetes}
             eye={readings.eye}
             timezone={timezone}
+            addedAt={addedAt}
           />
           <CounsellingForm ruled clinicId={clinicId} encounterId={encounterId} canEdit />
           <ClinicalNotePanel
@@ -674,18 +1042,31 @@ function HandOff({
   stations,
   busy,
   isOnline,
+  nothingRecorded,
+  confirmUnsaved,
+  suggestedNote,
   onComplete,
   onRelease,
   onPatientLeft,
+  onNextChange,
 }: {
   visit: StationVisitDetail;
   stations: ClinicStation[];
+  /** Tells the page which station is chosen, for the guide's "Next" line (#412). */
+  onNextChange: (stationId: string) => void;
   busy: boolean;
   isOnline: boolean;
+  /** This station's own reading is missing, so handing on asks first (#424). */
+  nothingRecorded: boolean;
+  /** Resolves false when the volunteer goes back to save typed answers. */
+  confirmUnsaved: () => Promise<boolean>;
+  /** A flag this station's reading raised, as a note line the volunteer can edit (#415). */
+  suggestedNote: string;
   onComplete: (body: {
     handoffNote?: string;
     nextStationId?: string;
     skips?: Array<{ stationId: string; reason: string }>;
+    skipReason?: string;
   }) => void;
   onRelease: (reason: string) => void;
   onPatientLeft: (reason: string) => void;
@@ -695,14 +1076,46 @@ function HandOff({
   const suggested = suggestedNextStation(active, visit.station.id);
   const [nextId, setNextId] = useState<string>(suggested?.id ?? '');
   const [note, setNote] = useState('');
+  const [noteEdited, setNoteEdited] = useState(false);
+  // Follows the reading until the volunteer types their own note.
+  useEffect(() => {
+    if (!noteEdited) setNote(suggestedNote);
+  }, [suggestedNote, noteEdited]);
   const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
+  // Asked on Send when nothing was recorded here; a reading saved meanwhile ends the question.
+  const [askingWhy, setAskingWhy] = useState(false);
+  const [nothingReason, setNothingReason] = useState('');
+  const asking = askingWhy && nothingRecorded;
   useEffect(() => {
     if (!nextId && suggested) setNextId(suggested.id);
   }, [nextId, suggested]);
+  useEffect(() => {
+    if (nextId) onNextChange(nextId);
+  }, [nextId, onNextChange]);
 
   const passedOver = nextId ? stationsPassedOver(active, visit.station.id, nextId) : [];
   const missingReason = passedOver.some((station) => !skipReasons[station.id]?.trim());
   const nextName = active.find((station) => station.id === nextId)?.name;
+  const body = () =>
+    isReview
+      ? {}
+      : {
+          handoffNote: note.trim() || undefined,
+          nextStationId: nextId && nextId !== suggested?.id ? nextId : undefined,
+          skips: passedOver.map((station) => ({
+            stationId: station.id,
+            reason: skipReasons[station.id]!.trim(),
+          })),
+        };
+  const goBack = () => {
+    setAskingWhy(false);
+    // Back to the station's own form, where the reading goes.
+    const field = document.querySelector<HTMLElement>(
+      '[data-station-form] input:not([disabled]), [data-station-form] button:not([disabled])',
+    );
+    field?.scrollIntoView({ block: 'center' });
+    field?.focus({ preventScroll: true });
+  };
 
   return (
     <Card>
@@ -726,7 +1139,10 @@ function HandOff({
                 rows={3}
                 maxLength={2000}
                 value={note}
-                onChange={(event) => setNote(event.target.value)}
+                onChange={(event) => {
+                  setNoteEdited(true);
+                  setNote(event.target.value);
+                }}
                 placeholder="Anything they should know, e.g. a reading to recheck."
               />
             </div>
@@ -770,44 +1186,78 @@ function HandOff({
           </>
         ) : null}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <ReasonButton
-            label="Patient left"
-            prompt="Why did the patient leave?"
-            disabled={!isOnline || busy}
-            onSubmit={onPatientLeft}
-          />
-          <ReasonButton
-            label="Put back in queue"
-            prompt="Why are you handing this patient back?"
-            disabled={!isOnline || busy}
-            onSubmit={onRelease}
-          />
-          <Button
-            type="button"
-            disabled={!isOnline || busy || (!isReview && (!nextId || missingReason))}
-            onClick={() =>
-              onComplete(
-                isReview
-                  ? {}
-                  : {
-                      handoffNote: note.trim() || undefined,
-                      nextStationId: nextId && nextId !== suggested?.id ? nextId : undefined,
-                      skips: passedOver.map((station) => ({
-                        stationId: station.id,
-                        reason: skipReasons[station.id]!.trim(),
-                      })),
-                    },
-              )
-            }
+        {asking ? (
+          <div
+            role="group"
+            aria-labelledby="nothing-recorded-title"
+            className="space-y-3 rounded-md border border-warning/25 bg-warning/10 p-4"
           >
-            {busy
-              ? 'Working…'
-              : isReview
-                ? 'Complete session'
-                : `Send to ${nextName ?? 'next station'}`}
-          </Button>
-        </div>
+            <p
+              id="nothing-recorded-title"
+              className="flex items-start gap-2 font-semibold text-warning-ink"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              Nothing was recorded at {visit.station.name}. Hand on anyway?
+            </p>
+            <p className="text-sm text-warning-ink">
+              Skipping keeps this stop in the record as skipped, with your reason, so review knows
+              why there is no reading.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="nothingRecordedReason">Why was nothing recorded?</Label>
+              <Input
+                id="nothingRecordedReason"
+                autoFocus
+                maxLength={500}
+                value={nothingReason}
+                placeholder="e.g. patient declined, machine not working"
+                onChange={(event) => setNothingReason(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={goBack}>
+                Go back
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || !nothingReason.trim()}
+                onClick={() => onComplete({ ...body(), skipReason: nothingReason.trim() })}
+              >
+                {busy ? 'Working…' : 'Skip this station'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <ReasonButton
+              label="Patient left"
+              prompt="Why did the patient leave?"
+              disabled={!isOnline || busy}
+              onSubmit={onPatientLeft}
+            />
+            <ReasonButton
+              label="Put back in queue"
+              prompt="Why are you handing this patient back?"
+              disabled={!isOnline || busy}
+              onSubmit={onRelease}
+            />
+            <Button
+              type="button"
+              disabled={busy || (isReview ? !isOnline : !nextId || missingReason)}
+              onClick={async () => {
+                if (!(await confirmUnsaved())) return;
+                if (nothingRecorded) setAskingWhy(true);
+                else onComplete(body());
+              }}
+            >
+              {busy
+                ? 'Working…'
+                : isReview
+                  ? 'Complete session'
+                  : `Send to ${nextName ?? 'next station'}`}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

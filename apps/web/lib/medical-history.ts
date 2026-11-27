@@ -19,11 +19,7 @@ export const MEDICAL_HISTORY_STATUSES = [
 export type MedicalHistoryCategory = (typeof MEDICAL_HISTORY_CATEGORIES)[number];
 export type MedicalHistoryStatus = (typeof MEDICAL_HISTORY_STATUSES)[number];
 export type AllergySummaryState =
-  | 'ACTIVE_ALLERGIES'
-  | 'NO_KNOWN_ALLERGIES'
-  | 'HISTORICAL_ONLY'
-  | 'NOT_RECORDED'
-  | 'UNAVAILABLE';
+  'ACTIVE_ALLERGIES' | 'NO_KNOWN_ALLERGIES' | 'HISTORICAL_ONLY' | 'NOT_RECORDED' | 'UNAVAILABLE';
 
 export interface AllergySummary {
   state: AllergySummaryState;

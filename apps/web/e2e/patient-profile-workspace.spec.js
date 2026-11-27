@@ -5,6 +5,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { storageStateFor } = require('../playwright/roles');
 const { overflow } = require('../playwright/responsive-routes');
+const { fillNationalId } = require('../playwright/register-patient');
 
 test.use({ storageState: storageStateFor('staff') });
 const widths = [320, 390, 599, 600, 744, 767, 768, 1024, 1199, 1200, 1440];
@@ -13,7 +14,7 @@ async function open(page) {
   await page.goto('/patients/new');
   await page.getByLabel('First name', { exact: true }).fill('Synthetic');
   await page.getByLabel('Last name', { exact: true }).fill(`Profile-${suffix}`);
-  await page.getByLabel('National ID', { exact: true }).fill(`R36-${suffix}`);
+  await fillNationalId(page, `R36-${suffix}`);
   await page.getByRole('button', { name: 'Create patient', exact: true }).click();
   await page.waitForURL(/\/clinics\/[^/]+\/patients\/[^/]+$/);
   await expect(page.getByRole('heading', { name: 'Patient details', exact: true })).toBeVisible();
