@@ -1,4 +1,5 @@
 import {
+  daySummaryHref,
   describePerformerCorrection,
   describePracticeClear,
   practiceCountValue,
@@ -359,5 +360,14 @@ describe('practice sessions (#410)', () => {
     const summary = { charts: 2, openCheckIns: 0, withVolunteer: 0, draftVisits: 0 };
     expect(describePracticeClear(summary)).toMatch(/^Demo charts stay/);
     expect(practiceIsClear({ ...summary, charts: 0 })).toBe(true);
+  });
+});
+
+describe('daySummaryHref', () => {
+  it('keeps a clinic date as a plain path segment', () => {
+    expect(daySummaryHref('2026-11-27')).toBe('/stations/day/2026-11-27');
+    expect(daySummaryHref('"><img src=x onerror=alert(1)>/../x')).toBe(
+      '/stations/day/%22%3E%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E%2F..%2Fx',
+    );
   });
 });
