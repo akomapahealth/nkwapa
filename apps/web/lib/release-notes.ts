@@ -37,111 +37,156 @@ const RELEASES_URL = 'https://api.github.com/repos/akomapahealth/nkwapa/releases
 
 /** Used when GitHub cannot be reached at build or revalidation time. Keep it on the latest release. */
 export const FALLBACK_RELEASE: Release = {
-  version: '2.1.1',
-  date: '2026-11-18',
+  version: '2.2.0',
+  date: '2026-11-27',
   groups: [
     {
-      heading: 'New in 2.1.1',
+      heading: 'New in 2.2',
       items: [
         {
-          lead: 'Volunteers sign a confidentiality agreement.',
-          text: 'Before using Nkwapa, a volunteer reads nine short points, ticks a box and types their name to sign. Existing volunteers are asked the next time they open the app. Your account page shows when you signed, with a link to read it again.',
+          lead: 'Register and start, Check in and start.',
+          text: 'At registration, Register and start creates the patient, checks them in and opens their first station visit in one step. On the registry and on a chart, Check in and start does the same for a returning patient. If you are not at the first station, the patient is checked in and waits there.',
         },
         {
-          lead: 'A notice when your role changes.',
-          text: 'When an administrator gives you a new role or removes one, Nkwapa tells you what changed. If you have no access left, it says so.',
+          lead: 'A day number for each patient.',
+          text: 'Every check-in gets the next number for the day: No. 1, No. 2, and so on, starting again each morning. Call "number 14" instead of a name. Nkwapa tells you to write it on their card, and the number leads on queues, boards and the visit.',
         },
         {
-          lead: 'Search and filter a queue.',
-          text: 'Find a patient in a queue by name or patient code, even if they are not on the first page. Filter by blood pressure class, high glucose or the dates a visit was created.',
+          lead: 'Who is already checked in today.',
+          text: 'The registry shows "No. 9 · At Glucose" or "Done today" in place of Check in. Trying to check someone in twice says where they are, for example "Already on the line: No. 14 at Glucose, with Ama since 9:42 AM."',
         },
         {
-          lead: 'The patient at a glance.',
-          text: "The chart Overview opens with the patient's conditions, latest blood pressure and glucose with their direction, medications and adherence, and risks such as allergies and tobacco.",
+          lead: 'Several blood pressure readings.',
+          text: 'Take several readings records up to three readings, with pulse, and fills in the average the WHO way: with three readings, the average of the last two. The blood pressure station now records pulse.',
         },
         {
-          lead: 'Full middle names.',
-          text: 'Patients and staff can have a full middle name, not just an initial. Existing initials are kept.',
+          lead: 'Red flags travel with the patient.',
+          text: 'A crisis blood pressure or a danger glucose shows as Refer today, and a reading to recheck as Repeat at review, on every queue, board and visit along the line. Review lists each flag with its reading, where and when it was taken, and asks before completing a refer-today patient with no referral.',
         },
         {
-          lead: 'Where a patient lives.',
-          text: "Record a patient's Digital Address, a landmark and their home's position on a map.",
+          lead: 'Ask a doctor.',
+          text: "A button on each station visit tells the doctors on shift that a doctor is needed now, or before the patient leaves. The first doctor to press I'm on it takes it. A refer-today reading asks for a doctor automatically at the next station.",
         },
         {
-          lead: 'A password-protected referral report.',
-          text: "Doctors, volunteers and managers can make a PDF referral report for a patient, choose what goes in it, and download or email it. The PDF opens with a 16-character passcode. A patient's referral consent is recorded on the Consent tab, separately from research consent.",
+          lead: 'Waiting for review, most urgent first.',
+          text: 'At review, the list puts doctor requests and red flags first, then the longest wait, with blood pressure, glucose and BMI on one line. The menu shows how many are waiting.',
         },
         {
-          lead: 'A welcome tour for each role.',
-          text: 'A short tour shows each role where its work lives. On a phone it appears as a centred dialog.',
+          lead: 'Patients held too long.',
+          text: 'A patient kept at a station for over 15 minutes (30 at review) is marked on the boards and queues, with a link to open the longest hold. Handing a patient on with nothing recorded asks for a reason first.',
         },
         {
-          lead: 'A second sign-in step.',
-          text: 'In Settings, staff can add an authenticator app or a passkey, so signing in asks for it after the password. System administrators must set one up.',
+          lead: 'Ready to open.',
+          text: 'Managers get a morning checklist on the Today board: stations open, every station staffed, a doctor at review, devices synced, offline access ready and earlier days closed. Copy checklist gives text for the team WhatsApp group.',
+        },
+        {
+          lead: 'End clinic day and the day summary.',
+          text: 'Managers press End clinic day to close out the line. Visits stay for doctors to review. The day summary then shows patients seen, referrals, open work, staff on shift and waits per station, with Copy summary and Download CSV. Days left open are closed the next day on their own.',
+        },
+        {
+          lead: 'Practice sessions.',
+          text: 'Directors can add up to 20 demo patients from Station setup, check them in to fill the line, and clear them when practice ends. A practice script walks the team through a day. Demo patients carry a Demo tag and stay out of every report.',
+        },
+        {
+          lead: 'A station guide on every visit.',
+          text: '"How the station works" opens on each station visit with the steps, the numbers that matter and what to tell the patient next. A print view gives one card per station.',
+        },
+        {
+          lead: 'Station visits keep working offline.',
+          text: 'If the connection drops mid-patient, the visit reopens from your device, readings and the eye exam save on it, and the hand-off is sent when the connection returns.',
+        },
+        {
+          lead: 'Report a problem.',
+          text: 'From the account menu, or the button on a station visit, tell the team what went wrong. It works offline and sends later. Directors read the reports under Problem reports.',
+        },
+        {
+          lead: 'End shift and sign out.',
+          text: 'Signing out while on shift asks whether to end your shift too.',
+        },
+        {
+          lead: 'Keep me signed in.',
+          text: 'Tick it at sign-in on your own phone to stay signed in for up to a week of not using the app. Leave it unticked on shared laptops.',
+        },
+        {
+          lead: 'Managers can do more.',
+          text: "Managers can do everything a volunteer can, plus review and finalize visits. Their clinical notes still need a doctor's cosign.",
         },
       ],
     },
     {
-      heading: 'Improved in 2.1.1',
+      heading: 'Improved in 2.2',
       items: [
         {
-          lead: 'The dashboard when you are offline.',
-          text: 'Instead of an error, the dashboard says its figures need a connection, shows what still works offline, and keeps any figures already on screen with the time they were loaded.',
+          lead: 'A simpler sign-in page.',
+          text: 'Sign-in and password pages are one short frame with a clinic photo and far fewer words.',
+        },
+        {
+          lead: 'No ID at registration.',
+          text: 'Tick No ID with them today to register without a document. The ID type no longer guesses Other, and a number already on another chart says what to do next.',
+        },
+        {
+          lead: 'Chat fits the phone.',
+          text: 'Chat no longer cuts off its last row on phones, and the list, messages and send button have a fresh look.',
+        },
+        {
+          lead: 'Faster station line.',
+          text: 'Station queues refresh twice as often, and after Complete you go back to your queue with "Patient handed on to" the next station.',
         },
       ],
     },
     {
-      heading: 'Fixed in 2.1.1',
+      heading: 'Fixed in 2.2',
       items: [
         {
-          lead: 'Research exports open safely in spreadsheets.',
-          text: 'A value that starts like a spreadsheet formula is now exported as plain text.',
+          lead: 'Phones stay signed in.',
+          text: 'Closing the installed app on a phone no longer signs you out soon after.',
+        },
+        {
+          lead: 'Typing is kept through a connection flicker.',
+          text: 'The eye exam and counselling forms no longer lose what you typed when the connection drops and returns.',
+        },
+        {
+          lead: 'Late readings reach review.',
+          text: 'A reading saved after the doctor opened the visit now appears with "Added at" and the time, instead of "Not recorded" until the page is reopened.',
+        },
+        {
+          lead: 'The update prompt stops coming back.',
+          text: 'After a reload, a waiting update is installed instead of asking again.',
         },
       ],
     },
     {
-      heading: 'New in 2.1',
+      heading: 'New in 2.1.6',
       items: [
         {
-          lead: 'A refreshed workspace for every role.',
-          text: 'Volunteers, doctors, managers, directors and patients each open on their own work first. The menu fits the screen: a side menu on a computer, a slim rail on a tablet and a bar along the bottom on a phone, with the rest under More.',
+          lead: 'What to do next after a visit.',
+          text: 'When you finalize a visit, a "Visit finalized" panel offers Back to queues to pick up the next patient, or Back to patient. After sending a visit for review, or marking it reviewed, the same choice appears when there is nothing more for you to do on it. Every visit also has a Queues link at the top, next to Back to patient.',
         },
         {
-          lead: 'Review-station notes without choosing a doctor.',
-          text: 'A volunteer at the review station can submit a note without picking a doctor first. Any doctor at the clinic can cosign it. A note assigned to a named doctor still stays with that doctor.',
-        },
-        {
-          lead: 'A notice when your screening save is replaced.',
-          text: "If a colleague's offline save replaces blood pressure, diabetes or vitals answers you saved more recently, you get a notice in Notifications that opens the visit. Their save still goes through, so nobody is blocked.",
-        },
-        {
-          lead: 'A preview on each clinical note.',
-          text: 'The notes list in a patient record shows the first lines of each note, so you can find the right one without opening them all.',
+          lead: 'Notifications in the installed app.',
+          text: 'When you open Nkwapa as an installed app and notifications are off on that device, it asks once whether to turn them on. It asks again only after you sign out and back in. It never asks in a browser tab, and you can still change this any time in Account.',
         },
       ],
     },
     {
-      heading: 'Improved in 2.1',
+      heading: 'Improved in 2.1.6',
       items: [
         {
-          lead: 'Clearer screening and clinical forms.',
-          text: 'The blood pressure and diabetes interviews and the clinical forms show which section you are in and whether your answers are saved.',
+          lead: 'Reviewed and finalized visits are easier to read.',
+          text: 'In review, sign-off and after finalizing, the Hypertension and Diabetes tabs list each question with the answer that was recorded, instead of a greyed-out form showing every option. Unanswered questions say "Not asked" or "Not recorded". The supervising clinician\'s plan and the classification read the same way.',
+        },
+      ],
+    },
+    {
+      heading: 'Fixed in 2.1.6',
+      items: [
+        {
+          lead: 'Hypertension and Diabetes tabs no longer shrink.',
+          text: 'On a visit in review, waiting for sign-off or finalized, these tabs were squeezed into a narrow column on computers and tablets, so answers broke one letter per line. They now use the full width.',
         },
         {
-          lead: 'Signing asks you to confirm.',
-          text: 'Signing a note and finalizing a visit ask once before they happen.',
-        },
-        {
-          lead: 'The patient portal fits phones better.',
-          text: 'The header and bottom bar adjust to the screen, and long appointment titles wrap instead of being cut off when text is enlarged.',
-        },
-        {
-          lead: 'Saved changes say what they are waiting for.',
-          text: 'The sync list separates changes that are waiting, changes that need your attention and changes you can retry.',
-        },
-        {
-          lead: 'Settings on one page.',
-          text: "Your settings sit in one readable column, with links to notifications, installing the app and your clinic's details.",
+          lead: 'Adding several volunteers to a screening day.',
+          text: 'When you searched for one person, ticked them, then searched for another, only the last person was added. Everyone you tick is now added, and anyone hidden by your current search shows under "Also selected", where you can remove them.',
         },
       ],
     },
