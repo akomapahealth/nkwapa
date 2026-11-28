@@ -11,7 +11,12 @@ import { isWebFeatureEnabled } from '@/lib/feature-flags';
 import { formatOpsDate } from '@/lib/ops';
 import { downloadCsv } from '@/lib/csv';
 import { useCopyToClipboard } from '@/lib/use-copy-to-clipboard';
-import { fetchClinicDaySummary, formatMinutes, type ClinicDaySummary } from '@/lib/stations';
+import {
+  daySummaryHref,
+  fetchClinicDaySummary,
+  formatMinutes,
+  type ClinicDaySummary,
+} from '@/lib/stations';
 import {
   busiestHour,
   daySummaryCsvRows,
@@ -134,7 +139,7 @@ function DaySummary({ date }: { date: string }) {
               value={date}
               onChange={(event) =>
                 ISO_DATE.test(event.target.value) &&
-                router.replace(`/stations/day/${event.target.value}`)
+                router.replace(daySummaryHref(event.target.value))
               }
               className="w-[180px]"
             />

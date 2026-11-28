@@ -28,6 +28,7 @@ import {
   patientName,
   releaseStationVisit,
   screenersByUser,
+  daySummaryHref,
   usePolling,
   withScreener,
   type OnShiftStaff,
@@ -385,7 +386,7 @@ export function StationLineBoard() {
     try {
       const result = await closeClinicDay(clinicId, date, getToken);
       // The manager lands on how the day went (#421); the count rides along for the notice.
-      router.push(`/stations/day/${result.date}?closed=${result.closed}`);
+      router.push(`${daySummaryHref(result.date)}?closed=${result.closed}`);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
       setBusy(false);
@@ -407,7 +408,7 @@ export function StationLineBoard() {
             ) : null}
             {canManage ? (
               <Button asChild variant="outline">
-                <Link href={`/stations/day/${date}`}>Day summary</Link>
+                <Link href={daySummaryHref(date)}>Day summary</Link>
               </Button>
             ) : null}
             {canManage && visits.length > 0 ? (

@@ -671,6 +671,9 @@ export const closeClinicDay = (clinicId: string, date: string, getToken: GetToke
     { method: 'POST' },
   );
 
+/** The day summary page for a clinic day. The date is encoded, since it can come from an input. */
+export const daySummaryHref = (date: string) => `/stations/day/${encodeURIComponent(date)}`;
+
 export const cancelCheckIn = (
   clinicId: string,
   checkInId: string,
